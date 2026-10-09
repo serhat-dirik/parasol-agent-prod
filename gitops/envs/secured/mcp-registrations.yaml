@@ -75,3 +75,25 @@ spec:
         - ipBlock: {cidr: 10.10.10.101/32}
       ports:
         - {protocol: TCP, port: 443}
+---
+# One gateway URL, two tool sets: the agent's claims-db and policy-docs clients each send
+# X-Mcp-Virtualserver: parasol-secured/<name> (agent-identity-patch.yaml). tools/list is still filtered per identity.
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPVirtualServer
+metadata:
+  name: claims-db
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  description: Claims tools
+  tools: [get_claim, list_claims_by_status, get_claim_history, approve_payout]
+---
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPVirtualServer
+metadata:
+  name: policy-docs
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  description: Policy document tools
+  tools: [search_policies, get_policy, list_policies]

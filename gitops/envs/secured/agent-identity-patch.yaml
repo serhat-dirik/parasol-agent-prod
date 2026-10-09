@@ -18,3 +18,9 @@ spec:
               valueFrom: {secretKeyRef: {name: agent-service-identity, key: username}}
             - name: MCP_AUTH_PASSWORD
               valueFrom: {secretKeyRef: {name: agent-service-identity, key: password}}
+            # Both MCP clients point at the one gateway URL; each selects its MCPVirtualServer so the model
+            # sees every tool once (otherwise: "Duplicated definition for tool").
+            - name: JAVA_TOOL_OPTIONS
+              value: >-
+                -Dquarkus.langchain4j.mcp.claims-db.header.X-Mcp-Virtualserver=parasol-secured/claims-db
+                -Dquarkus.langchain4j.mcp.policy-docs.header.X-Mcp-Virtualserver=parasol-secured/policy-docs
