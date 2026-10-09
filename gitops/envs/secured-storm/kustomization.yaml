@@ -13,3 +13,9 @@ patches:
       - op: add
         path: /data/retryMax
         value: "200"
+  # The agent reads the ConfigMap as env at start: change the pod template so the switch rolls the pod.
+  - target: {kind: Deployment, name: parasol-agent}
+    patch: |-
+      - op: add
+        path: /spec/template/metadata/annotations
+        value: {parasol.io/build: v3-secured}

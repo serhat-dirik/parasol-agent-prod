@@ -1,0 +1,16 @@
+# User workload monitoring scrapes the secured agent's /q/metrics (parasol_agent_tokens_total,
+# parasol_agent_model_calls_total). The secured NetworkPolicy already admits the monitoring policy group.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: parasol-agent
+  namespace: parasol-secured
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchLabels: {app: parasol-agent}
+  endpoints:
+    - port: http
+      path: /q/metrics
+      interval: 15s

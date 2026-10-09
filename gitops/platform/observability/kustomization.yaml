@@ -6,3 +6,5 @@ resources:
   - otel-collector.yaml
   - uwm.yaml
   - prometheusrule.yaml
+  - servicemonitor.yaml
+  - uiplugin.yaml

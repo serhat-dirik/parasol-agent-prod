@@ -1,9 +1,19 @@
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 # Layer 7, the control: revoke rather than kill. Adding this component in secured/kustomization.yaml
-# (one-line Git commit) quarantines the agent pods: they keep running, they can resolve DNS, and
-# nothing else. Next request returns a clean 502 from the agent. Remove the line to restore.
+# (one-line Git commit) takes the model path out of the agent's NetworkPolicy. The pods keep running
+# and stay Ready (Keycloak and the MCP gateway are still reachable, so the readiness check passes);
+# the next model call fails and the agent answers with a clean 502. Remove the line to restore.
+# NetworkPolicies only add allows, so a second "deny" policy would change nothing: the component
+# patches the agent's own policy instead.
 # Alternative with the same effect at a different layer: delete the agent group from the
 # MaaSAuthPolicy (model access revoked) or from the Keycloak groups (tool access revoked).
-resources:
-  - quarantine.yaml
+# The "test" op makes kustomize build fail loudly if the guardrails rule moves in networkpolicy.yaml.
+patches:
+  - target: {kind: NetworkPolicy, name: parasol-agent}
+    patch: |-
+      - op: test
+        path: /spec/egress/3/to/0/podSelector/matchLabels/app.kubernetes.io~1part-of
+        value: guardrails
+      - op: remove
+        path: /spec/egress/3
