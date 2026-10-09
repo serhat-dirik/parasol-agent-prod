@@ -24,7 +24,7 @@ patches:
 configMapGenerator:
   - name: agent-config
     literals:
-      - endpoint=http://guardrails-gateway:8080/parasol/v1   # VERIFY service name/port: oc get svc -n parasol-secured | grep guardrails
+      - endpoint=https://guardrails-service.parasol-secured.svc:8090/parasol/v1   # orchestrator gateway sidecar (HTTPS, service-ca cert)
       - model=MAAS_MODEL
       - claimsDbMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
       - policyDocsMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
