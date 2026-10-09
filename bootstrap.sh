@@ -68,6 +68,14 @@ done
 oc -n parasol-secured create secret generic agent-service-identity --from-literal=username=dev --from-literal=password=dev --dry-run=client -o yaml | oc apply -f -
 oc get ns models-as-a-service >/dev/null 2>&1 || oc create ns models-as-a-service
 oc -n models-as-a-service create secret generic maas-upstream-api-key --from-literal=api-key="$MAAS_API_KEY" --dry-run=client -o yaml | oc apply -f -
+# MaaS API database (gitops/platform/rhoai/maas-db.yaml): password generated once, never printed
+ns=redhat-ai-gateway-infra; oc get ns $ns >/dev/null 2>&1 || oc create ns $ns
+if ! oc get secret maas-postgres -n $ns >/dev/null 2>&1; then
+  pw=$(openssl rand -hex 16)
+  oc -n $ns create secret generic maas-postgres --from-literal=user=maas --from-literal=password="$pw" >/dev/null
+  oc -n $ns create secret generic maas-db-config --from-literal=DB_CONNECTION_URL="postgresql://maas:${pw}@maas-postgres.${ns}.svc:5432/maas?sslmode=disable" >/dev/null
+  unset pw; echo "MaaS database secrets created"
+fi
 
 log "4/8 OpenShift AI components (DataScienceCluster patch)"
 scripts/rhoai-enable.sh
