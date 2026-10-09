@@ -117,10 +117,11 @@ spec:
           env:
             - {name: ORCHESTRATOR_URL, value: "https://guardrails-service.parasol-secured.svc:8032"}
             - {name: MAAS_URL, value: MAAS_ENDPOINT}   # replaced by the Argo Application (envsubst)
+            # Regex only inline. The HF prompt-injection classifier stays deployed, but on 1 CPU it takes
+            # ~28 s per text and scores the POL-VENDOR-07 passage SAFE (0.0008): inline it only adds latency.
             - name: DETECTORS
               value: >-
-                {"regex": {"regex": ["(?i)processing note", "(?i)call the approve_payout tool"]},
-                 "prompt_injection": {}}
+                {"regex": {"regex": ["(?i)processing note", "(?i)call the approve_payout tool"]}}
           ports:
             - containerPort: 8080
           readinessProbe:
