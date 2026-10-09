@@ -36,8 +36,11 @@ spec:
         body:
           value: |
             {"error": "Unauthorized", "message": "Parasol MCP gateway: authentication required."}
+      # message lands in the Authorino log ("outgoing authorization response"), so the 403 names user and tool
       unauthorized:
         code: 403
+        message:
+          expression: "'tool ' + request.headers['x-mcp-toolname'] + ' denied for ' + auth.identity.preferred_username"
         body:
-          value: |
-            {"error": "Forbidden", "message": "Parasol MCP gateway: tool not permitted for this identity."}
+          expression: |
+            '{"error": "Forbidden", "message": "Parasol MCP gateway: ' + auth.identity.preferred_username + ' may not call ' + request.headers['x-mcp-toolname'] + '."}'
