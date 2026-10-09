@@ -18,6 +18,8 @@ spec:
     name: mcp-gateway
     namespace: gateway-system
     sectionName: mcp
+  # The router hair-pins tools/call back through the Gateway Service; OpenShift names it <gateway>-<class>, not <gateway>-istio.
+  privateHost: mcp-gateway-openshift-default.gateway-system.svc.cluster.local:8080
   trustedHeadersKey:
     secretName: trusted-headers-public-key
   oauthProtectedResource:
