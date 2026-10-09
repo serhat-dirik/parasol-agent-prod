@@ -4,4 +4,5 @@ kind: Kustomization
 # is installed, so they are PATCHED by bootstrap.sh (oc patch, see scripts/rhoai-enable.sh) rather than
 # owned by Argo. What Argo owns here: the MaaS governance objects (Technology Preview).
 resources:
+  - maas-gateway.yaml
   - maas.yaml
