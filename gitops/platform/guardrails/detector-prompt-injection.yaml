@@ -42,7 +42,7 @@ spec:
           protocol: TCP
       resources:
         requests: {cpu: 500m, memory: 1Gi}
-        limits: {cpu: "2", memory: 2Gi}
+        limits: {cpu: "1", memory: 2Gi}   # quota headroom for rolling updates
 ---
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
@@ -66,4 +66,4 @@ spec:
       storageUri: pvc://prompt-injection-model/prompt-injection
       resources:
         requests: {cpu: 500m, memory: 1Gi}
-        limits: {cpu: "2", memory: 2Gi}
+        limits: {cpu: "1", memory: 2Gi}   # quota headroom for rolling updates
