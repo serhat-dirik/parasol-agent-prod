@@ -50,9 +50,9 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: keycloak}
-    - to:
-        - podSelector:
-            matchLabels: {app: guardrails}   # orchestrator pods (part-of is trustyai, not guardrails)
+    - to:   # the model, only through the rate-limited model gateway (layer 5)
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: parasol-model-gateway}
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: observability}

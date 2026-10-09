@@ -1,0 +1,48 @@
+# PostgreSQL for the OpenShift AI MaaS API (API keys, subscriptions). Without it the MaaS API does not
+# start, and the MaaS gateway's auth lookups (apiKeyValidation, subscription-info) fail with 403.
+# Credentials are created at run time by bootstrap.sh: Secret maas-postgres (user/password) and
+# Secret maas-db-config (DB_CONNECTION_URL). Demo storage: emptyDir (data is rebuilt on restart).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maas-postgres
+  namespace: redhat-ai-gateway-infra
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: maas-postgres}
+  template:
+    metadata:
+      labels: {app: maas-postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: registry.redhat.io/rhel9/postgresql-16:latest
+          env:
+            - name: POSTGRESQL_USER
+              valueFrom: {secretKeyRef: {name: maas-postgres, key: user}}
+            - name: POSTGRESQL_PASSWORD
+              valueFrom: {secretKeyRef: {name: maas-postgres, key: password}}
+            - {name: POSTGRESQL_DATABASE, value: maas}
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec: {command: ["/usr/libexec/check-container"]}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/pgsql/data}
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maas-postgres
+  namespace: redhat-ai-gateway-infra
+spec:
+  selector: {app: maas-postgres}
+  ports:
+    - {name: postgres, port: 5432, targetPort: 5432}

@@ -5,8 +5,8 @@ kind: Component
 # and stay Ready (Keycloak and the MCP gateway are still reachable, so the readiness check passes);
 # the next model call fails and the agent answers with a clean 502. Remove the line to restore.
 # NetworkPolicies only add allows, so a second "deny" policy would change nothing: the component
-# replaces the agent policy's egress with the same list minus the guardrails orchestrator (the only
-# way to the model). Keep it in sync with ../networkpolicy.yaml.
+# replaces the agent policy's egress with the same list minus the model gateway (the only way to
+# the model). Keep it in sync with ../networkpolicy.yaml.
 # Alternative with the same effect at a different layer: delete the agent group from the
 # MaaSAuthPolicy (model access revoked) or from the Keycloak groups (tool access revoked).
 patches:
@@ -19,10 +19,10 @@ patches:
           - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: openshift-ingress}}}]
           - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: keycloak}}}]
           - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}}]
-  # Blocked packets are dropped, so the model call fails on the client timeout (60 s, plus one retry), not at once.
+  # Blocked packets are dropped, so the model call fails on the client timeout (25 s), not at once.
   # Keep the route open past that so the caller sees the agent's own 502, not the router's 504.
   - target: {kind: Route, name: parasol-agent}
     patch: |-
       - op: add
         path: /metadata/annotations
-        value: {haproxy.router.openshift.io/timeout: 3m}
+        value: {haproxy.router.openshift.io/timeout: 1m}

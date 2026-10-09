@@ -6,3 +6,5 @@ kind: Kustomization
 resources:
   - maas-gateway.yaml
   - maas.yaml
+  - maas-db.yaml
+  - model-governance.yaml

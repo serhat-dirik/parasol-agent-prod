@@ -24,7 +24,7 @@ patches:
 configMapGenerator:
   - name: agent-config
     literals:
-      - endpoint=http://guardrails-proxy.parasol-secured.svc:8080/v1   # guardrails proxy -> orchestrator (detectors on tool results) -> MaaS
+      - endpoint=http://model-gateway-openshift-default.parasol-model-gateway.svc:8080/v1   # rate-limited model gateway -> guardrails-proxy -> MaaS
       - model=MAAS_MODEL
       - claimsDbMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
       - policyDocsMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
