@@ -53,7 +53,7 @@ metadata:
     trustyai/guardrails: "true"
   annotations:
     openshift.io/display-name: prompt-injection-detector
-    serving.kserve.io/deploymentMode: RawDeployment
+    serving.kserve.io/deploymentMode: Standard   # 3.5.1 name for RawDeployment
 spec:
   predictor:
     automountServiceAccountToken: false   # KServe default, declared so Argo shows Synced
