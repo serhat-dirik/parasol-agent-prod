@@ -1,0 +1,30 @@
+# Routes = presets. The secured agent uses /parasol/v1/chat/completions:
+#   prompt_injection on input and output, plus a deterministic regex that catches the demo's
+#   "processing note" pattern even if the classifier hesitates (defence in depth, honestly labelled).
+# /passthrough exists so the same orchestrator can be shown with guardrails off.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guardrails-gateway-config
+data:
+  config.yaml: |
+    detectors:
+      - name: prompt_injection
+        input: true
+        output: true
+        detector_params: {}
+      - name: payout-instruction
+        server: regex
+        input: true
+        output: false
+        detector_params:
+          regex:
+            - "(?i)call the approve_payout tool"
+            - "(?i)processing note"
+    routes:
+      - name: parasol
+        detectors:
+          - prompt_injection
+          - payout-instruction
+      - name: passthrough
+        detectors:

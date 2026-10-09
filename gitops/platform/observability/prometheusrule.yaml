@@ -1,0 +1,27 @@
+# The "3am" alert: an agent version burning tokens far above its normal rate.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: parasol-agent-alerts
+  namespace: parasol-secured
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  groups:
+    - name: parasol-agent
+      rules:
+        - alert: ParasolAgentTokenSpendHigh
+          expr: sum by (namespace, version) (rate(parasol_agent_tokens_total[2m])) * 60 > 3000
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Parasol agent {{ $labels.version }} in {{ $labels.namespace }} is spending > 3000 tokens/min"
+            description: "Token rate is far above the normal interactive load. Possible runaway loop. Revoke model access via GitOps (envs/secured/kill-switch) and inspect the trace."
+        - alert: ParasolAgentToolDenied
+          expr: increase(http_server_requests_seconds_count{job=~"parasol-agent.*", status="403"}[5m]) > 3
+          for: 0m
+          labels:
+            severity: info
+          annotations:
+            summary: "Repeated tool denials from the MCP gateway for the Parasol agent"

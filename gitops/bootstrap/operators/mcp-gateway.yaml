@@ -1,0 +1,25 @@
+# MCP gateway (Technology Preview). Per the Connectivity Link docs this is its own OLM package
+# ("mcp-gateway", channel "preview") installed next to Connectivity Link.
+# VERIFY on the cluster: oc get packagemanifests -n openshift-marketplace | grep -i mcp
+# If the rhcl-operator version on the cluster already embeds the MCP gateway controller
+# (consolidated model, Kuadrant RFC 0019), delete this Subscription instead of running two controllers.
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: mcp-gateway
+  namespace: mcp-system
+spec:
+  targetNamespaces:
+    - mcp-system
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: mcp-gateway
+  namespace: mcp-system
+spec:
+  channel: preview
+  installPlanApproval: Automatic
+  name: mcp-gateway
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

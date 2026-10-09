@@ -1,0 +1,12 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: parasol
+  namespace: openshift-gitops
+spec:
+  description: AI Agents from localhost to production (Parasol Insurance demo)
+  sourceRepos: ["*"]
+  destinations:
+    - {namespace: "*", server: https://kubernetes.default.svc}
+  clusterResourceWhitelist:
+    - {group: "*", kind: "*"}

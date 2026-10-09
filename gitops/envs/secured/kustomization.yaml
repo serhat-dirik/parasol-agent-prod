@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The layered sandbox. Same images, same code. What changes is around the agent:
+#  1 isolation      namespace + ResourceQuota + NetworkPolicy (agent reaches only the gateway, guardrails, DNS)
+#  2 identity       the agent carries the caller's Keycloak token to the MCP gateway (and has its own service identity)
+#  3 tool authz     MCP servers are reachable ONLY through the MCP gateway; per-tool AuthPolicy; filtered tool list
+#  4 guardrails     the model endpoint is the Guardrails Orchestrator gateway (prompt-injection + regex), then MaaS
+#  5 model governance  MaaS subscription + auth policy (see platform/rhoai/maas.yaml), stage quota
+#  6 lifecycle gate (Clip E, stretch)
+#  7 observability + control  OTel traces to Tempo, token metrics + alert, kill-switch component below
+namespace: parasol-secured
+resources:
+  - namespace.yaml
+  - quota.yaml
+  - networkpolicy.yaml
+  - mcp-registrations.yaml
+  - ../base
+components: []   # add ./kill-switch here to revoke the agent's access via a Git commit
+patches:
+  - path: agent-identity-patch.yaml
+    target: {kind: Deployment, name: parasol-agent}
+  - path: sandbox-patch.yaml
+    target: {kind: Deployment}
+configMapGenerator:
+  - name: agent-config
+    literals:
+      - endpoint=http://guardrails-gateway:8080/parasol/v1   # VERIFY service name/port: oc get svc -n parasol-secured | grep guardrails
+      - model=MAAS_MODEL
+      - claimsDbMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
+      - policyDocsMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
+      - version=v1-secured
+      - tokenUrl=https://keycloak.apps.CLUSTER_DOMAIN/realms/parasol/protocol/openid-connect/token
+    files:
+      - safetyRules=safety-rules.txt
+generatorOptions:
+  disableNameSuffixHash: true

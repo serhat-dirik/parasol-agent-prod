@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parasol-agent
+  labels: {app: parasol-agent, app.kubernetes.io/part-of: parasol-agent}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: parasol-agent}
+  template:
+    metadata:
+      labels: {app: parasol-agent, app.kubernetes.io/part-of: parasol-agent}
+    spec:
+      containers:
+        - name: parasol-agent
+          image: parasol-agent
+          imagePullPolicy: Always
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - name: GENAI_API_KEY
+              valueFrom: {secretKeyRef: {name: maas-credentials, key: GENAI_API_KEY}}
+            - name: GENAI_ENDPOINT
+              valueFrom: {configMapKeyRef: {name: agent-config, key: endpoint}}
+            - name: GENAI_MODEL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: model}}
+            - name: CLAIMS_DB_MCP_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbMcpUrl}}
+            - name: POLICY_DOCS_MCP_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: policyDocsMcpUrl}}
+            - name: AGENT_VERSION
+              valueFrom: {configMapKeyRef: {name: agent-config, key: version}}
+            - name: AGENT_SAFETY_RULES
+              valueFrom: {configMapKeyRef: {name: agent-config, key: safetyRules, optional: true}}
+            - name: AGENT_RETRY_MAX
+              valueFrom: {configMapKeyRef: {name: agent-config, key: retryMax, optional: true}}
+            - {name: QUARKUS_OTEL_SDK_DISABLED, value: "false"}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
+          readinessProbe:
+            httpGet: {path: /q/health/ready, port: 8080}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            httpGet: {path: /q/health/live, port: 8080}
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 250m, memory: 384Mi}
+            limits: {cpu: "1", memory: 768Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: parasol-agent
+  labels: {app: parasol-agent}
+spec:
+  selector: {app: parasol-agent}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: parasol-agent
+spec:
+  to: {kind: Service, name: parasol-agent}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}

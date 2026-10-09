@@ -1,0 +1,75 @@
+# Prompt-injection classifier served with the TrustyAI Hugging Face detector runtime (CPU is fine).
+# Model: protectai/deberta-v3-base-prompt-injection-v2 (labels: 0 = SAFE, 1 = INJECTION).
+# The model is pulled into the PVC by a one-off job in bootstrap (scripts/fetch-detector-model.sh)
+# because the cluster has no Hugging Face credentials in Git.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: prompt-injection-model
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 3Gi
+---
+apiVersion: serving.kserve.io/v1alpha1
+kind: ServingRuntime
+metadata:
+  name: guardrails-detector-runtime
+  annotations:
+    openshift.io/display-name: Guardrails detector (Hugging Face)
+  labels:
+    opendatahub.io/dashboard: "true"
+spec:
+  annotations:
+    prometheus.io/port: "8080"
+    prometheus.io/path: /metrics
+  multiModel: false
+  supportedModelFormats:
+    - autoSelect: true
+      name: guardrails-detector-huggingface
+  containers:
+    - name: kserve-container
+      image: quay.io/trustyai/guardrails-detector-huggingface-runtime:v0.2.0
+      command: ["uvicorn", "app:app"]
+      args: ["--workers=1", "--host=0.0.0.0", "--port=8000", "--log-config=/common/log_conf.yaml"]
+      env:
+        - {name: MODEL_DIR, value: /mnt/models}
+        - {name: HF_HOME, value: /tmp/hf_home}
+        - {name: SAFE_LABELS, value: "[0]"}
+      ports:
+        - containerPort: 8000
+          protocol: TCP
+      resources:
+        requests: {cpu: 500m, memory: 1Gi}
+        limits: {cpu: "2", memory: 2Gi}
+---
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: prompt-injection-detector
+  labels:
+    opendatahub.io/dashboard: "true"
+    trustyai/guardrails: "true"
+  annotations:
+    openshift.io/display-name: prompt-injection-detector
+    serving.kserve.io/deploymentMode: RawDeployment
+spec:
+  predictor:
+    maxReplicas: 1
+    minReplicas: 1
+    model:
+      modelFormat:
+        name: guardrails-detector-huggingface
+      name: ""
+      runtime: guardrails-detector-runtime
+      storage:
+        path: prompt-injection
+        key: ""
+      resources:
+        requests: {cpu: 500m, memory: 1Gi}
+        limits: {cpu: "2", memory: 2Gi}
+    volumes:
+      - name: model-store
+        persistentVolumeClaim:
+          claimName: prompt-injection-model

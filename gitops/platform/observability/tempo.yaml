@@ -1,0 +1,23 @@
+# Single-binary Tempo with the console plugin: traces show up under Observe > Traces in the OpenShift console.
+apiVersion: tempo.grafana.com/v1alpha1
+kind: TempoMonolithic
+metadata:
+  name: parasol
+  namespace: observability
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  storage:
+    traces:
+      backend: pv
+      size: 10Gi
+  jaegerui:
+    enabled: true
+    route:
+      enabled: true
+  multitenancy:
+    enabled: false
+  observability:
+    metrics:
+      serviceMonitors:
+        enabled: true

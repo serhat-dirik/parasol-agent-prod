@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: policy-docs
+  labels: {app: policy-docs, app.kubernetes.io/part-of: parasol-agent}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: policy-docs}
+  template:
+    metadata:
+      labels: {app: policy-docs, app.kubernetes.io/part-of: parasol-agent}
+    spec:
+      containers:
+        - name: policy-docs
+          image: policy-docs
+          imagePullPolicy: Always
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            - {name: QUARKUS_OTEL_SDK_DISABLED, value: "false"}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
+          readinessProbe:
+            httpGet: {path: /q/health/ready, port: 8080}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /q/health/live, port: 8080}
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: policy-docs
+  labels: {app: policy-docs}
+spec:
+  selector: {app: policy-docs}
+  ports:
+    - {name: http, port: 8080, targetPort: http}

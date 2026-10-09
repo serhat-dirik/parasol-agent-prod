@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: env-free
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: parasol
+  destination: {server: https://kubernetes.default.svc, namespace: parasol-free}
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_REVISION}
+    path: gitops/envs/free
+    kustomize:
+      patches:
+        - target: {kind: ConfigMap, name: agent-config}
+          patch: |-
+            - op: replace
+              path: /data/endpoint
+              value: ${MAAS_ENDPOINT}
+            - op: replace
+              path: /data/model
+              value: ${MAAS_MODEL}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

@@ -1,0 +1,18 @@
+# Edge TLS in front of the Gateway's Service (named <gateway>-<class> by OpenShift).
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: mcp-gateway
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  host: mcp.apps.CLUSTER_DOMAIN
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  port:
+    targetPort: mcp
+  to:
+    kind: Service
+    name: mcp-gateway-openshift-default

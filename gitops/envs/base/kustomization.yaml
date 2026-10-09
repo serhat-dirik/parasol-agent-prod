@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The application, environment-neutral. Overlays decide the namespace and the controls around it.
+resources:
+  - claims-db.yaml
+  - policy-docs.yaml
+  - parasol-agent.yaml
+images:
+  - name: parasol-agent
+    newName: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-agent
+    newTag: latest
+  - name: claims-db
+    newName: image-registry.openshift-image-registry.svc:5000/parasol-build/claims-db
+    newTag: latest
+  - name: policy-docs
+    newName: image-registry.openshift-image-registry.svc:5000/parasol-build/policy-docs
+    newTag: latest

@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: parasol-secured
+# TrustyAI Guardrails Orchestrator (GA) in gateway mode: an OpenAI-compatible endpoint the secured
+# agent uses as its model endpoint. Detectors run on input and output; the upstream model is MaaS.
+resources:
+  - detector-prompt-injection.yaml
+  - orchestrator-config.yaml
+  - gateway-config.yaml
+  - orchestrator.yaml

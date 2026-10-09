@@ -1,0 +1,9 @@
+# Merged into OdhDashboardConfig/odh-dashboard-config in redhat-ods-applications.
+spec:
+  dashboardConfig:
+    modelAsService: true
+    genAiStudio: true
+    maasAuthPolicies: true
+    externalModels: true
+    observabilityDashboard: true
+    disableModelCatalog: false

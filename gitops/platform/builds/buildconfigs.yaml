@@ -1,0 +1,41 @@
+# Binary builds: scripts/build-images.sh streams each app directory to the cluster
+# (oc start-build --from-dir). No registry credentials, no Git push needed for a rebuild.
+# Switch "source" to type Git once the repo is public if you prefer in-cluster Git builds.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata: {name: parasol-agent}
+spec:
+  source: {type: Binary}
+  strategy:
+    type: Docker
+    dockerStrategy: {dockerfilePath: Containerfile}
+  output:
+    to: {kind: ImageStreamTag, name: "parasol-agent:latest"}
+  resources:
+    limits: {cpu: "2", memory: 3Gi}
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata: {name: claims-db}
+spec:
+  source: {type: Binary}
+  strategy:
+    type: Docker
+    dockerStrategy: {dockerfilePath: Containerfile}
+  output:
+    to: {kind: ImageStreamTag, name: "claims-db:latest"}
+  resources:
+    limits: {cpu: "2", memory: 3Gi}
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata: {name: policy-docs}
+spec:
+  source: {type: Binary}
+  strategy:
+    type: Docker
+    dockerStrategy: {dockerfilePath: Containerfile}
+  output:
+    to: {kind: ImageStreamTag, name: "policy-docs:latest"}
+  resources:
+    limits: {cpu: "2", memory: 3Gi}

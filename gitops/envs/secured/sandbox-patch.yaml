@@ -1,0 +1,14 @@
+# Layer 1 (per pod): no API token mounted, restricted security context. runtimeClassName: kata is the
+# one-line upgrade to a VM-isolated pod when the OpenShift sandboxed containers operator is installed.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: any
+spec:
+  template:
+    spec:
+      automountServiceAccountToken: false
+      # runtimeClassName: kata
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}

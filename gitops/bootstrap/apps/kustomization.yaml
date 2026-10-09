@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# App-of-apps. bootstrap.sh runs envsubst over this directory (CLUSTER_DOMAIN, REPO_URL, REPO_REVISION,
+# MAAS_*) and applies the result, so the Applications carry cluster-specific values without a Git commit.
+resources:
+  - project.yaml
+  - platform-gatewayclass.yaml
+  - platform-keycloak.yaml
+  - platform-mcp-gateway.yaml
+  - platform-observability.yaml
+  - platform-builds.yaml
+  - platform-rhoai.yaml
+  - platform-guardrails.yaml
+  - env-free.yaml
+  - env-secured.yaml

@@ -1,0 +1,50 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-mcp-gateway
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: parasol
+  destination: {server: https://kubernetes.default.svc, namespace: gateway-system}
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_REVISION}
+    path: gitops/platform/mcp-gateway
+    kustomize:
+      patches:
+        - target: {kind: Gateway, name: mcp-gateway}
+          patch: |-
+            - op: replace
+              path: /spec/listeners/0/hostname
+              value: mcp.apps.${CLUSTER_DOMAIN}
+        - target: {kind: Route, name: mcp-gateway}
+          patch: |-
+            - op: replace
+              path: /spec/host
+              value: mcp.apps.${CLUSTER_DOMAIN}
+        - target: {kind: MCPGatewayExtension}
+          patch: |-
+            - op: replace
+              path: /spec/oauthProtectedResource/resource
+              value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
+            - op: replace
+              path: /spec/oauthProtectedResource/authorizationServers
+              value: ["https://keycloak.apps.${CLUSTER_DOMAIN}/realms/parasol"]
+        - target: {kind: AuthPolicy, name: mcp-auth-policy}
+          patch: |-
+            - op: replace
+              path: /spec/rules/authentication/keycloak/jwt/issuerUrl
+              value: https://keycloak.apps.${CLUSTER_DOMAIN}/realms/parasol
+            - op: replace
+              path: /spec/rules/response/unauthenticated/headers/WWW-Authenticate/value
+              value: Bearer resource_metadata=https://mcp.apps.${CLUSTER_DOMAIN}/.well-known/oauth-protected-resource/mcp
+        - target: {kind: AuthPolicy, name: mcp-tool-auth-policy}
+          patch: |-
+            - op: replace
+              path: /spec/rules/authentication/keycloak/jwt/issuerUrl
+              value: https://keycloak.apps.${CLUSTER_DOMAIN}/realms/parasol
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

@@ -1,0 +1,29 @@
+# Deploys the broker-router into mcp-system and attaches it to listener "mcp".
+# trustedHeadersKey: the public key Authorino's wristband (x-mcp-authorized) is verified with, so the
+# broker can filter tools/list per user. bootstrap.sh generates the key pair (scripts/gen-trusted-keys.sh).
+# apiVersion: the product docs show mcp.kuadrant.io/v1alpha1, upstream main shows v1. VERIFY with
+#   oc api-resources | grep mcp.kuadrant.io
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPGatewayExtension
+metadata:
+  name: mcp-gateway-extension
+  namespace: mcp-system
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: mcp-gateway
+    namespace: gateway-system
+    sectionName: mcp
+  trustedHeadersKey:
+    secretName: trusted-headers-public-key
+  oauthProtectedResource:
+    resourceName: "Parasol MCP tools"
+    resource: "https://mcp.apps.CLUSTER_DOMAIN/mcp"
+    authorizationServers:
+      - "https://keycloak.apps.CLUSTER_DOMAIN/realms/parasol"
+    bearerMethodsSupported: ["header"]
+    scopesSupported: ["basic", "roles", "profile"]

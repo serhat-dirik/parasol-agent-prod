@@ -1,0 +1,7 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# OpenShift AI pieces. The DataScienceCluster and OdhDashboardConfig already exist once the operator
+# is installed, so they are PATCHED by bootstrap.sh (oc patch, see scripts/rhoai-enable.sh) rather than
+# owned by Argo. What Argo owns here: the MaaS governance objects (Technology Preview).
+resources:
+  - maas.yaml

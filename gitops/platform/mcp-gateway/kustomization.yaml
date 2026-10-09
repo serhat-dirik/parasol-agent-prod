@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# The governed tool path: one Gateway (OpenShift Gateway API / Istio), the MCP gateway data plane
+# (broker + router, Technology Preview) and the Connectivity Link policies that make identity real.
+resources:
+  - namespaces.yaml
+  - kuadrant.yaml
+  - gateway.yaml
+  - route.yaml
+  - referencegrant.yaml
+  - mcpgatewayextension.yaml
+  - authpolicy-mcp.yaml
+  - authpolicy-tools.yaml

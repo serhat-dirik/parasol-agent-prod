@@ -1,0 +1,33 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: env-secured
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: parasol
+  destination: {server: https://kubernetes.default.svc, namespace: parasol-secured}
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_REVISION}
+    path: gitops/envs/secured
+    kustomize:
+      patches:
+        - target: {kind: ConfigMap, name: agent-config}
+          patch: |-
+            - op: replace
+              path: /data/model
+              value: ${MAAS_MODEL}
+            - op: replace
+              path: /data/claimsDbMcpUrl
+              value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
+            - op: replace
+              path: /data/policyDocsMcpUrl
+              value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
+            - op: replace
+              path: /data/tokenUrl
+              value: https://keycloak.apps.${CLUSTER_DOMAIN}/realms/parasol/protocol/openid-connect/token
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

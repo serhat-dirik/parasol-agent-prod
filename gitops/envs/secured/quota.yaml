@@ -1,0 +1,12 @@
+# Layer 1: a runaway agent cannot starve the cluster.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: parasol-secured
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 12Gi
+    pods: "15"

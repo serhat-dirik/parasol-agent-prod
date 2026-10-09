@@ -1,0 +1,44 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-guardrails
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+spec:
+  project: parasol
+  destination: {server: https://kubernetes.default.svc, namespace: parasol-secured}
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_REVISION}
+    path: gitops/platform/guardrails
+    kustomize:
+      patches:
+        - target: {kind: ConfigMap, name: guardrails-orchestrator-config}
+          patch: |-
+            - op: replace
+              path: /data/config.yaml
+              value: |
+                chat_generation:
+                  service:
+                    hostname: ${MAAS_HOST}
+                    port: ${MAAS_PORT}
+                    tls: maas-upstream
+                detectors:
+                  regex:
+                    type: text_contents
+                    service: {hostname: "127.0.0.1", port: 8080}
+                    chunker_id: whole_doc_chunker
+                    default_threshold: 0.5
+                  prompt_injection:
+                    type: text_contents
+                    service: {hostname: prompt-injection-detector-predictor, port: 80}
+                    chunker_id: whole_doc_chunker
+                    default_threshold: 0.5
+                tls:
+                  - maas-upstream:
+                      ca_path: /etc/ssl/certs/ca-bundle.crt
+                passthrough_headers: [authorization, content-type]
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

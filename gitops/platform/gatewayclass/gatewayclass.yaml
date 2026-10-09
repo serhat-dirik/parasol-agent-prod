@@ -1,0 +1,9 @@
+# OpenShift's built-in Gateway API implementation (Istio, managed by the OpenShift Service Mesh 3
+# operator which the cluster installs automatically when this GatewayClass exists). Both the MCP
+# gateway and OpenShift AI's MaaS gateway use this class.
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: openshift-default
+spec:
+  controllerName: openshift.io/gateway-controller/v1

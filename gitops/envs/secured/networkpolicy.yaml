@@ -1,0 +1,116 @@
+# Layer 1: default deny, then exactly the paths the design needs.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# DNS for everyone.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-dns}
+      ports:
+        - {protocol: UDP, port: 5353}
+        - {protocol: TCP, port: 5353}
+---
+# The agent: ingress from the router (people), egress to the MCP gateway, Keycloak, guardrails, OTel.
+# Note: no egress rule to claims-db or policy-docs. The agent CANNOT bypass the gateway.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: parasol-agent
+spec:
+  podSelector:
+    matchLabels: {app: parasol-agent}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {network.openshift.io/policy-group: ingress}
+    - from:
+        - namespaceSelector:
+            matchLabels: {network.openshift.io/policy-group: monitoring}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: gateway-system}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: keycloak}
+    - to:
+        - podSelector:
+            matchLabels: {app.kubernetes.io/part-of: guardrails}   # VERIFY label the orchestrator pods carry
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+---
+# The MCP servers: ingress ONLY from the MCP gateway data plane and from the Gateway pods.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-servers
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: app, operator: In, values: [claims-db, policy-docs]}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: gateway-system}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: mcp-system}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
+    - from:
+        - namespaceSelector:
+            matchLabels: {network.openshift.io/policy-group: monitoring}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+---
+# Guardrails orchestrator: from the agent, to the detector, to MaaS (external) and OTel.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: guardrails
+spec:
+  podSelector:
+    matchLabels: {app.kubernetes.io/part-of: guardrails}   # VERIFY
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: parasol-agent}
+    - from:
+        - namespaceSelector:
+            matchLabels: {network.openshift.io/policy-group: monitoring}
+  egress:
+    - {}   # external MaaS over HTTPS; tighten with an EgressFirewall to the MaaS host (see docs/layers.md)
+---
+# The detector: only the orchestrator talks to it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: detector
+spec:
+  podSelector:
+    matchLabels: {serving.kserve.io/inferenceservice: prompt-injection-detector}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {}

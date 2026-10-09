@@ -1,0 +1,28 @@
+# Red Hat build of Keycloak. The hostname is patched in by the Argo Application (CLUSTER_DOMAIN).
+# TLS: served through an edge-terminated OpenShift Route created by the operator (ingress enabled).
+apiVersion: k8s.keycloak.org/v2alpha1
+kind: Keycloak
+metadata:
+  name: keycloak
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  instances: 1
+  db:
+    vendor: postgres
+    host: keycloak-db
+    database: keycloak
+    usernameSecret: {name: keycloak-db, key: username}
+    passwordSecret: {name: keycloak-db, key: password}
+  http:
+    httpEnabled: true
+  hostname:
+    hostname: keycloak.apps.CLUSTER_DOMAIN
+    strict: false
+  proxy:
+    headers: xforwarded
+  ingress:
+    enabled: true
+  resources:
+    requests: {cpu: 250m, memory: 768Mi}
+    limits: {cpu: "1", memory: 1536Mi}
