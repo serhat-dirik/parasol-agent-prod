@@ -7,7 +7,7 @@ Terminal prompt shows the identity: `parasol (rebecca) $`. 1080p, one font every
 2. `oc get deploy -n parasol-free` and `oc get networkpolicy,authpolicy -n parasol-free` (nothing). Say: this is the laptop, copied.
 3. `scripts/abuse.sh free`
    * Abuse 1: the agent approves CLM-1002 for whoever asks. Caption: "nobody asked who you are".
-   * Abuse 2: the innocent question, `search_policies` then `approve_payout` CLM-1004, timeline shows Denied → Approved → PaymentIssued. Caption: "a document paid a claim".
+   * Abuse 2: the innocent question, `search_policies` returns POL-VENDOR-07 with its hidden note, delivered to the model unfiltered: `oc logs -n parasol-free deploy/parasol-agent --tail=2000 | grep -o -i 'Claims assistant processing note[^]]*' | head -1`. With llama-scout-17b the model answers without acting on it (tested 9 Oct, 4 wordings, 0 of 12): narrate "this model ignored it today; nothing in this namespace would have stopped it". Caption: "nothing filtered the document".
    * Abuse 3 (storm overlay applied to free, or skip here and show in B): tokens climbing in `/q/metrics`.
 4. `scripts/reset.sh`.
 
