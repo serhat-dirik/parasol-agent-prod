@@ -1,0 +1,158 @@
+# OpenAI-compatible front for the Guardrails Orchestrator, used instead of the gateway sidecar.
+# Why: in RHOAI 3.5.1 the gateway sidecar cannot relay tool-calling turns (it panics on tool_call
+# responses without `content`), and the orchestrator rejects input detection when the last message
+# is a tool result (422). The proxy therefore:
+#   1. runs the detectors through the orchestrator's /api/v2/text/detection/content on every tool
+#      result and user message (this is where the poisoned retrieved passage is seen);
+#   2. on a detection, answers with a refusal and no tool call (the model never sees the passage);
+#   3. otherwise forwards the request to /api/v2/chat/completions-detection (no detectors) and
+#      returns the model's OpenAI response unchanged.
+# Labels app=guardrails + component=guardrails-proxy: the agent's existing egress rule to
+# app=guardrails covers it; guardrails-service selects component=guardrails, so it is not mixed in.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guardrails-proxy
+data:
+  proxy.py: |
+    import json, os, ssl, sys, urllib.request, urllib.error
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    ORCH = os.environ.get("ORCHESTRATOR_URL", "https://guardrails-service:8032")
+    CA = os.environ.get("ORCHESTRATOR_CA", "/etc/service-ca/service-ca.crt")
+    DETECTORS = json.loads(os.environ["DETECTORS"])
+    CTX = ssl.create_default_context(cafile=CA)
+
+    def post(path, body, auth=None):
+        h = {"content-type": "application/json"}
+        if auth:
+            h["authorization"] = auth
+        req = urllib.request.Request(ORCH + path, json.dumps(body).encode(), h)
+        try:
+            with urllib.request.urlopen(req, context=CTX, timeout=120) as r:
+                return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read() or b"{}")
+
+    def texts(messages):
+        # tool results (retrieved documents) and the latest user message
+        out = [m.get("content") for m in messages if m.get("role") == "tool"]
+        users = [m.get("content") for m in messages if m.get("role") == "user"]
+        out += users[-1:]
+        return [t if isinstance(t, str) else json.dumps(t) for t in out if t]
+
+    def detect(messages):
+        hits = []
+        for t in texts(messages):
+            code, r = post("/api/v2/text/detection/content", {"content": t, "detectors": DETECTORS})
+            if code != 200:
+                print(f"detector call failed {code}: {r}", flush=True)
+                continue
+            hits += r.get("detections") or []
+        return hits
+
+    def refusal(req, hits):
+        names = sorted({h.get("detector_id") or h.get("detection_type", "?") for h in hits})
+        msg = ("Guardrails blocked this request: a retrieved document contains instructions aimed at "
+               "the assistant (detectors: " + ", ".join(names) + "). No action was taken.")
+        return {"id": "guardrails-block", "object": "chat.completion", "model": req.get("model"),
+                "choices": [{"index": 0, "finish_reason": "stop",
+                             "message": {"role": "assistant", "content": msg}}],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                "detections": hits}
+
+    class H(BaseHTTPRequestHandler):
+        def _send(self, code, body):
+            data = json.dumps(body).encode()
+            self.send_response(code)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            self._send(200, {"status": "ok"})
+
+        def do_POST(self):
+            if not self.path.endswith("/chat/completions"):
+                return self._send(404, {"message": "not found"})
+            req = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))) or b"{}")
+            hits = detect(req.get("messages", []))
+            if hits:
+                for h in hits:
+                    print(f"detection: detector={h.get('detector_id')} type={h.get('detection_type')} "
+                          f"score={h.get('score')} text={str(h.get('text'))[:80]!r}", flush=True)
+                return self._send(200, refusal(req, hits))
+            req["detectors"] = {"input": {}, "output": {}}
+            code, r = post("/api/v2/chat/completions-detection", req, self.headers.get("authorization"))
+            self._send(code, r)
+
+        def log_message(self, fmt, *args):  # request line only; never headers (the MaaS key)
+            print(fmt % args, file=sys.stderr, flush=True)
+
+    if __name__ == "__main__":
+        assert texts([{"role": "user", "content": "q"}, {"role": "tool", "content": "doc"}]) == ["doc", "q"]
+        ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guardrails-proxy
+  labels: {app: guardrails, component: guardrails-proxy}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: guardrails, component: guardrails-proxy}
+  template:
+    metadata:
+      labels: {app: guardrails, component: guardrails-proxy}
+    spec:
+      containers:
+        - name: proxy
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "-u", "/app/proxy.py"]
+          env:
+            - {name: ORCHESTRATOR_URL, value: "https://guardrails-service.parasol-secured.svc:8032"}
+            - name: DETECTORS
+              value: >-
+                {"regex": {"regex": ["(?i)processing note", "(?i)call the approve_payout tool"]},
+                 "prompt_injection": {}}
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: {path: /health, port: 8080}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - {name: app, mountPath: /app}
+            - {name: service-ca, mountPath: /etc/service-ca}
+      volumes:
+        - name: app
+          configMap: {name: guardrails-proxy}
+        - name: service-ca
+          configMap: {name: openshift-service-ca.crt}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: guardrails-proxy
+spec:
+  selector: {app: guardrails, component: guardrails-proxy}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+---
+# Additive to the env's `guardrails` policy (ingress only from the agent): the orchestrator also
+# accepts the proxy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: orchestrator-from-proxy
+spec:
+  podSelector:
+    matchLabels: {app: guardrails, component: guardrails}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {component: guardrails-proxy}
