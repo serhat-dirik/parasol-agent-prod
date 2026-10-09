@@ -34,9 +34,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: safetyRules, optional: true}}
             - name: AGENT_RETRY_MAX
               valueFrom: {configMapKeyRef: {name: agent-config, key: retryMax, optional: true}}
-            # model client: no silent retry and a timeout under the router's 30 s, so a revoked or hung
-            # model path returns the agent's own 502 quickly (kill switch) instead of a router 504
-            - {name: QUARKUS_LANGCHAIN4J_OPENAI_MAX_RETRIES, value: "0"}
+            # model client timeout under the router's 30 s, so a revoked or hung model path returns the
+            # agent's own 502 quickly (kill switch) instead of a router 504
             - {name: QUARKUS_LANGCHAIN4J_OPENAI_TIMEOUT, value: "25s"}
             - {name: QUARKUS_OTEL_SDK_DISABLED, value: "false"}
             - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
