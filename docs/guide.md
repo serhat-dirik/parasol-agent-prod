@@ -63,7 +63,7 @@ Before Argo can sync from this repo it must be pushed to a Git remote Argo can r
 
 ## Conventions
 
-* No secrets in Git. `bootstrap.sh` creates `maas-credentials`, `maas-upstream-credentials`, `agent-service-identity`, trusted-header keys.
+* No secrets in Git. `bootstrap.sh` creates `maas-credentials`, `maas-upstream-api-key`, `agent-service-identity`, trusted-header keys.
 * Cluster-specific values (domain, MaaS endpoint, model) are injected into the Argo Applications by `envsubst`, never committed.
 * Everything else is a Git commit and an Argo sync, including the kill switch.
 * Keep the free overlay honest: it must stay exactly "the laptop setup in a namespace". Do not add controls there.

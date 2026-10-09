@@ -67,7 +67,7 @@ for ns in parasol-free parasol-secured; do
 done
 oc -n parasol-secured create secret generic agent-service-identity --from-literal=username=dev --from-literal=password=dev --dry-run=client -o yaml | oc apply -f -
 oc get ns models-as-a-service >/dev/null 2>&1 || oc create ns models-as-a-service
-oc -n models-as-a-service create secret generic maas-upstream-credentials --from-literal=apiKey="$MAAS_API_KEY" --dry-run=client -o yaml | oc apply -f -
+oc -n models-as-a-service create secret generic maas-upstream-api-key --from-literal=api-key="$MAAS_API_KEY" --dry-run=client -o yaml | oc apply -f -
 
 log "4/8 OpenShift AI components (DataScienceCluster patch)"
 scripts/rhoai-enable.sh

@@ -14,11 +14,11 @@ spec:
     path: gitops/platform/rhoai
     kustomize:
       patches:
-        - target: {kind: ExternalProvider}
+        - target: {kind: ExternalModel}
           patch: |-
             - op: replace
-              path: /spec/baseURL
-              value: ${MAAS_ENDPOINT}
+              path: /spec/endpoint
+              value: ${MAAS_HOST}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]
