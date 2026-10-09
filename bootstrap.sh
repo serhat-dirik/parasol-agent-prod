@@ -44,13 +44,15 @@ oc rollout status deploy/openshift-gitops-server -n openshift-gitops --timeout=6
 oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops >/dev/null
 
 log "2/8 Operators (Connectivity Link, MCP gateway TP, Keycloak, OpenShift AI, observability, pipelines)"
-if oc get csv -n redhat-ods-operator 2>/dev/null | grep -q rhods-operator; then
-  echo "OpenShift AI already installed: $(oc get csv -n redhat-ods-operator -o jsonpath='{.items[0].spec.version}')"
-  kustomize build gitops/bootstrap/operators | oc apply -f - --dry-run=client -o yaml \
-    | python3 -c 'import sys,yaml; [print("---\n"+yaml.safe_dump(d)) for d in yaml.safe_load_all(sys.stdin) if d and not (d["kind"] in ("Subscription","OperatorGroup") and d["metadata"].get("namespace")=="redhat-ods-operator")]' | oc apply -f -
-else
-  kustomize build gitops/bootstrap/operators | oc apply -f -
-fi
+# Operators the lab already installed keep their own Subscription/OperatorGroup (a second
+# OperatorGroup in the same namespace breaks OLM for that namespace).
+SKIP_NS=""
+oc get csv -n redhat-ods-operator 2>/dev/null | grep -q rhods-operator && SKIP_NS="$SKIP_NS redhat-ods-operator"
+oc get csv -n keycloak 2>/dev/null | grep -q rhbk-operator && SKIP_NS="$SKIP_NS keycloak"
+[ -n "$SKIP_NS" ] && echo "Already installed, Subscription/OperatorGroup skipped in:$SKIP_NS"
+kustomize build gitops/bootstrap/operators \
+  | SKIP_NS="$SKIP_NS" python3 -c 'import os,sys,yaml; skip=os.environ["SKIP_NS"].split(); [print("---\n"+yaml.safe_dump(d)) for d in yaml.safe_load_all(sys.stdin) if d and not (d["kind"] in ("Subscription","OperatorGroup") and d["metadata"].get("namespace") in skip)]' \
+  | oc apply -f -
 scripts/wait-csv.sh kuadrant-system rhcl-operator
 scripts/wait-csv.sh mcp-system mcp-gateway || echo "WARN: MCP gateway operator not found in OperatorHub, see gitops/bootstrap/operators/mcp-gateway.yaml"
 scripts/wait-csv.sh keycloak rhbk-operator

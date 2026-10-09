@@ -2,7 +2,7 @@
 # Source this: `source scripts/load-credentials.sh [path]`
 # Reads the RHDP credentials file (key on one line, value on the next) and exports what the
 # bootstrap and demo scripts need. The file itself stays outside the repository and is never printed.
-f="${1:-${CREDENTIALS_FILE:-$(dirname "${BASH_SOURCE[0]}")/../../credentials.txt}}"
+f="${1:-${CREDENTIALS_FILE:-$(dirname "${BASH_SOURCE[0]:-$0}")/../../credentials.txt}}"
 [ -r "$f" ] || { echo "credentials file not found: $f (set CREDENTIALS_FILE)"; return 1 2>/dev/null || exit 1; }
 _cred() { awk -v k="$1" '$0==k {getline; print; exit}' "$f"; }
 export OCP_API="$(_cred openshift_api_server_url)"

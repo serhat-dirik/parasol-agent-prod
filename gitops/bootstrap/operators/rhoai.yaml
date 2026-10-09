@@ -11,7 +11,7 @@ metadata:
   name: rhods-operator
   namespace: redhat-ods-operator
 spec:
-  channel: fast   # VERIFY: channel that carries 3.5.x (oc get packagemanifest rhods-operator -n openshift-marketplace -o jsonpath='{.status.channels[*].name}')
+  channel: stable-3.x   # verified: carries 3.5.1
   installPlanApproval: Automatic
   name: rhods-operator
   source: redhat-operators

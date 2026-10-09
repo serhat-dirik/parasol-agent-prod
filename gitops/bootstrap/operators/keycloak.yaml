@@ -13,7 +13,7 @@ metadata:
   name: rhbk-operator
   namespace: keycloak
 spec:
-  channel: stable-v26.4   # VERIFY: oc get packagemanifest rhbk-operator -n openshift-marketplace -o jsonpath='{.status.channels[*].name}'
+  channel: stable-v26.6   # verified on 4.22 lab: default channel
   installPlanApproval: Automatic
   name: rhbk-operator
   source: redhat-operators
