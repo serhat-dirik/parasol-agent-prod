@@ -7,7 +7,7 @@ metadata:
 spec:
   orchestratorConfig: guardrails-orchestrator-config
   guardrailsGatewayConfig: guardrails-gateway-config
-  enableBuiltInDetectors: true
+  enableBuiltInDetectors: false   # built-in sidecar image is broken in 3.5.1; see regex-detector.yaml
   enableGuardrailsGateway: true
   replicas: 1
   otelExporter:

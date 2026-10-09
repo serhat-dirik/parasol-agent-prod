@@ -5,6 +5,7 @@ namespace: parasol-secured
 # agent uses as its model endpoint. Detectors run on input and output; the upstream model is MaaS.
 resources:
   - limitrange.yaml
+  - regex-detector.yaml
   - detector-prompt-injection.yaml
   - orchestrator-config.yaml
   - gateway-config.yaml

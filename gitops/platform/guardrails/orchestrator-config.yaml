@@ -1,7 +1,8 @@
 # chat_generation = the model the agent talks to, i.e. the MaaS endpoint. The agent sends its own
 # Authorization header (its MaaS key) and the orchestrator passes it through (passthrough_headers).
 # MAAS_HOST / MAAS_PORT are set by bootstrap.sh from $MAAS_ENDPOINT. TLS to an external HTTPS host:
-# VERIFY the tls block form against the 3.5 docs (a named tls config with ca_path is the documented shape).
+# tls is a map of named configs; the orchestrator requires cert_path (no key_path = no client auth),
+# so the system CA bundle is used for both cert_path and the server CA.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -17,7 +18,7 @@ data:
       regex:
         type: text_contents
         service:
-          hostname: "127.0.0.1"
+          hostname: regex-detector
           port: 8080
         chunker_id: whole_doc_chunker
         default_threshold: 0.5
@@ -29,8 +30,9 @@ data:
         chunker_id: whole_doc_chunker
         default_threshold: 0.5
     tls:
-      - maas-upstream:
-          ca_path: /etc/ssl/certs/ca-bundle.crt
+      maas-upstream:
+        cert_path: /etc/ssl/certs/ca-bundle.crt
+        client_ca_cert_path: /etc/ssl/certs/ca-bundle.crt
     passthrough_headers:
       - authorization
       - content-type

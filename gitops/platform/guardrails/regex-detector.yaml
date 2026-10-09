@@ -1,0 +1,100 @@
+# Deterministic regex detector (Detector API: POST /api/v1/text/contents).
+# Replaces the orchestrator's built-in regex sidecar, whose image in RHOAI 3.5.1 fails to start its
+# workers (ModuleNotFoundError: regex). Stdlib Python only; patterns come from detector_params.regex.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: regex-detector
+data:
+  server.py: |
+    import json, re, sys
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    def detect(text, patterns):
+        out = []
+        for p in patterns:
+            for m in re.finditer(p, text):
+                out.append({"start": m.start(), "end": m.end(), "text": m.group(0),
+                            "detection": "regex_match", "detection_type": "regex", "score": 1.0})
+                print(f"detection: regex {p!r} matched {m.group(0)!r} score=1.0", flush=True)
+        return out
+
+    class H(BaseHTTPRequestHandler):
+        def _send(self, code, body):
+            data = json.dumps(body).encode()
+            self.send_response(code)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            self._send(200, {"status": "ok"})
+
+        def do_POST(self):
+            if not self.path.startswith("/api/v1/text/contents"):
+                return self._send(404, {"message": "not found"})
+            req = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))) or b"{}")
+            patterns = (req.get("detector_params") or {}).get("regex") or []
+            self._send(200, [detect(c, patterns) for c in req.get("contents", [])])
+
+        def log_message(self, fmt, *args):
+            print(fmt % args, file=sys.stderr, flush=True)
+
+    if __name__ == "__main__":
+        assert detect("A processing note here", ["(?i)processing note"])[0]["text"] == "processing note"
+        assert detect("nothing", ["(?i)processing note"]) == []
+        ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: regex-detector
+  labels: {app: regex-detector}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: regex-detector}
+  template:
+    metadata:
+      labels: {app: regex-detector}
+    spec:
+      containers:
+        - name: detector
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "-u", "/app/server.py"]
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: {path: /health, port: 8080}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - {name: app, mountPath: /app}
+      volumes:
+        - name: app
+          configMap: {name: regex-detector}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: regex-detector
+spec:
+  selector: {app: regex-detector}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+---
+# Only the orchestrator pod talks to it.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: regex-detector
+spec:
+  podSelector:
+    matchLabels: {app: regex-detector}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: guardrails}
