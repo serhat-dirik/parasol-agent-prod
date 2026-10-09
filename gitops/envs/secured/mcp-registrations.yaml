@@ -58,3 +58,20 @@ spec:
     kind: HTTPRoute
     name: policy-docs
     namespace: parasol-secured
+---
+# The agent reaches the MCP gateway and Keycloak by their public hosts (mcp.apps / sso.apps), which in-cluster DNS
+# resolves to the bare-metal ingress VIP (host network, so no namespaceSelector matches it). Only port 443 on that VIP.
+# Cluster-specific: oc get infrastructure cluster -o jsonpath='{.status.platformStatus.baremetal.ingressIPs}'
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: parasol-agent-ingress-vip
+spec:
+  podSelector:
+    matchLabels: {app: parasol-agent}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock: {cidr: 10.10.10.101/32}
+      ports:
+        - {protocol: TCP, port: 443}
