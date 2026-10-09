@@ -24,7 +24,8 @@ spec:
     authorization:
       tool-access-check:
         when:
-          - predicate: "request.headers.exists(h, h == 'x-mcp-toolname')"
+          # only the tools/call itself: the router's own hairpin initialize (first call per server) carries the tool name too
+          - predicate: "request.headers.exists(h, h == 'x-mcp-toolname') && request.headers.exists(h, h == 'x-mcp-method') && request.headers['x-mcp-method'] == 'tools/call'"
         patternMatching:
           patterns:
             - predicate: |
