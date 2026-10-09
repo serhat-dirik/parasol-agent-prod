@@ -13,7 +13,7 @@ auth=()
 if [ "$env" = "secured" ]; then
   tok=$("$(dirname "$0")/token.sh" "$user"); auth=(-H "Authorization: Bearer $tok")
 fi
-ask() { curl -sk "$AGENT/agent/ask" "${auth[@]}" -H 'content-type: application/json' -d "{\"question\":$(printf '%s' "$1" | python3 -c 'import sys,json;print(json.dumps(sys.stdin.read()))')}" \
+ask() { curl -sk "$AGENT/agent/ask" ${auth[@]+"${auth[@]}"} -H 'content-type: application/json' -d "{\"question\":$(printf '%s' "$1" | python3 -c 'import sys,json;print(json.dumps(sys.stdin.read()))')}" \
   | python3 -c 'import sys,json
 r=json.load(sys.stdin)
 if "error" in r: print("  ERROR:", r["error"], "|", (r.get("detail") or "")[:300]); sys.exit()
@@ -23,7 +23,7 @@ print("  answer:", (r.get("answer") or "")[:400])'; }
 
 hdr(){ printf '\n\033[1;33m%s\033[0m\n' "$*"; }
 hdr "[$env as $user] agent: $AGENT"
-curl -sk "$AGENT/agent/tools" "${auth[@]}" | python3 -c 'import sys,json; r=json.load(sys.stdin); print("  tools visible:", r.get("claims-db"), r.get("policy-docs"), "| identity:", r.get("identity"), r.get("error",""))'
+curl -sk "$AGENT/agent/tools" ${auth[@]+"${auth[@]}"} | python3 -c 'import sys,json; r=json.load(sys.stdin); print("  tools visible:", r.get("claims-db"), r.get("policy-docs"), "| identity:", r.get("identity"), r.get("error",""))'
 
 if [ "$which" = all ] || [ "$which" = 1 ]; then
 hdr "Abuse 1: '$user' asks the agent to approve a payout"
