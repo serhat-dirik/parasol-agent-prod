@@ -4,6 +4,17 @@ set -euo pipefail
 # A Job pod template is immutable: drop a previous (failed or stale) copy before applying.
 oc delete job fetch-prompt-injection-model -n parasol-secured --ignore-not-found
 oc apply -n parasol-secured -f - <<'YAML'
+# parasol-secured is default-deny: this one-off job needs DNS and HTTPS to huggingface.co
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: fetch-detector-model-egress}
+spec:
+  podSelector:
+    matchLabels: {job-name: fetch-prompt-injection-model}
+  policyTypes: [Egress]
+  egress:
+    - ports: [{protocol: UDP, port: 5353}, {protocol: TCP, port: 5353}, {protocol: UDP, port: 53}, {protocol: TCP, port: 53}, {protocol: TCP, port: 443}]
+---
 apiVersion: batch/v1
 kind: Job
 metadata: {name: fetch-prompt-injection-model}

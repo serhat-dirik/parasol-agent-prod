@@ -35,9 +35,10 @@ spec:
                     service: {hostname: prompt-injection-detector-predictor, port: 80}
                     chunker_id: whole_doc_chunker
                     default_threshold: 0.5
-                tls:
-                  - maas-upstream:
-                      ca_path: /etc/ssl/certs/ca-bundle.crt
+                tls:   # a map; the orchestrator requires cert_path. No key_path = no client auth; CA = system bundle
+                  maas-upstream:
+                    cert_path: /etc/ssl/certs/ca-bundle.crt
+                    client_ca_cert_path: /etc/ssl/certs/ca-bundle.crt
                 passthrough_headers: [authorization, content-type]
   syncPolicy:
     automated: {prune: true, selfHeal: true}

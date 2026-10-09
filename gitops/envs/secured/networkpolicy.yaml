@@ -52,7 +52,7 @@ spec:
             matchLabels: {kubernetes.io/metadata.name: keycloak}
     - to:
         - podSelector:
-            matchLabels: {app.kubernetes.io/part-of: guardrails}   # VERIFY label the orchestrator pods carry
+            matchLabels: {app: guardrails}   # orchestrator pods (part-of is trustyai, not guardrails)
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: observability}
@@ -90,7 +90,7 @@ metadata:
   name: guardrails
 spec:
   podSelector:
-    matchLabels: {app.kubernetes.io/part-of: guardrails}   # VERIFY
+    matchLabels: {app: guardrails}
   policyTypes: [Ingress, Egress]
   ingress:
     - from:
