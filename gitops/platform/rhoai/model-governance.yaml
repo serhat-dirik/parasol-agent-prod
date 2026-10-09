@@ -55,7 +55,7 @@ spec:
         - {group: "", kind: Service, name: guardrails-proxy, port: 8080, weight: 1}
 ---
 # Stage allowance for the secured agent. Generous for a demo session, but the v3 retry storm
-# (~90k tokens/min) crosses the spend alert (3000 tokens/min for 1 min) first and then gets 429s.
+# (~120k tokens/min) crosses the spend alert (20000 tokens/min for 1 min) first and then gets 429s.
 apiVersion: kuadrant.io/v1alpha1
 kind: TokenRateLimitPolicy
 metadata:
