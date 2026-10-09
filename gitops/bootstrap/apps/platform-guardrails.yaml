@@ -27,7 +27,7 @@ spec:
                 detectors:
                   regex:
                     type: text_contents
-                    service: {hostname: "127.0.0.1", port: 8080}
+                    service: {hostname: regex-detector, port: 8080}
                     chunker_id: whole_doc_chunker
                     default_threshold: 0.5
                   prompt_injection:
