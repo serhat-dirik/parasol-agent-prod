@@ -19,8 +19,11 @@ spec:
             - name: MCP_AUTH_PASSWORD
               valueFrom: {secretKeyRef: {name: agent-service-identity, key: password}}
             # Both MCP clients point at the one gateway URL; each selects its MCPVirtualServer so the model
-            # sees every tool once (otherwise: "Duplicated definition for tool").
+            # sees every tool once (otherwise: "Duplicated definition for tool"). The tool list is not cached:
+            # the gateway filters it per caller token, so the first caller (the service identity) must not fix it for all.
             - name: JAVA_TOOL_OPTIONS
               value: >-
                 -Dquarkus.langchain4j.mcp.claims-db.header.X-Mcp-Virtualserver=parasol-secured/claims-db
                 -Dquarkus.langchain4j.mcp.policy-docs.header.X-Mcp-Virtualserver=parasol-secured/policy-docs
+                -Dquarkus.langchain4j.mcp.claims-db.cache-tool-list=false
+                -Dquarkus.langchain4j.mcp.policy-docs.cache-tool-list=false
