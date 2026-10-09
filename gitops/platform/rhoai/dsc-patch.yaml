@@ -1,5 +1,5 @@
 # Merged into the existing DataScienceCluster by scripts/rhoai-enable.sh (oc patch --type merge).
-# Component names per OpenShift AI 3.5. VERIFY: oc explain datasciencecluster.spec.components
+# Component names verified against the OpenShift AI 3.5.1 DataScienceCluster v2 CRD.
 spec:
   components:
     dashboard: {managementState: Managed}
@@ -11,15 +11,13 @@ spec:
       modelsAsAService: {managementState: Managed}
     ogx: {managementState: Managed}
     trustyai: {managementState: Managed}
-    mlflow: {managementState: Managed}
-    evalhub: {managementState: Managed}
+    mlflowoperator: {managementState: Managed}
     modelregistry: {managementState: Managed}
-    mcp: {managementState: Managed}            # MCP catalog + lifecycle operator (TP)
+    mcplifecycleoperator: {managementState: Managed}            # MCP catalog + lifecycle operator (TP)
     workbenches: {managementState: Removed}
-    datasciencepipelines: {managementState: Removed}
+    aipipelines: {managementState: Removed}
     ray: {managementState: Removed}
     kueue: {managementState: Unmanaged}
-    codeflare: {managementState: Removed}
     trainingoperator: {managementState: Removed}
     feastoperator: {managementState: Removed}
     llamastackoperator: {managementState: Removed}

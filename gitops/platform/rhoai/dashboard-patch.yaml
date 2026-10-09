@@ -3,7 +3,6 @@ spec:
   dashboardConfig:
     modelAsService: true
     genAiStudio: true
-    maasAuthPolicies: true
     externalModels: true
     observabilityDashboard: true
     disableModelCatalog: false
