@@ -9,13 +9,13 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   parentRefs:
-    - {name: mcp-gateway, namespace: gateway-system, sectionName: mcps}
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: mcp-gateway, namespace: gateway-system, sectionName: mcps}
   hostnames: [claims-db.mcp.local]
   rules:
     - matches:
         - path: {type: PathPrefix, value: /}
       backendRefs:
-        - {name: claims-db, port: 8080}
+        - {group: "", kind: Service, name: claims-db, port: 8080, weight: 1}
 ---
 apiVersion: mcp.kuadrant.io/v1alpha1
 kind: MCPServerRegistration
@@ -38,13 +38,13 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   parentRefs:
-    - {name: mcp-gateway, namespace: gateway-system, sectionName: mcps}
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: mcp-gateway, namespace: gateway-system, sectionName: mcps}
   hostnames: [policy-docs.mcp.local]
   rules:
     - matches:
         - path: {type: PathPrefix, value: /}
       backendRefs:
-        - {name: policy-docs, port: 8080}
+        - {group: "", kind: Service, name: policy-docs, port: 8080, weight: 1}
 ---
 apiVersion: mcp.kuadrant.io/v1alpha1
 kind: MCPServerRegistration

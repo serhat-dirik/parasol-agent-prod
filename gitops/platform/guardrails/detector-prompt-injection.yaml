@@ -56,6 +56,7 @@ metadata:
     serving.kserve.io/deploymentMode: RawDeployment
 spec:
   predictor:
+    automountServiceAccountToken: false   # KServe default, declared so Argo shows Synced
     maxReplicas: 1
     minReplicas: 1
     model:
