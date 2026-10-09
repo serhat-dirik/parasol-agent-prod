@@ -11,6 +11,6 @@ spec:
   enableGuardrailsGateway: true
   replicas: 1
   otelExporter:
-    - otlpProtocol: grpc
-      otlpTracesEndpoint: http://otel-collector.observability.svc.cluster.local:4317
-      enableTraces: true
+    otlpProtocol: grpc
+    otlpTracesEndpoint: http://otel-collector.observability.svc.cluster.local:4317
+    enableTraces: true

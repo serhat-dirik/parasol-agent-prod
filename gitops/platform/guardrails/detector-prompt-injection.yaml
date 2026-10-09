@@ -63,13 +63,7 @@ spec:
         name: guardrails-detector-huggingface
       name: ""
       runtime: guardrails-detector-runtime
-      storage:
-        path: prompt-injection
-        key: ""
+      storageUri: pvc://prompt-injection-model/prompt-injection
       resources:
         requests: {cpu: 500m, memory: 1Gi}
         limits: {cpu: "2", memory: 2Gi}
-    volumes:
-      - name: model-store
-        persistentVolumeClaim:
-          claimName: prompt-injection-model

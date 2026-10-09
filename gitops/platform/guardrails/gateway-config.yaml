@@ -8,6 +8,9 @@ metadata:
   name: guardrails-gateway-config
 data:
   config.yaml: |
+    orchestrator:
+      host: localhost
+      port: 8032
     detectors:
       - name: prompt_injection
         input: true
