@@ -1,0 +1,11 @@
+# The operator-generated orchestrator pod has sidecars (gateway, built-in detectors) without
+# resources, and the namespace ResourceQuota rejects such pods. Defaults for containers that omit them.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: container-defaults
+spec:
+  limits:
+    - type: Container
+      defaultRequest: {cpu: 100m, memory: 256Mi}
+      default: {cpu: 500m, memory: 512Mi}
