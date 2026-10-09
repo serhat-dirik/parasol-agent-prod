@@ -20,12 +20,14 @@ Terminal prompt shows the identity: `parasol (rebecca) $`. 1080p, one font every
 3. `scripts/abuse.sh secured marcus 1`: the manager can. Same agent, same code.
 4. `scripts/reset.sh`.
 
-## Clip C: 3am, ~1.5 min
-1. Switch Argo env-secured to the storm overlay (`gitops/envs/secured-storm`), wait for rollout, `scripts/abuse.sh secured rebecca 3`.
-2. Console: Observe > Metrics `rate(parasol_agent_tokens_total[1m])*60`; alert `ParasolAgentTokenSpendHigh` firing; MaaS 429 in the agent log if the on-cluster MaaS is wired.
-3. Console: Observe > Traces, the looping request: agent → gateway → claims-db spans repeating.
-4. Kill switch: `git commit` adding `./kill-switch` to components, Argo syncs, `scripts/abuse.sh secured rebecca 1` returns a clean 502, `oc get pods` still Running. Caption: "revoke, don't kill".
-5. Revert the commit, switch Argo back to `gitops/envs/secured`.
+## Clip C: 3am, ~2 min
+1. Switch Argo env-secured to the storm overlay: `oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"path":"gitops/envs/secured-storm"}}}'`, then `oc rollout status deploy/parasol-agent -n parasol-secured --timeout=300s`, then `scripts/abuse.sh secured rebecca 3`.
+2. Console: Observe > Metrics `sum by (version)(rate(parasol_agent_tokens_total[1m]))*60` climbs to ~120k tokens/min; Observe > Alerting `ParasolAgentTokenSpendHigh` pending, then firing after ~1.5 min (threshold 20000 tokens/min).
+3. The model gateway's stage allowance (TokenRateLimitPolicy, 200k tokens / 10 min) runs out: `abuse.sh` prints `Too Many Requests`; `oc logs -n parasol-secured deploy/parasol-agent --since=5m | grep -m1 'Too Many Requests'`. Caption: "the platform stopped the spend". Tested 10 Oct: ~190k tokens, 151 model calls, then 429.
+4. Console: Observe > Traces (instance observability/parasol, service parasol-agent): the looping request, ~25 repeated `ClaimsAssistant.ask` / model-completion spans.
+5. Switch Argo back (same `oc patch` with `gitops/envs/secured`), then `scripts/reset.sh` (also restores the model allowance).
+6. Kill switch: `git commit` changing `components: []` to `components: [./kill-switch]` in `gitops/envs/secured/kustomization.yaml`, Argo syncs (~20 s), `scripts/abuse.sh secured rebecca 1` returns a clean 502 after ~50 s (two 25 s connection attempts; speed up in the edit), `oc get pods -n parasol-secured` still Running. Caption: "revoke, don't kill".
+7. `git revert` the commit, Argo restores the model path, `scripts/reset.sh`.
 
 ## Recording checklist
 * `scripts/reset.sh` before every take. Fresh tokens (realm token lifespan is 1 h).
