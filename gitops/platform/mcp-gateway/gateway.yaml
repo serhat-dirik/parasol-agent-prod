@@ -1,3 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-gateway-config
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+data:
+  service: |
+    spec:
+      type: ClusterIP
+---
 # Listener "mcp": what agents connect to (https://mcp.apps.<domain>/mcp through the Route).
 # Listener "mcps": internal hairpin listener the MCP router uses to reach the registered servers;
 # every MCP server HTTPRoute attaches here with a *.mcp.local hostname. AuthPolicy on "mcp" does
@@ -14,6 +26,12 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
 spec:
   gatewayClassName: openshift-default
+  # No cloud load balancer on this cluster: a ClusterIP Service (fronted by the Route) lets the Gateway go Programmed.
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: mcp-gateway-config
   listeners:
     - name: mcp
       hostname: mcp.apps.CLUSTER_DOMAIN
