@@ -31,12 +31,12 @@ spec:
               value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
             - op: replace
               path: /spec/oauthProtectedResource/authorizationServers
-              value: ["https://keycloak.apps.${CLUSTER_DOMAIN}/realms/parasol"]
+              value: ["https://sso.apps.${CLUSTER_DOMAIN}/realms/parasol"]
         - target: {kind: AuthPolicy, name: mcp-auth-policy}
           patch: |-
             - op: replace
               path: /spec/rules/authentication/keycloak/jwt/issuerUrl
-              value: https://keycloak.apps.${CLUSTER_DOMAIN}/realms/parasol
+              value: https://sso.apps.${CLUSTER_DOMAIN}/realms/parasol
             - op: replace
               path: /spec/rules/response/unauthenticated/headers/WWW-Authenticate/value
               value: Bearer resource_metadata=https://mcp.apps.${CLUSTER_DOMAIN}/.well-known/oauth-protected-resource/mcp
@@ -44,7 +44,7 @@ spec:
           patch: |-
             - op: replace
               path: /spec/rules/authentication/keycloak/jwt/issuerUrl
-              value: https://keycloak.apps.${CLUSTER_DOMAIN}/realms/parasol
+              value: https://sso.apps.${CLUSTER_DOMAIN}/realms/parasol
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

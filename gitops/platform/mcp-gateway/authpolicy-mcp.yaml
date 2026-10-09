@@ -21,7 +21,7 @@ spec:
     authentication:
       keycloak:
         jwt:
-          issuerUrl: https://keycloak.apps.CLUSTER_DOMAIN/realms/parasol
+          issuerUrl: https://sso.apps.CLUSTER_DOMAIN/realms/parasol
     authorization:
       allow-mcp-method:
         patternMatching:

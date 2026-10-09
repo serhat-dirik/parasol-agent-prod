@@ -24,6 +24,6 @@ spec:
     resourceName: "Parasol MCP tools"
     resource: "https://mcp.apps.CLUSTER_DOMAIN/mcp"
     authorizationServers:
-      - "https://keycloak.apps.CLUSTER_DOMAIN/realms/parasol"
+      - "https://sso.apps.CLUSTER_DOMAIN/realms/parasol"
     bearerMethodsSupported: ["header"]
     scopesSupported: ["basic", "roles", "profile"]

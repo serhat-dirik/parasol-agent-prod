@@ -29,7 +29,7 @@ configMapGenerator:
       - claimsDbMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
       - policyDocsMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
       - version=v1-secured
-      - tokenUrl=https://keycloak.apps.CLUSTER_DOMAIN/realms/parasol/protocol/openid-connect/token
+      - tokenUrl=https://sso.apps.CLUSTER_DOMAIN/realms/parasol/protocol/openid-connect/token
     files:
       - safetyRules=safety-rules.txt
 generatorOptions:

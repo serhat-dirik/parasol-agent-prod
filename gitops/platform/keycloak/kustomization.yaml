@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: keycloak
+# The lab's Red Hat build of Keycloak (Keycloak CR "keycloak", route sso.apps.<domain>) is reused;
+# only the 'parasol' realm is ours. A second Keycloak is the fallback (see git history for its manifests).
 resources:
-  - postgres.yaml
-  - keycloak.yaml
   - realm-import.yaml

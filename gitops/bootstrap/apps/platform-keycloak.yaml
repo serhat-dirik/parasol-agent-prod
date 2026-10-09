@@ -12,13 +12,6 @@ spec:
     repoURL: ${REPO_URL}
     targetRevision: ${REPO_REVISION}
     path: gitops/platform/keycloak
-    kustomize:
-      patches:
-        - target: {kind: Keycloak, name: keycloak}
-          patch: |-
-            - op: replace
-              path: /spec/hostname/hostname
-              value: keycloak.apps.${CLUSTER_DOMAIN}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

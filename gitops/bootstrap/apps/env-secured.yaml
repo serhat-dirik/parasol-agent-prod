@@ -27,7 +27,7 @@ spec:
               value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
             - op: replace
               path: /data/tokenUrl
-              value: https://keycloak.apps.${CLUSTER_DOMAIN}/realms/parasol/protocol/openid-connect/token
+              value: https://sso.apps.${CLUSTER_DOMAIN}/realms/parasol/protocol/openid-connect/token
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]
