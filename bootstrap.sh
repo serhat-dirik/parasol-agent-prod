@@ -37,7 +37,7 @@ kind: Subscription
 metadata: {name: openshift-gitops-operator, namespace: openshift-operators}
 spec: {channel: latest, installPlanApproval: Automatic, name: openshift-gitops-operator, source: redhat-operators, sourceNamespace: openshift-marketplace}
 YAML
-until oc get ns openshift-gitops >/dev/null 2>&1 && oc get deploy openshift-gitops-server -n openshift-gitops >/dev/null 2>&1; do sleep 10; done
+for i in $(seq 1 45); do oc get deploy openshift-gitops-server -n openshift-gitops >/dev/null 2>&1 && break; echo "$(date +%T) waiting for GitOps operator ($i/45)"; sleep 20; done
 fi
 oc rollout status deploy/openshift-gitops-server -n openshift-gitops --timeout=600s
 # let Argo manage cluster-scoped things
@@ -47,8 +47,9 @@ log "2/8 Operators (Connectivity Link, MCP gateway TP, Keycloak, OpenShift AI, o
 # Operators the lab already installed keep their own Subscription/OperatorGroup (a second
 # OperatorGroup in the same namespace breaks OLM for that namespace).
 SKIP_NS=""
-oc get csv -n redhat-ods-operator 2>/dev/null | grep -q rhods-operator && SKIP_NS="$SKIP_NS redhat-ods-operator"
-oc get csv -n keycloak 2>/dev/null | grep -q rhbk-operator && SKIP_NS="$SKIP_NS keycloak"
+# (no `grep -q` here: under pipefail its early exit SIGPIPEs oc and the test fails on long CSV lists)
+[ -n "$(oc get csv -n redhat-ods-operator -o name 2>/dev/null | grep rhods-operator)" ] && SKIP_NS="$SKIP_NS redhat-ods-operator"
+[ -n "$(oc get csv -n keycloak -o name 2>/dev/null | grep rhbk-operator)" ] && SKIP_NS="$SKIP_NS keycloak"
 [ -n "$SKIP_NS" ] && echo "Already installed, Subscription/OperatorGroup skipped in:$SKIP_NS"
 kustomize build gitops/bootstrap/operators \
   | SKIP_NS="$SKIP_NS" python3 -c 'import os,sys,yaml; skip=os.environ["SKIP_NS"].split(); [print("---\n"+yaml.safe_dump(d)) for d in yaml.safe_load_all(sys.stdin) if d and not (d["kind"] in ("Subscription","OperatorGroup") and d["metadata"].get("namespace") in skip)]' \

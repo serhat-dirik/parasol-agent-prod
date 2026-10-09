@@ -22,4 +22,4 @@ spec:
         - name: models
           persistentVolumeClaim: {claimName: prompt-injection-model}
 YAML
-oc wait --for=condition=complete job/fetch-prompt-injection-model -n parasol-secured --timeout=900s
+oc wait --for=condition=complete job/fetch-prompt-injection-model -n parasol-secured --timeout=1350s

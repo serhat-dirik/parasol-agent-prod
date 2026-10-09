@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-# wait-csv.sh <namespace> <package-substring>  : wait until the operator CSV reports Succeeded
-ns=$1; pkg=$2; t=0
-until oc get csv -n "$ns" 2>/dev/null | grep -i "$pkg" | grep -q Succeeded; do
-  sleep 10; t=$((t+10)); [ $t -ge 900 ] && { echo "timeout waiting for $pkg in $ns"; exit 1; }
+# wait-csv.sh <namespace> <package-substring> : poll the operator CSV phase every 20 s, printing it,
+# until Succeeded. Deadline 15 min (expected 2-10 min + 50%). Exit 1 on Failed or deadline.
+ns=$1; pkg=$2
+for i in $(seq 1 45); do
+  phase=$(oc get csv -n "$ns" -o custom-columns=N:.metadata.name,P:.status.phase --no-headers 2>/dev/null | awk -v p="$pkg" 'index(tolower($1),tolower(p)){print $2; exit}')
+  echo "$(date +%T) $pkg in $ns: ${phase:-no CSV yet}"
+  [ "$phase" = Succeeded ] && exit 0
+  [ "$phase" = Failed ] && { oc get csv -n "$ns" -o jsonpath='{range .items[?(@.status.phase=="Failed")]}{.metadata.name}: {.status.reason} {.status.message}{"\n"}{end}'; exit 1; }
+  sleep 20
 done
-echo "$pkg ready in $ns"
+echo "deadline: $pkg in $ns not Succeeded after 15 min"; exit 1
