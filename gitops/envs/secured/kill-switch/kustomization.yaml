@@ -5,15 +5,17 @@ kind: Component
 # and stay Ready (Keycloak and the MCP gateway are still reachable, so the readiness check passes);
 # the next model call fails and the agent answers with a clean 502. Remove the line to restore.
 # NetworkPolicies only add allows, so a second "deny" policy would change nothing: the component
-# patches the agent's own policy instead.
+# replaces the agent policy's egress with the same list minus the guardrails orchestrator (the only
+# way to the model). Keep it in sync with ../networkpolicy.yaml.
 # Alternative with the same effect at a different layer: delete the agent group from the
 # MaaSAuthPolicy (model access revoked) or from the Keycloak groups (tool access revoked).
-# The "test" op makes kustomize build fail loudly if the guardrails rule moves in networkpolicy.yaml.
 patches:
   - target: {kind: NetworkPolicy, name: parasol-agent}
     patch: |-
-      - op: test
-        path: /spec/egress/3/to/0/podSelector/matchLabels/app.kubernetes.io~1part-of
-        value: guardrails
-      - op: remove
-        path: /spec/egress/3
+      - op: replace
+        path: /spec/egress
+        value:
+          - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: gateway-system}}}]
+          - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: openshift-ingress}}}]
+          - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: keycloak}}}]
+          - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}}]
