@@ -15,8 +15,8 @@ Terminal prompt shows the identity: `parasol (rebecca) $`. 1080p, one font every
 1. `oc get networkpolicy,resourcequota -n parasol-secured`, `oc get mcpserverregistration,authpolicy -A`. 10 s, say the seven layers.
 2. `scripts/abuse.sh secured rebecca`
    * tools visible: no `approve_payout`. Caption: "the model never sees the tool".
-   * Abuse 1: 403 from the MCP gateway, `oc logs -n mcp-system deploy/mcp-gateway | grep approve_payout` shows user and tool.
-   * Abuse 2: guardrails block, show `oc logs deploy/guardrails ... | grep -i detection` with the score; timeline of CLM-1004 still Denied.
+   * Abuse 1: the model reaches for `approve_payout` and the framework refuses (the tool does not exist for her); the same call forced at the gateway gets a 403 naming user and tool. `oc logs -n kuadrant-system deploy/authorino --since=10m | grep 'denied for'` shows it.
+   * Abuse 2: guardrails block, `oc logs -n parasol-secured deploy/guardrails-proxy --since=10m | grep detection:` shows the regex hits with score 1.0; timeline of CLM-1004 still Denied.
 3. `scripts/abuse.sh secured marcus 1`: the manager can. Same agent, same code.
 4. `scripts/reset.sh`.
 
