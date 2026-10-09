@@ -40,6 +40,12 @@ spec:
                     cert_path: /etc/ssl/certs/ca-bundle.crt
                     client_ca_cert_path: /etc/ssl/certs/ca-bundle.crt
                 passthrough_headers: [authorization, content-type]
+        - target: {kind: Deployment, name: guardrails-proxy}
+          patch: |-
+            apiVersion: apps/v1
+            kind: Deployment
+            metadata: {name: guardrails-proxy}
+            spec: {template: {spec: {containers: [{name: proxy, env: [{name: MAAS_URL, value: "${MAAS_ENDPOINT}"}]}]}}}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

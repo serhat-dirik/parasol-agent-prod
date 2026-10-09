@@ -5,8 +5,10 @@
 #   1. runs the detectors through the orchestrator's /api/v2/text/detection/content on every tool
 #      result and user message (this is where the poisoned retrieved passage is seen);
 #   2. on a detection, answers with a refusal and no tool call (the model never sees the passage);
-#   3. otherwise forwards the request to /api/v2/chat/completions-detection (no detectors) and
-#      returns the model's OpenAI response unchanged.
+#   3. otherwise forwards the request straight to the MaaS (MAAS_URL) and returns its response
+#      unchanged. Not through the orchestrator's chat endpoint: that one turns structured tool calls
+#      into text, and it logs request headers (the agent's MaaS key) at INFO. Detection calls carry
+#      no Authorization header.
 # Labels app=guardrails + component=guardrails-proxy: the agent's existing egress rule to
 # app=guardrails covers it; guardrails-service selects component=guardrails, so it is not mixed in.
 apiVersion: v1
@@ -21,15 +23,17 @@ data:
     ORCH = os.environ.get("ORCHESTRATOR_URL", "https://guardrails-service:8032")
     CA = os.environ.get("ORCHESTRATOR_CA", "/etc/service-ca/service-ca.crt")
     DETECTORS = json.loads(os.environ["DETECTORS"])
+    MAAS = os.environ["MAAS_URL"].rstrip("/")
     CTX = ssl.create_default_context(cafile=CA)
+    PUBLIC = ssl.create_default_context()
 
-    def post(path, body, auth=None):
+    def post(url, body, auth=None, ctx=CTX):
         h = {"content-type": "application/json"}
         if auth:
             h["authorization"] = auth
-        req = urllib.request.Request(ORCH + path, json.dumps(body).encode(), h)
+        req = urllib.request.Request(url, json.dumps(body).encode(), h)
         try:
-            with urllib.request.urlopen(req, context=CTX, timeout=120) as r:
+            with urllib.request.urlopen(req, context=ctx, timeout=120) as r:
                 return r.status, json.loads(r.read())
         except urllib.error.HTTPError as e:
             return e.code, json.loads(e.read() or b"{}")
@@ -44,7 +48,7 @@ data:
     def detect(messages):
         hits = []
         for t in texts(messages):
-            code, r = post("/api/v2/text/detection/content", {"content": t, "detectors": DETECTORS})
+            code, r = post(ORCH + "/api/v2/text/detection/content", {"content": t, "detectors": DETECTORS})
             if code != 200:
                 print(f"detector call failed {code}: {r}", flush=True)
                 continue
@@ -83,8 +87,7 @@ data:
                     print(f"detection: detector={h.get('detector_id')} type={h.get('detection_type')} "
                           f"score={h.get('score')} text={str(h.get('text'))[:80]!r}", flush=True)
                 return self._send(200, refusal(req, hits))
-            req["detectors"] = {"input": {}, "output": {}}
-            code, r = post("/api/v2/chat/completions-detection", req, self.headers.get("authorization"))
+            code, r = post(MAAS + "/chat/completions", req, self.headers.get("authorization"), PUBLIC)
             self._send(code, r)
 
         def log_message(self, fmt, *args):  # request line only; never headers (the MaaS key)
@@ -113,6 +116,7 @@ spec:
           command: ["python3", "-u", "/app/proxy.py"]
           env:
             - {name: ORCHESTRATOR_URL, value: "https://guardrails-service.parasol-secured.svc:8032"}
+            - {name: MAAS_URL, value: MAAS_ENDPOINT}   # replaced by the Argo Application (envsubst)
             - name: DETECTORS
               value: >-
                 {"regex": {"regex": ["(?i)processing note", "(?i)call the approve_payout tool"]},
