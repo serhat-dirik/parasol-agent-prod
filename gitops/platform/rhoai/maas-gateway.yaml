@@ -1,5 +1,16 @@
 # The Gateway the MaaS platform attaches to (OpenShift AI 3.5 expects it to exist, created by an admin).
-# In-cluster only (ClusterIP service, like the MCP gateway); TLS reuses the data-science gateway cert.
+# No cloud load balancer on this cluster: ClusterIP Service (same pattern as the MCP gateway), in-cluster
+# hostname so MaaSModelRef can derive its endpoint.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maas-default-gateway-config
+  namespace: openshift-ingress
+data:
+  service: |
+    spec:
+      type: ClusterIP
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
@@ -7,12 +18,12 @@ metadata:
   namespace: openshift-ingress
 spec:
   gatewayClassName: openshift-default
+  infrastructure:
+    parametersRef: {group: "", kind: ConfigMap, name: maas-default-gateway-config}
   listeners:
-    - name: https
-      port: 443
-      protocol: HTTPS
-      tls:
-        mode: Terminate
-        certificateRefs: [{kind: Secret, name: data-science-gateway-service-tls}]
+    - name: http
+      hostname: maas.parasol.local
+      port: 8080
+      protocol: HTTP
       allowedRoutes:
         namespaces: {from: All}
