@@ -2,3 +2,9 @@ target/
 *.log
 .env
 node_modules/
+credentials*
+*.pem
+*.key
+kubeconfig*
+.env*
+!.env.example

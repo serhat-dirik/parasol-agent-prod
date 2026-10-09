@@ -2,7 +2,7 @@
 # One-shot, repeatable bootstrap of the "AI Agents: from localhost to production" demo on a fresh
 # OpenShift 4.22 cluster. Idempotent: run it again after a failure.
 #
-# Required env:
+# Required env (or: source scripts/load-credentials.sh to read them from the RHDP credentials file):
 #   MAAS_ENDPOINT   OpenAI-compatible base URL of the upstream MaaS, e.g. https://maas.example.com/v1
 #   MAAS_API_KEY    key for that endpoint
 # Optional env:
@@ -28,6 +28,9 @@ log(){ printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 log "Cluster $CLUSTER_DOMAIN, repo $REPO_URL@$REPO_REVISION, model $MAAS_MODEL"
 
 log "1/8 OpenShift GitOps"
+if oc get deploy openshift-gitops-server -n openshift-gitops >/dev/null 2>&1; then
+  echo "OpenShift GitOps already installed"
+else
 oc apply -f - <<'YAML'
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
@@ -35,6 +38,7 @@ metadata: {name: openshift-gitops-operator, namespace: openshift-operators}
 spec: {channel: latest, installPlanApproval: Automatic, name: openshift-gitops-operator, source: redhat-operators, sourceNamespace: openshift-marketplace}
 YAML
 until oc get ns openshift-gitops >/dev/null 2>&1 && oc get deploy openshift-gitops-server -n openshift-gitops >/dev/null 2>&1; do sleep 10; done
+fi
 oc rollout status deploy/openshift-gitops-server -n openshift-gitops --timeout=600s
 # let Argo manage cluster-scoped things
 oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops >/dev/null
