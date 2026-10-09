@@ -19,3 +19,9 @@ patches:
       - op: add
         path: /spec/template/metadata/annotations
         value: {parasol.io/build: v3-secured}
+  # One looping request runs for minutes: keep the router from cutting it at the 30 s default.
+  - target: {kind: Route, name: parasol-agent}
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value: {haproxy.router.openshift.io/timeout: 20m}
