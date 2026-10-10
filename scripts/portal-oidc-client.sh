@@ -42,6 +42,7 @@ CLIENT_JSON="$(jq -nc \
     protocol:"openid-connect", publicClient:false, standardFlowEnabled:true,
     directAccessGrantsEnabled:false, serviceAccountsEnabled:false,
     redirectUris:$redirects, webOrigins:$origins, fullScopeAllowed:true,
+    attributes:{"post.logout.redirect.uris":"+"},
     defaultClientScopes:["roles","profile","email"],
     optionalClientScopes:["groups"]}')"
 
