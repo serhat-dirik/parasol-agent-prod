@@ -1,0 +1,14 @@
+# Stream S3 — agent workload identity (SPIRE/SPIFFE).
+# Applied imperatively (oc apply -k) in file order, NOT wired into the Argo app-of-apps,
+# to keep it isolated from and additive to the verified wave-1 rollout.
+# First run: apply 00-operator.yaml and wait for the CSV + CRDs before the rest, since
+# the operand CRs depend on CRDs this operator installs.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-operator.yaml
+  - 10-zero-trust-manager.yaml
+  - 20-spire.yaml
+  - 30-clusterspiffeid.yaml
+  - 40-test-workload.yaml
+  - 50-oidc-discovery.yaml

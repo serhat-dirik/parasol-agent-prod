@@ -1,0 +1,44 @@
+# Isolated proof workload in parasol-secured. Mounts the SPIFFE Workload API via
+# the csi.spiffe.io ephemeral CSI volume (read-only) and receives an X.509 SVID.
+# Kept separate from the portal so the secured-portal rollout is untouched (fallback
+# path from the brief: demo the SVID on a dedicated test pod in parasol-secured).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: spiffe-test
+  namespace: parasol-secured
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: spiffe-test
+  namespace: parasol-secured
+  labels:
+    app: spiffe-test
+spec:
+  serviceAccountName: spiffe-test
+  containers:
+    - name: workload
+      # Reuses the operator's SPIRE agent image purely for its `spire-agent` CLI,
+      # which can call the Workload API socket to fetch and show the SVID.
+      image: registry.redhat.io/zero-trust-workload-identity-manager/spiffe-spire-agent-rhel9@sha256:1bf815cd075391be392a77e8f196285958c9919c81257d0a98293fc4eb9dc47f
+      command: ["/bin/sh", "-c", "sleep infinity"]
+      env:
+        - name: SPIFFE_ENDPOINT_SOCKET
+          value: unix:///spiffe-workload-api/spire-agent.sock
+      volumeMounts:
+        - name: spiffe-workload-api
+          mountPath: /spiffe-workload-api
+          readOnly: true
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: ["ALL"]
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+  volumes:
+    - name: spiffe-workload-api
+      csi:
+        driver: csi.spiffe.io
+        readOnly: true

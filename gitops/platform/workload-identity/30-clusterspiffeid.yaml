@@ -1,0 +1,15 @@
+# Registers a SPIFFE ID for every workload in parasol-secured, keyed by its
+# ServiceAccount. className must match the operator's spire-controller-manager
+# (zero-trust-workload-identity-manager-spire) or the entry is never minted.
+# Registering an entry does NOT mutate any pod; an SVID is only delivered to a
+# pod that mounts the csi.spiffe.io Workload API volume (see 40-test-workload.yaml).
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: parasol-secured
+spec:
+  className: zero-trust-workload-identity-manager-spire
+  spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: parasol-secured

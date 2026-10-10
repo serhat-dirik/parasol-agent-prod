@@ -1,0 +1,15 @@
+# OIDC discovery provider: publishes the SPIRE JWT-SVID signing keys at an HTTPS
+# discovery endpoint. The ZeroTrustWorkloadIdentityManager CR requires this operand
+# before it reports Ready, and it underpins JWT-SVID validation for RFC 8693 token
+# exchange at the MCP gateway.
+apiVersion: operator.openshift.io/v1alpha1
+kind: SpireOIDCDiscoveryProvider
+metadata:
+  name: cluster
+spec:
+  csiDriverName: csi.spiffe.io
+  jwtIssuer: https://oidc-discovery.apps.cluster-znh6n.dyn.redhatworkshops.io
+  managedRoute: "true"
+  replicaCount: 1
+  logLevel: info
+  logFormat: text

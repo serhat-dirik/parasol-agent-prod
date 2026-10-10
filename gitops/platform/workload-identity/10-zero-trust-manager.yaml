@@ -1,0 +1,9 @@
+# Top-level operand config. trustDomain + clusterName are immutable once set.
+apiVersion: operator.openshift.io/v1alpha1
+kind: ZeroTrustWorkloadIdentityManager
+metadata:
+  name: cluster
+spec:
+  trustDomain: parasol-demo
+  clusterName: parasol-demo
+  bundleConfigMap: spire-bundle

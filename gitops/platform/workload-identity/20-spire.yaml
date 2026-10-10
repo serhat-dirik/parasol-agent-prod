@@ -1,0 +1,49 @@
+# SPIRE server (SQLite datastore on a PVC), node agents (k8s PSAT attestation),
+# and the SPIFFE CSI driver that mounts the Workload API socket into pods.
+apiVersion: operator.openshift.io/v1alpha1
+kind: SpireServer
+metadata:
+  name: cluster
+spec:
+  caKeyType: rsa-2048
+  caValidity: 24h
+  caSubject:
+    commonName: Parasol SPIRE CA
+    organization: Parasol Insurance
+    country: AE
+  datastore:
+    databaseType: sqlite3
+    connectionString: /run/spire/data/datastore.sqlite3
+    maxIdleConns: 2
+    maxOpenConns: 100
+  defaultJWTValidity: 5m
+  defaultX509Validity: 1h
+  jwtIssuer: https://oidc-discovery.apps.cluster-znh6n.dyn.redhatworkshops.io
+  logLevel: info
+  logFormat: text
+  persistence:
+    accessMode: ReadWriteOnce
+    size: 2Gi
+    storageClass: ""
+---
+apiVersion: operator.openshift.io/v1alpha1
+kind: SpireAgent
+metadata:
+  name: cluster
+spec:
+  logLevel: info
+  logFormat: text
+  nodeAttestor:
+    k8sPSATEnabled: "true"
+  workloadAttestors:
+    k8sEnabled: "true"
+    workloadAttestorsVerification:
+      type: auto
+---
+apiVersion: operator.openshift.io/v1alpha1
+kind: SpiffeCSIDriver
+metadata:
+  name: cluster
+spec:
+  agentSocketPath: /run/spire/agent-sockets
+  pluginName: csi.spiffe.io
