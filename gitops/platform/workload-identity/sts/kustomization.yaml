@@ -1,0 +1,13 @@
+# Isolated RFC 8693 token-exchange demo (Stream S3 stretch). Standalone namespace,
+# NOT wired into Argo and NOT touching the production mcp-gateway/Authorino.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: parasol-sts-demo
+resources:
+  - deploy.yaml
+configMapGenerator:
+  - name: sts-code
+    files:
+      - sts.py
+generatorOptions:
+  disableNameSuffixHash: true
