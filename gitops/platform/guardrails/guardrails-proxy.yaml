@@ -17,7 +17,7 @@ metadata:
   name: guardrails-proxy
 data:
   proxy.py: |
-    import json, os, re, ssl, sys, urllib.request, urllib.error
+    import json, os, re, ssl, sys, time, urllib.request, urllib.error
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
     # A1 PII masking preset (input): applied to the user's message before it reaches the model.
@@ -51,20 +51,37 @@ data:
     PUBLIC = ssl.create_default_context()
     MAAS_CTX = CTX if ".svc" in MAAS else PUBLIC   # in-cluster MaaS gateway: service-CA certificate
 
-    def post(url, body, auth=None, ctx=CTX):
+    def post(url, body, auth=None, ctx=CTX, retries=2):
+        # Transient upstream failures (connection reset, timeout, or a 5xx) on the tool-calling turn are
+        # retried with a short backoff so a one-off blip never surfaces as a raw 500 to the portal.
         h = {"content-type": "application/json"}
         if auth:
             h["authorization"] = auth
-        req = urllib.request.Request(url, json.dumps(body).encode(), h)
-        try:
-            with urllib.request.urlopen(req, context=ctx, timeout=120) as r:
-                return r.status, json.loads(r.read())
-        except urllib.error.HTTPError as e:
-            raw = e.read() or b"{}"
+        data = json.dumps(body).encode()
+        last = (502, {"error": {"code": 502, "message": "upstream unavailable"}})
+        for attempt in range(retries + 1):
+            req = urllib.request.Request(url, data, h)
             try:
-                return e.code, json.loads(raw)
-            except ValueError:   # gateway errors (429, 5xx) can be plain text: pass the status through
-                return e.code, {"error": {"code": e.code, "message": raw.decode(errors="replace")[:300]}}
+                with urllib.request.urlopen(req, context=ctx, timeout=120) as r:
+                    return r.status, json.loads(r.read())
+            except urllib.error.HTTPError as e:
+                raw = e.read() or b"{}"
+                try:
+                    out = json.loads(raw)
+                except ValueError:   # gateway errors (429, 5xx) can be plain text: pass the status through
+                    out = {"error": {"code": e.code, "message": raw.decode(errors="replace")[:300]}}
+                if e.code >= 500 and attempt < retries:   # transient upstream: retry
+                    print(f"upstream {e.code} from {url.rsplit('/',2)[-1]}, retrying ({attempt+1})", flush=True)
+                    last = (e.code, out); time.sleep(0.5 * (attempt + 1)); continue
+                return e.code, out
+            except (urllib.error.URLError, TimeoutError, OSError) as e:   # reset / DNS / timeout: not an HTTP reply
+                reason = str(getattr(e, "reason", e))[:200]
+                last = (502, {"error": {"code": 502, "message": "upstream connection error: " + reason}})
+                if attempt < retries:
+                    print(f"upstream connection error ({reason}), retrying ({attempt+1})", flush=True)
+                    time.sleep(0.5 * (attempt + 1)); continue
+                return last
+        return last
 
     def tool_texts(messages):
         return [m.get("content") for m in messages if m.get("role") == "tool"]
