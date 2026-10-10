@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nemo-rail-demo
+  namespace: parasol-guardrails-nemo
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: nemo
+          image: python:3.11
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              export HOME=/tmp
+              export PYTHONUSERBASE=/tmp/py
+              echo "[step] installing nemoguardrails ..."
+              pip install --no-cache-dir --user -q "nemoguardrails>=0.11,<0.14" openai langchain-openai || { echo PIP_FAIL; exit 1; }
+              echo "[step] running rail demo ..."
+              python /app/test.py
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef: { name: maas-nemo, key: OPENAI_API_KEY }
+            - name: OPENAI_API_BASE
+              valueFrom:
+                secretKeyRef: { name: maas-nemo, key: OPENAI_API_BASE }
+          volumeMounts:
+            - { name: cfg, mountPath: /app/config/config.yml, subPath: config.yml }
+            - { name: cfg, mountPath: /app/test.py, subPath: test.py }
+      volumes:
+        - name: cfg
+          configMap: { name: nemo-config }
