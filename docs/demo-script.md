@@ -21,13 +21,14 @@ Terminal prompt shows the identity: `parasol (rebecca) $`. 1080p, one font every
 4. `scripts/reset.sh`.
 
 ## Clip C: 3am, ~2 min
-1. Switch Argo env-secured to the storm overlay: `oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"path":"gitops/envs/secured-storm"}}}'`, then `oc rollout status deploy/parasol-agent -n parasol-secured --timeout=300s`, then `scripts/abuse.sh secured rebecca 3`.
-2. Console: Observe > Metrics `sum by (version)(rate(parasol_agent_tokens_total[1m]))*60` climbs to ~120k tokens/min; Observe > Alerting `ParasolAgentTokenSpendHigh` pending, then firing after ~1.5 min (threshold 20000 tokens/min).
-3. OpenShift AI MaaS cuts it off: the agent's MaaS key is on subscription `parasol-stage` (200k tokens / 10 min), so after ~190k tokens the MaaS gateway answers 429 and `abuse.sh` prints `Too Many Requests`. Order on 10 Oct: alert pending, then 429, then alert firing ~20 s later. `oc logs -n openshift-ingress deploy/maas-default-gateway-openshift-default --since=5m | grep '" 429 '`. Caption: "the platform stopped the spend".
-4. Console: Observe > Traces (instance observability/parasol, service parasol-agent): the looping request, ~25 repeated `ClaimsAssistant.ask` / model-completion spans.
-5. Switch Argo back (same `oc patch` with `gitops/envs/secured`), then `scripts/reset.sh` (also restores the model allowance).
-6. Kill switch: `git commit` changing `components: []` to `components: [./kill-switch]` in `gitops/envs/secured/kustomization.yaml`, Argo syncs (~20 s), `scripts/abuse.sh secured rebecca 1` returns a clean 502 after ~50 s (two 25 s connection attempts; speed up in the edit), `oc get pods -n parasol-secured` still Running. Caption: "revoke, don't kill".
-7. `git revert` the commit, Argo restores the model path, `scripts/reset.sh`.
+1. The tiers, before anything breaks (5 s): `oc get maassubscription -n models-as-a-service -o custom-columns='SUBSCRIPTION:.metadata.name,TIER-LIMIT:.spec.modelRefs[0].tokenRateLimits[0].limit,WINDOW:.spec.modelRefs[0].tokenRateLimits[0].window,MODEL:.spec.modelRefs[0].name,GROUPS:.spec.owner.groups[*].name'`. The secured agent (`system:serviceaccounts:parasol-secured`) is on `parasol-stage`, 200k tokens / 10 min; `parasol-prod` has 2M / 24h. Say: OpenShift AI decides who may use which model, at which tier, with which budget.
+2. Switch Argo env-secured to the storm overlay: `oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"path":"gitops/envs/secured-storm"}}}'`, then `oc rollout status deploy/parasol-agent -n parasol-secured --timeout=300s`, then `scripts/abuse.sh secured rebecca 3`.
+3. Console: Observe > Metrics `sum by (version)(rate(parasol_agent_tokens_total[1m]))*60` climbs to ~120k tokens/min; Observe > Alerting `ParasolAgentTokenSpendHigh` pending, then firing after ~1.5 min (threshold 20000 tokens/min).
+4. OpenShift AI MaaS cuts it off: the agent's MaaS key is on subscription `parasol-stage` (200k tokens / 10 min), so after ~190k tokens the MaaS gateway answers 429 and `abuse.sh` prints `Too Many Requests`. Order on 10 Oct: alert pending, then 429, then alert firing ~20 s later. `oc logs -n openshift-ingress deploy/maas-default-gateway-openshift-default --since=5m | grep '" 429 '`. Caption: "the platform stopped the spend".
+5. Console: Observe > Traces (instance observability/parasol, service parasol-agent): the looping request, ~25 repeated `ClaimsAssistant.ask` / model-completion spans.
+6. Switch Argo back (same `oc patch` with `gitops/envs/secured`), then `scripts/reset.sh` (also restores the model allowance).
+7. Kill switch: `git commit` changing `components: []` to `components: [./kill-switch]` in `gitops/envs/secured/kustomization.yaml`, Argo syncs (~20 s), `scripts/abuse.sh secured rebecca 1` returns a clean 502 after ~50 s (two 25 s connection attempts; speed up in the edit), `oc get pods -n parasol-secured` still Running. Caption: "revoke, don't kill".
+8. `git revert` the commit, Argo restores the model path, `scripts/reset.sh`.
 
 ## Recording checklist
 * `scripts/reset.sh` before every take. Fresh tokens (realm token lifespan is 1 h).
