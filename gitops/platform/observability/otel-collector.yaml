@@ -2,8 +2,20 @@
 # It fans traces out to two backends:
 #   - Tempo        -> OpenShift console Observe > Traces
 #   - MLflow (TP)  -> OpenShift AI MLflow UI (chat traces: prompt, tool calls, tokens)
-# MLflow's OTLP endpoint (/v1/traces on the managed server) needs a Kubernetes bearer token and TLS;
-# the bearertokenauth extension reads the collector's own projected SA token (auto-refreshed by kubelet).
+# MLflow's OTLP endpoint (/v1/traces on the managed server) needs a Kubernetes bearer token, TLS,
+# and workspace/experiment headers. All three are sent as static headers (the otlphttp exporter does
+# not forward static headers when a client-auth extension is also set), with the token taken from the
+# collector SA's long-lived token Secret via an env var.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: otel-mlflow-token
+  namespace: observability
+  annotations:
+    kubernetes.io/service-account.name: otel-collector
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+type: kubernetes.io/service-account-token
+---
 apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
@@ -13,10 +25,13 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   mode: deployment
+  env:
+    - name: MLFLOW_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: otel-mlflow-token
+          key: token
   config:
-    extensions:
-      bearertokenauth:
-        filename: /var/run/secrets/kubernetes.io/serviceaccount/token
     receivers:
       otlp:
         protocols:
@@ -31,17 +46,15 @@ spec:
           insecure: true
       otlphttp/mlflow:
         traces_endpoint: https://mlflow.redhat-ods-applications.svc:8443/v1/traces
-        auth:
-          authenticator: bearertokenauth
         # MLflow 3.x workspaces: route chat spans into the parasol-secured workspace's
         # default experiment (id 0). RBAC for the write is in mlflow-rbac.yaml.
         headers:
+          Authorization: "Bearer ${env:MLFLOW_TOKEN}"
           x-mlflow-workspace: parasol-secured
           x-mlflow-experiment-id: "0"
         tls:
           insecure_skip_verify: true
     service:
-      extensions: [bearertokenauth]
       pipelines:
         traces:
           receivers: [otlp]
