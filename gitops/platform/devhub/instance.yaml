@@ -1,0 +1,191 @@
+# Parasol Developer Hub instance + golden-path template wiring.
+# Guest auth (demo, browser-viewable, no login). Golden-path template mounted as
+# a file and registered via catalog.locations type: file (no Git token needed to read).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: parasol-devhub
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config-parasol
+  namespace: parasol-devhub
+data:
+  app-config-parasol.yaml: |
+    app:
+      title: Parasol Developer Hub
+      baseUrl: https://backstage-parasol-parasol-devhub.apps.cluster-znh6n.dyn.redhatworkshops.io
+    backend:
+      baseUrl: https://backstage-parasol-parasol-devhub.apps.cluster-znh6n.dyn.redhatworkshops.io
+      cors:
+        origin: https://backstage-parasol-parasol-devhub.apps.cluster-znh6n.dyn.redhatworkshops.io
+    auth:
+      environment: development
+      providers:
+        guest:
+          dangerouslyAllowOutsideDevelopment: true
+    catalog:
+      import:
+        entityFilename: catalog-info.yaml
+      rules:
+        - allow: [Component, System, API, Resource, Location, Template, Group, User]
+      locations:
+        - type: file
+          target: /opt/app-root/src/parasol-catalog/parasol-agent-template.yaml
+        - type: file
+          target: /opt/app-root/src/parasol-catalog/org.yaml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: parasol-catalog
+  namespace: parasol-devhub
+data:
+  org.yaml: |
+    apiVersion: backstage.io/v1alpha1
+    kind: Group
+    metadata:
+      name: platform-team
+    spec:
+      type: team
+      children: []
+    ---
+    apiVersion: backstage.io/v1alpha1
+    kind: User
+    metadata:
+      name: guest
+    spec:
+      memberOf: [platform-team]
+  parasol-agent-template.yaml: |
+    apiVersion: scaffolder.backstage.io/v1beta3
+    kind: Template
+    metadata:
+      name: parasol-agent-service
+      title: Parasol Agent / MCP Server (golden path)
+      description: >-
+        Create a new Parasol-style Quarkus LangChain4j agent exposing an MCP
+        server, wired to the signed Tekton pipeline and GitOps overlay used by
+        the secured Parasol demo (cosign-signed images, admission-enforced,
+        identity-bound tools).
+      tags:
+        - parasol
+        - ai-agent
+        - mcp
+        - quarkus
+        - golden-path
+        - supply-chain
+    spec:
+      owner: group:default/platform-team
+      type: service
+      parameters:
+        - title: Service details
+          required:
+            - componentName
+            - owner
+          properties:
+            componentName:
+              title: Name
+              type: string
+              description: Unique name for the agent/MCP service (lowercase, dns-1123).
+              pattern: '^[a-z0-9-]+$'
+              ui:autofocus: true
+            description:
+              title: Description
+              type: string
+              description: What this agent does.
+            owner:
+              title: Owner
+              type: string
+              description: Owning group or user.
+              ui:field: OwnerPicker
+              ui:options:
+                catalogFilter:
+                  kind: [Group, User]
+        - title: Agent configuration
+          required:
+            - maasModel
+          properties:
+            maasModel:
+              title: Model (MaaS)
+              type: string
+              description: Model served by the lab LiteLLM MaaS endpoint.
+              default: llama-scout-17b
+              enum:
+                - llama-scout-17b
+            mcpTools:
+              title: MCP tools to expose
+              type: array
+              items:
+                type: string
+                enum:
+                  - get_claim
+                  - get_claim_documents
+                  - search_policy
+                  - propose_payout
+              uniqueItems: true
+              ui:widget: checkboxes
+            enableSigning:
+              title: Sign images with cosign and enforce admission
+              type: boolean
+              default: true
+        - title: Repository
+          required:
+            - repoUrl
+          properties:
+            repoUrl:
+              title: Repository location
+              type: string
+              ui:field: RepoUrlPicker
+              ui:options:
+                allowedHosts:
+                  - github.com
+      steps:
+        - id: fetch
+          name: Fetch skeleton
+          action: fetch:template
+          input:
+            url: ./skeleton
+            values:
+              componentName: ${{ parameters.componentName }}
+              description: ${{ parameters.description }}
+              owner: ${{ parameters.owner }}
+              maasModel: ${{ parameters.maasModel }}
+              enableSigning: ${{ parameters.enableSigning }}
+        - id: publish
+          name: Publish to GitHub
+          action: publish:github
+          input:
+            repoUrl: ${{ parameters.repoUrl }}
+            description: ${{ parameters.description }}
+            defaultBranch: main
+        - id: register
+          name: Register in catalog
+          action: catalog:register
+          input:
+            repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+            catalogInfoPath: /catalog-info.yaml
+      output:
+        links:
+          - title: Open the new component
+            icon: catalog
+            entityRef: ${{ steps.register.output.entityRef }}
+          - title: Repository
+            url: ${{ steps.publish.output.remoteUrl }}
+---
+apiVersion: rhdh.redhat.com/v1alpha5
+kind: Backstage
+metadata:
+  name: parasol
+  namespace: parasol-devhub
+spec:
+  application:
+    appConfig:
+      configMaps:
+        - name: app-config-parasol
+    extraFiles:
+      mountPath: /opt/app-root/src/parasol-catalog
+      configMaps:
+        - name: parasol-catalog
+    route:
+      enabled: true

@@ -1,0 +1,118 @@
+# Golden-path software template: scaffolds a Parasol-style AI agent / MCP server
+# backed by the signed supply-chain pipeline (buildah -> trivy -> eval gate ->
+# cosign sign -> Conforma/EC verify -> promote). Launchable from the RHDH
+# "Create" page. Scaffolder steps run only on submit; the template form renders
+# without any Git integration token.
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: parasol-agent-service
+  title: Parasol Agent / MCP Server (golden path)
+  description: >-
+    Create a new Parasol-style Quarkus LangChain4j agent exposing an MCP server,
+    wired to the signed Tekton pipeline and GitOps overlay used by the secured
+    Parasol demo (cosign-signed images, admission-enforced, identity-bound tools).
+  tags:
+    - parasol
+    - ai-agent
+    - mcp
+    - quarkus
+    - golden-path
+    - supply-chain
+spec:
+  owner: group:default/platform-team
+  type: service
+  parameters:
+    - title: Service details
+      required:
+        - componentName
+        - owner
+      properties:
+        componentName:
+          title: Name
+          type: string
+          description: Unique name for the agent/MCP service (lowercase, dns-1123).
+          pattern: '^[a-z0-9-]+$'
+          ui:autofocus: true
+        description:
+          title: Description
+          type: string
+          description: What this agent does.
+        owner:
+          title: Owner
+          type: string
+          description: Owning group or user.
+          ui:field: OwnerPicker
+          ui:options:
+            catalogFilter:
+              kind: [Group, User]
+    - title: Agent configuration
+      required:
+        - maasModel
+      properties:
+        maasModel:
+          title: Model (MaaS)
+          type: string
+          description: Model served by the lab LiteLLM MaaS endpoint.
+          default: llama-scout-17b
+          enum:
+            - llama-scout-17b
+        mcpTools:
+          title: MCP tools to expose
+          type: array
+          items:
+            type: string
+            enum:
+              - get_claim
+              - get_claim_documents
+              - search_policy
+              - propose_payout
+          uniqueItems: true
+          ui:widget: checkboxes
+        enableSigning:
+          title: Sign images with cosign and enforce admission
+          type: boolean
+          default: true
+    - title: Repository
+      required:
+        - repoUrl
+      properties:
+        repoUrl:
+          title: Repository location
+          type: string
+          ui:field: RepoUrlPicker
+          ui:options:
+            allowedHosts:
+              - github.com
+  steps:
+    - id: fetch
+      name: Fetch skeleton
+      action: fetch:template
+      input:
+        url: ./skeleton
+        values:
+          componentName: ${{ parameters.componentName }}
+          description: ${{ parameters.description }}
+          owner: ${{ parameters.owner }}
+          maasModel: ${{ parameters.maasModel }}
+          enableSigning: ${{ parameters.enableSigning }}
+    - id: publish
+      name: Publish to GitHub
+      action: publish:github
+      input:
+        repoUrl: ${{ parameters.repoUrl }}
+        description: ${{ parameters.description }}
+        defaultBranch: main
+    - id: register
+      name: Register in catalog
+      action: catalog:register
+      input:
+        repoContentsUrl: ${{ steps.publish.output.repoContentsUrl }}
+        catalogInfoPath: /catalog-info.yaml
+  output:
+    links:
+      - title: Open the new component
+        icon: catalog
+        entityRef: ${{ steps.register.output.entityRef }}
+      - title: Repository
+        url: ${{ steps.publish.output.remoteUrl }}

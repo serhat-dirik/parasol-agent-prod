@@ -1,0 +1,26 @@
+# Red Hat Developer Hub operator (RHDH, Backstage). AllNamespaces install mode
+# (the only mode the operator supports) via a dedicated operator namespace.
+# Wave-2 backlog item "Developer Hub golden path" — additive, not Argo-wired.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rhdh-operator
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: rhdh-operator-group
+  namespace: rhdh-operator
+spec: {}
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: rhdh
+  namespace: rhdh-operator
+spec:
+  channel: fast
+  name: rhdh
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
