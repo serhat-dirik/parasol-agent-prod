@@ -20,10 +20,18 @@ spec:
   gatewayClassName: openshift-default
   infrastructure:
     parametersRef: {group: "", kind: ConfigMap, name: maas-default-gateway-config}
+    # copied onto the generated Service: the OpenShift service CA issues a cert for its in-cluster name
+    annotations:
+      service.beta.openshift.io/serving-cert-secret-name: maas-default-gateway-tls
   listeners:
-    - name: http
+    # maas-api only accepts a gateway Service it owns that exposes 443 (ResolveGatewayInternalHost)
+    - name: https
       hostname: maas.parasol.local
-      port: 8080
-      protocol: HTTP
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - {group: "", kind: Secret, name: maas-default-gateway-tls}
       allowedRoutes:
         namespaces: {from: All}
