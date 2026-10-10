@@ -60,6 +60,12 @@ What you should see: one of the night requests, with the user on the span.
 +
 // TODO: screenshot placeholder - OpenShift console Observe Traces view, one overnight request trace with tom.becker on the span, logged in
 
+. Still in the console, open Observe, Dashboards, project `openshift-operators`, the "Parasol Assistant Token Spend" dashboard. This is the morning report on one page.
++
+What you should see: per-user token spend with tom.becker peaking near 9977 per minute against rebecca near 5599 per minute, the tool calls and detector hits, and `ParasolAssistantTokenSpendHigh` firing and naming tom.becker.
++
+// TODO: screenshot placeholder - OpenShift console Observe Dashboards, Parasol Assistant Token Spend one-page dashboard, tom.becker spend spike and the firing alert, logged in
+
 == Beat 4: spend attributed, production untouched
 
 . Open the *OpenShift AI* tab, Models-as-a-Service usage dashboard.
@@ -70,11 +76,11 @@ What you should see: the spend attributed to tom.becker's account, and the produ
 
 == Beat 5: the trace in MLflow
 
-. Open the *MLflow* tab.
+. Open the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`.
 +
-What you should see: the trace with the prompt, the refusal, and the token counts.
+What you should see: tom.becker as one session of about 22 turns, and a trace in it with the prompt, the refusal, and the token counts.
 +
-// TODO: screenshot placeholder - MLflow trace view in OpenShift AI showing one tom.becker request with prompt, refusal and token counts, logged in
+// TODO: screenshot placeholder - MLflow experiment parasol-portal-chat showing tom.becker as one session of ~22 turns with a trace holding the prompt, refusal and token counts, logged in
 
 == Beat 6: revoke before you kill
 

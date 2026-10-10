@@ -60,11 +60,19 @@ What you should see: the NeMo rail firing on a disallowed topic.
 
 == MLflow
 
-Sessions and traces per user, from the observability work.
+Sessions and traces per user, from the observability work. In the *OpenShift AI* tab, open MLflow, workspace `parasol-secured`, experiment `parasol-portal-chat`, then Traces and Sessions.
 
-. Open the *MLflow* tab. Show sessions and traces grouped by user.
+. Show the sessions grouped by user.
 +
-// TODO: screenshot placeholder - MLflow sessions and traces view grouped by user (rebecca, marcus, tom.becker) from the OTel export, logged in
+What you should see: rebecca, marcus, and tom.becker each appear as a session. The night shift shows tom.becker as one session of 22 turns, capped by his budget and ending in the 429.
++
+// TODO: screenshot placeholder - MLflow experiment parasol-portal-chat Sessions, rebecca marcus and tom.becker each as a session, tom.becker one session of ~22 turns, logged in
+
+. Open the CLM-1004 story trace `tr-9f12027e`.
++
+What you should see: the span order reads model.chat, then tool.get_claim_documents, then guardrails.tool_result flagged by the regex detector at 1.0, then tool.propose_payout, and no approve_payout anywhere in the trace.
++
+// TODO: screenshot placeholder - MLflow trace tr-9f12027e showing model.chat then tool.get_claim_documents then guardrails.tool_result (flag 1.0) then tool.propose_payout with no approve_payout span, logged in
 
 == The operator dashboard
 
@@ -72,9 +80,9 @@ One screen for the whole agent. The base dashboard, "Parasol Assistant Token Spe
 
 . Open the *OpenShift Console* tab, Observe, Dashboards. Select project `openshift-operators` and open the "Parasol Assistant Token Spend" dashboard.
 +
-What you should see: token spend by user and version, and the `ParasolAssistantTokenSpendHigh` alert state. Additional panels (tool calls by status, detector hits, 403s per tool, P95 latency) join this dashboard as the metrics work completes.
+What you should see: one page for the whole agent. Tool calls by status (the 200s), guardrail detector hits, P95 latency, per-user token spend (tom.becker peaking near 9977 per minute against rebecca near 5599 per minute), and `ParasolAssistantTokenSpendHigh` firing and naming user=tom.becker. The 403s-per-tool panel fills in when the Demo 2 forced-approve beat runs on camera.
 +
-// TODO: screenshot placeholder - OpenShift console Observe Dashboards, project openshift-operators, Parasol Assistant Token Spend Perses dashboard with per-user and per-version token panels and the alert state, logged in
+// TODO: screenshot placeholder - OpenShift console Observe Dashboards, project openshift-operators, Parasol Assistant Token Spend dashboard showing tool calls by status, detector hits, P95 latency, per-user token spend (tom.becker vs rebecca) and ParasolAssistantTokenSpendHigh firing for tom.becker, logged in
 
 == Argo CD
 
