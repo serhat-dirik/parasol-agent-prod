@@ -1,0 +1,78 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: acs-bootstrap
+  namespace: stackrox
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: acs-bootstrap
+  namespace: stackrox
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create", "patch", "update", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: acs-bootstrap
+  namespace: stackrox
+subjects:
+- kind: ServiceAccount
+  name: acs-bootstrap
+  namespace: stackrox
+roleRef:
+  kind: Role
+  name: acs-bootstrap
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: acs-init-bundle
+  namespace: stackrox
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: acs-bootstrap
+      restartPolicy: Never
+      volumes:
+      - name: shared
+        emptyDir: {}
+      initContainers:
+      - name: generate
+        image: registry.redhat.io/advanced-cluster-security/rhacs-main-rhel9@sha256:29694001cdc5069900ae3a09b8791e82c46de3d8afad46827240ef6f3a8e4a14
+        command: ["/stackrox/roxctl"]
+        args:
+        - central
+        - init-bundles
+        - generate
+        - parasol-lab
+        - --endpoint=central.stackrox.svc:443
+        - --insecure-skip-tls-verify
+        - --output-secrets=/shared/bundle.yaml
+        env:
+        - name: ROX_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: central-htpasswd
+              key: password
+        volumeMounts:
+        - name: shared
+          mountPath: /shared
+      containers:
+      - name: apply
+        image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+        command: ["/bin/bash","-c"]
+        args:
+        - |
+          set -e
+          echo "Applying init bundle secrets to stackrox namespace..."
+          oc apply -n stackrox -f /shared/bundle.yaml
+          echo "Init bundle applied."
+        volumeMounts:
+        - name: shared
+          mountPath: /shared

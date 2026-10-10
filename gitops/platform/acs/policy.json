@@ -1,0 +1,35 @@
+{
+  "name": "Parasol - Unexpected Process in parasol-secured",
+  "description": "Detects execution of a shell, package manager, or network tool inside the Parasol secured agent workloads at runtime. The agent containers should only run their application process; an interactive shell, dnf/microdnf, curl/wget, or a port scanner indicates tampering, a supply-chain issue, or an abused tool call.",
+  "rationale": "An AI agent workload should never spawn a package manager or ad-hoc network client. Such a process at runtime is a strong signal of compromise or misuse of the agent execution environment.",
+  "remediation": "Investigate why the process ran in parasol-secured. Rebuild the image without shell/package-manager access, restrict the agent tool permissions, and treat the pod as suspect.",
+  "categories": ["Anomalous Activity"],
+  "lifecycleStages": ["RUNTIME"],
+  "eventSource": "DEPLOYMENT_EVENT",
+  "severity": "HIGH_SEVERITY",
+  "enabled": true,
+  "scope": [{"namespace": "parasol-secured"}],
+  "policySections": [
+    {
+      "sectionName": "Unexpected runtime process",
+      "policyGroups": [
+        {
+          "fieldName": "Process Name",
+          "booleanOperator": "OR",
+          "negate": false,
+          "values": [
+            {"value": "microdnf"},
+            {"value": "dnf"},
+            {"value": "yum"},
+            {"value": "rpm"},
+            {"value": "curl"},
+            {"value": "wget"},
+            {"value": "nc"},
+            {"value": "nmap"},
+            {"value": "bash"}
+          ]
+        }
+      ]
+    }
+  ]
+}

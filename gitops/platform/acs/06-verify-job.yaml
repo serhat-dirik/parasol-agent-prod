@@ -1,0 +1,36 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: acs-verify-alert
+  namespace: stackrox
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      serviceAccountName: acs-bootstrap
+      restartPolicy: Never
+      containers:
+      - name: verify
+        image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+        command: ["/bin/bash","-c"]
+        args:
+        - |
+          set -uo pipefail
+          for i in $(seq 1 20); do
+            curl -sk -u "admin:${ROX_ADMIN_PASSWORD}" \
+              "https://central.stackrox.svc/v1/alerts?query=Policy:Parasol%20-%20Unexpected%20Process%20in%20parasol-secured" \
+              -o /tmp/a.json
+            n=$(grep -o '"id"' /tmp/a.json | wc -l)
+            echo "attempt $i: alert entries=$n"
+            if [ "$n" -ge 1 ]; then
+              echo "VIOLATION FOUND"; cat /tmp/a.json; echo; exit 0
+            fi
+            sleep 15
+          done
+          echo "NO VIOLATION YET"; cat /tmp/a.json; exit 1
+        env:
+        - name: ROX_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: central-htpasswd
+              key: password

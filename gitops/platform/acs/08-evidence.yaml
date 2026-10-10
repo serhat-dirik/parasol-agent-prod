@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: acs-evidence
+  namespace: stackrox
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: acs-bootstrap
+      restartPolicy: Never
+      containers:
+      - name: evidence
+        image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+        command: ["/bin/bash","-c"]
+        args:
+        - |
+          set -uo pipefail
+          B="https://central.stackrox.svc"
+          A=(-sk -u "admin:${ROX_ADMIN_PASSWORD}")
+          echo "########## 1. POLICY ##########"
+          curl "${A[@]}" "$B/v1/policies?query=Policy:Parasol%20-%20Unexpected%20Process%20in%20parasol-secured" \
+            | grep -o '"name":"[^"]*"\|"lifecycleStages":\[[^]]*\]\|"severity":"[^"]*"\|"disabled":[a-z]*' | head
+          echo
+          echo "########## 2. VIOLATION (parasol runtime alert) ##########"
+          curl "${A[@]}" "$B/v1/alerts?query=Policy:Parasol%20-%20Unexpected%20Process%20in%20parasol-secured" -o /tmp/pa.json
+          echo "alert id count: $(grep -o '"id"' /tmp/pa.json | wc -l)"
+          grep -o '"policy":{"id":"[^"]*","name":"[^"]*"' /tmp/pa.json | head -3
+          grep -o '"deployment":{[^}]*}' /tmp/pa.json | head -3
+          echo "--- offending processes seen in violation text ---"
+          grep -o 'microdnf\|curl\|bash\|/usr/bin/[a-z]*' /tmp/pa.json | sort | uniq -c | head
+          echo
+          echo "########## 3. MONITORED PARASOL DEPLOYMENTS ##########"
+          curl "${A[@]}" "$B/v1/deployments?query=Namespace:parasol-secured" \
+            | grep -o '"name":"[^"]*"' | sort -u
+        env:
+        - name: ROX_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: central-htpasswd
+              key: password

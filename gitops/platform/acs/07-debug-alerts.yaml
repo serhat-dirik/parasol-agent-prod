@@ -1,0 +1,33 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: acs-debug-alerts
+  namespace: stackrox
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      serviceAccountName: acs-bootstrap
+      restartPolicy: Never
+      containers:
+      - name: debug
+        image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+        command: ["/bin/bash","-c"]
+        args:
+        - |
+          set -uo pipefail
+          for i in $(seq 1 18); do
+            curl -sk -u "admin:${ROX_ADMIN_PASSWORD}" "https://central.stackrox.svc/v1/alerts?query=Lifecycle%20Stage:RUNTIME" -o /tmp/rt.json
+            echo "=== attempt $i ==="
+            echo "RUNTIME alert id count: $(grep -o '"id"' /tmp/rt.json | wc -l)"
+            echo "policy names in payload:"; grep -o '"name":"[^"]*"' /tmp/rt.json | sort -u | head -40
+            if grep -q 'Parasol' /tmp/rt.json; then echo "PARASOL ALERT PRESENT"; exit 0; fi
+            sleep 15
+          done
+          echo "NO PARASOL RUNTIME ALERT"; echo "--- full runtime payload ---"; cat /tmp/rt.json; exit 1
+        env:
+        - name: ROX_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: central-htpasswd
+              key: password

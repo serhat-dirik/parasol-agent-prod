@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: acs-create-policy
+  namespace: stackrox
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      serviceAccountName: acs-bootstrap
+      restartPolicy: Never
+      volumes:
+      - name: policy
+        configMap:
+          name: acs-policy
+      containers:
+      - name: create
+        image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+        command: ["/bin/bash","-c"]
+        args:
+        - |
+          set -euo pipefail
+          echo "Creating/refreshing runtime policy via Central API..."
+          code=$(curl -sk -o /tmp/resp.json -w '%{http_code}' \
+            -u "admin:${ROX_ADMIN_PASSWORD}" \
+            -H 'Content-Type: application/json' \
+            -X POST https://central.stackrox.svc/v1/policies \
+            -d @/policy/policy.json || true)
+          echo "HTTP $code"
+          cat /tmp/resp.json; echo
+          if [ "$code" = "200" ] || [ "$code" = "201" ]; then
+            echo "POLICY CREATED"; exit 0
+          fi
+          if grep -qi 'already exists\|with this name' /tmp/resp.json; then
+            echo "POLICY ALREADY EXISTS (ok)"; exit 0
+          fi
+          echo "POLICY CREATE FAILED"; exit 1
+        env:
+        - name: ROX_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: central-htpasswd
+              key: password
+        volumeMounts:
+        - name: policy
+          mountPath: /policy
