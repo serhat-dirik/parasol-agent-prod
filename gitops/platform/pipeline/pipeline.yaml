@@ -54,6 +54,14 @@ spec:
       params:
         - {name: image, value: "$(params.output-image)"}
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
+    - name: generate-sbom
+      runAfter: [build-container]
+      taskRef: {name: generate-sbom}
+      params:
+        - {name: image, value: "$(params.output-image)"}
+        - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
+      workspaces:
+        - {name: source, workspace: workspace}
     - name: agent-eval
       runAfter: [build-container]
       taskRef: {name: agent-eval}
@@ -61,17 +69,17 @@ spec:
         - {name: candidate, value: "$(params.candidate)"}
       workspaces:
         - {name: source, workspace: workspace}
-    - name: verify-signature
+    - name: verify-enterprise-contract
       runAfter: [build-container]
-      taskRef: {name: verify-signature}
+      taskRef: {name: verify-enterprise-contract}
       params:
         - {name: image, value: "$(params.output-image)"}
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
     - name: promote
-      runAfter: [scan-image, agent-eval, verify-signature]
+      runAfter: [scan-image, agent-eval, verify-enterprise-contract]
       when:
         - {input: "$(tasks.agent-eval.results.gate)", operator: in, values: ["passed"]}
-        - {input: "$(tasks.verify-signature.results.verified)", operator: in, values: ["true"]}
+        - {input: "$(tasks.verify-enterprise-contract.results.verified)", operator: in, values: ["true"]}
       taskRef: {name: promote}
       params:
         - {name: image, value: "$(params.output-image)"}

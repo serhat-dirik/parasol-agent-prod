@@ -9,3 +9,9 @@ namespace: parasol-build
 resources:
   - tasks.yaml
   - pipeline.yaml
+configMapGenerator:
+  - name: ec-policy
+    files:
+      - policy.rego=eval/ec-policy.rego
+generatorOptions:
+  disableNameSuffixHash: true

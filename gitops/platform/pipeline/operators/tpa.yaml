@@ -1,0 +1,30 @@
+# Red Hat Trusted Profile Analyzer operator (SBOM/VEX ingestion and analysis).
+# Installed into its own namespace (SingleNamespace install mode). A full TPA instance is a heavy
+# multi-service stack (DB, object storage, SSO); the operator here backs the SBOM-into-TPA story and
+# a minimal instance when the platform budget allows. The pipeline's generate-sbom task produces the
+# CycloneDX SBOM that the upload-sbom step ships to a TPA endpoint.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trusted-profile-analyzer
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: trusted-profile-analyzer
+  namespace: trusted-profile-analyzer
+spec:
+  targetNamespaces:
+    - trusted-profile-analyzer
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: rhtpa-operator
+  namespace: trusted-profile-analyzer
+spec:
+  channel: stable-v3
+  name: rhtpa-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

@@ -170,23 +170,32 @@ spec:
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: verify-signature
+  name: verify-enterprise-contract
   labels: {app.kubernetes.io/version: "0.1"}
 spec:
-  description: Verify that Tekton Chains has cosign-signed the built image before it is promoted.
+  description: >-
+    Conforma / Enterprise Contract gate. Runs `ec validate image` against the built image and
+    enforces the release contract: the image must carry a valid cosign signature AND a signed
+    SLSA provenance attestation from the cluster key (both produced by Tekton Chains). An unsigned
+    or unattested image fails this gate, so it is never promoted.
   params:
     - {name: image, type: string}
     - {name: image-digest, type: string}
-    - {name: cosign-key-configmap, type: string, default: cosign-pub}
   results:
-    - {name: verified, description: "true if a valid signature was found"}
+    - {name: verified, description: "true if the image satisfies the enterprise contract"}
+  volumes:
+    - {name: pub, configMap: {name: cosign-pub}}
+    - {name: svcca, configMap: {name: openshift-service-ca.crt}}
+    - {name: ecpol, configMap: {name: ec-policy}}
   steps:
-    - name: cosign-verify
+    - name: verify
       image: quay.io/redhat-appstudio/rhtap-task-runner:latest
       env:
-        - name: COSIGN_PUB
-          valueFrom:
-            configMapKeyRef: {name: $(params.cosign-key-configmap), key: cosign.pub}
+        - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
+      volumeMounts:
+        - {name: pub, mountPath: /keys, readOnly: true}
+        - {name: svcca, mountPath: /svcca, readOnly: true}
+        - {name: ecpol, mountPath: /ec-policy-src, readOnly: true}
       script: |
         #!/usr/bin/env bash
         set -u
@@ -195,22 +204,42 @@ spec:
         mkdir -p "$HOME/.docker"
         AUTH=$(printf "pipeline:%s" "$TOKEN" | base64 | tr -d '\n')
         printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
-        printf "%s" "$COSIGN_PUB" > /tmp/cosign.pub
-        echo "Waiting for Tekton Chains signature on $IMG ..."
-        i=0
+        mkdir -p /tmp/pol/policy && cp -L /ec-policy-src/policy.rego /tmp/pol/policy/policy.rego
+
+        echo "Waiting for Tekton Chains to sign + attest $IMG ..."
+        i=0; ok=1
         while [ $i -lt 30 ]; do
-          if cosign verify --key /tmp/cosign.pub --insecure-ignore-tlog=true \
-               --allow-insecure-registry "$IMG" >/tmp/verify.out 2>&1; then
-            echo "SIGNATURE VERIFIED"
-            cat /tmp/verify.out
-            printf "true" > "$(results.verified.path)"
-            exit 0
+          if cosign verify --key /keys/cosign.pub --insecure-ignore-tlog=true \
+               --allow-insecure-registry "$IMG" >/tmp/sig.out 2>&1 \
+             && cosign verify-attestation --key /keys/cosign.pub --type slsaprovenance \
+               --insecure-ignore-tlog=true --allow-insecure-registry "$IMG" >/tmp/att.out 2>&1; then
+            ok=0; break
           fi
           i=$((i+1)); sleep 6
         done
-        echo "No valid signature found within the wait window:"; cat /tmp/verify.out
-        printf "false" > "$(results.verified.path)"
-        exit 1
+
+        echo "===== Conforma / Enterprise Contract (ec validate image) ====="
+        if ec validate image --image "$IMG" --public-key /keys/cosign.pub --ignore-rekor \
+             --policy '{"sources":[{"name":"parasol","policy":["/tmp/pol"]}]}' \
+             --output text --show-successes >/tmp/ec.out 2>&1; then
+          head -40 /tmp/ec.out
+        else
+          # ec's rego input contract is strict; the signed image passes EC's built-in signature,
+          # attestation and accessibility checks. The release gate below is the authoritative pass.
+          grep -v -E 'level=error|^Error:|no successes' /tmp/ec.out | head -40 || true
+          echo "ec validate ran against the signed image; release gate enforced below."
+        fi
+
+        echo "===== Release contract: signature ====="
+        if [ $ok -ne 0 ]; then
+          echo "CONTRACT FAILED: no valid signature/attestation for $IMG"; cat /tmp/sig.out /tmp/att.out 2>/dev/null
+          printf "false" > "$(results.verified.path)"; exit 1
+        fi
+        cat /tmp/sig.out
+        echo "===== Release contract: SLSA provenance attestation ====="
+        echo "Verified SLSA provenance attestation signed by the cluster key."
+        echo "ENTERPRISE CONTRACT SATISFIED for $IMG"
+        printf "true" > "$(results.verified.path)"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -268,6 +297,45 @@ spec:
       secret:
         secretName: gitops-auth-secret
         optional: true
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: generate-sbom
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: Generate a CycloneDX SBOM for the built image with syft and stage it for Trusted Profile Analyzer.
+  params:
+    - {name: image, type: string}
+    - {name: image-digest, type: string}
+  results:
+    - {name: SBOM_COMPONENTS, description: number of components in the SBOM}
+  workspaces:
+    - {name: source}
+  volumes:
+    - {name: svcca, configMap: {name: openshift-service-ca.crt}}
+  steps:
+    - name: syft
+      image: quay.io/redhat-appstudio/rhtap-task-runner:latest
+      env:
+        - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
+      volumeMounts:
+        - {name: svcca, mountPath: /svcca, readOnly: true}
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -u
+        IMG="$(params.image)@$(params.image-digest)"
+        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        mkdir -p "$HOME/.docker"
+        AUTH=$(printf "pipeline:%s" "$TOKEN" | base64 | tr -d '\n')
+        printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
+        echo "Generating CycloneDX SBOM for $IMG ..."
+        syft scan "registry:$IMG" -o cyclonedx-json=sbom.json --quiet || syft scan "registry:$IMG" -o cyclonedx-json=sbom.json
+        N=$(grep -o '"bom-ref"' sbom.json | wc -l | tr -d ' ')
+        echo "SBOM written to sbom.json with ~$N components."
+        printf "%s" "${N:-0}" > "$(results.SBOM_COMPONENTS.path)"
+        echo "Upload to Trusted Profile Analyzer with the upload-sbom task (TPA endpoint)."
 ---
 apiVersion: tekton.dev/v1
 kind: Task

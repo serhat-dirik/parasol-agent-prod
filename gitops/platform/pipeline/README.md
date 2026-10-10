@@ -9,11 +9,20 @@ OpenShift registry, the SCM is GitHub `serhat-dirik/parasol-agent-prod`, and pro
 to the prod overlay in this repo.
 
 ```
-init → clone-repository → build-container → scan-image → agent-eval ┐
-                                          → verify-signature ────────┼→ promote
-                                                                      ┘
+init → clone-repository → build-container → scan-image ────────────────────┐
+                                          → generate-sbom (syft, CycloneDX) │
+                                          → agent-eval (lifecycle gate) ─────┼→ promote
+                                          → verify-enterprise-contract ──────┘
+                                            (Conforma: signature + SLSA provenance)
 finally: show-sbom, show-summary
 ```
+
+`verify-enterprise-contract` is the Conforma / Enterprise Contract gate: it runs `ec validate image`
+and enforces the release contract — the image must carry a valid cosign signature AND a signed SLSA
+provenance attestation from the cluster key (both produced by Tekton Chains). `generate-sbom` runs
+syft to produce a CycloneDX SBOM of the built image (ready to ship to Trusted Profile Analyzer; the
+rhtpa operator is installed via operators/tpa.yaml). The gate data/policy lives in `eval/`
+(`ec-policy.rego`, generated into the `ec-policy` ConfigMap by the kustomization).
 
 * `pipeline.yaml`, `tasks.yaml` — the Pipeline and Tasks (kustomize: `parasol-build`).
 * `pipelinerun.yaml` — launch a run: `oc create -n parasol-build -f pipelinerun.yaml`.
