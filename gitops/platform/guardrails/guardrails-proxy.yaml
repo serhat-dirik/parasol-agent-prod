@@ -26,6 +26,23 @@ data:
            ("Emirates ID", re.compile(r"\b784-?\d{4}-?\d{7}-?\d\b")),
            ("payment card", re.compile(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b"))]
 
+    # Demo 3 topic guardrail: a non-insurance request (the night-shift essays) gets a polite refusal.
+    # ponytail: deterministic keyword list for the scripted inputs; swap for a classifier if it misfires.
+    TOPIC = [re.compile(p) for p in json.loads(os.environ.get("TOPIC", "[]"))]
+
+    # The portal's OpenAI client drops unknown top-level fields, so the guardrails signal rides on the
+    # FIRST LINE of the assistant message as a sentinel the portal strips and turns into a banner/chip.
+    def sentinel(action, msg, detectors=None, score=None, masked=None):
+        parts = ["action=" + action]
+        if detectors:
+            parts.append("detectors=" + ",".join(detectors))
+        if score is not None:
+            parts.append("score=" + ("%g" % score))
+        if masked:
+            parts.append("masked=" + ",".join(masked))
+        parts.append("msg=" + msg)
+        return "❦GUARDRAILS " + ";".join(parts) + "❧"
+
     ORCH = os.environ.get("ORCHESTRATOR_URL", "https://guardrails-service:8032")
     CA = os.environ.get("ORCHESTRATOR_CA", "/etc/service-ca/service-ca.crt")
     DETECTORS = json.loads(os.environ["DETECTORS"])
@@ -49,22 +66,36 @@ data:
             except ValueError:   # gateway errors (429, 5xx) can be plain text: pass the status through
                 return e.code, {"error": {"code": e.code, "message": raw.decode(errors="replace")[:300]}}
 
-    def texts(messages):
-        # tool results (retrieved documents) and the latest user message
-        out = [m.get("content") for m in messages if m.get("role") == "tool"]
-        users = [m.get("content") for m in messages if m.get("role") == "user"]
-        out += users[-1:]
-        return [t if isinstance(t, str) else json.dumps(t) for t in out if t]
+    def tool_texts(messages):
+        return [m.get("content") for m in messages if m.get("role") == "tool"]
 
-    def detect(messages):
+    def last_user(messages):
+        users = [m.get("content") for m in messages if m.get("role") == "user"]
+        return users[-1] if users else None
+
+    def detect_texts(items):
+        # run the orchestrator's regex detectors over each text (shows in the orchestrator metrics)
         hits = []
-        for t in texts(messages):
+        for t in items:
+            if not t:
+                continue
+            t = t if isinstance(t, str) else json.dumps(t)
             code, r = post(ORCH + "/api/v2/text/detection/content", {"content": t, "detectors": DETECTORS})
             if code != 200:
                 print(f"detector call failed {code}: {r}", flush=True)
                 continue
             hits += r.get("detections") or []
         return hits
+
+    def topic_hits(text):
+        if not isinstance(text, str):
+            return []
+        return [{"detector_id": "topic", "detection_type": "topic", "score": 1.0, "text": p.pattern}
+                for p in TOPIC if p.search(text)]
+
+    def names_score(hits):
+        names = sorted({h.get("detector_id") or h.get("detection_type", "?") for h in hits})
+        return names, max([h.get("score") or 0 for h in hits] or [1.0])
 
     def mask_pii(messages):
         # Redact PII in the latest user message; return the labels masked (for the portal chip).
@@ -78,19 +109,16 @@ data:
                     masked.append(label)
         return sorted(set(masked))
 
-    def refusal(req, hits):
-        names = sorted({h.get("detector_id") or h.get("detection_type", "?") for h in hits})
-        score = max([h.get("score") or 0 for h in hits] or [0])
-        msg = ("Guardrails blocked this request: a retrieved document contains instructions aimed at "
-               "the assistant (detectors: " + ", ".join(names) + "). No action was taken.")
+    def block(req, hits, assistant_text, banner):
+        # Turn stops; the chat shows assistant_text. Banner (amber) carries the sentinel on line 1.
+        names, score = names_score(hits)
+        content = sentinel("block", banner, names, score) + "\n" + assistant_text
         return {"id": "guardrails-block", "object": "chat.completion", "model": req.get("model"),
                 "choices": [{"index": 0, "finish_reason": "stop",
-                             "message": {"role": "assistant", "content": msg}}],
+                             "message": {"role": "assistant", "content": content}}],
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
                 "detections": hits,
-                # portal signal: amber banner. detectors + score are real detector output.
-                "guardrails": {"action": "block", "detectors": names, "score": score,
-                               "message": "prompt injection in document"}}
+                "guardrails": {"action": "block", "detectors": names, "score": score, "message": banner}}
 
     class H(BaseHTTPRequestHandler):
         def _send(self, code, body):
@@ -108,28 +136,64 @@ data:
             if not self.path.endswith("/chat/completions"):
                 return self._send(404, {"message": "not found"})
             req = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))) or b"{}")
-            hits = detect(req.get("messages", []))
-            if hits:
-                for h in hits:
-                    print(f"detection: detector={h.get('detector_id')} type={h.get('detection_type')} "
-                          f"score={h.get('score')} text={str(h.get('text'))[:80]!r}", flush=True)
-                return self._send(200, refusal(req, hits))
-            masked = mask_pii(req.get("messages", []))   # redacts in place -> forwarded masked
+            messages = req.get("messages", [])
+            user = last_user(messages)
+            # Hard BLOCK (turn stops): an injection phrase the USER typed, or an off-topic request.
+            ui = detect_texts([user]) if user else []
+            if ui:
+                print("blocked: injection in user message", flush=True)
+                return self._send(200, block(req, ui,
+                    "I can't act on instructions embedded in that request. No action was taken.",
+                    "prompt injection in your message"))
+            th = topic_hits(user)
+            if th:
+                print("blocked: off-topic request (topic guardrail)", flush=True)
+                return self._send(200, block(req, th,
+                    "I can only help with Parasol insurance claims and policies, so I can't help with that.",
+                    "off-topic request refused"))
+            # Document / tool-result path: FLAG and CONTINUE. The detection fires on the retrieved document
+            # independently of the model; the model still summarises; the payout is stopped by the gateway.
+            flag = detect_texts(tool_texts(messages))
+            masked = mask_pii(messages)   # PII in the user message is redacted in place -> forwarded masked
             code, r = post(MAAS + "/chat/completions", req, self.headers.get("authorization"), MAAS_CTX)
-            if masked and isinstance(r, dict):
-                print("masked PII: " + ", ".join(masked), flush=True)
-                r["guardrails"] = {"action": "mask", "detectors": ["pii"], "masked": masked,
-                                   "message": "personal data masked"}
+            if isinstance(r, dict) and (flag or masked):
+                try:
+                    msg = r["choices"][0]["message"]
+                    body = msg.get("content") or ""
+                except (KeyError, IndexError, TypeError):
+                    msg, body = None, None
+                if flag:
+                    for h in flag:
+                        print(f"flag: detector={h.get('detector_id')} score={h.get('score')} "
+                              f"text={str(h.get('text'))[:80]!r}", flush=True)
+                    names, score = names_score(flag)
+                    r["guardrails"] = {"action": "flag", "detectors": names, "score": score,
+                                       "detections": flag, "masked": masked or None,
+                                       "message": "document contains instructions addressed to the assistant"}
+                    if msg is not None:
+                        msg["content"] = sentinel("flag", "document contains instructions addressed to the assistant",
+                                                  names, score, masked) + "\n" + body
+                elif masked:
+                    print("masked PII: " + ", ".join(masked), flush=True)
+                    r["guardrails"] = {"action": "mask", "detectors": ["pii"], "masked": masked,
+                                       "message": "personal data masked"}
+                    if msg is not None:
+                        msg["content"] = sentinel("mask", "personal data masked", masked=masked) + "\n" + body
             self._send(code, r)
 
         def log_message(self, fmt, *args):  # request line only; never headers (the MaaS key)
             print(fmt % args, file=sys.stderr, flush=True)
 
     if __name__ == "__main__":
-        assert texts([{"role": "user", "content": "q"}, {"role": "tool", "content": "doc"}]) == ["doc", "q"]
+        assert tool_texts([{"role": "user", "content": "q"}, {"role": "tool", "content": "doc"}]) == ["doc"]
+        assert last_user([{"role": "user", "content": "a"}, {"role": "user", "content": "b"}]) == "b"
         _m = [{"role": "user", "content": "mail me at a@b.com, card 4111 1111 1111 1111, id 784-1990-1234567-1"}]
         assert mask_pii(_m) == ["Emirates ID", "email", "payment card"], mask_pii(_m)
         assert "redacted" in _m[0]["content"] and "4111" not in _m[0]["content"]
+        s = sentinel("flag", "doc note", ["regex"], 1.0)
+        assert s.startswith("❦GUARDRAILS ") and s.endswith("❧") and "action=flag" in s and "score=1" in s
+        TOPIC.append(re.compile(r"(?i)\bessay\b"))
+        assert topic_hits("write me a 2000-word essay") and not topic_hits("approve the payout")
         ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
 ---
 apiVersion: apps/v1
@@ -158,6 +222,10 @@ spec:
             - name: DETECTORS
               value: >-
                 {"regex": {"regex": ["(?i)automated processing note", "(?i)assistant action required", "(?i)note to the claims assistant"]}}
+            # Demo 3 topic guardrail (insurance-only). Off-topic requests get a polite refusal.
+            - name: TOPIC
+              value: >-
+                ["(?i)\\bessay\\b", "(?i)\\bpoem\\b", "(?i)\\bshort story\\b", "(?i)\\bhaiku\\b", "(?i)\\bnovel\\b", "(?i)write (me )?an? (story|song|poem|essay|haiku|novel|screenplay)"]
           ports:
             - containerPort: 8080
           readinessProbe:
