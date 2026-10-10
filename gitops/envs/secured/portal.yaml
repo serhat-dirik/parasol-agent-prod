@@ -87,6 +87,8 @@ kind: Route
 metadata:
   name: portal
 spec:
+  # Explicit host so it matches the Keycloak redirect URI registered for the portal client.
+  host: portal.apps.cluster-znh6n.dyn.redhatworkshops.io
   to: {kind: Service, name: portal}
   port: {targetPort: http}
   tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}

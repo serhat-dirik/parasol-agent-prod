@@ -64,6 +64,9 @@ kind: Route
 metadata:
   name: portal-free
 spec:
+  # Explicit host so it matches the Keycloak redirect URI registered for the portal client
+  # (OpenShift would otherwise generate portal-free-parasol-free.apps.<domain>, which would not match).
+  host: portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io
   to: {kind: Service, name: portal}
   port: {targetPort: http}
   tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}
