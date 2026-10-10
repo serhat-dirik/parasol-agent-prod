@@ -58,12 +58,17 @@ const Dashboard: React.FunctionComponent = () => {
               <CardBody>
                 {(data?.recentEvents || []).length === 0 && <Text>No recent activity.</Text>}
                 {(data?.recentEvents || []).map((e, i) => {
+                  // "Approved by <user> via assistant" -> show who authorized it; otherwise fall
+                  // back to the generic "via assistant" badge for autonomous assistant actions.
+                  const approver = (e.note || '').match(/Approved by (\S+)/);
                   const viaAssistant = (e.note || '').toLowerCase().includes('assistant');
                   return (
                     <div key={i} className="dash-event">
                       <Link to={`/ClaimDetail/${e.claimNumber}`}>{e.claimNumber}</Link>
                       {' '}<b>{e.eventType}</b>
-                      {viaAssistant && <span className="dash-via"> via assistant</span>}
+                      {approver
+                        ? <span className="dash-via"> approved by {approver[1]}</span>
+                        : viaAssistant && <span className="dash-via"> via assistant</span>}
                       <div className="dash-event-note">{e.note}</div>
                       <div className="dash-event-time">{fmtTime(e.createdAt)}</div>
                     </div>

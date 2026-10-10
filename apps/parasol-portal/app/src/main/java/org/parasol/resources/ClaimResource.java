@@ -132,9 +132,12 @@ public class ClaimResource {
                     .entity(Map.of("error", "approve_payout is not permitted for this role")).build();
         }
         forwardToken();
+        // A human (a claims manager) clicked Approve, so record who: the timeline then reads
+        // "Approved by <user> via assistant" instead of a generic assistant note.
+        String actor = identity.isAnonymous() ? "" : identity.getPrincipal().getName();
         String args = amount == null
-                ? String.format("{\"claimNumber\":\"%s\"}", number)
-                : String.format("{\"claimNumber\":\"%s\",\"amount\":%s}", number, amount);
+                ? String.format("{\"claimNumber\":\"%s\",\"actor\":\"%s\"}", number, actor)
+                : String.format("{\"claimNumber\":\"%s\",\"amount\":%s,\"actor\":\"%s\"}", number, amount, actor);
         try {
             String result = claimsDb.executeTool(
                     ToolExecutionRequest.builder().name("approve_payout").arguments(args).build()).resultText();

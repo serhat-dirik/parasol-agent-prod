@@ -10,6 +10,12 @@ const TerserJSPlugin = require('terser-webpack-plugin');
 module.exports = merge(common('production'), {
   mode: 'production',
   devtool: 'source-map',
+  // Content-hashed bundle names: the static handler serves them "immutable", which is only correct
+  // when the filename changes with the content. Without the hash, returning browsers keep a stale
+  // bundle for a day and never see UI changes. HtmlWebpackPlugin injects the hashed names.
+  output: {
+    filename: '[name].[contenthash].bundle.js',
+  },
   optimization: {
     minimizer: [
       new TerserJSPlugin({}),

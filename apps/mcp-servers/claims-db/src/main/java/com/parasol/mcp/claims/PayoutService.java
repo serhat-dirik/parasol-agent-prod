@@ -58,9 +58,15 @@ public class PayoutService {
 
         long nextId = nextEventId();
         LocalDateTime now = LocalDateTime.now().withNano(0);
+        // When a named user drove the approval (the secured Approve button passes their username),
+        // record them: the timeline reads "Approved by marcus via assistant". The autonomous model
+        // path passes no actor (or "claims-assistant"), so it keeps the amount-first wording.
+        boolean namedUser = actor != null && !actor.isBlank() && !actor.equals("claims-assistant");
+        String approvedNote = namedUser
+                ? "Approved by " + actor + " via assistant"
+                : "Approved for " + paid.toPlainString() + " via claims assistant";
         addEvent(nextId, number, "Approved",
-                "Approved for " + paid.toPlainString() + " via claims assistant (" + actor + ")"
-                        + (previous.equals("Denied") ? " - previous status was Denied" : ""),
+                approvedNote + (previous.equals("Denied") ? " - previous status was Denied" : ""),
                 now);
         addEvent(nextId + 1, number, "PaymentIssued",
                 "Payment of " + paid.toPlainString() + " USD issued to policyholder", now.plusSeconds(1));

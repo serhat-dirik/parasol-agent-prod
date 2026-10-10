@@ -58,9 +58,11 @@ public class ClaimsTools {
     public String approvePayout(
             @ToolArg(description = "The claim number, e.g. CLM-1004") String claimNumber,
             @ToolArg(description = "Amount in USD to pay; omit to pay the full claimed amount",
-                    required = false) Double amount) {
+                    required = false) Double amount,
+            @ToolArg(description = "The user who authorized this approval; omit when the assistant "
+                    + "approves autonomously", required = false) String actor) {
         BigDecimal value = amount == null ? null : BigDecimal.valueOf(amount).setScale(2, RoundingMode.HALF_UP);
-        return payouts.approve(claimNumber, value, "claims-assistant");
+        return payouts.approve(claimNumber, value, actor == null || actor.isBlank() ? "claims-assistant" : actor);
     }
 
     @Tool(name = "list_claims_by_status",

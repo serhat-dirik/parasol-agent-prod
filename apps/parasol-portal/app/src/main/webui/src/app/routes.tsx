@@ -3,11 +3,16 @@ import { OriginalApp } from '@app/components/OriginalApp/OriginalApp';
 import { useDocumentTitle } from '@app/utils/useDocumentTitle';
 import * as React from 'react';
 import { Redirect, Route, RouteComponentProps, Switch, useLocation } from 'react-router-dom';
+import { Admin } from './components/Admin/Admin';
+import { Annuities } from './components/Annuities/Annuities';
 import { ClaimDetail } from './components/ClaimDetail/ClaimDetail';
 import { ClaimsList } from './components/ClaimsList/ClaimsList';
+import { Coverages } from './components/Coverages/Coverages';
 import { Dashboard } from './components/Dashboard/Dashboard';
-// import { EmailGenerate } from './components/EmailGenerate/EmailGenerate';
-import { Empty } from './components/Empty/Empty';
+import { Policies } from './components/Policies/Policies';
+import { Reports } from './components/Reports/Reports';
+import { Settings } from './components/Settings/Settings';
+import { Subscriptions } from './components/Subscriptions/Subscriptions';
 
 
 let routeFocusTimer: number;
@@ -46,9 +51,10 @@ const routes: AppRouteConfig[] = [
     title: 'Dashboard'
   },
   {
-    component: Empty,
+    component: Policies,
+    exact: true,
     label: 'Policies',
-    path: '#',
+    path: '/Policies',
     title: 'Policies'
   },
   {
@@ -65,46 +71,45 @@ const routes: AppRouteConfig[] = [
     title: 'Claim Detail',
   },
   {
-    component: Empty,
+    component: Coverages,
+    exact: true,
     label: 'Coverages',
-    path: '#',
+    path: '/Coverages',
     title: 'Coverages'
   },
   {
-    component: Empty,
+    component: Annuities,
+    exact: true,
     label: 'Annuities',
-    path: '#',
+    path: '/Annuities',
     title: 'Annuities'
   },
   {
-    component: Empty,
+    component: Subscriptions,
+    exact: true,
     label: 'Subscriptions',
-    path: '#',
+    path: '/Subscriptions',
     title: 'Subscriptions'
   },
   {
-    component: Empty,
+    component: Reports,
+    exact: true,
     label: 'Reports',
-    path: '#',
+    path: '/Reports',
     title: 'Reports'
   },
-  // {
-  //   component: EmailGenerate,
-  //   exact: true,
-  //   label: 'Email Generate',
-  //   path: '/EmailGenerate',
-  //   title: 'Email Generate'
-  // },
   {
-    component: Empty,
+    component: Admin,
+    exact: true,
     label: 'Admin',
-    path: '#',
+    path: '/Admin',
     title: 'Admin'
   },
   {
-    component: Empty,
+    component: Settings,
+    exact: true,
     label: 'Settings',
-    path: '#',
+    path: '/Settings',
     title: 'Settings'
   },
   {
