@@ -32,6 +32,12 @@ spec:
             # ModelAuthProvider will select policyholder vs staff by Keycloak group. Replace when G confirms.
             - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_API_KEY
               valueFrom: {secretKeyRef: {name: maas-credentials, key: GENAI_API_KEY}}
+            # per-tier keys (Stream G): PortalModelAuth presents the policyholder key for the
+            # policyholders group and the staff key otherwise, so the night-shift storm drains only its bucket
+            - name: STAFF_MAAS_KEY
+              valueFrom: {secretKeyRef: {name: maas-portal-keys, key: STAFF_MAAS_KEY}}
+            - name: POLICYHOLDER_MAAS_KEY
+              valueFrom: {secretKeyRef: {name: maas-portal-keys, key: POLICYHOLDER_MAAS_KEY}}
             # --- login: Keycloak OIDC web-app (Secret created by Stream I in both namespaces) ---
             - name: QUARKUS_OIDC_AUTH_SERVER_URL
               valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: auth-server-url}}

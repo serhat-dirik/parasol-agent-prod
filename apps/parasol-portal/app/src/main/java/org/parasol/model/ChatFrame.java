@@ -11,8 +11,10 @@ package org.parasol.model;
  *   done      end of this turn
  */
 public record ChatFrame(String type, String text, String data) {
-    public static ChatFrame tool(String name, String args) { return new ChatFrame("tool", name, args); }
-    public static ChatFrame answer(String text)            { return new ChatFrame("answer", text, null); }
-    public static ChatFrame error(String text)             { return new ChatFrame("error", text, null); }
-    public static ChatFrame done()                         { return new ChatFrame("done", null, null); }
+    public static ChatFrame tool(String name, String args)   { return new ChatFrame("tool", name, args); }
+    public static ChatFrame answer(String text)              { return new ChatFrame("answer", text, null); }
+    public static ChatFrame error(String text)               { return new ChatFrame("error", text, null); }
+    public static ChatFrame guardrail(String msg, String sc) { return new ChatFrame("guardrail", msg, sc); }
+    public static ChatFrame mask(String msg, String masked)  { return new ChatFrame("mask", msg, masked); }
+    public static ChatFrame done()                           { return new ChatFrame("done", null, null); }
 }

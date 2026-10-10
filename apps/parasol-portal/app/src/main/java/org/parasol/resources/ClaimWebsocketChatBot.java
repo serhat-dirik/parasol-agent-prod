@@ -59,9 +59,18 @@ public class ClaimWebsocketChatBot {
         for (ToolCall call : answer.toolCalls()) {
             frames.add(ChatFrame.tool(call.tool(), call.arguments()));
         }
+        // Guardrails signal (secured path): mask -> grey chip, flag/block -> amber banner, before the answer.
+        AgentService.Guardrail g = answer.guardrail();
+        if (g != null) {
+            if ("mask".equals(g.action())) {
+                frames.add(ChatFrame.mask(g.msg() == null ? "personal data masked" : g.msg(), g.masked()));
+            } else {
+                frames.add(ChatFrame.guardrail(g.msg(), g.score()));
+            }
+        }
         if (answer.error() != null) {
             frames.add(ChatFrame.error(answer.error()));
-        } else {
+        } else if (answer.answer() != null && !answer.answer().isBlank()) {
             frames.add(ChatFrame.answer(answer.answer()));
         }
         frames.add(ChatFrame.done());
