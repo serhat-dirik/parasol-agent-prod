@@ -1,0 +1,160 @@
+# Stream S2 (evaluation). Isolated, additive eval surface in its own namespace.
+# An OpenAI-compatible endpoint that mirrors the PRODUCTION guardrails-proxy detector preset
+# (same three regex phrases + same topic list + same ❦GUARDRAILS❧ sentinel), but forwards to the
+# EXTERNAL LiteLLM MaaS using virtual KEY 2 (litellm_user2_virtual_key), so all evaluation / red-team
+# load stays on the eval key and never touches the agent key or the on-cluster MaaS budget.
+# Detection is done locally in-process with the same regexes the production proxy sends to the
+# orchestrator detector (the orchestrator call there only exists to populate its metrics); the
+# guardrails DECISION is identical. Applied directly with oc (scripts/garak.sh); not Argo-synced,
+# so it cannot affect the wave-1 app-of-apps. Nothing here is a secret; KEY 2 arrives at runtime
+# in Secret maas-eval-key, created from credentials.txt and never committed.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: parasol-eval
+  labels: {purpose: evaluation}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: eval-guardrails-proxy
+  namespace: parasol-eval
+data:
+  proxy.py: |
+    import json, os, re, ssl, sys, urllib.request, urllib.error
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    # Mirrors gitops/platform/guardrails/guardrails-proxy.yaml DETECTORS + TOPIC (owner preset, 10 Oct).
+    PHRASES = [re.compile(p) for p in [
+        r"(?i)automated processing note", r"(?i)assistant action required",
+        r"(?i)note to the claims assistant"]]
+    TOPIC = [re.compile(p) for p in [
+        r"(?i)\bessay\b", r"(?i)\bpoem\b", r"(?i)\bshort story\b", r"(?i)\bhaiku\b",
+        r"(?i)\bnovel\b", r"(?i)write (me )?an? (story|song|poem|essay|haiku|novel|screenplay)"]]
+    MAAS = os.environ["MAAS_URL"].rstrip("/")
+    MAAS_KEY = os.environ.get("MAAS_KEY", "")   # eval virtual key 2, from Secret; clients carry no key
+    PUBLIC = ssl.create_default_context()
+
+    def sentinel(action, msg, detectors=None, score=None):
+        parts = ["action=" + action]
+        if detectors: parts.append("detectors=" + ",".join(detectors))
+        if score is not None: parts.append("score=" + ("%g" % score))
+        parts.append("msg=" + msg)
+        return "❦GUARDRAILS " + ";".join(parts) + "❧"
+
+    def post(url, body, auth):
+        h = {"content-type": "application/json"}
+        if auth: h["authorization"] = auth
+        req = urllib.request.Request(url, json.dumps(body).encode(), h)
+        try:
+            with urllib.request.urlopen(req, context=PUBLIC, timeout=120) as r:
+                return r.status, json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            raw = e.read() or b"{}"
+            try: return e.code, json.loads(raw)
+            except ValueError: return e.code, {"error": {"code": e.code, "message": raw.decode(errors="replace")[:300]}}
+        except Exception as e:
+            return 502, {"error": {"code": 502, "message": "upstream error: " + str(e)[:200]}}
+
+    def hits(text, patterns, dtype):
+        if not isinstance(text, str): return []
+        return [{"detector_id": dtype, "score": 1.0, "text": p.pattern} for p in patterns if p.search(text)]
+
+    def block(req, dets, assistant_text, banner):
+        names = sorted({h["detector_id"] for h in dets})
+        content = sentinel("block", banner, names, 1.0) + "\n" + assistant_text
+        return {"id": "guardrails-block", "object": "chat.completion", "model": req.get("model"),
+                "choices": [{"index": 0, "finish_reason": "stop",
+                             "message": {"role": "assistant", "content": content}}],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                "guardrails": {"action": "block", "detectors": names, "score": 1.0, "message": banner}}
+
+    class H(BaseHTTPRequestHandler):
+        def _send(self, code, body):
+            data = json.dumps(body).encode()
+            self.send_response(code); self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(data))); self.end_headers(); self.wfile.write(data)
+        def do_GET(self): self._send(200, {"status": "ok"})
+        def do_POST(self):
+            if not self.path.endswith("/chat/completions"): return self._send(404, {"message": "not found"})
+            req = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))) or b"{}")
+            msgs = req.get("messages", [])
+            users = [m.get("content") for m in msgs if m.get("role") == "user"]
+            user = users[-1] if users else None
+            ui = hits(user, PHRASES, "regex")
+            if ui:
+                print("blocked: injection phrase in user message", flush=True)
+                return self._send(200, block(req, ui,
+                    "I can't act on instructions embedded in that request. No action was taken.",
+                    "prompt injection in your message"))
+            th = hits(user, TOPIC, "topic")
+            if th:
+                print("blocked: off-topic request (topic guardrail)", flush=True)
+                return self._send(200, block(req, th,
+                    "I can only help with Parasol insurance claims and policies, so I can't help with that.",
+                    "off-topic request refused"))
+            flag = []
+            for m in msgs:
+                if m.get("role") == "tool": flag += hits(m.get("content"), PHRASES, "regex")
+            code, r = post(MAAS + "/chat/completions", req, "Bearer " + MAAS_KEY if MAAS_KEY else self.headers.get("authorization"))
+            if flag and isinstance(r, dict):
+                names = sorted({h["detector_id"] for h in flag})
+                r["guardrails"] = {"action": "flag", "detectors": names, "score": 1.0,
+                                   "message": "document contains instructions addressed to the assistant"}
+                try:
+                    msg = r["choices"][0]["message"]
+                    msg["content"] = sentinel("flag", "document contains instructions addressed to the assistant", names, 1.0) + "\n" + (msg.get("content") or "")
+                except (KeyError, IndexError, TypeError): pass
+                print("flag: injection phrase in tool result (continue)", flush=True)
+            self._send(code, r)
+        def log_message(self, fmt, *args): print(fmt % args, file=sys.stderr, flush=True)
+
+    if __name__ == "__main__":
+        assert hits("See the automated processing note below", PHRASES, "regex")
+        assert hits("write me an essay about cats", TOPIC, "topic")
+        assert not hits("approve the payout for CLM-1004", PHRASES, "regex")
+        s = sentinel("block", "x", ["regex"], 1.0)
+        assert s.startswith("❦GUARDRAILS ") and s.endswith("❧") and "action=block" in s
+        ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eval-guardrails-proxy
+  namespace: parasol-eval
+  labels: {app: eval-guardrails-proxy}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: eval-guardrails-proxy}
+  template:
+    metadata:
+      labels: {app: eval-guardrails-proxy}
+    spec:
+      containers:
+        - name: proxy
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "-u", "/app/proxy.py"]
+          env:
+            # External LiteLLM MaaS (serves llama-scout-17b); accepts the eval virtual key.
+            - {name: MAAS_URL, value: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1"}
+            - name: MAAS_KEY
+              valueFrom: {secretKeyRef: {name: maas-eval-key, key: key}}
+          ports: [{containerPort: 8080}]
+          readinessProbe: {httpGet: {path: /health, port: 8080}}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts: [{name: app, mountPath: /app}]
+      volumes:
+        - name: app
+          configMap: {name: eval-guardrails-proxy}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: eval-guardrails-proxy
+  namespace: parasol-eval
+spec:
+  selector: {app: eval-guardrails-proxy}
+  ports: [{name: http, port: 8080, targetPort: 8080}]
