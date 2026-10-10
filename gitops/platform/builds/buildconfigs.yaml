@@ -39,3 +39,16 @@ spec:
     to: {kind: ImageStreamTag, name: "policy-docs:latest"}
   resources:
     limits: {cpu: "2", memory: 3Gi}
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata: {name: parasol-portal}
+spec:
+  source: {type: Binary}
+  strategy:
+    type: Docker
+    dockerStrategy: {dockerfilePath: Containerfile}
+  output:
+    to: {kind: ImageStreamTag, name: "parasol-portal:latest"}
+  resources:
+    limits: {cpu: "2", memory: 4Gi}

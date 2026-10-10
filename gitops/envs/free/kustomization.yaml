@@ -6,6 +6,7 @@ namespace: parasol-free
 resources:
   - namespace.yaml
   - ../base
+  - portal.yaml
 configMapGenerator:
   - name: agent-config
     literals:

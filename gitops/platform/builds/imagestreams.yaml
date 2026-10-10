@@ -9,3 +9,7 @@ metadata: {name: claims-db}
 apiVersion: image.openshift.io/v1
 kind: ImageStream
 metadata: {name: policy-docs}
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata: {name: parasol-portal}

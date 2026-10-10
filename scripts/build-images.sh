@@ -6,5 +6,6 @@ for i in $(seq 1 45); do oc get bc -n parasol-build parasol-agent >/dev/null 2>&
 timeout 900 oc start-build claims-db   -n parasol-build --from-dir=apps/mcp-servers/claims-db   --follow --wait &
 timeout 900 oc start-build policy-docs -n parasol-build --from-dir=apps/mcp-servers/policy-docs --follow --wait &
 timeout 900 oc start-build parasol-agent -n parasol-build --from-dir=apps/parasol-agent         --follow --wait &
+timeout 1200 oc start-build parasol-portal -n parasol-build --from-dir=apps/parasol-portal/app --follow --wait &
 wait
 for ns in parasol-free parasol-secured; do oc rollout restart deploy -n $ns 2>/dev/null || true; done

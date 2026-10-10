@@ -1,0 +1,51 @@
+# The Parasol claims portal, as it comes from the workshop: same image the secured side will run,
+# pointed straight at the upstream model with the key from the Secret. No login, no controls.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal
+  labels: {app: portal}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: portal}
+  template:
+    metadata:
+      labels: {app: portal}
+    spec:
+      containers:
+        - name: portal
+          image: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:latest
+          imagePullPolicy: Always
+          env:
+            - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_BASE_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: endpoint}}
+            - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_CHAT_MODEL_MODEL_NAME
+              valueFrom: {configMapKeyRef: {name: agent-config, key: model}}
+            - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_API_KEY
+              valueFrom: {secretKeyRef: {name: maas-credentials, key: GENAI_API_KEY}}
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            tcpSocket: {port: 8080}
+          resources:
+            requests: {cpu: 100m, memory: 384Mi}
+            limits: {cpu: "1", memory: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal
+spec:
+  selector: {app: portal}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: portal-free
+spec:
+  to: {kind: Service, name: portal}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}
