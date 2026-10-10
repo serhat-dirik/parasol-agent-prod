@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Additive, NOT wired into Argo (same posture as gitops/platform/guardrails-nemo).
+# The out-of-band secret maas-nemo (MaaS key 2) is NOT in Git.
+# dsc-mcpguardrailsmode-OWNER-GATED.yaml is intentionally excluded (owner-gated).
+resources:
+  - namespace.yaml
+  - nemo-config.yaml
+  - nemoguardrail.yaml
+  - prove-job.yaml

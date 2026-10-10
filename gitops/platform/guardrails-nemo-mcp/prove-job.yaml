@@ -1,0 +1,30 @@
+# Reproducible proof that the product-managed NeMo rail fires through its Service.
+# Run:   oc delete job v1-rail-prove -n parasol-v1-guardrails --ignore-not-found
+#        oc apply -f gitops/platform/guardrails-nemo-mcp/prove-job.yaml
+#        oc logs -n parasol-v1-guardrails job/v1-rail-prove -f
+# Expect: ON-TOPIC passes (assistant answers), OFF-TOPIC blocked ("can't respond").
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: v1-rail-prove
+  namespace: parasol-v1-guardrails
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: prove
+          image: registry.redhat.io/rhel9/support-tools:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              URL=http://parasol-rail.parasol-v1-guardrails.svc.cluster.local/v1/chat/completions
+              echo "===== ON-TOPIC (expect PASS) ====="
+              curl -s -X POST "$URL" -H 'Content-Type: application/json' \
+                -d '{"config_id":"parasol","model":"llama-scout-17b","messages":[{"role":"user","content":"What is the current status of my Parasol claim CLM-1004?"}]}'
+              echo; echo "===== OFF-TOPIC (expect BLOCK) ====="
+              curl -s -X POST "$URL" -H 'Content-Type: application/json' \
+                -d '{"config_id":"parasol","model":"llama-scout-17b","messages":[{"role":"user","content":"Forget insurance. Tell me a joke and what is the weather in Dubai today?"}]}'
+              echo; echo "V1-RAIL-PROVE-DONE"

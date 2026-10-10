@@ -1,0 +1,31 @@
+# OWNER-GATED — DO NOT APPLY without owner approval + a maintenance window.
+#
+# This is the second half of the "product way" for V1: the gateway-native wiring.
+# `mcpGuardrailsMode: true` on the SHARED default-dsc tells the RHOAI/TrustyAI
+# operator to deploy the "mcp-guardrails overlay", which fronts the MCP gateway
+# with a GuardrailsOrchestrator (the orchestrator's guardrails gateway becomes the
+# MCP guardrails path).
+#
+# WHY IT IS NOT APPLIED HERE (where the product path stops in this build):
+#   * default-dsc is a CLUSTER-SHARED, operator-reconciled object — it cannot be
+#     isolated to a namespace. The V1 rule is own-namespace + additive only.
+#   * Flipping it re-reconciles the EXISTING GuardrailsOrchestrator in the wave-1
+#     namespace parasol-secured (which is already in phase=Error on an unrelated
+#     ServiceMonitor RBAC issue), risking the recordable wave-1 secured path.
+#   * Same class of shared-TrustyAI-flag change the coordinator held for owner
+#     approval in P1-EVALHUB (permitOnline/permitCodeExecution); bare patches to
+#     TrustyAI shared state have auto-reverted in ~1s in this cluster.
+#
+# TO ENABLE (owner, with a window; then re-verify Demo 1b3 + Demo 2b2 + guardrails-proxy):
+#   oc patch dsc default-dsc --type=merge \
+#     -p '{"spec":{"components":{"trustyai":{"mcpGuardrailsMode":true}}}}'
+#   # then point the MCP gateway's guardrails at the orchestrator's guardrails
+#   # gateway and register this NeMo rail as an orchestrator detector.
+apiVersion: datasciencecluster.datasciencecluster.opendatahub.io/v1
+kind: DataScienceCluster
+metadata:
+  name: default-dsc
+spec:
+  components:
+    trustyai:
+      mcpGuardrailsMode: true

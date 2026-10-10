@@ -1,0 +1,35 @@
+# Product-way NeMo rail: TrustyAI operator-managed NeMo Guardrails server.
+# Unlike S4's hand-rolled python:3.11 + pip Deployment, this is reconciled by
+# the trustyai-service-operator (service NEMO_GUARDRAILS) from the RH image
+# odh-trustyai-nemo-guardrails-server-rhel9. The operator mounts each configmap
+# in nemoConfigs at /app/config/$Name, so configmap "parasol" => config id "parasol".
+# Model credentials (MaaS key 2) come from the out-of-band secret maas-nemo.
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: NemoGuardrails
+metadata:
+  name: parasol-rail
+  namespace: parasol-v1-guardrails
+spec:
+  replicas: 1
+  nemoConfigs:
+    - name: parasol
+      default: true
+      configMaps:
+        - parasol
+  env:
+    # The RH product server (odh-trustyai-nemo-guardrails-server) is env-driven:
+    # server/api.py::_inject_model() builds the main model from MAIN_MODEL_ENGINE +
+    # MAIN_MODEL_BASE_URL and the request's "model" field; the API key resolves via
+    # the config's api_key_env_var (OPENAI_API_KEY). MaaS key 2, out-of-band secret.
+    - name: MAIN_MODEL_ENGINE
+      value: openai
+    - name: MAIN_MODEL_BASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: maas-nemo
+          key: OPENAI_API_BASE
+    - name: OPENAI_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: maas-nemo
+          key: OPENAI_API_KEY
