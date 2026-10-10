@@ -10,9 +10,14 @@ import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.parasol.ai.CallerIdentity;
 import org.parasol.model.ClaimDtos.ClaimDto;
+import org.parasol.model.ClaimDtos.Dashboard;
 import org.parasol.model.ClaimDtos.DocumentDto;
 import org.parasol.model.ClaimDtos.Me;
 import org.parasol.model.ClaimDtos.TimelineEntry;
+import org.parasol.model.ClaimDtos.Usage;
+
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.mcp.client.McpClient;
@@ -58,6 +63,9 @@ public class ClaimResource {
     @McpClientName("claims-db")
     McpClient claimsDb;
 
+    @Inject
+    MeterRegistry metrics;
+
     @GET
     @Path("/claims")
     public List<ClaimDto> all() {
@@ -80,6 +88,33 @@ public class ClaimResource {
     @Path("/claims/{number}/documents")
     public List<DocumentDto> documents(@PathParam("number") String number) {
         return claims.documents(number);
+    }
+
+    /** Dashboard aggregate (status counts, paid count, recent events), proxied from claims-db. */
+    @GET
+    @Path("/dashboard")
+    public Dashboard dashboard() {
+        return claims.dashboard();
+    }
+
+    /** The logged-in user's assistant usage, read from the portal's own Micrometer meters. */
+    @GET
+    @Path("/me/usage")
+    @PermitAll
+    public Usage myUsage() {
+        String user = identity.isAnonymous() ? "anonymous" : identity.getPrincipal().getName();
+        long tokens = sum("parasol_agent_tokens_total", user);
+        long requests = sum("parasol_agent_model_calls_total", user);
+        return new Usage(requests, tokens);
+    }
+
+    /** Sum the counters of a given meter name whose "user" tag matches, across other tags. */
+    private long sum(String meterName, String user) {
+        double total = 0;
+        for (Counter c : metrics.find(meterName).tag("user", user).counters()) {
+            total += c.count();
+        }
+        return (long) total;
     }
 
     /**

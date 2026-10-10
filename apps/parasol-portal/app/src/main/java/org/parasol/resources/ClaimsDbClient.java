@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
 import org.parasol.model.ClaimDtos.ClaimDto;
+import org.parasol.model.ClaimDtos.Dashboard;
 import org.parasol.model.ClaimDtos.DocumentDto;
 import org.parasol.model.ClaimDtos.TimelineEntry;
 
@@ -36,4 +37,8 @@ public interface ClaimsDbClient {
     @GET
     @Path("/{number}/documents")
     List<DocumentDto> documents(@PathParam("number") String number);
+
+    @GET
+    @Path("/dashboard")
+    Dashboard dashboard();
 }

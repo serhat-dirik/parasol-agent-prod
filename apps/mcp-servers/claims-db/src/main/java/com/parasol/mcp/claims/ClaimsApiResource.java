@@ -1,6 +1,7 @@
 package com.parasol.mcp.claims;
 
 import java.util.List;
+import java.util.Map;
 
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -31,6 +32,36 @@ public class ClaimsApiResource {
     @GET
     public List<ClaimView> all() {
         return repo.all();
+    }
+
+    /**
+     * One aggregate read for the portal Dashboard: status counts, how many claims have been paid,
+     * and the 10 most recent timeline events across all claims. A literal path, so it wins over the
+     * {@code /{number}} template below. One endpoint so the portal does not fan out per claim.
+     */
+    @GET
+    @Path("/dashboard")
+    @Transactional
+    public Dashboard dashboard() {
+        Map<String, Long> counts = Map.of(
+                "Submitted", Claim.count("status", "Submitted"),
+                "UnderReview", Claim.count("status", "UnderReview"),
+                "Approved", Claim.count("status", "Approved"),
+                "Denied", Claim.count("status", "Denied"));
+        long paid = ClaimEvent.<ClaimEvent>find("eventType", "PaymentIssued").list().stream()
+                .map(e -> e.claimNumber).distinct().count();
+        List<RecentEvent> recent = ClaimEvent.<ClaimEvent>find("order by createdAt desc, id desc")
+                .page(0, 10).list().stream()
+                .map(e -> new RecentEvent(e.claimNumber, e.eventType, e.note,
+                        e.createdAt == null ? null : e.createdAt.toString()))
+                .toList();
+        return new Dashboard(counts, paid, recent);
+    }
+
+    public record Dashboard(Map<String, Long> statusCounts, long paidCount, List<RecentEvent> recentEvents) {
+    }
+
+    public record RecentEvent(String claimNumber, String eventType, String note, String createdAt) {
     }
 
     /** One claim by number, 404 if unknown. */

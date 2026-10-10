@@ -28,4 +28,16 @@ public final class ClaimDtos {
     /** The logged-in user for the top bar. */
     public record Me(String username, String name, String role, List<String> groups) {
     }
+
+    /** Dashboard aggregate (from claims-db): status counts, paid count, and recent events. */
+    public record Dashboard(java.util.Map<String, Long> statusCounts, long paidCount,
+                            List<RecentEvent> recentEvents) {
+    }
+
+    public record RecentEvent(String claimNumber, String eventType, String note, String createdAt) {
+    }
+
+    /** The logged-in user's assistant usage today (from the portal's Micrometer meters). */
+    public record Usage(long requests, long tokens) {
+    }
 }

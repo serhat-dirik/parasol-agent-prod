@@ -294,3 +294,9 @@ body,
 .propose-row { font-size: 0.9em; }
 .propose-approved { color: #3e8635; font-weight: 600; margin-top: 4px; }
 .propose-norole { color: #6a6e73; font-size: 0.85em; margin-top: 4px; }
+
+/* Dashboard recent-activity list */
+.dash-event { padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+.dash-via { color: #0066cc; font-size: 0.85em; }
+.dash-event-note { color: #4f5255; font-size: 0.9em; }
+.dash-event-time { color: #6a6e73; font-size: 0.8em; }
