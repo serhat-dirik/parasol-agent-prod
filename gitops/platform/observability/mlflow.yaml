@@ -1,0 +1,17 @@
+# MLflow tracking server (OpenShift AI, Technology Preview) for the portal's chat traces.
+# The OTel collector fans chat spans out to this server's OTLP endpoint (see otel-collector.yaml);
+# the OpenShift AI dashboard > Experiments > MLflow lists it and shows the traces.
+apiVersion: mlflow.opendatahub.io/v1
+kind: MLflow
+metadata:
+  name: mlflow
+  namespace: parasol-secured
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  backendStoreUri: "sqlite:////mlflow/mlflow.db"
+  serveArtifacts: true
+  artifactsDestination: "file:///mlflow/artifacts"
+  storage:
+    size: 5Gi
+    storageClassName: ocs-external-storagecluster-ceph-rbd

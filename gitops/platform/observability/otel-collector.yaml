@@ -1,4 +1,9 @@
-# One OTLP collector everybody points at (agent, MCP servers, guardrails orchestrator, MCP gateway).
+# One OTLP collector everybody points at (portal, agent, MCP servers, guardrails orchestrator, MCP gateway).
+# It fans traces out to two backends:
+#   - Tempo        -> OpenShift console Observe > Traces
+#   - MLflow (TP)  -> OpenShift AI MLflow UI (chat traces: prompt, tool calls, tokens)
+# MLflow's OTLP endpoint (/v1/traces on the managed server) needs a Kubernetes bearer token and TLS;
+# the bearertokenauth extension reads the collector's own projected SA token (auto-refreshed by kubelet).
 apiVersion: opentelemetry.io/v1beta1
 kind: OpenTelemetryCollector
 metadata:
@@ -9,6 +14,9 @@ metadata:
 spec:
   mode: deployment
   config:
+    extensions:
+      bearertokenauth:
+        filename: /var/run/secrets/kubernetes.io/serviceaccount/token
     receivers:
       otlp:
         protocols:
@@ -21,9 +29,16 @@ spec:
         endpoint: tempo-parasol:4317
         tls:
           insecure: true
+      otlphttp/mlflow:
+        traces_endpoint: https://mlflow.redhat-ods-applications.svc:8443/v1/traces
+        auth:
+          authenticator: bearertokenauth
+        tls:
+          insecure_skip_verify: true
     service:
+      extensions: [bearertokenauth]
       pipelines:
         traces:
           receivers: [otlp]
           processors: [batch]
-          exporters: [otlp/tempo]
+          exporters: [otlp/tempo, otlphttp/mlflow]
