@@ -1,0 +1,106 @@
+# Docling ingestion + nomic-embed RAG app.
+# Ingests the Parasol policy PDF (Docling) + the seeded policy corpus, embeds every
+# chunk via the nomic-embed CPU endpoint into an in-memory vector store, and answers a
+# policy question by retrieval + llama-scout (MaaS). Isolated; wave-1 state untouched.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rag-work
+  namespace: parasol-rag
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 8Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: policy-rag
+  namespace: parasol-rag
+  labels: { app: policy-rag }
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # RWO PVC: old pod must release before the new one attaches
+  selector:
+    matchLabels: { app: policy-rag }
+  template:
+    metadata:
+      labels: { app: policy-rag }
+    spec:
+      containers:
+        - name: rag
+          image: python:3.11
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              export HOME=/work PYTHONUSERBASE=/work/py PATH=/work/py/bin:$PATH
+              export HF_HOME=/work/hf
+              echo "[step] installing docling + rag deps ..."
+              pip install --no-cache-dir --user -q \
+                "docling>=2,<3" "fastapi>=0.110" "uvicorn>=0.29" "openai>=1.30" numpy requests
+              echo "[step] starting policy-rag on :8080 ..."
+              exec uvicorn rag_app:app --host 0.0.0.0 --port 8080 --app-dir /app
+          ports:
+            - containerPort: 8080
+          env:
+            - name: EMBED_URL
+              value: http://nomic-embed.parasol-rag.svc.cluster.local/api/embed
+            - name: EMBED_MODEL
+              value: nomic-embed-text
+            - name: PDF_PATH
+              value: /data/policy-info.pdf
+            - name: CORPUS_PATH
+              value: /app/corpus.json
+            - name: MAAS_MODEL
+              value: llama-scout-17b
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef: { name: maas-rag, key: OPENAI_API_KEY }
+            - name: OPENAI_API_BASE
+              valueFrom:
+                secretKeyRef: { name: maas-rag, key: OPENAI_API_BASE }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            failureThreshold: 60
+          resources:
+            requests: { cpu: "500m", memory: 1Gi }
+            limits: { cpu: "2", memory: 4Gi }
+          volumeMounts:
+            - { name: work, mountPath: /work }
+            - { name: code, mountPath: /app/rag_app.py, subPath: rag_app.py }
+            - { name: code, mountPath: /app/corpus.json, subPath: corpus.json }
+            - { name: pdf, mountPath: /data }
+      volumes:
+        - name: work
+          persistentVolumeClaim: { claimName: rag-work }
+        - name: code
+          configMap: { name: policy-rag-code }
+        - name: pdf
+          configMap: { name: policy-pdf }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: policy-rag
+  namespace: parasol-rag
+  labels: { app: policy-rag }
+spec:
+  selector: { app: policy-rag }
+  ports:
+    - { name: http, port: 80, targetPort: 8080 }
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: policy-rag
+  namespace: parasol-rag
+  labels: { app: policy-rag }
+spec:
+  to: { kind: Service, name: policy-rag }
+  port: { targetPort: http }
+  tls: { termination: edge, insecureEdgeTerminationPolicy: Redirect }

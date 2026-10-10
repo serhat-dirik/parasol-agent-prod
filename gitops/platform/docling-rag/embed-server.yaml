@@ -1,0 +1,74 @@
+# nomic-embed-text served on CPU via Ollama (known-good GGUF, no transformers remote-code).
+# Isolated embedding endpoint for the Docling/RAG stream — does NOT touch the shared DSC/KServe.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nomic-embed-work
+  namespace: parasol-rag
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nomic-embed
+  namespace: parasol-rag
+  labels: { app: nomic-embed }
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate   # RWO PVC: old pod must release before the new one attaches
+  selector:
+    matchLabels: { app: nomic-embed }
+  template:
+    metadata:
+      labels: { app: nomic-embed }
+    spec:
+      containers:
+        - name: embed
+          image: docker.io/ollama/ollama:0.12.3
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              export OLLAMA_MODELS=/work/models HOME=/work
+              echo "[step] starting ollama serve ..."
+              ollama serve &
+              until ollama list >/dev/null 2>&1; do echo "[wait] ollama not up"; sleep 2; done
+              echo "[step] pulling nomic-embed-text ..."
+              ollama pull nomic-embed-text
+              echo "[ready] nomic-embed-text served on :11434"
+              wait
+          ports:
+            - containerPort: 11434
+          env:
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "ollama list | grep -q nomic-embed-text"]
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 40
+          resources:
+            requests: { cpu: "1", memory: 2Gi }
+            limits: { cpu: "4", memory: 6Gi }
+          volumeMounts:
+            - { name: work, mountPath: /work }
+      volumes:
+        - name: work
+          persistentVolumeClaim: { claimName: nomic-embed-work }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nomic-embed
+  namespace: parasol-rag
+  labels: { app: nomic-embed }
+spec:
+  selector: { app: nomic-embed }
+  ports:
+    - { name: http, port: 80, targetPort: 11434 }
