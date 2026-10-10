@@ -84,11 +84,29 @@ public class AgentService {
             String detail = redact(rootMessage(e));
             boolean auth = looksLikeAuthFailure(detail);
             LOG.warnf("assistant call failed (authFailure=%s): %s", auth, detail);
-            String error = auth ? "model authentication failed - check the MaaS key; it may be expired"
-                    : "the assistant could not complete that request";
+            String error = errorMessage(detail, auth);
             return new AgentAnswer(question, null, List.of(), modelName, null,
                     caller.subject(), version, error, auth, null, null);
         }
+    }
+
+    /** Map an upstream failure to the message the chat shows (Demo 3 states: usage limit, offline). */
+    static String errorMessage(String detail, boolean auth) {
+        String d = detail == null ? "" : detail.toLowerCase();
+        if (d.contains("429") || d.contains("rate limit") || d.contains("rate_limit")
+                || d.contains("too many requests") || d.contains("quota")) {
+            return "You have reached your usage limit (429). Please try again later.";
+        }
+        if (auth) {
+            return "model authentication failed - check the MaaS key; it may be expired";
+        }
+        // Kill switch / severed model path: connection refused, timeout, 502/503/504, no route.
+        if (d.contains("timed out") || d.contains("timeout") || d.contains("connection")
+                || d.contains("502") || d.contains("503") || d.contains("504")
+                || d.contains("unreachable") || d.contains("no route")) {
+            return "The assistant is offline.";
+        }
+        return "the assistant could not complete that request";
     }
 
     private void count(TokenUsage t) {
