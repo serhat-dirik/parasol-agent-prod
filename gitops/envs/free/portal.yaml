@@ -42,6 +42,9 @@ spec:
             - name: QUARKUS_OIDC_CREDENTIALS_SECRET
               valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: client-secret}}
             - {name: QUARKUS_OIDC_APPLICATION_TYPE, value: web-app}
+            # Behind the TLS-terminating router: trust X-Forwarded-Proto so OIDC builds https:// redirect URIs
+            - {name: QUARKUS_HTTP_PROXY_PROXY_ADDRESS_FORWARDING, value: "true"}
+            - {name: QUARKUS_OIDC_AUTHENTICATION_FORCE_REDIRECT_HTTPS_SCHEME, value: "true"}
           ports:
             - containerPort: 8080
           readinessProbe:
