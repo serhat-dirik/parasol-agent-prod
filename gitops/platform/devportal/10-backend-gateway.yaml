@@ -1,0 +1,96 @@
+# V4 Connectivity Link developer portal — isolated API-key approval demo.
+# Everything lives in parasol-devportal and on its OWN gateway (devportal-gw);
+# it does not touch the mcp-gateway / maas gateways or any wave-1 AuthPolicy.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: parasol-devportal
+  labels:
+    app.kubernetes.io/part-of: parasol-devportal
+---
+# A trivial protected backend: the canonical Kuadrant "talker-api" returns 200+JSON on any path.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claims-api
+  namespace: parasol-devportal
+  labels: {app: claims-api}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: claims-api}}
+  template:
+    metadata:
+      labels: {app: claims-api}
+    spec:
+      containers:
+      - name: talker-api
+        image: quay.io/kuadrant/authorino-examples:talker-api
+        ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: claims-api
+  namespace: parasol-devportal
+  labels: {app: claims-api}
+spec:
+  selector: {app: claims-api}
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+---
+# Keep the gateway Service ClusterIP (no cloud LB), mirroring the mcp-gateway pattern.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devportal-gw-config
+  namespace: parasol-devportal
+data:
+  service: |
+    spec:
+      type: ClusterIP
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: devportal-gw
+  namespace: parasol-devportal
+  annotations:
+    # Required so this gateway's ext_authz can reach Authorino over TLS
+    # (creates the devportal-gw-authn-ssl EnvoyFilter). Without it ext_authz
+    # fails closed and every request to a protected route returns HTTP 500.
+    security.opendatahub.io/authorino-tls-bootstrap: "true"
+spec:
+  gatewayClassName: openshift-default
+  infrastructure:
+    parametersRef:
+      group: ""
+      kind: ConfigMap
+      name: devportal-gw-config
+  listeners:
+  - name: api
+    protocol: HTTP
+    port: 8080
+    hostname: devportal-api.apps.cluster-znh6n.dyn.redhatworkshops.io
+    allowedRoutes:
+      namespaces:
+        from: Same
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: claims-api
+  namespace: parasol-devportal
+spec:
+  parentRefs:
+  - name: devportal-gw
+  hostnames:
+  - devportal-api.apps.cluster-znh6n.dyn.redhatworkshops.io
+  rules:
+  - matches:
+    - path: {type: PathPrefix, value: /}
+    backendRefs:
+    - name: claims-api
+      port: 80

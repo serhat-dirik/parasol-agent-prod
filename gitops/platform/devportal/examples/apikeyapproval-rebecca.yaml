@@ -1,0 +1,23 @@
+# STEP 2 — admin approval (the gate).
+# apiKeyRequestRef.name must be the AUTO-GENERATED canonical request for the APIKey,
+# not the APIKey name. Look it up:
+#   oc get apikeyrequest -n parasol-devportal \
+#     -o custom-columns=NAME:.metadata.name,APIKEY:.spec.apiKeyRef.name
+# (e.g. parasol-devportal-rebecca-claims-key-ffe86619). Then set it below and apply.
+# On approval the controller flips the APIKey to Approved=True and mints the enforcement
+# Secret in kuadrant-system (labelled devportal.kuadrant.io/apiproduct=claims-api), so the
+# key starts being admitted by Authorino. scripts/devportal-keyflow.sh does this lookup
+# automatically.
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIKeyApproval
+metadata:
+  name: rebecca-claims-key
+  namespace: parasol-devportal
+spec:
+  apiKeyRequestRef:
+    name: REPLACE-WITH-canonical-apikeyrequest-name
+  approved: true
+  reviewedBy: admin
+  reviewedAt: "2026-10-10T19:40:00Z"
+  reason: Approved
+  message: Approved for the claims adjuster dashboard integration.

@@ -1,0 +1,40 @@
+# AuthPolicy + PlanPolicy on the isolated claims-api HTTPRoute.
+# The developer portal controller DISCOVERS these (it does not create them) and
+# issues per-developer API keys as Secrets that match the apiKey selector below.
+apiVersion: kuadrant.io/v1
+kind: AuthPolicy
+metadata:
+  name: claims-api
+  namespace: parasol-devportal
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: claims-api
+  rules:
+    authentication:
+      api-key:
+        apiKey:
+          allNamespaces: false
+          selector:
+            matchLabels:
+              devportal.kuadrant.io/apiproduct: claims-api
+        credentials:
+          authorizationHeader:
+            prefix: APIKEY
+---
+apiVersion: extensions.kuadrant.io/v1alpha1
+kind: PlanPolicy
+metadata:
+  name: claims-api
+  namespace: parasol-devportal
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: claims-api
+  plans:
+  - tier: free
+    predicate: "true"
+    limits:
+      daily: 1000

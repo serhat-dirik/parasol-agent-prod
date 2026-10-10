@@ -1,0 +1,22 @@
+# The published API product. approvalMode: manual => an admin must approve each key request.
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIProduct
+metadata:
+  name: claims-api
+  namespace: parasol-devportal
+spec:
+  displayName: Parasol Claims API
+  description: Self-service API for Parasol claims lookups (developer portal demo).
+  version: v1
+  approvalMode: manual
+  publishStatus: Published
+  tags:
+  - parasol
+  - claims
+  contact:
+    team: Parasol Platform
+    email: platform@parasol.example
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: claims-api

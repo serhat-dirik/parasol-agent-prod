@@ -1,0 +1,20 @@
+# External edge-TLS Route so the protected API is reachable from a browser:
+# https://devportal-api.apps.cluster-znh6n.dyn.redhatworkshops.io
+# No key -> 401 (Authorino enforces); with an approved APIKEY -> 200.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: devportal-api
+  namespace: parasol-devportal
+spec:
+  host: devportal-api.apps.cluster-znh6n.dyn.redhatworkshops.io
+  port:
+    targetPort: api
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+  to:
+    kind: Service
+    name: devportal-gw-openshift-default
+    weight: 100
+  wildcardPolicy: None

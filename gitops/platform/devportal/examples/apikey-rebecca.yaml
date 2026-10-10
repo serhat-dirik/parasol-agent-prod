@@ -1,0 +1,27 @@
+# STEP 1 — developer self-service request.
+# The developer brings a key value (a Secret) and creates an APIKey that references it.
+# The portal/controller then auto-creates a canonical APIKeyRequest and, because the
+# APIProduct is approvalMode: manual, holds the APIKey at Pending/AwaitingApproval until
+# an admin approves it. No enforcement Secret exists in kuadrant-system yet, so the key
+# is inert (calls get 401).
+#
+# Create the key Secret first (value is the developer's chosen key; keep it out of git):
+#   oc create secret generic rebecca-claims-key -n parasol-devportal \
+#     --from-literal=api_key=<developer-chosen-key>
+---
+apiVersion: devportal.kuadrant.io/v1alpha1
+kind: APIKey
+metadata:
+  name: rebecca-claims-key
+  namespace: parasol-devportal
+spec:
+  apiProductRef:
+    name: claims-api
+    namespace: parasol-devportal
+  planTier: free
+  requestedBy:
+    userId: rebecca
+    email: rebecca@parasol.example
+  useCase: Claims adjuster dashboard integration
+  secretRef:
+    name: rebecca-claims-key
