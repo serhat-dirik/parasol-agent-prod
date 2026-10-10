@@ -100,6 +100,10 @@ public class ClaimWebsocketChatBot {
         } else if (answer.answer() != null && !answer.answer().isBlank()) {
             frames.add(ChatFrame.answer(answer.answer()));
         }
+        // Footer: the turn's trace id, so the chat shows what the operator can open in MLflow/Tempo.
+        if (answer.traceId() != null && !answer.traceId().isBlank()) {
+            frames.add(ChatFrame.trace(answer.traceId()));
+        }
         frames.add(ChatFrame.done());
         return Multi.createFrom().iterable(frames);
     }

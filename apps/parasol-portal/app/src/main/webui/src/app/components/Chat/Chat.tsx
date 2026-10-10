@@ -169,6 +169,12 @@ const Chat: React.FunctionComponent<{ claimNumber: string, onTurnComplete?: () =
                 return (
                     <Text key={key} component={TextVariants.p} className='chat-answer-text'>{frame.text}</Text>
                 );
+            case 'trace':
+                return (
+                    <div key={key} className='trace-footer' title='Open this turn in MLflow / Tempo'>
+                        trace {frame.text}
+                    </div>
+                );
             default:
                 return null;
         }

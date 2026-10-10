@@ -8,6 +8,7 @@ package org.parasol.model;
  *   error     a red chip / message                           (text = message)
  *   guardrail an amber banner                                (text = message, data = score)
  *   mask      a "personal data masked" chip                  (text = message, data = masked types)
+ *   trace     a footer linking the turn to its trace          (text = trace id)
  *   done      end of this turn
  */
 public record ChatFrame(String type, String text, String data) {
@@ -18,5 +19,7 @@ public record ChatFrame(String type, String text, String data) {
     public static ChatFrame mask(String msg, String masked)  { return new ChatFrame("mask", msg, masked); }
     /** A2 Propose card: text = claim number, data = JSON {"proposed":n,"claimed":n}. */
     public static ChatFrame propose(String claimNumber, String json) { return new ChatFrame("propose", claimNumber, json); }
+    /** Footer tying the turn to its trace (text = trace id) so the chat shows what landed in MLflow/Tempo. */
+    public static ChatFrame trace(String traceId)            { return new ChatFrame("trace", traceId, null); }
     public static ChatFrame done()                           { return new ChatFrame("done", null, null); }
 }

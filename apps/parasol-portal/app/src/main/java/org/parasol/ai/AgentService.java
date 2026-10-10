@@ -10,6 +10,9 @@ import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.service.Result;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -42,6 +45,9 @@ public class AgentService {
     @Inject
     MeterRegistry metrics;
 
+    @Inject
+    Tracer tracer;
+
     /** Secured: route writes through the local propose tool (A2). Free leaves this false. */
     @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
     boolean proposeEnabled;
@@ -62,6 +68,15 @@ public class AgentService {
     /** Ask the assistant. {@code conversationId} ties a chat session's turns together (A5 memory). */
     public AgentAnswer answer(String conversationId, String question) {
         Timer.Sample latency = Timer.start(metrics);
+        // MLflow 3.14 OTLP ingest reads these span attributes into trace metadata: session.id ->
+        // mlflow.trace.session and user.id -> mlflow.trace.user. Keying both on the caller makes
+        // rebecca / marcus / tom.becker each show up as one SESSION (the night shift = one session,
+        // ~200 turns for tom.becker). Set on the current (root) span; the ingest scans all spans.
+        Span root = Span.current();
+        String who = caller.subject();
+        root.setAttribute("session.id", who);
+        root.setAttribute("user.id", who);
+        String traceId = root.getSpanContext().getTraceId();
         try {
             Result<String> result = proposeEnabled
                     ? assistant.askWithPropose(conversationId, safetyRules(), question)
@@ -80,19 +95,22 @@ public class AgentService {
             // passed the gateway (status 200); 403s are counted on the Approve path in ClaimResource.
             recordToolCalls(toolCalls);
             recordGuardrail(guardrail);
+            // Trace semantics: name the observed steps so the MLflow/Tempo trace reads as the story
+            // (guardrails.tool_result when a detector flagged a tool result, the propose step).
+            emitStorySpans(guardrail, proposal);
             LOG.infof("chat caller=%s version=%s tools=%s guardrail=%s tokens=%s", caller.subject(), version,
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     guardrail == null ? "none" : guardrail.action(),
                     result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount());
             return new AgentAnswer(question, answer, toolCalls, modelName,
-                    usage(result.tokenUsage()), caller.subject(), version, null, false, guardrail, proposal);
+                    usage(result.tokenUsage()), caller.subject(), version, null, false, guardrail, proposal, traceId);
         } catch (Exception e) {
             String detail = redact(rootMessage(e));
             boolean auth = looksLikeAuthFailure(detail);
             LOG.warnf("assistant call failed (authFailure=%s): %s", auth, detail);
             String error = errorMessage(detail, auth);
             return new AgentAnswer(question, null, List.of(), modelName, null,
-                    caller.subject(), version, error, auth, null, null);
+                    caller.subject(), version, error, auth, null, null, traceId);
         } finally {
             // P95 latency panel: a per-version/user histogram of the whole assistant turn.
             latency.stop(Timer.builder("parasol_agent_latency_seconds")
@@ -170,6 +188,54 @@ public class AgentService {
         metrics.counter("parasol_agent_model_calls_total", "version", version, "user", user).increment();
     }
 
+    /**
+     * Emit the semantic spans that make a secured chat trace read as the story, as children of the
+     * current turn span. A guardrails detection becomes {@code guardrails.input} when it masked the
+     * caller's input (PII) or {@code guardrails.tool_result} when it flagged / blocked a tool result
+     * (the inflated-document case), with the action as the span status (block = ERROR). A proposed
+     * payout becomes {@code tool.propose_payout} (the Read-Propose-Act card step) - note that in
+     * secured no {@code approve_payout} span appears, because the gateway filters it out.
+     */
+    private void emitStorySpans(Guardrail guardrail, Proposal proposal) {
+        if (guardrail != null) {
+            boolean input = "mask".equals(guardrail.action());
+            Span gs = tracer.spanBuilder(input ? "guardrails.input" : "guardrails.tool_result").startSpan();
+            try {
+                if (guardrail.action() != null) {
+                    gs.setAttribute("guardrail.action", guardrail.action());
+                }
+                if (guardrail.detectors() != null) {
+                    gs.setAttribute("guardrail.detectors", guardrail.detectors());
+                }
+                if (guardrail.score() != null) {
+                    gs.setAttribute("guardrail.score", guardrail.score());
+                }
+                if ("block".equals(guardrail.action())) {
+                    gs.setStatus(StatusCode.ERROR, "blocked by guardrails");
+                }
+            } finally {
+                gs.end();
+            }
+        }
+        if (proposal != null) {
+            Span ps = tracer.spanBuilder("tool.propose_payout").startSpan();
+            try {
+                ps.setAttribute("tool.name", "propose_payout");
+                if (proposal.claimNumber() != null) {
+                    ps.setAttribute("claim.number", proposal.claimNumber());
+                }
+                if (proposal.proposed() != null) {
+                    ps.setAttribute("payout.proposed", proposal.proposed());
+                }
+                if (proposal.claimed() != null) {
+                    ps.setAttribute("payout.claimed", proposal.claimed());
+                }
+            } finally {
+                ps.end();
+            }
+        }
+    }
+
     private static Usage usage(TokenUsage t) {
         return t == null ? null : new Usage(t.inputTokenCount(), t.outputTokenCount(), t.totalTokenCount());
     }
@@ -203,7 +269,7 @@ public class AgentService {
 
     public record AgentAnswer(String question, String answer, List<ToolCall> toolCalls, String model,
                               Usage tokenUsage, String caller, String version, String error,
-                              boolean authFailure, Guardrail guardrail, Proposal proposal) {
+                              boolean authFailure, Guardrail guardrail, Proposal proposal, String traceId) {
     }
 
     /** A payout the assistant proposed (secured, A2): the UI renders proposed vs claimed with an Approve button. */

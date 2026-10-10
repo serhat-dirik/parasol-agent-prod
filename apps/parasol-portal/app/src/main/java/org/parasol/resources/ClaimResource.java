@@ -18,6 +18,9 @@ import org.parasol.model.ClaimDtos.Usage;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.mcp.client.McpClient;
@@ -65,6 +68,9 @@ public class ClaimResource {
 
     @Inject
     MeterRegistry metrics;
+
+    @Inject
+    Tracer tracer;
 
     @GET
     @Path("/claims")
@@ -127,10 +133,13 @@ public class ClaimResource {
     @Path("/claims/{number}/approve")
     @Blocking
     public Response approve(@PathParam("number") String number, @QueryParam("amount") Double amount) {
+        String traceId = Span.current().getSpanContext().getTraceId();
         if (!groups().contains("claims-managers")) {
             toolCall("approve_payout", "403");
+            gatewayAuthz("approve_payout", true);
             return Response.status(Response.Status.FORBIDDEN)
-                    .entity(Map.of("error", "approve_payout is not permitted for this role")).build();
+                    .entity(Map.of("error", "approve_payout is not permitted for this role",
+                            "traceId", traceId)).build();
         }
         forwardToken();
         // A human (a claims manager) clicked Approve, so record who: the timeline then reads
@@ -143,13 +152,19 @@ public class ClaimResource {
             String result = claimsDb.executeTool(
                     ToolExecutionRequest.builder().name("approve_payout").arguments(args).build()).resultText();
             toolCall("approve_payout", "200");
-            return Response.ok(Map.of("result", result)).build();
+            gatewayAuthz("approve_payout", false);
+            // traceId lets the timeline event link to the trace of this approval ("Approved by
+            // <user> via assistant"). Persisting it on the claim record needs a claims-db field
+            // (kept backward-compatible), so for now the portal surfaces it live on the response.
+            return Response.ok(Map.of("result", result, "traceId", traceId)).build();
         } catch (RuntimeException e) {
             // A forced call by someone without the tool role is refused at the MCP gateway (403).
             String msg = String.valueOf(e.getMessage());
-            toolCall("approve_payout", msg != null && msg.toLowerCase().contains("403") ? "403" : "200");
+            boolean denied = msg != null && msg.toLowerCase().contains("403");
+            toolCall("approve_payout", denied ? "403" : "200");
+            gatewayAuthz("approve_payout", denied);
             return Response.status(Response.Status.BAD_GATEWAY)
-                    .entity(Map.of("error", msg)).build();
+                    .entity(Map.of("error", msg, "traceId", traceId)).build();
         }
     }
 
@@ -157,6 +172,25 @@ public class ClaimResource {
     private void toolCall(String tool, String status) {
         metrics.counter("parasol_tool_calls_total", "tool", tool, "user", caller.subject(), "status", status)
                 .increment();
+    }
+
+    /**
+     * gateway.authz span: the identity-bound tool-authorization decision at the MCP gateway, for the
+     * trace. A denial carries the tool name as an attribute and the 403 as the span status, so the
+     * trace shows the refusal plainly (an adjuster forcing approve_payout); an allow is an OK span.
+     */
+    private void gatewayAuthz(String tool, boolean denied) {
+        Span s = tracer.spanBuilder("gateway.authz").startSpan();
+        try {
+            s.setAttribute("tool.name", tool);
+            s.setAttribute("authz.decision", denied ? "deny" : "allow");
+            if (denied) {
+                s.setAttribute("http.status_code", 403L);
+                s.setStatus(StatusCode.ERROR, "403 forbidden");
+            }
+        } finally {
+            s.end();
+        }
     }
 
     /** Put the logged-in user's OIDC token in the request context so the MCP call carries it. */

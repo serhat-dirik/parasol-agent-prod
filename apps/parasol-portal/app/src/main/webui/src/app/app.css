@@ -240,6 +240,13 @@ body,
 .tool-chip-name {
   font-weight: 700;
 }
+.trace-footer {
+  font-family: monospace;
+  font-size: 11px;
+  color: #6a6e73;
+  margin: 4px 0 2px;
+  word-break: break-all;
+}
 .error-chip {
   display: inline-block;
   background-color: #faeae8;
