@@ -281,3 +281,16 @@ body,
   color: #6a6e73;
   font-size: 12px;
 }
+
+/* A2 Propose card (secured Read-Propose-Act) */
+.propose-card {
+  border: 1px solid #f0ab00;
+  background: #fdf7e7;
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+}
+.propose-title { font-weight: 600; margin-bottom: 4px; }
+.propose-row { font-size: 0.9em; }
+.propose-approved { color: #3e8635; font-weight: 600; margin-top: 4px; }
+.propose-norole { color: #6a6e73; font-size: 0.85em; margin-top: 4px; }

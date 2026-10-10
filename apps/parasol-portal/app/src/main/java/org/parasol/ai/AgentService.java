@@ -36,7 +36,14 @@ public class AgentService {
     CallerIdentity caller;
 
     @Inject
+    ProposalHolder proposalHolder;
+
+    @Inject
     MeterRegistry metrics;
+
+    /** Secured: route writes through the local propose tool (A2). Free leaves this false. */
+    @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
+    boolean proposeEnabled;
 
     @ConfigProperty(name = "agent.safety-rules")
     Optional<String> safetyRulesConfig;
@@ -54,9 +61,14 @@ public class AgentService {
     /** Ask the assistant. {@code conversationId} ties a chat session's turns together (A5 memory). */
     public AgentAnswer answer(String conversationId, String question) {
         try {
-            Result<String> result = assistant.ask(conversationId, safetyRules(), question);
+            Result<String> result = proposeEnabled
+                    ? assistant.askWithPropose(conversationId, safetyRules(), question)
+                    : assistant.ask(conversationId, safetyRules(), question);
             count(result.tokenUsage());
             List<ToolCall> toolCalls = toolCallCollector.calls();
+            Proposal proposal = proposalHolder.has()
+                    ? new Proposal(proposalHolder.claimNumber(), proposalHolder.proposed(), proposalHolder.claimed())
+                    : null;
             // The secured model path runs through the guardrails proxy, which prepends a sentinel
             // first line to the answer (option A agreed with Stream G). Split it off so the UI can
             // render the amber banner / mask chip; the remaining lines are the real answer.
@@ -67,7 +79,7 @@ public class AgentService {
                     guardrail == null ? "none" : guardrail.action(),
                     result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount());
             return new AgentAnswer(question, answer, toolCalls, modelName,
-                    usage(result.tokenUsage()), caller.subject(), version, null, false, guardrail);
+                    usage(result.tokenUsage()), caller.subject(), version, null, false, guardrail, proposal);
         } catch (Exception e) {
             String detail = redact(rootMessage(e));
             boolean auth = looksLikeAuthFailure(detail);
@@ -75,7 +87,7 @@ public class AgentService {
             String error = auth ? "model authentication failed - check the MaaS key; it may be expired"
                     : "the assistant could not complete that request";
             return new AgentAnswer(question, null, List.of(), modelName, null,
-                    caller.subject(), version, error, auth, null);
+                    caller.subject(), version, error, auth, null, null);
         }
     }
 
@@ -130,7 +142,11 @@ public class AgentService {
 
     public record AgentAnswer(String question, String answer, List<ToolCall> toolCalls, String model,
                               Usage tokenUsage, String caller, String version, String error,
-                              boolean authFailure, Guardrail guardrail) {
+                              boolean authFailure, Guardrail guardrail, Proposal proposal) {
+    }
+
+    /** A payout the assistant proposed (secured, A2): the UI renders proposed vs claimed with an Approve button. */
+    public record Proposal(String claimNumber, Double proposed, Double claimed) {
     }
 
     /**

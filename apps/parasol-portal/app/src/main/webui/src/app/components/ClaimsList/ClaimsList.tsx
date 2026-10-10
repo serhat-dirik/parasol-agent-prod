@@ -5,6 +5,7 @@ import { Table, Tbody, Td, Th, Thead, ThProps, Tr } from '@patternfly/react-tabl
 import axios from 'axios';
 import * as React from 'react';
 import { Link } from 'react-router-dom';
+import { formatAED } from '@app/utils/money';
 
 interface Row {
     claimNumber: string;
@@ -167,7 +168,7 @@ const ClaimsList: React.FunctionComponent = () => {
                                     </Td>
                                     <Td dataLabel={columnNames.claimant}>{row.claimant}</Td>
                                     <Td dataLabel={columnNames.type}>{row.type}</Td>
-                                    <Td dataLabel={columnNames.amount}>{row.amount}</Td>
+                                    <Td dataLabel={columnNames.amount}>{formatAED(row.amount)}</Td>
                                     <Td dataLabel={columnNames.adjuster}>{row.adjuster}</Td>
                                     <Td dataLabel={columnNames.status}><Label color={labelColors[row.status] || 'grey'}>{row.status}</Label></Td>
                                 </Tr>

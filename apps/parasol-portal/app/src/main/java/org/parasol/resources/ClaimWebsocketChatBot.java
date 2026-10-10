@@ -72,7 +72,19 @@ public class ClaimWebsocketChatBot {
 
         List<ChatFrame> frames = new ArrayList<>();
         for (ToolCall call : answer.toolCalls()) {
+            // The local propose tool surfaces as a Propose card, not a grey chip.
+            if ("propose_payout".equals(call.tool())) {
+                continue;
+            }
             frames.add(ChatFrame.tool(call.tool(), call.arguments()));
+        }
+        // A2 (secured): a proposed payout becomes a card with Approve (claims-managers only).
+        AgentService.Proposal p = answer.proposal();
+        if (p != null) {
+            String json = String.format("{\"proposed\":%s,\"claimed\":%s}",
+                    p.proposed() == null ? "null" : p.proposed(),
+                    p.claimed() == null ? "null" : p.claimed());
+            frames.add(ChatFrame.propose(p.claimNumber(), json));
         }
         // Guardrails signal (secured path): mask -> grey chip, flag/block -> amber banner, before the answer.
         AgentService.Guardrail g = answer.guardrail();

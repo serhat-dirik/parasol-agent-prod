@@ -4,21 +4,32 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import java.util.Map;
+
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
+import org.parasol.ai.CallerIdentity;
 import org.parasol.model.ClaimDtos.ClaimDto;
 import org.parasol.model.ClaimDtos.DocumentDto;
 import org.parasol.model.ClaimDtos.Me;
 import org.parasol.model.ClaimDtos.TimelineEntry;
 
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.mcp.client.McpClient;
+import io.quarkus.oidc.AccessTokenCredential;
 import io.quarkus.security.identity.SecurityIdentity;
+import io.quarkiverse.langchain4j.mcp.runtime.McpClientName;
+import io.smallrye.common.annotation.Blocking;
 import jakarta.annotation.security.PermitAll;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 
 /**
  * The portal's read API for its own UI: claims, timeline and uploaded documents (proxied from the
@@ -39,6 +50,13 @@ public class ClaimResource {
 
     @Inject
     JsonWebToken jwt;
+
+    @Inject
+    CallerIdentity caller;
+
+    @Inject
+    @McpClientName("claims-db")
+    McpClient claimsDb;
 
     @GET
     @Path("/claims")
@@ -62,6 +80,44 @@ public class ClaimResource {
     @Path("/claims/{number}/documents")
     public List<DocumentDto> documents(@PathParam("number") String number) {
         return claims.documents(number);
+    }
+
+    /**
+     * A2 "Act": a claims manager approves a proposed payout. The write happens HERE on the button
+     * click (not from the model path), invoking the real {@code approve_payout} MCP tool with the
+     * manager's own token - so in secured the MCP gateway authorizes it for a claims-manager and
+     * 403s anyone else. Adjusters have no Approve button; a forced call is refused at the gateway.
+     */
+    @POST
+    @Path("/claims/{number}/approve")
+    @Blocking
+    public Response approve(@PathParam("number") String number, @QueryParam("amount") Double amount) {
+        if (!groups().contains("claims-managers")) {
+            return Response.status(Response.Status.FORBIDDEN)
+                    .entity(Map.of("error", "approve_payout is not permitted for this role")).build();
+        }
+        forwardToken();
+        String args = amount == null
+                ? String.format("{\"claimNumber\":\"%s\"}", number)
+                : String.format("{\"claimNumber\":\"%s\",\"amount\":%s}", number, amount);
+        try {
+            String result = claimsDb.executeTool(
+                    ToolExecutionRequest.builder().name("approve_payout").arguments(args).build());
+            return Response.ok(Map.of("result", result)).build();
+        } catch (RuntimeException e) {
+            return Response.status(Response.Status.BAD_GATEWAY)
+                    .entity(Map.of("error", String.valueOf(e.getMessage()))).build();
+        }
+    }
+
+    /** Put the logged-in user's OIDC token in the request context so the MCP call carries it. */
+    private void forwardToken() {
+        if (!identity.isAnonymous()) {
+            AccessTokenCredential cred = identity.getCredential(AccessTokenCredential.class);
+            if (cred != null && cred.getToken() != null) {
+                caller.setBearerToken(cred.getToken());
+            }
+        }
     }
 
     /** The logged-in user, for the top bar ("Rebecca Torres, claims adjuster"). */

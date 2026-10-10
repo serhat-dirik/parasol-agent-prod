@@ -73,6 +73,8 @@ spec:
               valueFrom: {secretKeyRef: {name: agent-service-identity, key: password}}
             - name: AGENT_SAFETY_RULES
               valueFrom: {configMapKeyRef: {name: agent-config, key: safetyRules, optional: true}}
+            # A2 Read-Propose-Act: route writes through the local propose tool (secured only; free leaves this unset)
+            - {name: PORTAL_PROPOSE_ENABLED, value: "true"}
             - name: AGENT_VERSION
               valueFrom: {configMapKeyRef: {name: agent-config, key: version}}
             # model client timeout under the router's 30 s, so the kill switch yields a fast 502

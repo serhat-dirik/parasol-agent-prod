@@ -77,7 +77,7 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
           <Avatar src={imgAvatar} alt="" border='light' className='avatar'/>
         </ToolbarItem>
         <ToolbarItem>
-          <Button variant={ButtonVariant.link} component="a" href="/q/oidc/logout">Log out</Button>
+          <Button variant={ButtonVariant.link} component="a" href="/logout">Log out</Button>
         </ToolbarItem>
       </ToolbarContent>
     </Toolbar>

@@ -1,4 +1,5 @@
 import config from '@app/config';
+import { formatAED } from '@app/utils/money';
 import { faCommentDots, faFileLines } from '@fortawesome/free-regular-svg-icons';
 import { faCaretDown, faShieldHalved, faUser } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -102,7 +103,7 @@ const ClaimDetail: React.FunctionComponent = () => {
                   </FlexItem>
                 </Flex>
                 <Flex className='padding-bottom-25'>
-                  <FlexItem><TextContent><Text><b>Amount:</b> {claim.amount}</Text></TextContent></FlexItem>
+                  <FlexItem><TextContent><Text><b>Amount:</b> {formatAED(claim.amount)}</Text></TextContent></FlexItem>
                   <FlexItem><TextContent><Text><b>Adjuster:</b> {claim.adjuster}</Text></TextContent></FlexItem>
                   <FlexItem><TextContent><Text><b>Incident date:</b> {claim.incidentDate}</Text></TextContent></FlexItem>
                 </Flex>
