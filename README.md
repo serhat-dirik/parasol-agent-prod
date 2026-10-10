@@ -42,7 +42,7 @@ watch happen in a browser:
 In `portal-free` all three cause harm. In `portal` a different layer stops each, and the platform
 consoles (Keycloak, the OpenShift AI dashboard, the OpenShift console, Argo CD) show *why*. The
 scripts in this repo are only for setting the demo up, playing the abusive customer, and resetting
-between takes — the demo itself is the browser.
+between runs — the demo itself is the browser.
 
 </details>
 
@@ -143,7 +143,7 @@ commit, let Argo sync. The pods keep running; the agent can reach nothing. Remov
 <details>
 <summary><b>Demo scripts</b> — setup, load, reset (not the demo itself)</summary>
 
-The demo is the browser. The scripts set it up, play the abusive customer, and reset between takes.
+The demo is the browser. The scripts set it up, play the abusive customer, and reset between runs.
 Run `source scripts/load-credentials.sh` first (never prints or commits secret values).
 
 | Script | What it does |
@@ -153,7 +153,7 @@ Run `source scripts/load-credentials.sh` first (never prints or commits secret v
 | `scripts/abuse-doc.sh [free\|secured\|both]` | Scenario 2 (the customer document / AED 84,000) against the portal(s). |
 | `scripts/night-shift.sh [count] [host]` | Scenario 3: logs in as the policyholder and loops requests to drain the budget. |
 | `scripts/abuse.sh <free\|secured> [user] [which]` | The original REST-agent harness (identity / tool authorization checks). |
-| `scripts/reset.sh` | Put the claims data back **and** restore the per-user token allowance. Run before every take. |
+| `scripts/reset.sh` | Put the claims data back **and** restore the per-user token allowance. Run before each run. |
 | `scripts/token.sh <user>` | Print a Keycloak access token for a demo user. |
 | `scripts/signing-demo.sh` | Layer 6: admission refuses an unsigned portal image and admits the signed one. |
 
@@ -167,10 +167,9 @@ Bootstrap helpers (called by `bootstrap.sh`, or run once by an operator): `build
 <details>
 <summary><b>Demo UI</b> — what the audience sees, beat by beat</summary>
 
-One browser profile per user so logins are instant; window 1920×1080, portal zoom ~110% so chips
-and banners read on video. Platform tabs pre-opened in order: Keycloak, OpenShift AI (MaaS, MCP
-catalog, GenAI Studio, MLflow), OpenShift console (Gateway API, Traces, Alerting), Argo CD, GitHub.
-`scripts/reset.sh` between takes.
+Have the platform tabs open alongside the portal: Keycloak, OpenShift AI (MaaS, MCP catalog, GenAI
+Studio, MLflow), OpenShift console (Gateway API, Traces, Alerting), Argo CD, GitHub. Run
+`scripts/reset.sh` before each run — the live gate/propose steps mutate claims.
 
 **Demo 1 — uncontrolled (`portal-free`)**
 1. Log in as **rebecca**; top bar shows "Rebecca Torres, claims adjuster".
@@ -225,7 +224,7 @@ catalog, GenAI Studio, MLflow), OpenShift console (Gateway API, Traces, Alerting
   registration alone shows zero tools until the broker bounces.
 * **A live `oc patch` reverts itself.** Argo `selfHeal` on `env-secured` reverts live edits. Change
   synced resources (e.g. the MCPVirtualServer tool list) via Git + an Argo refresh, not `oc`.
-* **Reset before every take.** The live gate/propose tests re-approve CLM-1002 and mutate claims;
+* **Reset before each run.** The live gate/propose tests re-approve CLM-1002 and mutate claims;
   `scripts/reset.sh` restores both the data and the per-user token allowance (it restarts Limitador).
 * **429 shows as HTTP 502.** The portal surfaces the upstream 429 as a 502 whose chat body still reads
   "you have reached your usage limit (429)". The on-screen wording is correct; only the HTTP status
