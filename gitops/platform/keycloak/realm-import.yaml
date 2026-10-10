@@ -71,6 +71,22 @@ spec:
       - email
       optionalClientScopes:
       - groups
+      # Client-scoped mapper: emit resource_access.<client>.roles into BOTH the access and the ID token,
+      # so a browser (authorization-code) login carries the tool:* roles the MCP gateway checks even if
+      # the portal forwards the ID token. The shared realm "roles" scope only puts them in the access
+      # token; this covers the ID token too. Scoped to parasol-portal, so parasol-agent is unaffected.
+      protocolMappers:
+      - name: portal-client-roles
+        protocol: openid-connect
+        protocolMapper: oidc-usermodel-client-role-mapper
+        config:
+          claim.name: resource_access.${client_id}.roles
+          jsonType.label: String
+          multivalued: 'true'
+          id.token.claim: 'true'
+          access.token.claim: 'true'
+          userinfo.token.claim: 'false'
+          usermodel.clientRoleMapping.clientId: ''
     - clientId: parasol-secured/claims-db
       name: claims-db MCP server (resource server)
       publicClient: true
