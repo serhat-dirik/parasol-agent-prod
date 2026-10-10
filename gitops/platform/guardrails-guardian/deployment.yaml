@@ -17,12 +17,15 @@ spec:
           image: registry.access.redhat.com/ubi9/python-312:latest
           command: ["python3", "-u", "/app/guardian_detector.py"]
           env:
-            # MaaS guard tier (granite-guardian-3-1-8b). Key is out-of-band (Secret maas-guardian),
-            # never in Git — same handling as S4's maas-nemo.
+            # Primary guard tier (granite-guardian-3-1-8b). Base URL from maas-guardian; the REAL
+            # guard-capable key from maas-key-granite-guardian (minted by P1-MAAS-TIERS), out-of-band.
             - {name: GUARD_URL, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD_URL}}}
-            - {name: GUARD_KEY, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD_KEY}}}
+            - {name: GUARD_KEY, valueFrom: {secretKeyRef: {name: maas-key-granite-guardian, key: GENAI_API_KEY}}}
             - {name: GUARD_MODEL, value: "granite-guardian-3-1-8b"}
-            - {name: GUARD_THRESHOLD, value: "0.5"}
+            # Optional second guard model (Llama-Guard-3-1B), used on the USER MESSAGE only.
+            - {name: GUARD2_URL, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD_URL}}}
+            - {name: GUARD2_KEY, valueFrom: {secretKeyRef: {name: maas-key-llama-guard, key: GENAI_API_KEY}}}
+            - {name: GUARD2_MODEL, value: "Llama-Guard-3-1B"}
           ports:
             - containerPort: 8080
           readinessProbe:

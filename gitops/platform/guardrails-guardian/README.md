@@ -1,72 +1,64 @@
 # Granite Guardian as a second detector (stream P1-GUARDIAN)
 
-Additive. A second content detector **alongside** the wave-1 regex detector, served via the
-**MaaS endpoint's guard tier** (`granite-guardian-3-1-8b`). It does **not** touch the production
-`guardrails-proxy` or the enforced wave-1 guardrails path. Everything here lives in the isolated
-namespace `parasol-guardian` and is applied manually (not wired into Argo), exactly like
-`guardrails-nemo` (S4).
+Additive. A second (and optional third) model-based content detector **alongside** the wave-1 regex
+detector, served via the **MaaS endpoint's guard tier**. It does **not** touch the production
+`guardrails-proxy` or the enforced wave-1 guardrails path. Everything lives in the isolated namespace
+`parasol-guardian` and is applied manually (not wired into Argo), exactly like `guardrails-nemo` (S4).
 
 ## What it is
 
-`guardian-detector` is a tiny stdlib HTTP service that speaks the **same contract** as the
-Guardrails Orchestrator's `POST /api/v2/text/detection/content` (`{content, detectors}` ->
-`{detections:[...]}`), so the existing `guardrails-proxy` could point its `ORCHESTRATOR_URL` at it
-with no code change. It runs two detectors per request:
+`guardian-detector` is a tiny stdlib HTTP service that speaks the **same contract** as the Guardrails
+Orchestrator's `POST /api/v2/text/detection/content` (`{content, detectors}` -> `{detections:[...]}`),
+so the existing `guardrails-proxy` could point its `ORCHESTRATOR_URL` at it with no code change. Per
+request it runs the detectors named in the `detectors` field:
 
-| detector_id        | what it does                                                        |
-|--------------------|---------------------------------------------------------------------|
-| `regex`            | the owner's three wave-1 phrases (reproduced here, self-contained)  |
-| `granite_guardian` | a call to the MaaS guard tier; the model's Yes/No verdict as a score|
+| detector_id        | model / rule                        | used on                         |
+|--------------------|-------------------------------------|---------------------------------|
+| `regex`            | the owner's three wave-1 phrases    | any text (document + user msg)  |
+| `granite_guardian` | `granite-guardian-3-1-8b` (MaaS)    | any text                        |
+| `llama_guard`      | `Llama-Guard-3-1B` (MaaS), optional | the **user message** only       |
 
-Granite Guardian emits `Yes` (risky) / `No` (safe) as its first token; the score is `P(Yes)` read
-from `top_logprobs` (falling back to the emitted token). `score >= GUARD_THRESHOLD` (0.5) = a
-detection. The guard model runs **on the MaaS endpoint, not here** — no GPU, no pip, stdlib only.
+### Scoring (why the verdict token, not a logprob threshold)
 
-## The gap (documented fallback — brief-sanctioned)
+Each guard model emits a verdict token — Granite Guardian `Yes`/`No`, Llama Guard `safe`/`unsafe`.
+The **decision is the emitted verdict token** (authoritative). The **score** is `P(risky)` read from
+`top_logprobs` **at the position the verdict token is emitted** — Granite emits it first; Llama emits
+a `\n\n` token first, so position-0 logprobs are noise. Two traps handled: (1) case/space variants
+(`Yes`/`yes`/`YES`) are collapsed keeping the **best** logprob, else a decisive `Yes` reads as ~0;
+(2) a clean `No` with tied logprobs still decides *safe* (no false positive). No fixed threshold gates
+the detection — the model's label does.
 
-The real guard model is **unreachable with the credentials this lab has**:
-
-* `granite-guardian-3-1-8b` exists on the lab LiteLLM endpoint, but **all five** lab virtual keys
-  are allowlisted to `models=['llama-scout-17b']` only — they `401 key_model_access_denied` on the
-  guard model. (Confirmed with P1-MAAS-TIERS.)
-* There is **no LiteLLM master/admin access** to mint a key with broader model access.
-* The cluster has **no GPU** to self-serve an 8B guard model on-cluster.
-
-So the detector is **wired and ready** for the guard tier but the guard model is pending a
-guard-capable MaaS key (or a GPU). This matches `docs/ui-demo-plan.md` §7 ("Granite Guardian as a
-second detector — via the MaaS endpoint") and the "slides only / CPU detector stands in" note.
-
-## Proving the mechanism end-to-end (stand-in)
-
-To show the two-detector mechanism working now, the deployment is overridden to point at
-`llama-scout-17b` with a guardian-style classifier prompt (`GUARD_PROMPT`) — **a clearly-labeled
-stand-in, not real Granite Guardian** (the guardian meta says so). The code path, contract, score
-extraction and "second detector alongside regex" wiring are identical to the real guard tier.
+## Proof (real models, reproducible)
 
 ```
-oc apply -k gitops/platform/guardrails-guardian          # ns, detector, service
-CREDENTIALS_FILE=.../credentials.txt scripts/guardian-key.sh   # Secret maas-guardian (key2, out-of-band)
-# stand-in override (demo only):
-oc set env deploy/guardian-detector -n parasol-guardian GUARD_MODEL=llama-scout-17b GUARD_PROMPT='<classifier>'
-oc apply -f gitops/platform/guardrails-guardian/prove-job.yaml
 oc logs job/guardian-prove -n parasol-guardian
 ```
 
-Observed:
-
 ```
-[INJECTION/UNSAFE] guardian: {model: llama-scout-17b, score: 0.8176, verdict: risky, mode: STAND-IN}
-[INJECTION/UNSAFE] DETECTED by regex: automated-processing-note score=1.0
-[INJECTION/UNSAFE] DETECTED by regex: assistant-action-required score=1.0
-[INJECTION/UNSAFE] DETECTED by granite_guardian: harm score=0.8176
-[CLEAN]            guardian: {score: 0.0601, verdict: safe}   -> no detections
+[USER-INJECTION] granite_guardian risky score=0.9979 ; llama_guard risky score=0.9627
+                 -> DETECTED by granite_guardian (harm) AND llama_guard (unsafe)
+[DOCUMENT-NOTE]  regex HIT x2 (score 1.0) ; granite_guardian risky score=0.9794
+                 -> DETECTED by regex AND granite_guardian (harm)
+[CLEAN]          granite_guardian safe ; llama_guard safe  -> no detections
 ```
 
-## Switching to the real guard model (one step, when a key exists)
+So the REAL Granite Guardian scores the injection risky and the clean query safe, **alongside** the
+regex detector, and Llama Guard flags the user-message injection as the optional third detector.
 
-1. `GUARD_KEY_FIELD=<guard-capable key field> scripts/guardian-key.sh`
-2. `oc set env deploy/guardian-detector -n parasol-guardian GUARD_MODEL=granite-guardian-3-1-8b GUARD_PROMPT-`
-   (unset `GUARD_PROMPT` — the real guard model's served template does the guardian formatting).
+## MaaS guard tier + GenAI Studio playground
 
-No other change. The committed `deployment.yaml` already defaults to `granite-guardian-3-1-8b` with
-no prompt, i.e. the production-intended wiring; the stand-in is a runtime override only.
+* `granite-guardian-3-1-8b` and `Llama-Guard-3-1B` are registered MaaS models (ExternalModel +
+  **MaaSModelRef `Ready`**, created by stream P1-MAAS-TIERS). A `Ready` MaaSModelRef is what the
+  OpenShift AI **GenAI Studio playground** enumerates in its model picker, so Granite Guardian is
+  selectable there (a cluster-admin sees all MaaS models; the auth-walled dashboard screen is captured
+  in the operator's logged-in browser at record time, per the handover decision).
+* The guard-tier keys are out-of-band Secrets (`maas-key-granite-guardian`, `maas-key-llama-guard`,
+  data key `GENAI_API_KEY`), **never in Git**. `scripts/guardian-key.sh` creates the base-URL Secret
+  `maas-guardian`; `load-credentials.sh` also exports `MAAS_KEY_GUARD` / `MAAS_KEY_LLAMAGUARD`.
+
+## History (fallback that is no longer needed)
+
+Before the per-model guard keys existed, all five lab virtual keys were `llama-scout-17b`-only, so the
+guard model was unreachable and the mechanism was proven with a clearly-labelled llama-scout STAND-IN
+(`GUARD_PROMPT` turned a general model into a Yes/No classifier). The real keys are now minted, the
+stand-in override is removed, and the committed manifests use the real guard models.
