@@ -1,15 +1,18 @@
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 # Layer 7, the control: revoke rather than kill. Adding this component in secured/kustomization.yaml
-# (one-line Git commit) takes the model path out of the agent's NetworkPolicy. The pods keep running
-# and stay Ready (Keycloak and the MCP gateway are still reachable, so the readiness check passes);
-# the next model call fails and the agent answers with a clean 502. Remove the line to restore.
-# NetworkPolicies only add allows, so a second "deny" policy would change nothing: the component
-# replaces the agent policy's egress with the same list minus the model gateway (the only way to
-# the model). Keep it in sync with ../networkpolicy.yaml.
+# (one-line Git commit) takes the model path out of BOTH workloads that reach the model: the REST
+# agent (parasol-agent) and the claims portal (app=portal). The pods keep running and stay Ready
+# (Keycloak and the MCP gateway are still reachable, so readiness passes); the next model call fails
+# and the workload answers with a clean error ("assistant offline" in the portal). Remove the line
+# to restore.
+# NetworkPolicies only ADD allows, so a second "deny" policy would change nothing: the component
+# REPLACES each workload policy's egress with the same list minus the model gateway (the only way to
+# the model). Keep each replacement in sync with ../networkpolicy.yaml and ../portal-networkpolicy.yaml.
 # Alternative with the same effect at a different layer: delete the agent group from the
 # MaaSAuthPolicy (model access revoked) or from the Keycloak groups (tool access revoked).
 patches:
+  # --- REST agent (parasol-agent) ---
   - target: {kind: NetworkPolicy, name: parasol-agent}
     patch: |-
       - op: replace
@@ -22,6 +25,27 @@ patches:
   # Blocked packets are dropped, so the model call fails on the client timeout (25 s), not at once.
   # Keep the route open past that so the caller sees the agent's own 502, not the router's 504.
   - target: {kind: Route, name: parasol-agent}
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value: {haproxy.router.openshift.io/timeout: 1m}
+  # --- claims portal (app=portal) ---
+  # Same egress as portal-networkpolicy.yaml MINUS the parasol-model-gateway rule (the model path).
+  - target: {kind: NetworkPolicy, name: portal}
+    patch: |-
+      - op: replace
+        path: /spec/egress
+        value:
+          - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: gateway-system}}}]
+          - to:
+              - {namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: keycloak}}}
+              - {namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: openshift-ingress}}}
+          - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}}]
+          - to:
+              - {podSelector: {matchExpressions: [{key: app, operator: In, values: [claims-db]}]}}
+            ports:
+              - {protocol: TCP, port: 8080}
+  - target: {kind: Route, name: portal}
     patch: |-
       - op: add
         path: /metadata/annotations
