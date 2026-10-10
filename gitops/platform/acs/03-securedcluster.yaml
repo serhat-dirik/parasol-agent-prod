@@ -1,0 +1,14 @@
+apiVersion: platform.stackrox.io/v1alpha1
+kind: SecuredCluster
+metadata:
+  name: stackrox-secured-cluster-services
+  namespace: stackrox
+spec:
+  clusterName: parasol-lab
+  centralEndpoint: central.stackrox.svc:443
+  admissionControl:
+    listenOnCreates: true
+    listenOnUpdates: true
+  perNode:
+    collector:
+      collection: CORE_BPF
