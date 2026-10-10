@@ -14,7 +14,9 @@
     <!-- Aligned with the proven agent + MCP-server stack (Quarkus 3.33 LTS, LangChain4j 1.10.0)
          so the tool-using ClaimsAssistant folds in verbatim (@McpToolBox, Result<String>). -->
     <quarkus.langchain4j.version>1.10.0</quarkus.langchain4j.version>
-    <quarkus.quinoa.version>2.5.1</quarkus.quinoa.version>
+    <!-- Quinoa 2.8.0 is built against Quarkus 3.27 (same config-interface era as our 3.33 platform);
+         2.5.1 was built against 3.15 and fails augmentation on the refactored HttpBuildTimeConfig. -->
+    <quarkus.quinoa.version>2.8.0</quarkus.quinoa.version>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
     <quarkus.platform.version>3.33.2.1</quarkus.platform.version>
