@@ -26,6 +26,7 @@ spec:
     - {name: EVAL_SCORE, value: "$(tasks.agent-eval.results.score)"}
     - {name: EVAL_GATE, value: "$(tasks.agent-eval.results.gate)"}
     - {name: MLFLOW_RUN_ID, value: "$(tasks.agent-eval.results.mlflow-run-id)"}
+    - {name: REGISTERED_MODEL_VERSION, value: "$(tasks.register-model-version.results.version-ref)"}
     - {name: SIGNED_IMAGES, value: "$(tasks.sign-images.results.SIGNED)"}
     - {name: SBOM_COMPONENTS, value: "$(tasks.generate-sbom.results.SBOM_COMPONENTS)"}
   workspaces:
@@ -75,6 +76,19 @@ spec:
         - {name: candidate, value: "$(params.candidate)"}
       workspaces:
         - {name: source, workspace: workspace}
+    # Governance: stamp the agent-eval result (gate, score, MLflow run id, prompt@version) onto the
+    # matching RHOAI Model Registry ModelVersion. Consumes agent-eval's results; never blocks promotion.
+    - name: register-model-version
+      runAfter: [agent-eval]
+      taskRef: {name: register-model-version}
+      params:
+        - {name: candidate, value: "$(params.candidate)"}
+        - {name: gate, value: "$(tasks.agent-eval.results.gate)"}
+        - {name: score, value: "$(tasks.agent-eval.results.score)"}
+        - {name: mlflow-run-id, value: "$(tasks.agent-eval.results.mlflow-run-id)"}
+        - {name: prompt-ref, value: "$(params.prompt-ref)"}
+      workspaces:
+        - {name: source, workspace: workspace}
     - name: verify-enterprise-contract
       runAfter: [sign-images]
       taskRef: {name: verify-enterprise-contract}
@@ -97,6 +111,7 @@ spec:
         - {name: image, value: "$(params.output-image)"}
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
         - {name: prompt-ref, value: "$(params.prompt-ref)"}
+        - {name: model-ref, value: "parasol-claims-assistant:$(params.candidate)"}
       workspaces:
         - {name: source, workspace: workspace}
   finally:

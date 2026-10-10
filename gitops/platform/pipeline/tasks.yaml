@@ -282,6 +282,10 @@ spec:
     # evaluated this exact version. The promotion commit references it, so git history ties the
     # promoted digest to the prompt the gate passed.
     - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@1"}
+    # The RHOAI Model Registry ModelVersion (RegisteredModel:version) the agent-eval gate evaluated
+    # and this release promotes. The promotion commit references it, so git history ties the promoted
+    # digest to the registered, eval-scored model version.
+    - {name: model-ref, type: string, default: "parasol-claims-assistant:v1"}
   workspaces:
     - {name: source}
   steps:
@@ -312,7 +316,7 @@ spec:
           git config user.name "parasol-pipeline"
           URL=$(printf "%s" "$(params.git-url)" | sed "s#https://#https://$(cat $TOKEN_FILE)@#")
           git add "$FILE"
-          git commit -m "chore: promote parasol-portal ${DIGEST} to secured overlay (prompt $(params.prompt-ref))" || { echo "nothing to commit"; exit 0; }
+          git commit -m "chore: promote parasol-portal ${DIGEST} to secured overlay (prompt $(params.prompt-ref), model $(params.model-ref))" || { echo "nothing to commit"; exit 0; }
           git push "$URL" HEAD:main && echo "PROMOTED: pushed pin to main"
         else
           echo "No gitops-auth token mounted; promotion diff prepared but not pushed (demo-safe)."
@@ -472,3 +476,55 @@ spec:
             && echo "VERIFIED $IMG"
         done
         printf "parasol-portal,claims-db,policy-docs" > "$(results.SIGNED.path)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: register-model-version
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: >-
+    Governance: stamp this release's agent-eval result onto the matching ModelVersion of the RHOAI
+    Model Registry RegisteredModel parasol-claims-assistant. The served model is an EXTERNAL MaaS
+    model (llama-scout-17b), so a ModelVersion is the agent CONFIG (prompt version + tools-authpolicy
+    sha + model id); this step writes the gate result, pass-rate/score, MLflow run id and prompt@version
+    that the agent-eval gate just produced onto that version, so the registry UI shows what the pipeline
+    evaluated. Best-effort by design: it never fails the pipeline (the agent-eval gate alone decides
+    promotion), it only records provenance. Reuses gitops/platform/model-registry/register-model.py
+    from the cloned source. The registry NetworkPolicy admits only the ingress router + RHOAI
+    namespaces on 8443, so it is reached through the registry's public route (kube-rbac-proxy still
+    TokenReviews the pipeline SA, which holds registry-user via gitops/platform/model-registry/rbac.yaml).
+  params:
+    - {name: candidate, type: string, default: v2}
+    - {name: gate, type: string}
+    - {name: score, type: string}
+    - {name: mlflow-run-id, type: string}
+    - {name: prompt-ref, type: string, default: ""}
+    - {name: mr-base-url, type: string, default: "https://parasol-model-registry-rest.apps.cluster-znh6n.dyn.redhatworkshops.io"}
+    - {name: mlflow-ui-base, type: string, default: "https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow"}
+    - {name: script-path, type: string, default: "source/gitops/platform/model-registry/register-model.py"}
+  results:
+    - {name: version-ref, description: "the RegisteredModel:version this run stamped its eval onto"}
+  workspaces:
+    - {name: source}
+  steps:
+    - name: stamp
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      env:
+        - {name: MR_BASE_URL, value: "$(params.mr-base-url)"}
+        - {name: MLFLOW_UI_BASE, value: "$(params.mlflow-ui-base)"}
+        - {name: MR_INSECURE, value: "1"}
+        - {name: HOME, value: "/tmp"}
+      script: |
+        #!/usr/bin/env bash
+        set -u
+        printf "parasol-claims-assistant:%s" "$(params.candidate)" > "$(results.version-ref.path)"
+        echo "Stamping agent-eval result onto model-registry version $(params.candidate): gate=$(params.gate) score=$(params.score) run=$(params.mlflow-run-id)"
+        python3 "$(params.script-path)" --patch-eval \
+          --version "$(params.candidate)" \
+          --gate "$(params.gate)" \
+          --score "$(params.score)" \
+          --run-id "$(params.mlflow-run-id)" \
+          --prompt-ref "$(params.prompt-ref)" \
+          || echo "model-registry stamp skipped (non-fatal): registry unreachable or version not registered yet"

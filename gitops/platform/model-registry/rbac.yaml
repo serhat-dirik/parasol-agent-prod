@@ -1,0 +1,39 @@
+# Access to the RHOAI Model Registry REST API is gated by its kube-rbac-proxy, which does a
+# SubjectAccessReview for `get services/parasol-model-registry` in rhoai-model-registries (that is
+# exactly what the operator-managed Role registry-user-parasol-model-registry grants). Bind that
+# Role to the identities that register model versions:
+#   - the standalone registrar Job (observability/parasol-model-registrar)
+#   - the Tekton pipeline SA (parasol-build/pipeline) used by the register-model-version gate step
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: parasol-model-registrar
+  namespace: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: parasol-model-registrar-mr-access
+  namespace: rhoai-model-registries
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: registry-user-parasol-model-registry
+subjects:
+  - kind: ServiceAccount
+    name: parasol-model-registrar
+    namespace: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: parasol-pipeline-mr-access
+  namespace: rhoai-model-registries
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: registry-user-parasol-model-registry
+subjects:
+  - kind: ServiceAccount
+    name: pipeline
+    namespace: parasol-build

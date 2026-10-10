@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: parasol-model-registrar
+  namespace: observability
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: parasol-model-registrar
+      containers:
+        - name: register
+          image: registry.access.redhat.com/ubi9/python-311:latest
+          command: ["/usr/bin/python3", "/scripts/register-model.py"]
+          env:
+            # The registry's NetworkPolicy only admits the ingress router and RHOAI-generated
+            # namespaces on 8443, so in-cluster callers reach it through its public route (hairpin
+            # via the router); the kube-rbac-proxy still TokenReviews the SA token on either path.
+            - {name: MR_BASE_URL, value: "https://parasol-model-registry-rest.apps.cluster-znh6n.dyn.redhatworkshops.io"}
+            - {name: MLFLOW_UI_BASE, value: "https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow"}
+            - {name: MR_INSECURE, value: "1"}
+            - {name: HOME, value: "/tmp"}
+          volumeMounts:
+            - {name: scripts, mountPath: /scripts}
+      volumes:
+        - name: scripts
+          configMap: {name: parasol-model-registrar}
