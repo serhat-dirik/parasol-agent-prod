@@ -102,7 +102,7 @@ public class ClaimResource {
                 : String.format("{\"claimNumber\":\"%s\",\"amount\":%s}", number, amount);
         try {
             String result = claimsDb.executeTool(
-                    ToolExecutionRequest.builder().name("approve_payout").arguments(args).build());
+                    ToolExecutionRequest.builder().name("approve_payout").arguments(args).build()).resultText();
             return Response.ok(Map.of("result", result)).build();
         } catch (RuntimeException e) {
             return Response.status(Response.Status.BAD_GATEWAY)
