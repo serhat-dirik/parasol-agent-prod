@@ -74,9 +74,12 @@ for i in $(seq 1 "$count"); do
   fi
   printf '[%02d/%d %s] ' "$i" "$count" "$kind"
   out=$(ask "$q"); code=$(printf '%s' "$out" | tail -1)
-  printf '%s\n' "$(printf '%s' "$out" | sed '$d')"
-  if [ "$code" = "429" ]; then
-    echo ">>> per-user limit reached (429) after $i requests - the night-shift account is throttled; staff are unaffected."
+  line=$(printf '%s' "$out" | sed '$d')
+  printf '%s\n' "$line"
+  # The portal surfaces the upstream MaaS 429 as HTTP 502 with "usage limit (429)" in the body, so
+  # detect the limit from the message, not just the status code.
+  if [ "$code" = "429" ] || printf '%s' "$line" | grep -qi 'usage limit\|(429)'; then
+    echo ">>> per-user usage limit reached after $i requests - the night-shift account is throttled; staff (rebecca/marcus) are unaffected."
     spent_429=1; break
   fi
   sleep "$interval"
