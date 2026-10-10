@@ -8,11 +8,27 @@ toc::[]
 
 Where this demo goes next. The backlog is in priority order, not phases. These are the items in flight and planned, not claims about what is already recorded.
 
+== What you learned
+
+The three demos made one argument. An AI agent is easy to build and easy to abuse, and the platform is what makes it safe to run. The five messages to carry away:
+
+* Identity on every tool call. The agent acts as the person, and the gateway checks the person's rights.
+* A document is data, not a command. The guardrail reads it as text, and the gate compares its numbers to the record.
+* Read, propose, act. A write waits for a person with the right to approve it.
+* Budgets and alerts with a name. Spend is attributed to a user, so the right account gets throttled and the alert names who.
+* The sandbox has a front door. Access is identity-bound, not a wall, so the right people still get through.
+
+[NOTE]
+.Know: how to close
+====
+Close on the shape of the work, not the feature list. The uncontrolled agent and the secured agent are the same image. The difference is the platform around it, and every piece of that platform is a product the customer already runs. That is the offer: not a new thing to buy, but a way to run the agents they are already being asked to ship.
+====
+
 == Priority 1
 
 * MCP catalog MCPServer objects: register claims-db and policy-docs as catalog entries so they appear in the OpenShift AI MCP catalog UI.
 * Registration cleanup: remove the stray default-namespace MCP registrations and the unenforced authentication policy.
-* MaaS tiers: a stage model, a production model, and a guard model, one key each, from bootstrap secrets.
+* MaaS tiers: a stage model, a production model, and a guard model, 1 key each, from bootstrap secrets.
 * Granite Guardian as a second detector, via the MaaS endpoint, alongside the regex detector.
 * EvalHub and LMEvalJob, with a larger model as judge.
 * GenAI Studio playground served as an OGXServer.
@@ -37,3 +53,9 @@ Where this demo goes next. The backlog is in priority order, not phases. These a
 * Kata feasibility check: is hardware virtualization present on a worker?
 * Developer Hub golden path.
 * A two-model injection beat, only if the replay test finds a model that obeys the hidden stamp.
+
+== References
+
+* The AgentOps Observability workshop that informed the observability modules: https://rhpds.github.io/agentops-in-prod-showroom[AgentOps Observability with Red Hat AI^].
+* The Showroom template this guide is built on: https://github.com/rhpds/showroom_template_nookbag[showroom_template_nookbag^].
+* The demo's own build notes and architecture live in the repository README and the `docs/` directory.

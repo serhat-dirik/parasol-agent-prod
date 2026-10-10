@@ -3,11 +3,9 @@ kind: ConfigMap
 metadata:
   name: showroom-proxy
   namespace: parasol-showroom
-# Front proxy for the pod. The Route targets this container only.
-#   /            -> showroom-content static server (:8000), the Antora cockpit
-#   /wetty       -> wetty terminal sidecar (:3000), with websocket upgrade
-#   /ui-config.yml and /nookbag.yml -> the cockpit tab config, served from a mounted file
-#     because the static content server does not inject it into the built site.
+# Front proxy. The Route targets this container only.
+#   /       -> nookbag cockpit SPA (:8080), which also serves /nookbag.yml and /antora
+#   /wetty  -> wetty terminal sidecar (:3000), with websocket upgrade
 data:
   nginx.conf: |
     events {}
@@ -20,11 +18,8 @@ data:
         '' close;
       }
       server {
-        listen 8080;
+        listen 8081;
         absolute_redirect off;
-
-        location = /ui-config.yml { alias /opt/ui/ui-config.yml; default_type text/yaml; }
-        location = /nookbag.yml   { alias /opt/ui/ui-config.yml; default_type text/yaml; }
 
         location = /wetty { return 302 /wetty/; }
         location /wetty/ {
@@ -39,7 +34,7 @@ data:
         }
 
         location / {
-          proxy_pass http://127.0.0.1:8000;
+          proxy_pass http://127.0.0.1:8080;
           proxy_set_header Host $http_host;
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Proto $scheme;

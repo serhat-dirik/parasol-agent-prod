@@ -15,57 +15,74 @@ spec:
       labels:
         app: showroom
     spec:
-      containers:
-        # Antora builder + static cockpit server. Clones this repo, builds showroom/site.yml
-        # into /showroom/www, serves it on :8000 (python3 -m http.server).
-        - name: content
-          image: quay.io/rhpds/showroom-content:latest
-          imagePullPolicy: Always
+      initContainers:
+        # Build the Antora site from the committed content into the shared volume.
+        # site.yml points at the remote repo, so the builder only needs the playbook and network.
+        - name: antora-build
+          image: docker.io/antora/antora:3.1.5
+          command: ["antora"]
+          args: ["--fetch", "--to-dir=/out", "/config/site.yml"]
           env:
-            - {name: GIT_REPO_URL, value: "https://github.com/serhat-dirik/parasol-agent-prod"}
-            - {name: GIT_REPO_REF, value: "main"}
-            - {name: ANTORA_PLAYBOOK, value: "showroom/site.yml"}
-            - {name: DOMAIN, value: "apps.cluster-znh6n.dyn.redhatworkshops.io"}
-          ports:
-            - {containerPort: 8000, name: content}
+            - {name: HOME, value: /antora-home}
+            - {name: ANTORA_CACHE_DIR, value: /antora-home/.cache}
           volumeMounts:
-            - {name: showroom, mountPath: /showroom}
-            - {name: userdata, mountPath: /user_data}
+            - {name: site, mountPath: /out}
+            - {name: sitecfg, mountPath: /config}
+            - {name: antora-home, mountPath: /antora-home}
           resources:
-            requests: {cpu: 100m, memory: 512Mi}
+            requests: {cpu: 200m, memory: 512Mi}
             limits: {cpu: "1", memory: 1Gi}
-        # Terminal. Serves a bash shell at /wetty/ over websockets on :3000.
+      containers:
+        # Nookbag cockpit SPA. Serves the split view on :8080, framing /antora on the left and
+        # the tabs from /nookbag.yml on the right.
+        - name: nookbag
+          image: quay.io/rhpds/nookbag:latest
+          imagePullPolicy: Always
+          ports:
+            - {containerPort: 8080, name: nookbag}
+          volumeMounts:
+            - {name: site, mountPath: /var/www/html/antora}
+            - {name: nookbagcfg, mountPath: /var/www/html/nookbag.yml, subPath: ui-config.yml}
+          readinessProbe:
+            httpGet: {path: /nookbag.yml, port: 8080}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+        # Terminal. Default entrypoint (yarn start) serves the terminal at /wetty/ on :3000.
         - name: terminal
           image: quay.io/rhpds/wetty:latest
           imagePullPolicy: Always
-          # Default entrypoint (yarn start) serves the terminal at /wetty/ on :3000.
           ports:
             - {containerPort: 3000, name: wetty}
           resources:
             requests: {cpu: 50m, memory: 128Mi}
             limits: {cpu: 500m, memory: 256Mi}
         # Front proxy, the only container the Service/Route target.
+        #   /       -> nookbag cockpit (:8080), which also serves /nookbag.yml and /antora
+        #   /wetty  -> wetty terminal (:3000), websocket
         - name: nginx
           image: quay.io/rhpds/nginx:1.25
           imagePullPolicy: IfNotPresent
           ports:
-            - {containerPort: 8080, name: web}
+            - {containerPort: 8081, name: web}
           volumeMounts:
             - {name: nginx-config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf}
-            - {name: uiconfig, mountPath: /opt/ui}
             - {name: nginx-cache, mountPath: /var/cache/nginx}
             - {name: nginx-run, mountPath: /var/run}
           readinessProbe:
-            httpGet: {path: /ui-config.yml, port: 8080}
+            httpGet: {path: /nookbag.yml, port: 8081}
             initialDelaySeconds: 10
             periodSeconds: 10
           resources:
             requests: {cpu: 50m, memory: 64Mi}
             limits: {cpu: 500m, memory: 256Mi}
       volumes:
-        - {name: showroom, emptyDir: {}}
-        - {name: userdata, configMap: {name: showroom-userdata}}
-        - {name: uiconfig, configMap: {name: showroom-uiconfig}}
+        - {name: site, emptyDir: {}}
+        - {name: antora-home, emptyDir: {}}
+        - {name: sitecfg, configMap: {name: showroom-sitecfg}}
+        - {name: nookbagcfg, configMap: {name: showroom-uiconfig}}
         - {name: nginx-config, configMap: {name: showroom-proxy}}
         - {name: nginx-cache, emptyDir: {}}
         - {name: nginx-run, emptyDir: {}}

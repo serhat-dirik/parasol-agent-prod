@@ -17,6 +17,17 @@ data:
       default_mode: split
     antora:
       name: modules
+      dir: antora
+      modules:
+        - name: index
+        - name: 01-architecture
+        - name: 02-demo1-uncontrolled
+        - name: 03-demo2-sandboxed
+        - name: 04-demo3-night-shift
+        - name: 05-lifecycle
+        - name: 06-platform-tour
+        - name: 07-reset-troubleshooting
+        - name: 08-whats-next
     tabs:
       - name: Portal unsecured
         url: 'https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io'

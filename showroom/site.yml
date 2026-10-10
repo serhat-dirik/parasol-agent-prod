@@ -17,5 +17,8 @@ ui:
     url: https://github.com/rhpds/rhdp_showroom_theme/releases/download/latest/ui-bundle.zip
     snapshot: true
 
+runtime:
+  fetch: true
+
 output:
   dir: ./www

@@ -6,66 +6,107 @@
 
 toc::[]
 
-The agent reached production the same way any workload should: a pipeline that signs what it builds, an admission control that refuses what is not signed, and an evaluation that blocks a bad version before it ships. These controls live in MLflow and the pipeline for the parasol-secured workspace.
+The agent reached production the same way any workload should: a pipeline that signs what it builds, an admission control that refuses what is not signed, and an evaluation that blocks a bad version before it ships. These controls live in the pipeline and in MLflow for the parasol-secured workspace.
+
+[NOTE]
+.Know: why the lifecycle is a control
+====
+The message to land is that quality and provenance are enforced, not hoped for. A version that fails the evaluation cannot be promoted, so a regression never reaches a customer. What runs in the secured namespace is provably the image the pipeline built and signed, so an unsigned or tampered image cannot start. The prompt that produced a result is a registered, versioned artifact, so an answer can always be traced back to the exact prompt and model that produced it. For a regulated insurer, that is the difference between an agent you can audit and one you cannot.
+====
 
 [NOTE]
 .Screens for this module
 ====
-Screens for this module are captured once the pipeline, signing, evaluation and prompt-registry work report complete.
+The screens below are captured in the logged-in operator browser at record time. The consoles are auth-walled, so there are no pre-captured images here. The exact objects and run identifiers are named in each step.
 ====
 
-== Signing in the build
+== The secure build pipeline
 
-The build pipeline signs the three images that make up the agent:
+One pipeline, `parasol-portal-secure-build`, carries the agent from source to the secured namespace. Its steps run in order:
+
+. build
+. scan
+. evaluation gate
+. keyless sign
+. Conforma (Enterprise Contract) verify
+. promote
+
+. Open the *OpenShift Console* tab and show a completed run of `parasol-portal-secure-build` under Pipelines.
++
+What you should see: every task green, with the keyless sign and the Conforma verify tasks between the build and the promote.
++
+// TODO: screenshot placeholder - OpenShift console Pipelines, a completed parasol-portal-secure-build PipelineRun with build, scan, eval gate, keyless sign, Conforma verify and promote all green, logged in
+
+== Signing is keyless
+
+The build signs the three images that make up the agent:
 
 * `parasol-portal`
 * `claims-db`
 * `policy-docs`
 
-Signing is keyless. There is no long-lived signing key to store or leak. The signature is bound to the build identity and recorded in a transparency log.
+There is no long-lived signing key to store or leak. The signature is bound to the build identity and recorded in a transparency log. The policy that enforces it on the cluster is the `ClusterImagePolicy` named `parasol-portal-must-be-signed`.
 
-. Open the *OpenShift Console* tab and show a completed pipeline run.
+. In the *Terminal* tab, run a keyless `cosign verify` against the running secured image.
 +
-What you should see: the signing step succeeding for all three images.
+What you should see: the verification succeeds and prints the certificate identity from the build.
 +
-// TODO: screenshot placeholder - OpenShift console Pipelines, a completed PipelineRun with the keyless signing task green for parasol-portal, claims-db and policy-docs, logged in
+// TODO: screenshot placeholder - Terminal output of a keyless cosign verify succeeding on the running parasol-secured portal image, no secrets in frame
 
 == Admission refuses an unsigned image
 
-The parasol-secured namespace admits signed images only. An unsigned `claims-db` image does not start.
+The `parasol-admission-demo` namespace admits signed images only. A signed image is admitted. An unsigned `claims-db` image is refused and never starts.
 
-. Attempt to deploy an unsigned `claims-db` image to parasol-secured.
+. In the *OpenShift Console* tab, deploy a keyless-signed image to `parasol-admission-demo`.
 +
-What you should see: the deploy fails with the admission policy message naming the missing or invalid signature.
+What you should see: the pod starts normally.
 +
-// TODO: screenshot placeholder - OpenShift console showing a failed deploy in parasol-secured with the signature admission policy denial message, logged in
+// TODO: screenshot placeholder - OpenShift console, a signed image admitted and Running in parasol-admission-demo, logged in
+
+. Deploy an unsigned `claims-db` image to the same namespace.
++
+What you should see: the deploy is refused with the admission message from `parasol-portal-must-be-signed`.
++
+// TODO: screenshot placeholder - OpenShift console, a failed deploy in parasol-admission-demo with the ClusterImagePolicy denial naming the missing signature, logged in
 
 == Evaluation gates promotion
 
-The agent is evaluated against a golden set of 20 cases before it can be promoted. Each case is scored by a deterministic scorer and a judge scorer. A pipeline gate blocks promotion when the score falls below 19 out of 20.
+The agent is evaluated against the golden set of 20 cases before it can be promoted. Each case is scored by deterministic scorers and by judge scorers. The pipeline gate blocks promotion when the score falls below 19 of 20. The runs land in experiment 2 of the parasol-secured MLflow workspace.
 
-. Open the *MLflow* tab in the parasol-secured workspace and show the evaluation run.
+. Open the *MLflow* tab and open the v1 evaluation run.
 +
-What you should see: the golden-set run with its 20 cases and the pass score.
+What you should see: version 1 passes all 20 cases (20 of 20). Run: `https://data-science-gateway.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow/#/experiments/2/runs/b9971fab2fe44bc6b0671e4d928946ef`
 +
-// TODO: screenshot placeholder - MLflow evaluation run in the parasol-secured workspace, golden set of 20 cases with deterministic and judge scores and the overall pass count, logged in
+// TODO: screenshot placeholder - MLflow run b9971fab (experiment 2), golden set 20 of 20 pass with per-case deterministic and judge assessments, logged in
+
+. Open the v2 evaluation run.
++
+What you should see: version 2 scores 17 of 20 and the gate blocks it. Run: `https://data-science-gateway.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow/#/experiments/2/runs/c7a36f430c7b43949f3d6c1be5be0479`
++
+// TODO: screenshot placeholder - MLflow run c7a36f43 (experiment 2), golden set 17 of 20 with the 3 failed cases marked, logged in
+
+. In the *OpenShift Console* tab, show the two gate runs under Pipelines.
++
+What you should see: `parasol-agent-eval-gate-v1` succeeded and `parasol-agent-eval-gate-v2` failed. The gate has blocked once and passed once.
++
+// TODO: screenshot placeholder - OpenShift console Pipelines, PipelineRuns parasol-agent-eval-gate-v1 (succeeded) and parasol-agent-eval-gate-v2 (failed), logged in
 
 == The prompt registry and a failed version
 
-The system prompt is versioned in a registry. Version 1 passes the golden set. A simplified version 2 failed 3 of 20 cases. The registry holds both, side by side, so the failure is visible and the promotion gate has something to compare.
+The system prompt is versioned in the MLflow Prompt Registry. Version 1 passes the golden set. A simplified version 2 failed 3 of 20 cases. The registry holds both so the failure is visible and the promotion commit can reference the exact version.
 
-. In MLflow, open the prompt registry and compare system prompt v1 with v2.
+. In the *MLflow* tab, open Prompts, open `parasol-claims-assistant-system-prompt`, and compare v1 with v2. Entry point: `https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow` then Prompts.
 +
-What you should see: v1 and v2 side by side, with v2's three failed cases marked.
+What you should see: v1 and v2 side by side with their pass rates, v2 showing the 3 failed cases.
 +
-// TODO: screenshot placeholder - MLflow prompt registry side-by-side compare of system prompt v1 and v2, with v2 showing 3 of 20 failed cases, logged in
+// TODO: screenshot placeholder - MLflow Prompts compare of parasol-claims-assistant-system-prompt v1 vs v2 with pass rates, logged in
 
 == Promotion
 
-Only a version that clears the gate is promoted to the secured deployment. The signed image, the passing evaluation, and the registered prompt travel together.
+Only a version that clears the gate is promoted to the secured deployment. The signed image, the passing evaluation run, and the registered prompt version travel together, and the promotion commit references the registry entry.
 
 . Show the promotion of the passing version.
 +
 What you should see: the gate green and the version promoted to parasol-secured.
 +
-// TODO: screenshot placeholder - the promotion step green in the pipeline and the promoted version live in parasol-secured, logged in
+// TODO: screenshot placeholder - the promote task green in parasol-portal-secure-build and the promoted version live in parasol-secured, logged in

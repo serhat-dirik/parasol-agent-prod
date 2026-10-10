@@ -8,6 +8,7 @@ asciidoc:
   attributes:
     experimental: true
     page-pagination: true
+    lab_name: 'AI Agents in Production'
     # Cluster-specific values. Overridden at build time from the DOMAIN env on this cluster;
     # the defaults below let the guide render correctly in a local preview and in CI.
     domain: apps.cluster-znh6n.dyn.redhatworkshops.io

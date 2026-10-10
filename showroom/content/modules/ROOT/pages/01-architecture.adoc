@@ -8,13 +8,19 @@ toc::[]
 
 This module describes what you are looking at. The application, the two deployments, the people, the model, and the control points that the later modules exercise.
 
+[NOTE]
+.Know: why the architecture is the story
+====
+The point to land here is that nothing in this demo is exotic. It is one ordinary insurance application with a chat assistant. The same application is deployed twice, and the only difference is the controls around it. Every control shown later maps to money: an unauthorised payout is unrecoverable spend, a shared model key with no limit is an open invoice, and a change that ships unsigned is a change nobody can account for. Keep returning to that: the platform turns an agent from a liability into something a business can run.
+====
+
 == The application
 
 The Parasol claims portal is a Quarkus and React application. The backend is Quarkus. The front end is React, served through Quinoa, with the PatternFly look you recognise from the Red Hat Parasol demos.
 
 The portal shows a list of claims and a detail page per claim. Beside each claim is a chat panel. That chat is the agent.
 
-The assistant is a tool-using agent, not a prompt-only chatbot. It reasons over a request, decides which tools to call, and calls them. Its tools come from two MCP servers:
+The assistant is a tool-using agent, not a prompt-only chatbot. It reasons over a request, decides which tools to call, and calls them. Its tools come from two MCP (Model Context Protocol) servers:
 
 * *claims-db*: read a claim, read its history, read the documents attached to it, and approve a payout.
 * *policy-docs*: read the relevant insurance policy text.

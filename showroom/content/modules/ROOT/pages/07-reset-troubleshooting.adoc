@@ -28,7 +28,26 @@ What you should see: the script reports the state restored.
 +
 What you should see: both claims back to their starting state before you record.
 
+== Capturing the portal screenshots
+
+The portal Show-step images in modules 02 to 04 are captured by a script, logged in as the demo users through the portal's own login. The console, OpenShift AI, Keycloak and Argo CD screens are auth-walled and are captured by hand in the logged-in operator browser.
+
+. From a terminal, run the capture after a reset.
++
+[source,bash,role=execute]
+----
+scripts/screenshots.sh
+----
++
+What you should see: the script resets the state, then writes the portal PNGs into the images directory. Check each new image shows the right page and carries no token, password or personal email before committing.
+
 == Known operational gotchas
+
+[IMPORTANT]
+.Read before you record
+====
+Each item below cost a take at some point. Scan them once before the first recording of the day.
+====
 
 * Record in a fresh browser profile, or append `?cb=` to the portal URL. The portal's `index.html` is cached immutable, so a stale profile can show an old build.
 * The platform consoles are auth-walled. Capture them live in the logged-in operator browser. You cannot screenshot them from a cold tab.

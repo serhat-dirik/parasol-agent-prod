@@ -9,9 +9,15 @@ toc::[]
 A thirty-second stop at each console behind the secured agent. This is the map of where every control lives.
 
 [NOTE]
+.Know: why the tour matters
+====
+The value to land is that none of this is bespoke. Every control is a product console an operator already knows: identity in Keycloak, model access and guardrails in OpenShift AI, traffic and budgets in the gateway and the dashboard, delivery in Argo CD, runtime security in Advanced Cluster Security. The agent did not need a new platform. It needed the platform the customer already runs. Keep each stop to thirty seconds and name the one thing it controls.
+====
+
+[NOTE]
 .Screens for this module
 ====
-Screens for this module are captured once the platform work reports complete.
+These consoles are auth-walled, so they are captured in the logged-in operator browser at record time. Each step names the exact object or URL to open.
 ====
 
 == Keycloak
@@ -40,11 +46,17 @@ The external model, its subscriptions, the per-deployment keys, and the usage da
 
 == Guardrails
 
-The guardrails orchestrator and its detectors: the prompt-injection detector and the personal-data masking preset.
+The guardrails orchestrator and its detectors: the prompt-injection detector and the personal-data masking preset. A second, product-native rail runs as a NeMo guardrail.
 
 . In *OpenShift AI*, open the guardrails view. Show the orchestrator and its detectors.
 +
 // TODO: screenshot placeholder - OpenShift AI guardrails orchestrator with its detector list and a recent detection, logged in
+
+. In the *Terminal* tab, show the product NeMo rail proving a block: `oc logs -n parasol-v1-guardrails job/v1-rail-prove`.
++
+What you should see: the NeMo rail firing on a disallowed topic.
++
+// TODO: screenshot placeholder - Terminal output of oc logs for job v1-rail-prove in parasol-v1-guardrails showing the NeMo rail block, no secrets in frame
 
 == MLflow
 
@@ -52,15 +64,17 @@ Sessions and traces per user, from the observability work.
 
 . Open the *MLflow* tab. Show sessions and traces grouped by user.
 +
-// TODO: screenshot placeholder - MLflow sessions and traces view grouped by user, from the OTel export, logged in
+// TODO: screenshot placeholder - MLflow sessions and traces view grouped by user (rebecca, marcus, tom.becker) from the OTel export, logged in
 
 == The operator dashboard
 
-One screen for the whole agent: tokens per user and version, tool calls by status, detector hits, 403s per tool, P95 latency, and the alert state.
+One screen for the whole agent. The base dashboard, "Parasol Assistant Token Spend", is a Perses dashboard in the console.
 
-. Open the *OpenShift Console* tab and show the operator dashboard.
+. Open the *OpenShift Console* tab, Observe, Dashboards. Select project `openshift-operators` and open the "Parasol Assistant Token Spend" dashboard.
 +
-// TODO: screenshot placeholder - OpenShift console operator dashboard showing tokens per user and version, tool calls by status, detector hits, 403s per tool, P95 latency and the ParasolAssistantTokenSpendHigh alert state, logged in
+What you should see: token spend by user and version, and the `ParasolAssistantTokenSpendHigh` alert state. Additional panels (tool calls by status, detector hits, 403s per tool, P95 latency) join this dashboard as the metrics work completes.
++
+// TODO: screenshot placeholder - OpenShift console Observe Dashboards, project openshift-operators, Parasol Assistant Token Spend Perses dashboard with per-user and per-version token panels and the alert state, logged in
 
 == Argo CD
 
@@ -69,6 +83,22 @@ The app-of-apps that deploys the whole demo, synced and healthy, and the home of
 . Open the *Argo CD* tab. Show the app-of-apps synced and healthy.
 +
 // TODO: screenshot placeholder - Argo CD app-of-apps tree synced and healthy for the parasol demo, logged in
+
+== Also on the platform
+
+Three more controls that round out the picture.
+
+* Agent to agent: a fraud-check agent sits behind the same gateway. Run `scripts/fraud-check-demo.sh` from the *Terminal* tab, or open the Gen AI Studio `Parasol-MCP-Gateway` connector in *OpenShift AI*.
++
+// TODO: screenshot placeholder - the fraud-check agent-to-agent call through the Parasol-MCP-Gateway connector in Gen AI Studio, logged in
+
+* Developer portal: Connectivity Link publishes the API with key approval. Compare `https://devportal-api.apps.cluster-znh6n.dyn.redhatworkshops.io/get` without a key (401) and with an approved key (200). In the *OpenShift Console* tab, Search for `devportal.kuadrant.io` APIProduct and APIKeyApproval in `parasol-devportal`.
++
+// TODO: screenshot placeholder - Connectivity Link developer portal APIProduct and APIKeyApproval objects in parasol-devportal, and the 401-versus-200 result, logged in
+
+* Runtime security: Advanced Cluster Security watches the namespaces. Open Central at `https://central-stackrox.apps.cluster-znh6n.dyn.redhatworkshops.io` and show the runtime policy for parasol-secured.
++
+// TODO: screenshot placeholder - ACS Central showing the runtime policy violation for the parasol-secured namespace, logged in
 
 [NOTE]
 .Know: revoke before you kill

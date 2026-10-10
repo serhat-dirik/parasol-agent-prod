@@ -87,3 +87,9 @@ What you should see: the same model with the same MCP tools attached and guardra
 What you should see: the `mcp-gateway` Gateway, the two HTTPRoutes, and the AuthPolicies with Enforced: True. In Logs, the gateway audit entries for `rebecca` and `approve_payout`.
 +
 // TODO: screenshot placeholder - OpenShift console Gateway API view with mcp-gateway Gateway, two HTTPRoutes, AuthPolicies Enforced True; and the Logs view filtered on rebecca and approve_payout, logged in
+
+[NOTE]
+.Know: four consoles, one control plane
+====
+This is the densest part of the demo, so land one idea: the controls the audience just watched fire in the chat are not magic in the app. They are product objects an operator can see and change. Identity lives in Keycloak, the tools live in the MCP catalog, the guardrails and the model live in OpenShift AI, and the authorization and the audit trail live in the gateway. The app did not implement any of it. The platform did.
+====

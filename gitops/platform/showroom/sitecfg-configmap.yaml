@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: showroom-sitecfg
+  namespace: parasol-showroom
+# Antora playbook for the build initContainer. Mirror of showroom/site.yml.
+# Keep in sync with showroom/site.yml.
+data:
+  site.yml: |
+    ---
+    site:
+      title: 'AI Agents: From localhost to Production'
+      start_page: modules::index.adoc
+    content:
+      sources:
+        - url: https://github.com/serhat-dirik/parasol-agent-prod
+          start_path: showroom/content
+          branches: main
+    ui:
+      bundle:
+        url: https://github.com/rhpds/rhdp_showroom_theme/releases/download/latest/ui-bundle.zip
+        snapshot: true
+    runtime:
+      fetch: true
+    output:
+      dir: /out
