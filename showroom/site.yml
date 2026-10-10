@@ -5,9 +5,10 @@ site:
 
 content:
   sources:
-    # The in-cluster build (quay.io/rhpds/showroom-content) clones the whole repo and runs
-    # `antora showroom/site.yml` from the repo root, so start_path is relative to the repo root.
-    - url: .
+    # The in-cluster build (quay.io/rhpds/showroom-content) runs `antora showroom/site.yml`.
+    # Antora resolves a relative content url against the playbook's own directory (showroom/),
+    # so url:.. points at the git repo root, and start_path is relative to that root.
+    - url: ..
       start_path: showroom/content
 
 ui:
