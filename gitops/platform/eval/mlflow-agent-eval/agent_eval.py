@@ -150,12 +150,22 @@ def judge_case(client, model, case, out):
         + "Guidelines: adherence to all four Parasol rules above?\n\n"
         + 'Return ONLY compact JSON: {"ToolCallCorrectness":{"pass":true,"score":1.0,"rationale":"..."}, ...}'
     )
-    resp = client.chat.completions.create(
-        model=model,
-        messages=[{"role": "user", "content": user}],
-        temperature=0,
-        max_tokens=600,
-    )
+    import time
+    last = None
+    for attempt in range(4):
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": user}],
+                temperature=0,
+                max_tokens=int(os.environ.get("JUDGE_MAX_TOKENS", "1500")),
+            )
+            break
+        except Exception as e:  # transient connection/5xx on the judge endpoint
+            last = e
+            time.sleep(2 * (attempt + 1))
+    else:
+        raise last
     txt = resp.choices[0].message.content or ""
     m = re.search(r"\{.*\}", txt, re.S)
     data = json.loads(m.group(0)) if m else {}
@@ -213,7 +223,7 @@ def run_full(versions, gate_version, results_dir):
         if not maas.endswith("/v1"):
             maas = maas + "/v1"
         from openai import OpenAI
-        client = OpenAI(base_url=maas, api_key=key, timeout=60.0, max_retries=1)
+        client = OpenAI(base_url=maas, api_key=key, timeout=90.0, max_retries=3)
 
     golden, cands = load()
     ensure_dataset(golden, experiment)
@@ -229,7 +239,7 @@ def run_full(versions, gate_version, results_dir):
         score = passes / golden["total"]
         gate_pass = passes >= GATE_THRESHOLD
 
-        run_name = f"agent-eval-{version}"
+        run_name = f"agent-eval-{version}" + os.environ.get("RUN_SUFFIX", "")
         with mlflow.start_run(run_name=run_name) as run:
             run_id = run.info.run_id
             vmeta = VERSION_META.get(version, {"prompt_version": version, "variant": version})
