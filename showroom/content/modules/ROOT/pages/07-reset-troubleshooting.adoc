@@ -1,0 +1,36 @@
+= 07. Reset and troubleshooting
+:imagesdir: ../assets/images
+:navtitle: 07. Reset and troubleshooting
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+The record-time runbook. Follow this before every take so the recorded beats match the screenshots.
+
+== Reset before every take
+
+Run the reset script before each take. It restores the recorded state. A recorded beat must never change without a reset and a re-verify.
+
+. Open the *Terminal* tab and run the reset.
++
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
++
+What you should see: the script reports the state restored.
+
+. Re-verify the two beats that abuse mutates:
++
+* Demo 1 beat 3, CLM-1004 timeline, back to Denied.
+* Demo 2 beat 2, CLM-1004, the Propose card and the amber banner ready.
++
+What you should see: both claims back to their starting state before you record.
+
+== Known operational gotchas
+
+* Record in a fresh browser profile, or append `?cb=` to the portal URL. The portal's `index.html` is cached immutable, so a stale profile can show an old build.
+* The platform consoles are auth-walled. Capture them live in the logged-in operator browser. You cannot screenshot them from a cold tab.
+* Responses are non-deterministic. The exact wording may differ from the screenshots. Capture the chip, the banner, and the timeline rather than the prose.
+* The model has a limited budget. Avoid unnecessary storms. Run the night-shift loop only when you are recording Demo 3.

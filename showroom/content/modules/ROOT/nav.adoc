@@ -1,0 +1,16 @@
+.Introduction
+* xref:index.adoc[Welcome]
+* xref:01-architecture.adoc[01. Architecture]
+
+.The three demos
+* xref:02-demo1-uncontrolled.adoc[02. Demo 1: Uncontrolled]
+* xref:03-demo2-sandboxed.adoc[03. Demo 2: Sandboxed]
+* xref:04-demo3-night-shift.adoc[04. Demo 3: The night shift]
+
+.From localhost to production
+* xref:05-lifecycle.adoc[05. Lifecycle: pipeline, signing, evaluation]
+* xref:06-platform-tour.adoc[06. Platform tour]
+
+.Running the demo
+* xref:07-reset-troubleshooting.adoc[07. Reset and troubleshooting]
+* xref:08-whats-next.adoc[08. What's next]

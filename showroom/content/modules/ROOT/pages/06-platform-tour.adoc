@@ -1,0 +1,77 @@
+= 06. Platform tour
+:imagesdir: ../assets/images
+:navtitle: 06. Platform tour
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+A thirty-second stop at each console behind the secured agent. This is the map of where every control lives.
+
+[NOTE]
+.Screens for this module
+====
+Screens for this module are captured once the platform work reports complete.
+====
+
+== Keycloak
+
+Realm `parasol`: the users, the groups, and the client tool roles that decide who can approve a payout.
+
+. Open the *Keycloak* tab. Show the realm, the users, and the `tool:approve_payout` role on the claims-managers group.
++
+// TODO: screenshot placeholder - Keycloak admin console realm parasol, users list and the claims-managers group with its tool client roles, logged in as admin
+
+== MCP gateway and the MCP catalog
+
+The claims-db and policy-docs servers, registered in the OpenShift AI MCP catalog and reached through the MCP gateway.
+
+. Open the *OpenShift AI* tab, MCP catalog. Show both servers and their gateway endpoint.
++
+// TODO: screenshot placeholder - OpenShift AI MCP catalog with claims-db and policy-docs entries and the MCP gateway endpoint, logged in
+
+== Models-as-a-Service
+
+The external model, its subscriptions, the per-deployment keys, and the usage dashboard.
+
+. In *OpenShift AI*, open Models-as-a-Service. Show the external model, the subscriptions, the keys, and usage.
++
+// TODO: screenshot placeholder - OpenShift AI Models-as-a-Service showing the external llama-scout-17b model, subscriptions, per-deployment keys and the usage dashboard, logged in
+
+== Guardrails
+
+The guardrails orchestrator and its detectors: the prompt-injection detector and the personal-data masking preset.
+
+. In *OpenShift AI*, open the guardrails view. Show the orchestrator and its detectors.
++
+// TODO: screenshot placeholder - OpenShift AI guardrails orchestrator with its detector list and a recent detection, logged in
+
+== MLflow
+
+Sessions and traces per user, from the observability work.
+
+. Open the *MLflow* tab. Show sessions and traces grouped by user.
++
+// TODO: screenshot placeholder - MLflow sessions and traces view grouped by user, from the OTel export, logged in
+
+== The operator dashboard
+
+One screen for the whole agent: tokens per user and version, tool calls by status, detector hits, 403s per tool, P95 latency, and the alert state.
+
+. Open the *OpenShift Console* tab and show the operator dashboard.
++
+// TODO: screenshot placeholder - OpenShift console operator dashboard showing tokens per user and version, tool calls by status, detector hits, 403s per tool, P95 latency and the ParasolAssistantTokenSpendHigh alert state, logged in
+
+== Argo CD
+
+The app-of-apps that deploys the whole demo, synced and healthy, and the home of the kill switch.
+
+. Open the *Argo CD* tab. Show the app-of-apps synced and healthy.
++
+// TODO: screenshot placeholder - Argo CD app-of-apps tree synced and healthy for the parasol demo, logged in
+
+[NOTE]
+.Know: revoke before you kill
+====
+The operator dashboard and Keycloak give you the precise move (disable one user). Argo CD holds the blunt one (take the assistant offline). Reach for the precise control first.
+====

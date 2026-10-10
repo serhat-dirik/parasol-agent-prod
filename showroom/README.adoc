@@ -1,0 +1,43 @@
+= AI Agents: From localhost to Production (demo Showroom)
+
+A Red Hat Showroom guide for the Parasol claims assistant demo. It is built with
+https://antora.org[Antora] and served as a split-screen cockpit: the lab guide on the
+left, the live consoles and portals on the right.
+
+== Layout
+
+[source]
+----
+showroom/
+  site.yml                      Antora playbook (built in-cluster, no extensions)
+  ui-config.yml                 cockpit tab list (the right-hand pane)
+  content/
+    antora.yml                  component descriptor and default attributes
+    modules/ROOT/
+      nav.adoc                  left-hand navigation
+      pages/                    the eight modules plus the welcome page
+      assets/images/            screenshots captured by scripts/screenshots.sh
+----
+
+== Build and preview locally
+
+[source,sh]
+----
+podman run --rm -v $PWD:/antora:z -p 8080:8080 -it ghcr.io/juliaaano/antora-viewer
+----
+
+Open http://localhost:8080 . Local preview renders the pages; the cockpit tabs and the
+terminal only exist in the in-cluster deployment.
+
+== In-cluster deployment
+
+Deployed to the `parasol-showroom` namespace from `gitops/platform/showroom` and wired as
+the `platform-showroom` Argo CD Application. The `quay.io/rhpds/showroom-content` image
+clones this repository, builds `showroom/site.yml`, and serves the cockpit; a wetty sidecar
+backs the Terminal tab; an nginx front joins them behind one Route.
+
+== Capturing screenshots
+
+`scripts/screenshots.sh` runs `scripts/reset.sh` first, then captures the portal Show-step
+screens with headless Chromium. Console, OpenShift AI, Keycloak and Argo screens are
+auth-walled and are captured by hand in the logged-in operator browser at record time.

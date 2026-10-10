@@ -1,0 +1,20 @@
+name: modules
+title: AI Agents in Production
+version: ~
+nav:
+  - modules/ROOT/nav.adoc
+
+asciidoc:
+  attributes:
+    experimental: true
+    page-pagination: true
+    # Cluster-specific values. Overridden at build time from the DOMAIN env on this cluster;
+    # the defaults below let the guide render correctly in a local preview and in CI.
+    domain: apps.cluster-znh6n.dyn.redhatworkshops.io
+    portal_free_url: https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io
+    portal_secured_url: https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io
+    keycloak_url: https://sso.apps.cluster-znh6n.dyn.redhatworkshops.io
+    rhoai_url: https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io
+    console_url: https://console-openshift-console.apps.cluster-znh6n.dyn.redhatworkshops.io
+    argocd_url: https://openshift-gitops-server-openshift-gitops.apps.cluster-znh6n.dyn.redhatworkshops.io
+    mlflow_url: https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow

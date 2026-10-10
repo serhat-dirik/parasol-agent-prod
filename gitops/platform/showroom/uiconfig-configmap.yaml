@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: showroom-uiconfig
+  namespace: parasol-showroom
+# Mirror of showroom/ui-config.yml. Served by the nginx front at /ui-config.yml so the
+# cockpit can read its tab list. Keep in sync with showroom/ui-config.yml.
+data:
+  ui-config.yml: |
+    ---
+    type: showroom
+    theme: rh-one-2025
+    default_width: 35
+    persist_url_state: true
+    view_switcher:
+      enabled: true
+      default_mode: split
+    antora:
+      name: modules
+    tabs:
+      - name: Portal unsecured
+        url: 'https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io'
+      - name: Portal secured
+        url: 'https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io'
+      - name: Keycloak
+        url: 'https://sso.apps.cluster-znh6n.dyn.redhatworkshops.io'
+        external: true
+      - name: OpenShift AI
+        url: 'https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io'
+        external: true
+      - name: OpenShift Console
+        url: 'https://console-openshift-console.apps.cluster-znh6n.dyn.redhatworkshops.io'
+        external: true
+      - name: Argo CD
+        url: 'https://openshift-gitops-server-openshift-gitops.apps.cluster-znh6n.dyn.redhatworkshops.io'
+        external: true
+      - name: MLflow
+        url: 'https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow'
+        external: true
+      - name: Terminal
+        path: /wetty
+        port: 443

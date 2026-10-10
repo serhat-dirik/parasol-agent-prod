@@ -1,0 +1,97 @@
+= 04. Demo 3: The night shift
+:imagesdir: ../assets/images
+:navtitle: 04. Demo 3: The night shift
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+This demo runs against the *Portal secured* tab. The same overnight storm from Demo 1 beat 4, now on the platform. It is refused, named, and survivable, and the morning report is two screens you already have.
+
+[NOTE]
+.Know: budgets and alerts with a name
+====
+In Demo 1 the storm drained a shared key and nobody knew. Here the spend has a name, the limit is per user, and the alert carries the user. Key message 4.
+====
+
+== Beat 1: the storm starts
+
+. The customer script runs against the secured portal at "02:00", sped up to a few minutes. It signs in as *tom.becker* and loops long off-topic requests.
++
+What you should see: the storm begins, but only tom.becker's own budget is at risk.
+
+== Beat 2: refused and rate-limited, while Rebecca keeps working
+
+. Watch the chat as *tom.becker*. The off-topic request gets a polite topic refusal from the guardrail.
++
+What you should see: a courteous message declining the off-topic request.
++
+image::demo3-01-tombecker-refusal.png[tom.becker off-topic request gets a polite topic refusal in chat,link=self,window=blank]
+
+. The loop keeps hammering. After the per-user token limit, the chat changes.
++
+What you should see: "you have reached your usage limit (429)". The limit is bound to tom.becker, not the assistant.
++
+image::demo3-02-tombecker-429.png[tom.becker hits the per-user limit, chat shows usage limit 429,link=self,window=blank]
+
+. In another session, *rebecca* keeps working.
++
+What you should see: rebecca gets normal answers throughout the storm. Her budget was never tom.becker's budget.
++
+image::demo3-03-rebecca-working.png[rebecca in another session still gets normal answers during the storm,link=self,window=blank]
+
+[NOTE]
+.Know: the sandbox has a front door
+====
+The limit stopped one user, not the service. tom.becker is capped; rebecca is unaffected. Identity-bound, not a blanket wall. Key message 5.
+====
+
+== Beat 3: the alert with a name
+
+. Open the *OpenShift Console* tab, Observe, Alerting.
++
+What you should see: `ParasolAssistantTokenSpendHigh` firing, with the user and namespace in the message.
++
+// TODO: screenshot placeholder - OpenShift console Observe Alerting view, ParasolAssistantTokenSpendHigh firing, message naming the user tom.becker and the namespace, logged in
+
+. In the same console, open Observe, Traces.
++
+What you should see: one of the night requests, with the user on the span.
++
+// TODO: screenshot placeholder - OpenShift console Observe Traces view, one overnight request trace with tom.becker on the span, logged in
+
+== Beat 4: spend attributed, production untouched
+
+. Open the *OpenShift AI* tab, Models-as-a-Service usage dashboard.
++
+What you should see: the spend attributed to tom.becker's account, and the production allowance untouched.
++
+// TODO: screenshot placeholder - OpenShift AI Models-as-a-Service usage dashboard showing spend attributed to the tom.becker account with the production allowance untouched, logged in
+
+== Beat 5: the trace in MLflow
+
+. Open the *MLflow* tab.
++
+What you should see: the trace with the prompt, the refusal, and the token counts.
++
+// TODO: screenshot placeholder - MLflow trace view in OpenShift AI showing one tom.becker request with prompt, refusal and token counts, logged in
+
+== Beat 6: revoke before you kill
+
+. The operator's 02:00 action. Open the *Keycloak* tab and disable the user `tom.becker`.
++
+What you should see: tom.becker's next request is a login failure. The one abusive account is out; everyone else keeps working.
++
+// TODO: screenshot placeholder - Keycloak admin console, user tom.becker with Enabled toggled off, logged in as admin
+
+. Only if the whole assistant must go dark: commit the kill switch in GitHub and let Argo CD sync.
++
+What you should see in the *Argo CD* tab: the sync completes and the portal shows "assistant offline", while the pods stay Running.
++
+// TODO: screenshot placeholder - Argo CD showing the kill-switch commit synced, the portal displaying assistant offline, and pods still Running, logged in
+
+[NOTE]
+.Know: revoke before you kill
+====
+Disabling the one user is the precise action. Taking the whole assistant offline is the blunt one. Reach for the precise control first, and keep the blunt one ready. The morning report is two screens you already have: the alert and the usage dashboard.
+====

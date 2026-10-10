@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: showroom-proxy
+  namespace: parasol-showroom
+# Front proxy for the pod. The Route targets this container only.
+#   /            -> showroom-content static server (:8000), the Antora cockpit
+#   /wetty       -> wetty terminal sidecar (:3000), with websocket upgrade
+#   /ui-config.yml and /nookbag.yml -> the cockpit tab config, served from a mounted file
+#     because the static content server does not inject it into the built site.
+data:
+  nginx.conf: |
+    events {}
+    error_log /dev/stdout info;
+    http {
+      include /etc/nginx/mime.types;
+      default_type application/octet-stream;
+      map $http_upgrade $connection_upgrade {
+        default upgrade;
+        '' close;
+      }
+      server {
+        listen 8080;
+        absolute_redirect off;
+
+        location = /ui-config.yml { alias /opt/ui/ui-config.yml; default_type text/yaml; }
+        location = /nookbag.yml   { alias /opt/ui/ui-config.yml; default_type text/yaml; }
+
+        location = /wetty { return 302 /wetty/; }
+        location /wetty/ {
+          proxy_pass http://127.0.0.1:3000;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 43200000;
+        }
+
+        location / {
+          proxy_pass http://127.0.0.1:8000;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+        }
+      }
+    }

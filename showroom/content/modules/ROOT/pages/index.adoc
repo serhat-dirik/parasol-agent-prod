@@ -1,0 +1,69 @@
+= AI Agents: From localhost to Production
+
+Welcome. This guide walks a Red Hat solution architect through a live demo of an AI agent in production, and the platform controls that keep it safe.
+
+== What this demo shows
+
+An AI agent is easy to build and easy to abuse. The same chat assistant that helps an insurance adjuster can approve a fraudulent payout, spend a shared model budget dry, and leave nobody to blame.
+
+This demo makes that concrete. The same assistant is deployed twice:
+
+* Once with no controls. It does what it is told, by anyone, with no limits and no record.
+* Once on Red Hat's platform. Identity-bound tool authorization, guardrails, per-user model budgets, signing, and observability turn each abuse into a controlled, visible event.
+
+You see every beat in a browser. The Parasol claims portal, Keycloak, the OpenShift AI dashboard, the OpenShift console, Argo CD, and MLflow.
+
+== The throughline: five key messages
+
+Every demo returns to these five ideas. Keep them in mind as you watch.
+
+[NOTE]
+.The five key messages
+====
+. Identity on every tool call.
+. A document is data, not a command.
+. Read, propose, act (a gate before every write).
+. Budgets and alerts with a name (per-user attribution).
+. The sandbox has a front door (identity-bound access, not a wall).
+====
+
+== Who this is for
+
+This demo is built for three audiences, often in the same room:
+
+* Solution architects who need the story and the proof points.
+* Platform engineers who own identity, the gateway, and the budgets.
+* Application developers who build the agent and call the tools.
+
+== The shape of the session
+
+Plan for about 30 minutes of talk, plus three short recorded demos of two to three minutes each.
+
+* A 30-minute talk that frames the problem and the platform.
+* Demo 1: the uncontrolled agent, abused three ways.
+* Demo 2: the same agent on the platform, each abuse stopped.
+* Demo 3: the night shift, the alert with a name, and the kill switch.
+
+== The premise: the Parasol claims assistant
+
+Parasol Insurance runs a claims portal. Adjusters, claims managers, and policyholders log in and work claims. A chat assistant sits beside each claim. It is not a chatbot. It is a tool-using agent. It can read a claim, read the documents attached to it, read policy, and (for the right person) approve a payout.
+
+That last power is the point. An agent that can move money is an agent worth attacking.
+
+== The cockpit: eight tabs
+
+The guide runs in a split screen. The right pane has eight tabs. You will be told which tab to use at each step.
+
+* *Portal unsecured* (the agent with no controls)
+* *Portal secured* (the agent on the platform)
+* *Keycloak* (identity)
+* *OpenShift AI* (models, MCP, guardrails, MLflow)
+* *OpenShift Console* (gateway, logs, alerts, traces)
+* *Argo CD* (GitOps state and the kill switch)
+* *MLflow* (per-user traces)
+* *Terminal* (reset between takes)
+
+The platform console tabs open in a new browser tab. They are launchers into live, logged-in consoles.
+
+// Customer story: intentionally blank.
+// Competitive angle: intentionally blank.

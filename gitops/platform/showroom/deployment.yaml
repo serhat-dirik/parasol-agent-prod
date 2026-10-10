@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: showroom
+  namespace: parasol-showroom
+  labels:
+    app: showroom
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: showroom
+  template:
+    metadata:
+      labels:
+        app: showroom
+    spec:
+      containers:
+        # Antora builder + static cockpit server. Clones this repo, builds showroom/site.yml
+        # into /showroom/www, serves it on :8000 (python3 -m http.server).
+        - name: content
+          image: quay.io/rhpds/showroom-content:latest
+          imagePullPolicy: Always
+          env:
+            - {name: GIT_REPO_URL, value: "https://github.com/serhat-dirik/parasol-agent-prod"}
+            - {name: GIT_REPO_REF, value: "main"}
+            - {name: ANTORA_PLAYBOOK, value: "showroom/site.yml"}
+            - {name: DOMAIN, value: "apps.cluster-znh6n.dyn.redhatworkshops.io"}
+          ports:
+            - {containerPort: 8000, name: content}
+          volumeMounts:
+            - {name: showroom, mountPath: /showroom}
+            - {name: userdata, mountPath: /user_data}
+          resources:
+            requests: {cpu: 100m, memory: 512Mi}
+            limits: {cpu: "1", memory: 1Gi}
+        # Terminal. Serves a bash shell at /wetty/ over websockets on :3000.
+        - name: terminal
+          image: quay.io/rhpds/wetty:latest
+          imagePullPolicy: Always
+          command: ["node", "/usr/src/app/index.js"]
+          args: ["--port", "3000", "--host", "0.0.0.0", "--base", "/wetty/", "--allow-iframe", "--command", "/bin/bash"]
+          ports:
+            - {containerPort: 3000, name: wetty}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+        # Front proxy, the only container the Service/Route target.
+        - name: nginx
+          image: quay.io/rhpds/nginx:1.25
+          imagePullPolicy: IfNotPresent
+          ports:
+            - {containerPort: 8080, name: web}
+          volumeMounts:
+            - {name: nginx-config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf}
+            - {name: uiconfig, mountPath: /opt/ui}
+            - {name: nginx-cache, mountPath: /var/cache/nginx}
+            - {name: nginx-run, mountPath: /var/run}
+          readinessProbe:
+            httpGet: {path: /ui-config.yml, port: 8080}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 64Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+      volumes:
+        - {name: showroom, emptyDir: {}}
+        - {name: userdata, configMap: {name: showroom-userdata}}
+        - {name: uiconfig, configMap: {name: showroom-uiconfig}}
+        - {name: nginx-config, configMap: {name: showroom-proxy}}
+        - {name: nginx-cache, emptyDir: {}}
+        - {name: nginx-run, emptyDir: {}}

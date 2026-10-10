@@ -1,0 +1,71 @@
+= 05. Lifecycle: pipeline, signing, evaluation
+:imagesdir: ../assets/images
+:navtitle: 05. Lifecycle
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+The agent reached production the same way any workload should: a pipeline that signs what it builds, an admission control that refuses what is not signed, and an evaluation that blocks a bad version before it ships. These controls live in MLflow and the pipeline for the parasol-secured workspace.
+
+[NOTE]
+.Screens for this module
+====
+Screens for this module are captured once the pipeline, signing, evaluation and prompt-registry work report complete.
+====
+
+== Signing in the build
+
+The build pipeline signs the three images that make up the agent:
+
+* `parasol-portal`
+* `claims-db`
+* `policy-docs`
+
+Signing is keyless. There is no long-lived signing key to store or leak. The signature is bound to the build identity and recorded in a transparency log.
+
+. Open the *OpenShift Console* tab and show a completed pipeline run.
++
+What you should see: the signing step succeeding for all three images.
++
+// TODO: screenshot placeholder - OpenShift console Pipelines, a completed PipelineRun with the keyless signing task green for parasol-portal, claims-db and policy-docs, logged in
+
+== Admission refuses an unsigned image
+
+The parasol-secured namespace admits signed images only. An unsigned `claims-db` image does not start.
+
+. Attempt to deploy an unsigned `claims-db` image to parasol-secured.
++
+What you should see: the deploy fails with the admission policy message naming the missing or invalid signature.
++
+// TODO: screenshot placeholder - OpenShift console showing a failed deploy in parasol-secured with the signature admission policy denial message, logged in
+
+== Evaluation gates promotion
+
+The agent is evaluated against a golden set of 20 cases before it can be promoted. Each case is scored by a deterministic scorer and a judge scorer. A pipeline gate blocks promotion when the score falls below 19 out of 20.
+
+. Open the *MLflow* tab in the parasol-secured workspace and show the evaluation run.
++
+What you should see: the golden-set run with its 20 cases and the pass score.
++
+// TODO: screenshot placeholder - MLflow evaluation run in the parasol-secured workspace, golden set of 20 cases with deterministic and judge scores and the overall pass count, logged in
+
+== The prompt registry and a failed version
+
+The system prompt is versioned in a registry. Version 1 passes the golden set. A simplified version 2 failed 3 of 20 cases. The registry holds both, side by side, so the failure is visible and the promotion gate has something to compare.
+
+. In MLflow, open the prompt registry and compare system prompt v1 with v2.
++
+What you should see: v1 and v2 side by side, with v2's three failed cases marked.
++
+// TODO: screenshot placeholder - MLflow prompt registry side-by-side compare of system prompt v1 and v2, with v2 showing 3 of 20 failed cases, logged in
+
+== Promotion
+
+Only a version that clears the gate is promoted to the secured deployment. The signed image, the passing evaluation, and the registered prompt travel together.
+
+. Show the promotion of the passing version.
++
+What you should see: the gate green and the version promoted to parasol-secured.
++
+// TODO: screenshot placeholder - the promotion step green in the pipeline and the promoted version live in parasol-secured, logged in

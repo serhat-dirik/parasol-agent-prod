@@ -1,0 +1,39 @@
+= 08. What's next
+:imagesdir: ../assets/images
+:navtitle: 08. What's next
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+Where this demo goes next. The backlog is in priority order, not phases. These are the items in flight and planned, not claims about what is already recorded.
+
+== Priority 1
+
+* MCP catalog MCPServer objects: register claims-db and policy-docs as catalog entries so they appear in the OpenShift AI MCP catalog UI.
+* Registration cleanup: remove the stray default-namespace MCP registrations and the unenforced authentication policy.
+* MaaS tiers: a stage model, a production model, and a guard model, one key each, from bootstrap secrets.
+* Granite Guardian as a second detector, via the MaaS endpoint, alongside the regex detector.
+* EvalHub and LMEvalJob, with a larger model as judge.
+* GenAI Studio playground served as an OGXServer.
+* Keyless signing via Trusted Artifact Signer, replacing the cluster keypair fallback.
+* Zero Trust Workload Identity Manager (SPIRE and SPIFFE): confirm and extend the wave-2 work.
+* Replay test, report only: does any available model obey the hidden stamp?
+
+== Priority 2 (V1 to V9)
+
+* V1: guardrails at the MCP gateway the product way, with the guardrails proxy kept until it is proven.
+* V2: SPIFFE and RFC 8693 token exchange at the gateway.
+* V3: a fraud-check agent behind the gateway (agent-to-agent).
+* V4: Connectivity Link developer portal with key approval.
+* V5: Model Registry versions, with the evaluation gate writing the score.
+* V6: Docling and an embedding model for document ingestion and policy retrieval.
+* V7: Advanced Cluster Security runtime policies.
+* V8: Garak red-teaming in EvalHub.
+* V9: a Perses dashboard.
+
+== Priority 3
+
+* Kata feasibility check: is hardware virtualization present on a worker?
+* Developer Hub golden path.
+* A two-model injection beat, only if the replay test finds a model that obeys the hidden stamp.

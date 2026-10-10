@@ -1,0 +1,112 @@
+= 01. Architecture
+:imagesdir: ../assets/images
+:navtitle: 01. Architecture
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+This module describes what you are looking at. The application, the two deployments, the people, the model, and the control points that the later modules exercise.
+
+== The application
+
+The Parasol claims portal is a Quarkus and React application. The backend is Quarkus. The front end is React, served through Quinoa, with the PatternFly look you recognise from the Red Hat Parasol demos.
+
+The portal shows a list of claims and a detail page per claim. Beside each claim is a chat panel. That chat is the agent.
+
+The assistant is a tool-using agent, not a prompt-only chatbot. It reasons over a request, decides which tools to call, and calls them. Its tools come from two MCP servers:
+
+* *claims-db*: read a claim, read its history, read the documents attached to it, and approve a payout.
+* *policy-docs*: read the relevant insurance policy text.
+
+Every tool call is streamed back into the chat as a small chip, so you see what the agent did rather than guessing. A denied call shows as a red chip. A guardrail detection shows as an amber banner. A masked field shows as a grey chip.
+
+== Two deployments of one image
+
+The same portal image runs twice, in two namespaces, behind two routes.
+
+[cols="1,1,2",options="header"]
+|===
+|Namespace |Tab |What it is
+
+|parasol-free
+|*Portal unsecured*
+|The agent with no controls. No tool authorization, no guardrails, no per-user budget, no audit.
+
+|parasol-secured
+|*Portal secured*
+|The agent on the platform. Every control point is active.
+|===
+
+The code is identical. The difference is the platform around it.
+
+== Identity: the Keycloak realm
+
+Identity comes from Keycloak, realm `parasol`. Three users carry the story. Each signs in with a password equal to the username (this is a disposable lab).
+
+[cols="1,1,2",options="header"]
+|===
+|User |Role |What they can do
+
+|rebecca
+|claims adjuster
+|Read claims, ask the assistant to work a claim, propose a payout. Cannot approve.
+
+|marcus
+|claims manager
+|Everything rebecca can do, plus approve a proposed payout.
+
+|tom.becker
+|policyholder
+|A customer login. Can use the assistant on their own claims only.
+|===
+
+In the secured deployment, the user's token travels with every tool call. The tools know who is asking. That is the first key message, made real.
+
+== The model
+
+There is one model, `llama-scout-17b`, hosted on an external Models-as-a-Service (MaaS) endpoint. The agent never calls the model directly. It calls it through the model gateway, which applies the subscription, the budget, and the keys.
+
+Hosting the model externally is deliberate. It mirrors the common case: cloud AI you already pay for, placed behind your own gateway so your policies still apply.
+
+== The secured request path
+
+In the secured deployment, a single chat turn travels two controlled paths.
+
+* For the model: agent to model gateway to guardrails to MaaS. The gateway attributes the spend to a per-user key. Guardrails scan the prompt and the model output.
+* For the tools: agent to MCP gateway to claims-db or policy-docs, carrying the user's token. The MCP gateway authorizes each tool call against the user's role, and audits it.
+
+The unsecured deployment skips all of it. The agent calls the model on a shared key and calls the tools with no authorization and no record.
+
+== The control points
+
+The later modules exercise these controls. This table is the map.
+
+[cols="1,2",options="header"]
+|===
+|Control point |What it does
+
+|Identity-bound tool authorization (MCP gateway)
+|Authorizes each tool call against the caller's role. rebecca cannot approve a payout; marcus can.
+
+|Guardrails orchestrator
+|Scans tool results and prompts. Flags hidden instructions in a document. Masks personal data.
+
+|Read, propose, act gate
+|The agent proposes a write and renders an Approve button. The write happens on the click, by a person with the right role.
+
+|Per-user model budgets and alerts
+|Each user's model spend is attributed and capped. An alert fires with the user's name attached.
+
+|Signing and admission
+|Images are signed in the build. The secured namespace refuses an unsigned image.
+
+|Observability (MLflow and the console)
+|Every chat turn is a trace with the user, the tool calls, and the token counts.
+|===
+
+== Environment facts
+
+* OpenShift 4.22
+* Red Hat OpenShift AI 3.5
+* Admin access to a temporary, dedicated lab cluster

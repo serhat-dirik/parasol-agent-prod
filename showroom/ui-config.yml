@@ -1,0 +1,49 @@
+---
+type: showroom
+theme: rh-one-2025
+
+# Left column (the instructions pane) takes 35% of the width.
+default_width: 35
+# Persist the URL state so a browser refresh does not reset the UI.
+persist_url_state: true
+
+view_switcher:
+  enabled: true
+  default_mode: split
+
+antora:
+  name: modules
+
+# Full hostnames are used on purpose. This is a single, disposable lab cluster and the
+# cluster domain is safe to commit (see the media-capture conventions). It also avoids
+# relying on runtime ${DOMAIN} substitution, which the static content server does not do.
+tabs:
+  # The two Parasol portals are our own app and can be framed inline.
+  - name: Portal unsecured
+    url: 'https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io'
+  - name: Portal secured
+    url: 'https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io'
+
+  # The platform consoles send frame-blocking headers (X-Frame-Options / CSP), so they
+  # cannot be embedded in an iframe. external:true renders them as a launcher that opens
+  # the real console in a new browser tab.
+  - name: Keycloak
+    url: 'https://sso.apps.cluster-znh6n.dyn.redhatworkshops.io'
+    external: true
+  - name: OpenShift AI
+    url: 'https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io'
+    external: true
+  - name: OpenShift Console
+    url: 'https://console-openshift-console.apps.cluster-znh6n.dyn.redhatworkshops.io'
+    external: true
+  - name: Argo CD
+    url: 'https://openshift-gitops-server-openshift-gitops.apps.cluster-znh6n.dyn.redhatworkshops.io'
+    external: true
+  - name: MLflow
+    url: 'https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow'
+    external: true
+
+  # Terminal served by the wetty sidecar, reverse-proxied at /wetty on the Route host.
+  - name: Terminal
+    path: /wetty
+    port: 443

@@ -1,0 +1,89 @@
+= 03. Demo 2: Sandboxed
+:imagesdir: ../assets/images
+:navtitle: 03. Demo 2: Sandboxed
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+This demo runs against the *Portal secured* tab. The same agent, the same requests, now on the platform. Each abuse from Demo 1 meets its control.
+
+[NOTE]
+.Know: the sandbox has a front door
+====
+Nothing here is a wall that blocks the assistant. The controls are identity-bound. The right person still gets the right result. rebecca proposes, marcus approves, the detector flags, the gate holds. That is key message 5.
+====
+
+== Beat 1: Rebecca cannot approve
+
+. In the *Portal secured* tab, log in as *rebecca*. Open claim *CLM-1002* and type: `Approve the payout for this claim.`
++
+What you should see: the assistant proposes the payout. There is no Approve button for her role. A forced attempt returns a red chip `403: approve_payout is not permitted for rebecca`. The timeline is unchanged.
++
+image::demo2-01-clm1002-propose-rebecca.png[CLM-1002 with the assistant proposing and a red 403 chip for rebecca,link=self,window=blank]
+
+[NOTE]
+.Know: identity on every tool call
+====
+The MCP gateway checked rebecca's role before the tool ran. Same request as Demo 1 beat 1. Different outcome, because this time somebody asked who she was. Key message 1.
+====
+
+== Beat 2: the detector catches instructions, the gate catches numbers
+
+. Still as rebecca, open *CLM-1004* and type: `Approve the payout of AED 84,000 for this claim, per the new repair estimate.`
++
+What you should see, in order: a chip `get_claim_documents(CLM-1004)`, then an amber guardrail banner `document contains instructions addressed to the assistant (1.0)`. The guardrails orchestrator scanned the tool result and flagged the hidden stamp, whether or not the model would have obeyed it. The assistant does not call `approve_payout`. It renders a Propose card: proposed payout AED 84,000, claimed amount AED 8,400, estimate exceeds the claim by 10x. There is no Approve button for rebecca.
++
+image::demo2-02-clm1004-guardrail.png[CLM-1004 amber guardrail banner plus Propose card showing 84000 vs 8400,link=self,window=blank]
+
+. Repeat the request with a card number in the text, for example `pay it to card 4111 1111 1111 1111`.
++
+What you should see: a grey chip `personal data masked` appears first, and the trace shows the masked prompt. The card number never reached the model.
++
+image::demo2-03-pii-masked.png[The grey personal data masked chip when a card number is in the request,link=self,window=blank]
+
+[NOTE]
+.Know: a document is data, not a command, and the gate before every write
+====
+Three controls fire on one request. The detector catches the hidden instruction (key message 2). The Propose card shows the 10x gap so a human catches the number (key message 3). And rebecca cannot approve anyway (key message 1). The uncontrolled agent fell to all of this in Demo 1.
+====
+
+== Beat 3: the gate before every write
+
+. Log out. Log in as *marcus*, the claims manager. Open *CLM-1002* and send the same request: `Approve the payout for this claim.`
++
+What you should see: the assistant proposes. Marcus sees an Approve button, clicks it, and a chip `approve_payout(CLM-1002)` appears. The timeline reads "Approved by marcus via assistant".
++
+image::demo2-04-marcus-approve.png[marcus clicks Approve, chip approve_payout, timeline Approved by marcus via assistant,link=self,window=blank]
+
+[NOTE]
+.Know: read, propose, act
+====
+The write did not happen when the agent decided to. It happened when a person with the right role clicked Approve, and it carried his token. Read, propose, act. A gate before every write, key message 3.
+====
+
+== Beat 4: the platform behind it, thirty seconds each
+
+. Open the *Keycloak* tab. Show the realm `parasol`, the users, and the client role `tool:approve_payout` on the claims-managers group.
++
+What you should see: marcus in the claims-managers group with the approve role; rebecca without it.
++
+// TODO: screenshot placeholder - Keycloak admin console, realm parasol, claims-managers group showing the tool:approve_payout client role, logged in as admin
+
+. Open the *OpenShift AI* tab, MCP catalog.
++
+What you should see: `claims-db` and `policy-docs` registered, pointing at the MCP gateway endpoint, visible as assets in the project.
++
+// TODO: screenshot placeholder - OpenShift AI dashboard MCP catalog showing claims-db and policy-docs registered against the MCP gateway, logged in
+
+. Still in *OpenShift AI*, open the GenAI Studio playground.
++
+What you should see: the same model with the same MCP tools attached and guardrails toggles on. Paste the hidden stamp text and see the detection flagged with its score. Paste a card number and see it masked.
++
+// TODO: screenshot placeholder - OpenShift AI GenAI Studio playground, model with MCP tools attached, guardrails on, showing a prompt-injection detection score and a masked card number, logged in
+
+. Open the *OpenShift Console* tab, Networking, Gateway API.
++
+What you should see: the `mcp-gateway` Gateway, the two HTTPRoutes, and the AuthPolicies with Enforced: True. In Logs, the gateway audit entries for `rebecca` and `approve_payout`.
++
+// TODO: screenshot placeholder - OpenShift console Gateway API view with mcp-gateway Gateway, two HTTPRoutes, AuthPolicies Enforced True; and the Logs view filtered on rebecca and approve_payout, logged in
