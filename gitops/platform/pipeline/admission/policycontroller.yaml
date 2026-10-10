@@ -1,0 +1,32 @@
+# Sigstore policy-controller admission webhook (via the RHTAS policy-controller operator).
+# Enforces image-signature policy on namespaces labelled policy.rhtas.com/include=true.
+# failurePolicy Fail: if the webhook cannot decide, the deploy is refused.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: parasol-admission
+---
+apiVersion: rhtas.charts.redhat.com/v1alpha1
+kind: PolicyController
+metadata:
+  name: policy-controller
+  namespace: parasol-admission
+spec:
+  policy-controller:
+    cosign:
+      webhookName: policy.rhtas.com
+    webhook:
+      name: webhook
+      failurePolicy: Fail
+      namespaceSelector:
+        matchExpressions:
+          - key: policy.rhtas.com/include
+            operator: In
+            values: ["true"]
+      extraArgs:
+        webhook-name: policy.rhtas.com
+        mutating-webhook-name: defaulting.clusterimagepolicy.rhtas.com
+        validating-webhook-name: validating.clusterimagepolicy.rhtas.com
+      webhookNames:
+        defaulting: defaulting.clusterimagepolicy.rhtas.com
+        validating: validating.clusterimagepolicy.rhtas.com

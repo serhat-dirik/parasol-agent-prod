@@ -1,0 +1,17 @@
+# Demo PipelineRun for the Parasol secure supply-chain pipeline.
+# Launch a fresh run with: oc create -n parasol-build -f pipelinerun.yaml
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: parasol-portal-secure-build-
+  namespace: parasol-build
+spec:
+  pipelineRef: {name: parasol-portal-secure-build}
+  taskRunTemplate:
+    serviceAccountName: pipeline
+  workspaces:
+    - name: workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources: {requests: {storage: 2Gi}}

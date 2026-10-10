@@ -1,0 +1,9 @@
+# Provenance build for the secure supply-chain pipeline (layer 6).
+# The portal's application image is produced by the BuildConfig in gitops/platform/builds
+# (a full Quarkus + Quinoa Maven build). This pipeline re-wraps that published image so every
+# promotion gets a freshly built, Tekton Chains-signed digest to scan, evaluate and pin.
+# ponytail: thin FROM-the-published-image build keeps the PipelineRun fast and re-recordable;
+# to build the portal from source instead, point the build-container CONTEXT at apps/parasol-portal/app.
+FROM image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:latest
+LABEL org.parasol.supply-chain="signed-scanned-evaluated" \
+      org.parasol.pipeline="parasol-portal-secure-build"

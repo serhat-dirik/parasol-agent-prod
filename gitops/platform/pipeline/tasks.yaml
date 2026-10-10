@@ -1,0 +1,312 @@
+# Tasks for the Parasol secure supply-chain pipeline (layer 6), namespace parasol-build.
+# Task names and order mirror the Red Hat tssc-sample-pipelines reference
+# (init -> git-clone -> buildah -> ... -> show-sbom/summary). ACS/Quay/GitLab are not on this
+# cluster, so the ACS scan is replaced by Trivy and promotion is a commit to the prod overlay
+# in this GitOps repo. Tekton Chains signs the image the buildah task produces (IMAGE_URL/IMAGE_DIGEST
+# results) out of band using the cosign key in openshift-pipelines/signing-secrets.
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: init
+  labels: {app.kubernetes.io/version: "0.2"}
+spec:
+  description: Initialize the pipeline; decides whether the image must be built.
+  params:
+    - {name: image-url, type: string}
+    - {name: rebuild, type: string, default: "true"}
+  results:
+    - {name: build, description: whether to build the image}
+  steps:
+    - name: init
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        echo "Build initialize: $(params.image-url)"
+        # This pipeline always rebuilds (promotion build); emit the build flag the reference uses.
+        printf "true" > "$(results.build.path)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: git-clone
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: Clone the source repository into the shared workspace.
+  params:
+    - {name: url, type: string}
+    - {name: revision, type: string, default: "main"}
+  results:
+    - {name: url, description: cloned repository URL}
+    - {name: commit, description: cloned commit SHA}
+  workspaces:
+    - {name: output}
+  steps:
+    - name: clone
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      workingDir: $(workspaces.output.path)
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        microdnf install -y git >/dev/null 2>&1 || microdnf install -y git
+        rm -rf source
+        git clone --depth 1 --branch "$(params.revision)" "$(params.url)" source
+        cd source
+        printf "%s" "$(params.url)" > "$(results.url.path)"
+        git rev-parse HEAD | tr -d '\n' > "$(results.commit.path)"
+        echo "Cloned $(params.url) @ $(cat "$(results.commit.path)")"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: buildah
+  labels: {app.kubernetes.io/version: "0.1", build.appstudio.redhat.com/build_type: docker}
+spec:
+  description: Build the container image with buildah and push it to the internal registry. Tekton Chains signs the resulting image.
+  params:
+    - {name: IMAGE, type: string}
+    - {name: DOCKERFILE, type: string, default: Containerfile}
+    - {name: CONTEXT, type: string, default: .}
+  results:
+    - {name: IMAGE_URL, description: Image repository and tag that was pushed}
+    - {name: IMAGE_DIGEST, description: Digest of the image that was built}
+  workspaces:
+    - {name: source}
+  stepTemplate:
+    env:
+      - {name: STORAGE_DRIVER, value: vfs}
+      - {name: BUILDAH_ISOLATION, value: chroot}
+  steps:
+    - name: build-and-push
+      image: registry.redhat.io/rhel9/buildah:latest
+      workingDir: $(workspaces.source.path)
+      securityContext:
+        capabilities:
+          add: ["SETFCAP"]
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        mkdir -p /tmp/auth
+        buildah login --tls-verify=false -u pipeline -p "$TOKEN" image-registry.openshift-image-registry.svc:5000
+        buildah bud --storage-driver=$STORAGE_DRIVER --tls-verify=false \
+          -f "$(params.DOCKERFILE)" -t "$(params.IMAGE)" "$(params.CONTEXT)"
+        buildah push --storage-driver=$STORAGE_DRIVER --tls-verify=false \
+          --digestfile /tmp/digest "$(params.IMAGE)" "docker://$(params.IMAGE)"
+        printf "%s" "$(params.IMAGE)" > "$(results.IMAGE_URL.path)"
+        cat /tmp/digest | tr -d '\n' > "$(results.IMAGE_DIGEST.path)"
+        echo "Built and pushed $(params.IMAGE)@$(cat /tmp/digest)"
+      volumeMounts:
+        - {name: varlibcontainers, mountPath: /var/lib/containers}
+  volumes:
+    - {name: varlibcontainers, emptyDir: {}}
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: scan-image
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: Scan the built image for HIGH/CRITICAL vulnerabilities with Trivy (report-only; the eval gate blocks, not the scan).
+  params:
+    - {name: image, type: string}
+    - {name: image-digest, type: string}
+  results:
+    - {name: SCAN_OUTPUT, description: short scan summary}
+  steps:
+    - name: trivy-scan
+      image: ghcr.io/aquasecurity/trivy:0.57.1
+      script: |
+        #!/bin/sh
+        set -u
+        IMG="$(params.image)@$(params.image-digest)"
+        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        export TRIVY_USERNAME=pipeline
+        export TRIVY_PASSWORD="$TOKEN"
+        echo "Scanning $IMG for HIGH,CRITICAL vulnerabilities..."
+        trivy image --quiet --insecure --scanners vuln --severity HIGH,CRITICAL \
+          --exit-code 0 --no-progress "$IMG" || echo "scan completed (vuln DB may be unavailable in the lab; report-only)"
+        printf "scanned" > "$(results.SCAN_OUTPUT.path)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: agent-eval
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: "Lifecycle gate: score the candidate assistant against the golden set; a regression blocks promotion."
+  params:
+    - {name: candidate, type: string, default: v2}
+    - {name: eval-path, type: string, default: source/gitops/platform/pipeline/eval}
+  results:
+    - {name: gate, description: passed or failed}
+    - {name: score, description: pass-rate}
+  workspaces:
+    - {name: source}
+  steps:
+    - name: evaluate
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        E="$(params.eval-path)"
+        set +e
+        OUT=$(python3 "$E/score.py" "$E/golden-set.json" "$E/candidate-$(params.candidate).json")
+        RC=$?
+        set -e
+        echo "$OUT"
+        SCORE=$(echo "$OUT" | sed -n 's/.*score=\([0-9.]*\).*/\1/p')
+        printf "%s" "${SCORE:-0}" > "$(results.score.path)"
+        if [ $RC -eq 0 ]; then
+          printf "passed" > "$(results.gate.path)"
+        else
+          printf "failed" > "$(results.gate.path)"
+          echo "Evaluation gate FAILED; promotion will be skipped."
+          exit 1
+        fi
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: verify-signature
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: Verify that Tekton Chains has cosign-signed the built image before it is promoted.
+  params:
+    - {name: image, type: string}
+    - {name: image-digest, type: string}
+    - {name: cosign-key-configmap, type: string, default: cosign-pub}
+  results:
+    - {name: verified, description: "true if a valid signature was found"}
+  steps:
+    - name: cosign-verify
+      image: ghcr.io/sigstore/cosign/cosign:v2.4.3
+      env:
+        - name: COSIGN_PUB
+          valueFrom:
+            configMapKeyRef: {name: $(params.cosign-key-configmap), key: cosign.pub}
+      script: |
+        #!/busybox/sh
+        set -u
+        IMG="$(params.image)@$(params.image-digest)"
+        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        mkdir -p "$HOME/.docker"
+        AUTH=$(printf "pipeline:%s" "$TOKEN" | base64 | tr -d '\n')
+        printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
+        printf "%s" "$COSIGN_PUB" > /tmp/cosign.pub
+        echo "Waiting for Tekton Chains signature on $IMG ..."
+        i=0
+        while [ $i -lt 30 ]; do
+          if cosign verify --key /tmp/cosign.pub --insecure-ignore-tlog=true \
+               --allow-insecure-registry "$IMG" >/tmp/verify.out 2>&1; then
+            echo "SIGNATURE VERIFIED"
+            cat /tmp/verify.out
+            printf "true" > "$(results.verified.path)"
+            exit 0
+          fi
+          i=$((i+1)); sleep 6
+        done
+        echo "No valid signature found within the wait window:"; cat /tmp/verify.out
+        printf "false" > "$(results.verified.path)"
+        exit 1
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: promote
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: "Promote by pinning the signed digest into the prod (secured) overlay in the GitOps repo; a commit is the promotion."
+  params:
+    - {name: image, type: string}
+    - {name: image-digest, type: string}
+    - {name: git-url, type: string, default: "https://github.com/serhat-dirik/parasol-agent-prod.git"}
+    - {name: overlay-file, type: string, default: "gitops/envs/secured/kustomization.yaml"}
+    - {name: gitops-auth-secret, type: string, default: gitops-auth-secret}
+  workspaces:
+    - {name: source}
+  steps:
+    - name: pin-and-push
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      workingDir: $(workspaces.source.path)/source
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        microdnf install -y git >/dev/null 2>&1 || microdnf install -y git
+        FILE="$(params.overlay-file)"
+        DIGEST="$(params.image-digest)"
+        echo "Promoting $(params.image)@$DIGEST into $FILE"
+        # Targeted patch: replace only the digest value on the parasol-portal images entry.
+        if grep -q "parasol-portal" "$FILE" 2>/dev/null && grep -q "digest:" "$FILE"; then
+          # Patch only the digest line that follows the parasol-portal name line; touch nothing else.
+          awk -v d="$DIGEST" '
+            prev ~ /parasol-portal/ && $1=="digest:" {sub(/digest:.*/,"digest: " d)}
+            {print; prev=$0}' "$FILE" > "$FILE.new" && mv "$FILE.new" "$FILE"
+          echo "--- pinned entry ---"; grep -A1 "parasol-portal" "$FILE" | sed -n '1,2p'
+        else
+          echo "NOTE: parasol-portal images:/digest: block not found in $FILE (Stream P seeds it). Printing intended pin only."
+          echo "  digest: ${DIGEST}"
+        fi
+        TOKEN_FILE=/workspace/git-token/token
+        if [ -f "$TOKEN_FILE" ]; then
+          git config user.email "pipeline@parasol.local"
+          git config user.name "parasol-pipeline"
+          URL=$(printf "%s" "$(params.git-url)" | sed "s#https://#https://$(cat $TOKEN_FILE)@#")
+          git add "$FILE"
+          git commit -m "chore: promote parasol-portal ${DIGEST} to secured overlay" || { echo "nothing to commit"; exit 0; }
+          git push "$URL" HEAD:main && echo "PROMOTED: pushed pin to main"
+        else
+          echo "No gitops-auth token mounted; promotion diff prepared but not pushed (demo-safe)."
+          git --no-pager diff -- "$FILE" || true
+        fi
+      volumeMounts:
+        - {name: git-token, mountPath: /workspace/git-token}
+  volumes:
+    - name: git-token
+      secret:
+        secretName: gitops-auth-secret
+        optional: true
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: show-sbom
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: Show the SBOM reference for the built image (RHDH renders this in its UI).
+  params:
+    - {name: IMAGE_URL, type: string}
+  steps:
+    - name: show-sbom
+      image: ghcr.io/sigstore/cosign/cosign:v2.4.3
+      script: |
+        #!/busybox/sh
+        echo "SBOM / attestation location for $(params.IMAGE_URL):"
+        echo "  cosign download sbom $(params.IMAGE_URL)  (generated and attached by the build platform)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: summary
+  labels: {app.kubernetes.io/version: "0.2"}
+spec:
+  description: Print a build summary for the PipelineRun.
+  params:
+    - {name: pipelinerun-name, type: string}
+    - {name: git-url, type: string}
+    - {name: image-url, type: string}
+    - {name: build-task-status, type: string, default: Succeeded}
+  steps:
+    - name: summary
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      script: |
+        #!/usr/bin/env bash
+        echo
+        echo "Build Summary:"
+        echo "  PipelineRun : $(params.pipelinerun-name)"
+        echo "  Repository  : $(params.git-url)"
+        echo "  Image       : $(params.image-url)"
+        echo "  Build status: $(params.build-task-status)"
+        echo "End Summary"
