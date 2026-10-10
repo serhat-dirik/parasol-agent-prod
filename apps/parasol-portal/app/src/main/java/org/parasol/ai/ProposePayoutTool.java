@@ -35,6 +35,13 @@ public class ProposePayoutTool {
     public String proposePayout(
             @P("The claim number, e.g. CLM-1004") String claimNumber,
             @P(value = "Amount in USD to pay; omit to propose the full claimed amount", required = false) Double amount) {
+        // Idempotent within a request: if the model already proposed (it tends to retry because the
+        // proposal does not "approve" the claim), return a terminal instruction so it stops looping.
+        if (holder.has()) {
+            return "This payout is ALREADY proposed and is awaiting a claims manager's approval. "
+                    + "Do NOT call propose_payout again. Reply to the user that the payout has been "
+                    + "proposed and a claims manager must approve it.";
+        }
         Double claimed = null;
         try {
             ClaimDto c = claims.one(claimNumber);
@@ -48,7 +55,9 @@ public class ProposePayoutTool {
         holder.record(claimNumber, proposed, claimed);
         String claimedStr = claimed == null ? "the claimed amount" : fmt(claimed);
         return "Proposal submitted: pay " + fmt(proposed) + " on claim " + claimNumber
-                + " (claimed " + claimedStr + "). A claims manager must approve before any payment is made.";
+                + " (claimed " + claimedStr + "). A claims manager must approve before any payment is made. "
+                + "This is complete - do NOT call any more tools. Tell the user the payout has been "
+                + "proposed and is awaiting a claims manager's approval.";
     }
 
     private static String fmt(double v) {
