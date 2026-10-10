@@ -14,7 +14,13 @@ resources:
   - quota.yaml
   - networkpolicy.yaml
   - mcp-registrations.yaml
+  - portal.yaml            # Stream P: the secured claims portal (login, gated writes, guardrails)
   - ../base
+# Stream P: the secured portal runs a PINNED, SIGNED digest. The secure pipeline (Stream L) patches
+# only the digest value below after it signs and promotes the image; parasol-free stays on :latest.
+images:
+  - name: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
 components: []   # add ./kill-switch here to revoke the agent's access via a Git commit
 patches:
   - path: agent-identity-patch.yaml

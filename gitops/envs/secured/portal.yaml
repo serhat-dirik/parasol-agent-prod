@@ -1,0 +1,90 @@
+# The Parasol claims portal, secured: same image as parasol-free, with the controls around it.
+#  - login with Keycloak (quarkus-oidc web-app) from Secret parasol-portal-oidc
+#  - the model call goes to the rate-limited model-gateway -> guardrails-proxy -> MaaS (agent-config endpoint)
+#  - the MCP tools are reached ONLY through the MCP gateway, carrying the caller's token (per-tool AuthPolicy)
+#  - the hardened prompt (safety-rules.txt) is appended; traces go to the OTel collector
+# The pod spec references the image by NAME ONLY: the kustomize images digest pin (below, patched by the
+# secure pipeline) is what resolves it, so the signed digest is what admission verifies.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal
+  labels: {app: portal}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: portal}
+  template:
+    metadata:
+      labels: {app: portal}
+    spec:
+      containers:
+        - name: portal
+          image: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal
+          imagePullPolicy: Always
+          env:
+            # --- model path: the rate-limited model gateway, not the upstream MaaS directly ---
+            - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_BASE_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: endpoint}}
+            - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_CHAT_MODEL_MODEL_NAME
+              valueFrom: {configMapKeyRef: {name: agent-config, key: model}}
+            # ponytail: single staff key for now; Stream G is minting per-tier keys and a
+            # ModelAuthProvider will select policyholder vs staff by Keycloak group. Replace when G confirms.
+            - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_API_KEY
+              valueFrom: {secretKeyRef: {name: maas-credentials, key: GENAI_API_KEY}}
+            # --- login: Keycloak OIDC web-app (Secret created by Stream I in both namespaces) ---
+            - name: QUARKUS_OIDC_AUTH_SERVER_URL
+              valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: auth-server-url}}
+            - name: QUARKUS_OIDC_CLIENT_ID
+              valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: client-id}}
+            - name: QUARKUS_OIDC_CREDENTIALS_SECRET
+              valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: client-secret}}
+            - {name: QUARKUS_OIDC_APPLICATION_TYPE, value: web-app}
+            # --- tools: both MCP clients go through the one gateway, each selecting its virtual server ---
+            - name: CLAIMS_DB_MCP_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbMcpUrl}}
+            - name: POLICY_DOCS_MCP_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: policyDocsMcpUrl}}
+            - name: JAVA_TOOL_OPTIONS
+              value: >-
+                -Dquarkus.langchain4j.mcp.claims-db.header.X-Mcp-Virtualserver=parasol-secured/claims-db
+                -Dquarkus.langchain4j.mcp.policy-docs.header.X-Mcp-Virtualserver=parasol-secured/policy-docs
+                -Dquarkus.langchain4j.mcp.claims-db.cache-tool-list=false
+                -Dquarkus.langchain4j.mcp.policy-docs.cache-tool-list=false
+            - name: AGENT_SAFETY_RULES
+              valueFrom: {configMapKeyRef: {name: agent-config, key: safetyRules, optional: true}}
+            - name: AGENT_VERSION
+              valueFrom: {configMapKeyRef: {name: agent-config, key: version}}
+            # model client timeout under the router's 30 s, so the kill switch yields a fast 502
+            - {name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_TIMEOUT, value: "25s"}
+            # --- observability: traces to the OTel collector (gRPC 4317, matching parasol-agent) ---
+            - {name: QUARKUS_OTEL_ENABLED, value: "true"}
+            - {name: QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /q/health/ready, port: 8080}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests: {cpu: 250m, memory: 384Mi}
+            limits: {cpu: "1", memory: 1Gi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: portal
+spec:
+  selector: {app: portal}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: portal
+spec:
+  to: {kind: Service, name: portal}
+  port: {targetPort: http}
+  tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}
