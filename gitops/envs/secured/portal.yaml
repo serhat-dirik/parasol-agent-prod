@@ -82,7 +82,9 @@ spec:
             # --- observability: traces to the OTel collector (gRPC 4317), mirroring parasol-agent exactly.
             # quarkus.otel.enabled is build-time (true in the image); sdk.disabled is the runtime toggle. ---
             - {name: QUARKUS_OTEL_SDK_DISABLED, value: "false"}
-            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
+            # Quarkus-native key (QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT maps to quarkus.otel.exporter.otlp.endpoint);
+            # the standard OTEL_EXPORTER_OTLP_ENDPOINT is not honored here, so the exporter fell back to localhost.
+            - {name: QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
           ports:
             - {name: http, containerPort: 8080}
           # tcpSocket (like free): the pod is Ready once HTTP is up; the MCP gateway path is exercised
