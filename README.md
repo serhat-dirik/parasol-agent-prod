@@ -141,7 +141,7 @@ commit, let Argo sync. The pods keep running; the agent can reach nothing. Remov
 </details>
 
 <details>
-<summary><b>Demo UI</b> — what the audience sees, scenario by scenario</summary>
+<summary><b>Demo UI</b></summary>
 
 Each scenario runs first on `portal-free`, then on `portal` (secured). Have the platform consoles
 open alongside the portal — Keycloak, OpenShift AI (MaaS, MCP catalog, GenAI Studio, MLflow),
