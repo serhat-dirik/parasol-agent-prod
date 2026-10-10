@@ -128,6 +128,7 @@ public class ClaimResource {
     @Blocking
     public Response approve(@PathParam("number") String number, @QueryParam("amount") Double amount) {
         if (!groups().contains("claims-managers")) {
+            toolCall("approve_payout", "403");
             return Response.status(Response.Status.FORBIDDEN)
                     .entity(Map.of("error", "approve_payout is not permitted for this role")).build();
         }
@@ -141,11 +142,21 @@ public class ClaimResource {
         try {
             String result = claimsDb.executeTool(
                     ToolExecutionRequest.builder().name("approve_payout").arguments(args).build()).resultText();
+            toolCall("approve_payout", "200");
             return Response.ok(Map.of("result", result)).build();
         } catch (RuntimeException e) {
+            // A forced call by someone without the tool role is refused at the MCP gateway (403).
+            String msg = String.valueOf(e.getMessage());
+            toolCall("approve_payout", msg != null && msg.toLowerCase().contains("403") ? "403" : "200");
             return Response.status(Response.Status.BAD_GATEWAY)
-                    .entity(Map.of("error", String.valueOf(e.getMessage()))).build();
+                    .entity(Map.of("error", msg)).build();
         }
+    }
+
+    /** parasol_tool_calls_total{tool,user,status}: the per-tool authz outcome for the operator dashboard. */
+    private void toolCall(String tool, String status) {
+        metrics.counter("parasol_tool_calls_total", "tool", tool, "user", caller.subject(), "status", status)
+                .increment();
     }
 
     /** Put the logged-in user's OIDC token in the request context so the MCP call carries it. */

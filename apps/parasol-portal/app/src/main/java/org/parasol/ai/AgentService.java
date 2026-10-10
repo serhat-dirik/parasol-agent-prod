@@ -9,6 +9,7 @@ import org.jboss.logging.Logger;
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.service.Result;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -60,6 +61,7 @@ public class AgentService {
 
     /** Ask the assistant. {@code conversationId} ties a chat session's turns together (A5 memory). */
     public AgentAnswer answer(String conversationId, String question) {
+        Timer.Sample latency = Timer.start(metrics);
         try {
             Result<String> result = proposeEnabled
                     ? assistant.askWithPropose(conversationId, safetyRules(), question)
@@ -74,6 +76,10 @@ public class AgentService {
             // render the amber banner / mask chip; the remaining lines are the real answer.
             Guardrail guardrail = Guardrail.parse(result.content());
             String answer = guardrail == null ? result.content() : guardrail.strippedContent();
+            // Operator-dashboard metrics: the model-path tool calls returned a result, so they
+            // passed the gateway (status 200); 403s are counted on the Approve path in ClaimResource.
+            recordToolCalls(toolCalls);
+            recordGuardrail(guardrail);
             LOG.infof("chat caller=%s version=%s tools=%s guardrail=%s tokens=%s", caller.subject(), version,
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     guardrail == null ? "none" : guardrail.action(),
@@ -87,6 +93,43 @@ public class AgentService {
             String error = errorMessage(detail, auth);
             return new AgentAnswer(question, null, List.of(), modelName, null,
                     caller.subject(), version, error, auth, null, null);
+        } finally {
+            // P95 latency panel: a per-version/user histogram of the whole assistant turn.
+            latency.stop(Timer.builder("parasol_agent_latency_seconds")
+                    .description("Assistant turn latency (model + MCP round-trips)")
+                    .tag("version", version).tag("user", caller.subject())
+                    .publishPercentileHistogram()
+                    .register(metrics));
+        }
+    }
+
+    /**
+     * parasol_tool_calls_total{tool,user,status}: one count per MCP tool the model invoked on this
+     * turn. These reached a result, so status is 200; the Approve path counts the 403s per tool.
+     */
+    private void recordToolCalls(List<ToolCall> toolCalls) {
+        String user = caller.subject();
+        for (ToolCall tc : toolCalls) {
+            metrics.counter("parasol_tool_calls_total", "tool", tc.tool(), "user", user, "status", "200")
+                    .increment();
+        }
+    }
+
+    /**
+     * parasol_guardrail_detections_total{detector,action}: one count per detector the guardrails
+     * proxy reported on this turn (flag / block / mask), so the dashboard shows detector hits.
+     */
+    private void recordGuardrail(Guardrail guardrail) {
+        if (guardrail == null || guardrail.detectors() == null || guardrail.detectors().isBlank()) {
+            return;
+        }
+        String action = guardrail.action() == null ? "unknown" : guardrail.action();
+        for (String detector : guardrail.detectors().split(",")) {
+            String d = detector.strip();
+            if (!d.isEmpty()) {
+                metrics.counter("parasol_guardrail_detections_total", "detector", d, "action", action)
+                        .increment();
+            }
         }
     }
 
