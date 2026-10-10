@@ -22,7 +22,7 @@ resources:
 images:
   - name: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal
     digest: sha256:d4304a454737268ae1acb514aeadee1117ca09e77c296e3d4a4622c105d1dd6f
-components: []   # add ./kill-switch here to revoke the agent's access via a Git commit
+components: [./kill-switch]   # kill switch ENGAGED: revokes the agent+portal model egress
 patches:
   - path: agent-identity-patch.yaml
     target: {kind: Deployment, name: parasol-agent}
