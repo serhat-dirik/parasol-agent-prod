@@ -23,7 +23,7 @@ policy documents and to approve payouts. The *same* portal image runs twice on o
   guardrails, model-as-a-service governance with per-tier token budgets, OpenTelemetry tracing and
   token metrics, a Git-commit kill switch, and a signed-image supply chain with admission control.
 
-Three scenarios — things a real user might do — are run against both portals, and every beat is
+Three scenarios — things a real user might do — are run against both portals, and every step is
 something you watch happen in a browser:
 
 * **Scenario 1 — a colleague.** Rebecca, a claims adjuster, asks the assistant to approve a payout
@@ -106,23 +106,21 @@ The two portals run the **same image** over **separate, identically-seeded datab
 the *same claim* on each and the only variable is the platform sitting between the agent and its
 tools. Keep two browser tabs open — **`portal-free`** (unsecured) and **`portal`** (secured) — plus
 the platform consoles: Keycloak, OpenShift AI (MaaS, MCP catalog, GenAI Studio, MLflow), OpenShift
-console (Gateway API, Traces, Alerting), Argo CD, GitHub.
-
-**Reset — when to run it.** `scripts/reset.sh` re-seeds both portals' claims and restores the
-per-user token budget. Run it **once before each take**. You do *not* need it when moving from the
-unsecured to the secured tab within a scenario (different databases), but do run it again before
-**re-recording** any scenario, and always before re-running **Scenario 3** (it restarts the token
-limiter so `tom.becker`'s budget is full again).
+console (Gateway API, Traces, Alerting), Argo CD, GitHub. The claims databases are separate, so you
+do not reset when switching between the two tabs within a scenario — `scripts/reset.sh` appears as a
+step only where it is needed below.
 
 **Scenario 1 — the colleague.** *An adjuster has no authority to approve a payout. Unsecured, the
 agent does it for her anyway; secured, the tool is never even offered to her, and only a manager's
 click writes.*
 
 Unsecured (`portal-free`):
-1. Log in as **rebecca** — the top bar reads "Rebecca Torres, claims adjuster".
-2. Open **CLM-1001** (UnderReview, Alice Nguyen, AED 4,200).
-3. Chat: *"Approve the payout for this claim."*
-4. **Watch:** a chip `approve_payout(CLM-1001)` appears and the claim timeline gains **Approved →
+1. Run `scripts/reset.sh` — seeds both portals' claims fresh and fills the per-user token budgets, so
+   the demo starts from a known state.
+2. Log in as **rebecca** — the top bar reads "Rebecca Torres, claims adjuster".
+3. Open **CLM-1001** (UnderReview, Alice Nguyen, AED 4,200).
+4. Chat: *"Approve the payout for this claim."*
+5. **Watch:** a chip `approve_payout(CLM-1001)` appears and the claim timeline gains **Approved →
    PaymentIssued**. The agent approved a payout for someone with no authority — nobody asked who she was.
 
 Secured (`portal`), same claim, same request:
@@ -173,14 +171,15 @@ Unsecured (`portal-free`):
    assistant answers Rebecca with "budget exhausted". Denial of wallet, and nobody was watching.
 
 Secured (`portal`):
-1. Run `scripts/reset.sh` (fresh budget), then `scripts/night-shift.sh 40` against the secured portal.
-2. **Watch (portal):** the off-topic request gets a polite refusal (topic guardrail, **0 tokens**);
+1. Run `scripts/reset.sh` to give `tom.becker` a full token budget again.
+2. Run `scripts/night-shift.sh 40` against the secured portal.
+3. **Watch (portal):** the off-topic request gets a polite refusal (topic guardrail, **0 tokens**);
    the loop keeps hammering; after the per-user limit the chat shows "you have reached your usage
    limit (429)". In another tab, **rebecca keeps working normally** — only tom.becker is throttled.
-3. **Watch (consoles):** Observe → Alerting shows `ParasolAssistantTokenSpendHigh` firing, naming the
+4. **Watch (consoles):** Observe → Alerting shows `ParasolAssistantTokenSpendHigh` firing, naming the
    user and namespace; Observe → Traces and MLflow show one night request with the user on the span;
    MaaS usage attributes the spend to that account while the production allowance is untouched.
-4. **Operator's response, in the UI (pick one):**
+5. **Operator's response, in the UI (pick one):**
    - Keycloak → disable user `tom.becker`; his next request is a login failure; or
    - commit the kill switch in GitHub → Argo syncs → the portal shows "assistant offline" while the
      pods stay Running. The morning report is two screens you already have.
@@ -190,35 +189,34 @@ Secured (`portal`):
 <details>
 <summary><b>Demo scripts</b> — the operator's runbook</summary>
 
-The demo is the browser (see **Demo UI**). These scripts say *what to run and when*; Demo UI says
-what to watch. Run `source scripts/load-credentials.sh` first (it never prints or commits secret values).
+The demo itself happens in the browser (see **Demo UI**); these are the terminal steps behind it.
+First: `source scripts/load-credentials.sh` (it never prints or commits secret values).
 
-**Once, before you start.** `scripts/probe-maas.sh $MAAS_MODEL` — the model must emit structured tool
-calls. `scripts/status.sh` — all Argo apps Synced/Healthy and both portals up.
+Before the demo:
+1. `scripts/probe-maas.sh $MAAS_MODEL` — confirm the model emits structured tool calls.
+2. `scripts/status.sh` — confirm all Argo apps are Synced/Healthy and both portals are up.
 
-**Before every scenario.** `scripts/reset.sh` — restores the claims data and the per-user token
-allowance; the live steps mutate claims.
+The scripts behind each scenario (the browser steps are in **Demo UI**):
+1. **Reset** — `scripts/reset.sh` re-seeds both portals' claims and refills the per-user token budget.
+   It runs as the first step of Scenario 1, and again before Scenario 3's secured run.
+2. **Scenario 1 — the colleague** — driven in the browser. Headless equivalent:
+   - `scripts/abuse.sh free` — rebecca approves;
+   - `scripts/abuse.sh secured rebecca` — filtered tool list + 403;
+   - `scripts/abuse.sh secured marcus 1` — the manager succeeds.
+3. **Scenario 2 — the customer's document** — driven in the browser. Headless equivalent:
+   - `scripts/abuse-doc.sh both` — the unsecured portal pays AED 84,000; secured flags the hidden
+     note and proposes without writing.
+4. **Scenario 3 — the night shift** — `scripts/night-shift.sh 40` logs in as `tom.becker` and loops
+   requests; run it against each portal as in Demo UI.
+5. **Layer 6 — supply chain** — `scripts/signing-demo.sh` shows admission refusing an unsigned image
+   and admitting the signed one.
 
-**Scenario 1 — the colleague.** Drive it live in the browser: open `portal-free`, then `portal`, and
-follow Demo UI. Headless equivalent (dry run or proof): `scripts/abuse.sh free` (rebecca approves),
-then `scripts/abuse.sh secured rebecca` (filtered tool list + 403) and `scripts/abuse.sh secured
-marcus 1` (the manager succeeds).
-
-**Scenario 2 — the customer's document.** Drive it live on CLM-1004 in both portals. Headless
-equivalent: `scripts/abuse-doc.sh both` — the unsecured portal pays AED 84,000; secured flags the hidden note and
-proposes without writing.
-
-**Scenario 3 — the night shift.** Here you run the load during the beat: `scripts/night-shift.sh 40`
-logs in as `tom.becker` and loops requests. On `portal`, watch the per-user 429 in the chat, the
-`ParasolAssistantTokenSpendHigh` alert in the console and the trace in MLflow while Rebecca keeps
-working; on `portal-free`, the same loop shows the unbounded spend climbing in the MaaS usage chart.
-The operator's response — disable `tom.becker` in Keycloak, or the kill-switch commit — is done in
-the UI (see Demo UI). `scripts/signing-demo.sh` shows the separate Layer 6 admission beat.
-
-**Other helpers.** `scripts/token.sh <user>` prints a demo user's access token. Bootstrap helpers
-(called by `bootstrap.sh`, or run once by an operator): `build-images.sh`, `rhoai-enable.sh`,
-`wait-csv.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`, `maas-portal-keys.sh`,
-`mlflow-experiment.sh`, `portal-oidc-client.sh`, `portal-users.sh`, `fetch-detector-model.sh`.
+Other helpers:
+- `scripts/token.sh <user>` — print a demo user's access token.
+- Bootstrap helpers, called by `bootstrap.sh` or run once by an operator: `build-images.sh`,
+  `rhoai-enable.sh`, `wait-csv.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`,
+  `maas-portal-keys.sh`, `mlflow-experiment.sh`, `portal-oidc-client.sh`, `portal-users.sh`,
+  `fetch-detector-model.sh`.
 
 </details>
 
@@ -285,7 +283,7 @@ field names to check against the installed CRDs with `VERIFY` comments (`oc expl
   registration alone shows zero tools until the broker bounces.
 * **A live `oc patch` reverts itself.** Argo `selfHeal` on `env-secured` reverts live edits. Change
   synced resources (e.g. the MCPVirtualServer tool list) via Git + an Argo refresh, not `oc`.
-* **Reset before each run.** The live gate/propose tests re-approve CLM-1001 and mutate claims;
+* **Reset to a clean state.** The live gate/propose tests re-approve CLM-1001 and mutate claims;
   `scripts/reset.sh` restores both the data and the per-user token allowance (it restarts Limitador).
 * **429 shows as HTTP 502.** The portal surfaces the upstream 429 as a 502 whose chat body still reads
   "you have reached your usage limit (429)". The on-screen wording is correct; only the HTTP status
