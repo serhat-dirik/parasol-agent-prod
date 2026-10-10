@@ -55,3 +55,21 @@ spec:
             matchLabels: {app: portal}
       ports:
         - {protocol: TCP, port: 8080}
+---
+# The portal reaches Keycloak (OIDC) and the MCP gateway through their public *.apps routes, which
+# resolve to the ingress VIP (an IP, not a namespace), so a namespaceSelector cannot match it.
+# Mirror the agent's ingress-vip allow for app=portal (cluster-specific VIP).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: portal-ingress-vip
+spec:
+  podSelector:
+    matchLabels: {app: portal}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - ipBlock:
+            cidr: 10.10.10.101/32
+      ports:
+        - {protocol: TCP, port: 443}
