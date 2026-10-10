@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nemo-guardrails
+  namespace: parasol-guardrails-nemo
+  labels: { app: nemo-guardrails }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: nemo-guardrails }
+  template:
+    metadata:
+      labels: { app: nemo-guardrails }
+    spec:
+      containers:
+        - name: nemo
+          image: python:3.11
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              export HOME=/tmp PYTHONUSERBASE=/tmp/py
+              export PATH=/tmp/py/bin:$PATH
+              echo "[step] installing nemoguardrails ..."
+              pip install --no-cache-dir --user -q "nemoguardrails>=0.11,<0.14" openai langchain-openai
+              echo "[step] starting nemoguardrails server on :8000 ..."
+              exec nemoguardrails server --config /app/configs --port 8000
+          ports:
+            - containerPort: 8000
+          env:
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef: { name: maas-nemo, key: OPENAI_API_KEY }
+            - name: OPENAI_API_BASE
+              valueFrom:
+                secretKeyRef: { name: maas-nemo, key: OPENAI_API_BASE }
+          readinessProbe:
+            httpGet: { path: /, port: 8000 }
+            initialDelaySeconds: 90
+            periodSeconds: 15
+            failureThreshold: 20
+          volumeMounts:
+            - { name: cfg, mountPath: /app/configs/parasol/config.yml, subPath: config.yml }
+      volumes:
+        - name: cfg
+          configMap: { name: nemo-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nemo-guardrails
+  namespace: parasol-guardrails-nemo
+  labels: { app: nemo-guardrails }
+spec:
+  selector: { app: nemo-guardrails }
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000
