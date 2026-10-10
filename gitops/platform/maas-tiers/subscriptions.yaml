@@ -1,0 +1,101 @@
+# MaaS tiers (demo item P1-MAAS-TIERS). Three named tiers, one MaaS API key each:
+#   parasol-tier-stage  -> intended model granite-4-0-h-tiny (stage)
+#   parasol-tier-prod   -> model llama-scout-17b             (prod)
+#   parasol-tier-guard  -> intended model granite-guardian   (guard; used by P1-GUARDIAN)
+#
+# MODEL AVAILABILITY (measured 10 Oct): the lab LiteLLM endpoint serves ONLY llama-scout-17b. All five
+# lab virtual keys are allowlisted to models=['llama-scout-17b']; granite-4-0-h-tiny and
+# granite-guardian-3-1-8b return "key not allowed to access model" and we hold no LiteLLM master key to
+# widen the allowlist. The only registered ExternalModel is therefore llama-scout-17b, so the stage and
+# guard tiers back llama-scout-17b too; the intended model is recorded in the intended-model annotation.
+#
+# Isolated + additive: own namespace parasol-maas-tiers owns these (owner group
+# system:serviceaccounts:parasol-maas-tiers), so scripts/maas-tier-keys.sh mints all three keys from one
+# pod in that namespace WITHOUT touching the shared operational subscriptions (parasol-stage/prod/
+# policyholder) or the Argo-synced platform-rhoai app. Applied imperatively (not Argo-wired), like the
+# other wave-2 items. Priorities (61/111/71) differ from the operational 50/100/10 to avoid duplicate-
+# priority conflicts on the shared model.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: parasol-maas-tiers
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: maas-tier-client
+  namespace: parasol-maas-tiers
+---
+# Who may call the model with a tier key.
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSAuthPolicy
+metadata:
+  name: parasol-tier-access
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  subjects:
+    groups:
+      - {name: "system:serviceaccounts:parasol-maas-tiers"}
+  modelRefs:
+    - {name: llama-scout-17b, namespace: models-as-a-service}
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: parasol-tier-stage
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    parasol.io/tier: stage
+    parasol.io/intended-model: granite-4-0-h-tiny
+    parasol.io/intended-model-status: "not accessible on lab endpoint; backed by llama-scout-17b"
+spec:
+  owner:
+    groups: [{name: "system:serviceaccounts:parasol-maas-tiers"}]
+  priority: 61
+  modelRefs:
+    - name: llama-scout-17b
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 50000, window: 10m}
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: parasol-tier-prod
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    parasol.io/tier: prod
+    parasol.io/intended-model: llama-scout-17b
+spec:
+  owner:
+    groups: [{name: "system:serviceaccounts:parasol-maas-tiers"}]
+  priority: 111
+  modelRefs:
+    - name: llama-scout-17b
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 2000000, window: 24h}
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: parasol-tier-guard
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    parasol.io/tier: guard
+    parasol.io/intended-model: granite-guardian-3-1-8b
+    parasol.io/intended-model-status: "not accessible on lab endpoint; backed by llama-scout-17b"
+spec:
+  owner:
+    groups: [{name: "system:serviceaccounts:parasol-maas-tiers"}]
+  priority: 71
+  modelRefs:
+    - name: llama-scout-17b
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 100000, window: 10m}
