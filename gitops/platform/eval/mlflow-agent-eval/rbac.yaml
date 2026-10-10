@@ -1,0 +1,67 @@
+# Identity the agent-eval runner uses to read+write the parasol-secured MLflow workspace.
+# The managed MLflow server authorizes REST calls with a SubjectAccessReview on mlflow.kubeflow.org
+# resources in the workspace namespace (parasol-secured). edit = create/update experiments, datasets,
+# runs, traces, assessments; view = read them back. Bound in parasol-secured so the SAR resolves there.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: parasol-agent-eval
+  namespace: parasol-secured
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pae-mlflow-edit
+  namespace: parasol-secured
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mlflow-operator-mlflow-edit
+subjects:
+  - kind: ServiceAccount
+    name: parasol-agent-eval
+    namespace: parasol-secured
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pae-mlflow-view
+  namespace: parasol-secured
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mlflow-operator-mlflow-view
+subjects:
+  - kind: ServiceAccount
+    name: parasol-agent-eval
+    namespace: parasol-secured
+---
+# The Tekton pipeline SA (parasol-build) runs the agent-eval gate task; it needs the same MLflow
+# edit+view rights in the parasol-secured workspace so the gate can log its eval run and read it back.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-mlflow-edit
+  namespace: parasol-secured
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mlflow-operator-mlflow-edit
+subjects:
+  - kind: ServiceAccount
+    name: pipeline
+    namespace: parasol-build
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pipeline-mlflow-view
+  namespace: parasol-secured
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mlflow-operator-mlflow-view
+subjects:
+  - kind: ServiceAccount
+    name: pipeline
+    namespace: parasol-build

@@ -24,6 +24,8 @@ spec:
     - {name: IMAGE_URL, value: "$(tasks.build-container.results.IMAGE_URL)"}
     - {name: IMAGE_DIGEST, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
     - {name: EVAL_SCORE, value: "$(tasks.agent-eval.results.score)"}
+    - {name: EVAL_GATE, value: "$(tasks.agent-eval.results.gate)"}
+    - {name: MLFLOW_RUN_ID, value: "$(tasks.agent-eval.results.mlflow-run-id)"}
     - {name: SIGNED_IMAGES, value: "$(tasks.sign-images.results.SIGNED)"}
     - {name: SBOM_COMPONENTS, value: "$(tasks.generate-sbom.results.SBOM_COMPONENTS)"}
   workspaces:

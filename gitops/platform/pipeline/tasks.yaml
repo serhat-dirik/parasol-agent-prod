@@ -133,39 +133,63 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: agent-eval
-  labels: {app.kubernetes.io/version: "0.1"}
+  labels: {app.kubernetes.io/version: "0.2"}
 spec:
-  description: "Lifecycle gate: score the candidate assistant against the golden set; a regression blocks promotion."
+  description: >-
+    Lifecycle gate: run the MLflow GenAI evaluation of the claims assistant against the
+    parasol-golden-20 dataset in the parasol-secured MLflow workspace. Deterministic scorers
+    (contains_expected, no_payout_without_approval, no_other_claimant_data) decide the gate; a
+    release that scores below 19/20 fails the gate so the `promote` task is skipped. The judge
+    scorers (ToolCallCorrectness, ToolCallEfficiency, RelevanceToQuery, Safety, Guidelines, judge =
+    llama-scout-17b, a swap-ready stand-in for gpt-oss-120b) attach per-case assessments to the run.
+    The MLflow run id is written as a result so the pipeline stamps it onto the PipelineRun.
   params:
     - {name: candidate, type: string, default: v2}
-    - {name: eval-path, type: string, default: source/gitops/platform/pipeline/eval}
+    - {name: eval-path, type: string, default: source/gitops/platform/eval/mlflow-agent-eval}
+    - {name: mlflow-uri, type: string, default: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
+    - {name: mlflow-workspace, type: string, default: parasol-secured}
+    - {name: experiment, type: string, default: parasol-agent-eval}
   results:
     - {name: gate, description: passed or failed}
     - {name: score, description: pass-rate}
+    - {name: mlflow-run-id, description: the MLflow eval run id for this gate execution}
   workspaces:
     - {name: source}
+  volumes:
+    - name: maas-eval-key
+      secret: {secretName: maas-eval-key, optional: true}
   steps:
     - name: evaluate
       image: registry.access.redhat.com/ubi9/python-311:latest
       workingDir: $(workspaces.source.path)
+      volumeMounts:
+        - {name: maas-eval-key, mountPath: /maas, readOnly: true}
+      env:
+        - {name: MLFLOW_TRACKING_URI, value: "$(params.mlflow-uri)"}
+        - {name: MLFLOW_WORKSPACE, value: "$(params.mlflow-workspace)"}
+        - {name: MLFLOW_EXPERIMENT, value: "$(params.experiment)"}
+        - {name: MLFLOW_TRACKING_INSECURE_TLS, value: "true"}
+        - {name: TOKEN_FILE, value: /var/run/secrets/kubernetes.io/serviceaccount/token}
       script: |
         #!/usr/bin/env bash
         set -eu
         E="$(params.eval-path)"
-        set +e
-        OUT=$(python3 "$E/score.py" "$E/golden-set.json" "$E/candidate-$(params.candidate).json")
-        RC=$?
-        set -e
-        echo "$OUT"
-        SCORE=$(echo "$OUT" | sed -n 's/.*score=\([0-9.]*\).*/\1/p')
-        printf "%s" "${SCORE:-0}" > "$(results.score.path)"
-        if [ $RC -eq 0 ]; then
-          printf "passed" > "$(results.gate.path)"
+        CAND="$(params.candidate)"
+        pip install --quiet --no-cache-dir "mlflow==3.4.0" openai requests >/tmp/pip.log 2>&1 || cat /tmp/pip.log
+        # Judge key is optional: when the maas-eval-key secret is mounted, judge scorers run on key 2
+        # (never the agent key); otherwise the gate runs deterministic-only (still enforces 19/20).
+        if [ -f /maas/endpoint ] && [ -f /maas/key ]; then
+          export MAAS_ENDPOINT_FILE=/maas/endpoint MAAS_EVAL_KEY_FILE=/maas/key
         else
-          printf "failed" > "$(results.gate.path)"
-          echo "Evaluation gate FAILED; promotion will be skipped."
-          exit 1
+          export NO_JUDGE=1
+          echo "maas-eval-key not mounted: running deterministic-only gate (no judge calls)."
         fi
+        mkdir -p /tmp/res
+        python3 "$E/agent_eval.py" --run --versions "$CAND" --gate-version "$CAND" --no-fail --results-dir /tmp/res
+        cp /tmp/res/gate    "$(results.gate.path)"
+        cp /tmp/res/score   "$(results.score.path)"
+        cp /tmp/res/run-id  "$(results.mlflow-run-id.path)"
+        echo "gate=$(cat /tmp/res/gate) score=$(cat /tmp/res/score) mlflow-run-id=$(cat /tmp/res/run-id)"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
