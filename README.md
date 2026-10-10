@@ -63,48 +63,6 @@ between runs — the demo itself is the browser.
 </details>
 
 <details>
-<summary><b>Architecture</b> — the layered sandbox</summary>
-
-The secured side is seven layers, each a distinct Red Hat component, each declared in Git:
-
-| # | Layer | Stops | Component | In this repo |
-|---|---|---|---|---|
-| 1 | Isolation | noisy neighbour, lateral movement, bypassing the gateway | Namespace, ResourceQuota, NetworkPolicy, restricted PSA, no SA token, (Kata via `runtimeClassName`) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch}.yaml` |
-| 2 | Identity | "the agent acts as a service account" | Keycloak user identity forwarded by the agent; service identity for discovery | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak` |
-| 3 | Tool authorization | adjuster approving payouts, tool sprawl | MCP gateway (Connectivity Link, TP): federation, per-identity tool list, per-tool AuthPolicy | `gitops/platform/mcp-gateway`, `gitops/envs/secured/mcp-registrations.yaml` |
-| 4 | Guardrails | injected instructions in documents and tool results; PII in prompts | Guardrails detection proxy: regex + prompt-injection detector, flag-and-continue or block | `gitops/platform/guardrails` |
-| 5 | Model governance | unbounded spend, wrong model for the tier | OpenShift AI MaaS: per-workload API key, MaaSSubscription + MaaSAuthPolicy, per-tier token budgets enforced by Connectivity Link; the agent never holds the upstream key (TP for external models) | `gitops/platform/rhoai/*`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh` |
-| 6 | Lifecycle gate | shipping a regression or an unsigned image | Tekton pipeline (build → scan → eval gate → cosign sign → promote); Sigstore admission `ClusterImagePolicy` | `gitops/platform/pipeline`, `scripts/signing-demo.sh` |
-| 7 | Observability and control | not knowing, not being able to stop it | OTel → Tempo and MLflow, token metrics + PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
-
-**Request paths (secured).** Model: portal → model-gateway → guardrails-proxy → OpenShift AI MaaS
-→ LiteLLM. Tools: portal → MCP gateway (`https://mcp.apps.<domain>/mcp`, per-client virtual server)
-→ `claims-db` / `policy-docs`. The **kill switch** is a kustomize component that *replaces* the
-agent/portal NetworkPolicy egress (a NetworkPolicy only ever adds allows, so a "deny" policy would
-do nothing); commit it and Argo severs the model path — pods keep running, the agent reaches nothing.
-
-**Read-Propose-Act.** `approve_payout` is hidden from the gateway's `tools/list` for every identity
-(so no model ever auto-calls it) but stays backend-federated; `tools/call` is still authorized by
-the Keycloak `tool:approve_payout` role (claims-managers), so a manager's **Approve button**
-executes it and an adjuster's forced call is a 403.
-
-**GitOps.** Argo CD owns everything under `gitops/platform` and `gitops/envs`. The app-of-apps in
-`gitops/bootstrap/apps` is *applied by `bootstrap.sh`* through `envsubst` (CLUSTER_DOMAIN, REPO_URL,
-MAAS_*) and is not itself git-synced; everything else syncs from the remote. Argo `selfHeal` reverts
-live `oc patch`es, so change synced resources via Git, not `oc`.
-
-**Visible in OpenShift AI (not just YAML).** Models-as-a-Service (external model, subscriptions,
-auth policies, per-key usage), the MCP catalog entries, the GenAI Studio playground (model + MCP
-tools + guardrails toggles), the Guardrails Orchestrator and its detectors, and MLflow traces of the
-portal's chat (prompt, tool calls, tokens).
-
-Technology Preview as of OpenShift AI 3.5 / Connectivity Link 1.4 (Oct 2026): MCP gateway, MCP
-catalog + lifecycle operator, MaaS external-model egress, GenAI Studio guardrails. Manifests mark
-field names to check against the installed CRDs with `VERIFY` comments (`oc explain`).
-
-</details>
-
-<details>
 <summary><b>Quick install</b></summary>
 
 Prerequisites: a fresh OpenShift 4.22 cluster (3 workers, 16 vCPU / 64 GB recommended, no GPU),
@@ -195,33 +153,92 @@ production allowance untouched. The operator's 02:00 action in the UI: Keycloak 
 </details>
 
 <details>
-<summary><b>Demo scripts</b> — setup, load, reset (not the demo itself)</summary>
+<summary><b>Demo scripts</b> — the operator's runbook</summary>
 
-The demo is the browser (see **Demo UI**); these scripts only set it up, play the abusive customer,
-and reset. Run `source scripts/load-credentials.sh` first (never prints or commits secret values).
+The demo is the browser (see **Demo UI**). These scripts say *what to run and when*; Demo UI says
+what to watch. Run `source scripts/load-credentials.sh` first (it never prints or commits secret values).
 
-Driving the three scenarios:
+**Once, before you start.** `scripts/probe-maas.sh $MAAS_MODEL` — the model must emit structured tool
+calls. `scripts/status.sh` — all Argo apps Synced/Healthy and both portals up.
 
-| Script | Scenario |
-|---|---|
-| `scripts/abuse.sh <free\|secured> [user] [which]` | Scenario 1 — the colleague (identity / tool authorization, REST harness) |
-| `scripts/abuse-doc.sh [free\|secured\|both]` | Scenario 2 — the customer document (AED 84,000) |
-| `scripts/night-shift.sh [count] [host]` | Scenario 3 — the night shift (loops requests to drain the budget) |
+**Before every scenario.** `scripts/reset.sh` — restores the claims data and the per-user token
+allowance; the live steps mutate claims.
 
-Setup and operations:
+**Scenario 1 — the colleague.** Drive it live in the browser: open `portal-free`, then `portal`, and
+follow Demo UI. Headless equivalent (dry run or proof): `scripts/abuse.sh free` (rebecca approves),
+then `scripts/abuse.sh secured rebecca` (filtered tool list + 403) and `scripts/abuse.sh secured
+marcus 1` (the manager succeeds).
 
-| Script | What it does |
-|---|---|
-| `scripts/probe-maas.sh <model>` | Does the model, on this endpoint, emit **structured** tool calls? Run before anything else. |
-| `scripts/status.sh` | Argo application sync/health, the two namespaces, the pods. |
-| `scripts/reset.sh` | Put the claims data back **and** restore the per-user token allowance. Run before each run. |
-| `scripts/token.sh <user>` | Print a Keycloak access token for a demo user. |
-| `scripts/signing-demo.sh` | Layer 6: admission refuses an unsigned portal image and admits the signed one. |
+**Scenario 2 — the customer's document.** Drive it live on CLM-1004 in both portals. Headless
+equivalent: `scripts/abuse-doc.sh both` — free pays AED 84,000; secured flags the hidden note and
+proposes without writing.
 
-Bootstrap helpers (called by `bootstrap.sh`, or run once by an operator): `build-images.sh`,
-`rhoai-enable.sh`, `wait-csv.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`,
-`maas-portal-keys.sh`, `mlflow-experiment.sh`, `portal-oidc-client.sh`, `portal-users.sh`,
-`fetch-detector-model.sh`.
+**Scenario 3 — the night shift.** Here you run the load during the beat: `scripts/night-shift.sh 40`
+logs in as `tom.becker` and loops requests. On `portal`, watch the per-user 429 in the chat, the
+`ParasolAssistantTokenSpendHigh` alert in the console and the trace in MLflow while Rebecca keeps
+working; on `portal-free`, the same loop shows the unbounded spend climbing in the MaaS usage chart.
+The operator's response — disable `tom.becker` in Keycloak, or the kill-switch commit — is done in
+the UI (see Demo UI). `scripts/signing-demo.sh` shows the separate Layer 6 admission beat.
+
+**Other helpers.** `scripts/token.sh <user>` prints a demo user's access token. Bootstrap helpers
+(called by `bootstrap.sh`, or run once by an operator): `build-images.sh`, `rhoai-enable.sh`,
+`wait-csv.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`, `maas-portal-keys.sh`,
+`mlflow-experiment.sh`, `portal-oidc-client.sh`, `portal-users.sh`, `fetch-detector-model.sh`.
+
+</details>
+
+<details>
+<summary><b>Architecture</b> — how the secured side stops each scenario</summary>
+
+The secured portal is a stack of layers, each a distinct Red Hat component declared in Git. The point
+of the stack is that a *different* layer catches each scenario:
+
+* **Scenario 1 (the colleague)** → **identity + tool authorization.** The portal forwards the Keycloak
+  user's token to every tool call (Layer 2); the MCP gateway filters `tools/list` per identity and
+  enforces a per-tool AuthPolicy, so rebecca never sees `approve_payout` and a forced `tools/call` is a
+  403 (Layer 3). Even a permitted write happens only on a claims-manager's button click (Read-Propose-Act).
+* **Scenario 2 (the customer's document)** → **guardrails + the same gate.** The guardrails proxy scans
+  the tool result, flags the hidden "processing note" and masks PII (Layer 4); the Read-Propose-Act card
+  surfaces the AED 84,000-vs-8,400 gap, so nothing is auto-written.
+* **Scenario 3 (the night shift)** → **model governance + observability.** MaaS gives the policyholder a
+  low per-tier token budget and returns 429 for that account alone (Layer 5); the topic guardrail refuses
+  off-topic junk at zero cost (Layer 4); token metrics raise an alert naming the user, and the kill switch
+  severs egress on a Git commit (Layer 7). Namespace isolation (Layer 1) bounds the blast radius throughout.
+
+| # | Layer | Defends | Component | In this repo |
+|---|---|---|---|---|
+| 1 | Isolation | blast radius of all three | Namespace, ResourceQuota, NetworkPolicy, restricted PSA, no SA token, (Kata via `runtimeClassName`) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch}.yaml` |
+| 2 | Identity | Scenario 1 | Keycloak user identity forwarded by the portal to every tool call; service identity for discovery | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak` |
+| 3 | Tool authorization | Scenario 1 | MCP gateway (Connectivity Link, TP): federation, per-identity tool list, per-tool AuthPolicy | `gitops/platform/mcp-gateway`, `gitops/envs/secured/mcp-registrations.yaml` |
+| 4 | Guardrails | Scenarios 2 and 3 | Guardrails detection proxy: regex + prompt-injection detector, PII masking, topic refusal; flag-and-continue or block | `gitops/platform/guardrails` |
+| 5 | Model governance | Scenario 3 | OpenShift AI MaaS: per-workload API key, MaaSSubscription + MaaSAuthPolicy, per-tier token budgets enforced by Connectivity Link; the agent never holds the upstream key (TP for external models) | `gitops/platform/rhoai/*`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh` |
+| 6 | Lifecycle gate | regressions, unsigned images (cross-cutting) | Tekton pipeline (build → scan → eval gate → cosign sign → promote); Sigstore admission `ClusterImagePolicy` | `gitops/platform/pipeline`, `scripts/signing-demo.sh` |
+| 7 | Observability and control | Scenario 3; knowing and stopping | OTel → Tempo and MLflow, token metrics + PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
+
+**Request paths (secured).** Model: portal → model-gateway → guardrails-proxy → OpenShift AI MaaS
+→ LiteLLM. Tools: portal → MCP gateway (`https://mcp.apps.<domain>/mcp`, per-client virtual server)
+→ `claims-db` / `policy-docs`. The **kill switch** is a kustomize component that *replaces* the
+agent/portal NetworkPolicy egress (a NetworkPolicy only ever adds allows, so a "deny" policy would
+do nothing); commit it and Argo severs the model path — pods keep running, the agent reaches nothing.
+
+**Read-Propose-Act.** `approve_payout` is hidden from the gateway's `tools/list` for every identity
+(so no model ever auto-calls it) but stays backend-federated; `tools/call` is still authorized by
+the Keycloak `tool:approve_payout` role (claims-managers), so a manager's **Approve button**
+executes it and an adjuster's forced call is a 403.
+
+**GitOps.** Argo CD owns everything under `gitops/platform` and `gitops/envs`. The app-of-apps in
+`gitops/bootstrap/apps` is *applied by `bootstrap.sh`* through `envsubst` (CLUSTER_DOMAIN, REPO_URL,
+MAAS_*) and is not itself git-synced; everything else syncs from the remote. Argo `selfHeal` reverts
+live `oc patch`es, so change synced resources via Git, not `oc`.
+
+**Visible in OpenShift AI (not just YAML).** Models-as-a-Service (external model, subscriptions,
+auth policies, per-key usage), the MCP catalog entries, the GenAI Studio playground (model + MCP
+tools + guardrails toggles), the Guardrails Orchestrator and its detectors, and MLflow traces of the
+portal's chat (prompt, tool calls, tokens).
+
+Technology Preview as of OpenShift AI 3.5 / Connectivity Link 1.4 (Oct 2026): MCP gateway, MCP
+catalog + lifecycle operator, MaaS external-model egress, GenAI Studio guardrails. Manifests mark
+field names to check against the installed CRDs with `VERIFY` comments (`oc explain`).
 
 </details>
 
