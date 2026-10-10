@@ -100,6 +100,8 @@ spec:
           clientRole: true
         - name: tool:get_claim_history
           clientRole: true
+        - name: tool:get_claim_documents
+          clientRole: true
         - name: tool:approve_payout
           clientRole: true
         parasol-secured/policy-docs:
@@ -120,6 +122,7 @@ spec:
         - tool:get_claim
         - tool:list_claims_by_status
         - tool:get_claim_history
+        - tool:get_claim_documents
         parasol-secured/policy-docs: &id001
         - tool:search_policies
         - tool:get_policy
@@ -133,6 +136,7 @@ spec:
         - tool:get_claim
         - tool:list_claims_by_status
         - tool:get_claim_history
+        - tool:get_claim_documents
         - tool:approve_payout
         parasol-secured/policy-docs: *id001
         mcp-gateway:
