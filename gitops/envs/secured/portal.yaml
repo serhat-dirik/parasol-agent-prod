@@ -45,6 +45,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbMcpUrl}}
             - name: POLICY_DOCS_MCP_URL
               valueFrom: {configMapKeyRef: {name: agent-config, key: policyDocsMcpUrl}}
+            - name: CLAIMS_DB_API_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbApiUrl}}
             - name: JAVA_TOOL_OPTIONS
               value: >-
                 -Dquarkus.langchain4j.mcp.claims-db.header.X-Mcp-Virtualserver=parasol-secured/claims-db

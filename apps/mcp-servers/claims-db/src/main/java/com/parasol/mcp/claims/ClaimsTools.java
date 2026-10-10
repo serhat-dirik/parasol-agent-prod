@@ -28,6 +28,9 @@ public class ClaimsTools {
     @Inject
     PayoutService payouts;
 
+    @Inject
+    ClaimDocuments documents;
+
     @Tool(name = "get_claim",
             description = "Look up a single Parasol Insurance claim by its claim number "
                     + "(for example CLM-1001). Returns the claimant, line of business (auto/home/life), "
@@ -67,6 +70,22 @@ public class ClaimsTools {
     public List<ClaimView> listClaimsByStatus(
             @ToolArg(description = "One of: Submitted, UnderReview, Approved, Denied") String status) {
         return repo.byStatus(status);
+    }
+
+    @Tool(name = "get_claim_documents",
+            description = "Return the text of the documents a customer uploaded to a claim "
+                    + "(for example a repair estimate). Use this when asked to read, summarise or "
+                    + "check the documents, uploads or attachments on a claim.")
+    public String getClaimDocuments(
+            @ToolArg(description = "The claim number, e.g. CLM-1004") String claimNumber) {
+        List<ClaimDocuments.ClaimDocument> docs = documents.forClaim(claimNumber);
+        if (docs.isEmpty()) {
+            return "No documents have been uploaded to claim "
+                    + ClaimsRepository.normalize(claimNumber) + ".";
+        }
+        return docs.stream()
+                .map(d -> "Document: " + d.filename() + " (uploaded by " + d.vendor() + ")\n" + d.fullText())
+                .collect(Collectors.joining("\n\n---\n\n"));
     }
 
     @Tool(name = "get_claim_history",

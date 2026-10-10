@@ -18,12 +18,30 @@ spec:
           image: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:latest
           imagePullPolicy: Always
           env:
+            # model straight to the upstream MaaS with the key from the Secret (no gateway, no limit)
             - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_BASE_URL
               valueFrom: {configMapKeyRef: {name: agent-config, key: endpoint}}
             - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_CHAT_MODEL_MODEL_NAME
               valueFrom: {configMapKeyRef: {name: agent-config, key: model}}
             - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_API_KEY
               valueFrom: {secretKeyRef: {name: maas-credentials, key: GENAI_API_KEY}}
+            # tools straight to the MCP servers (nobody asks who is calling)
+            - name: CLAIMS_DB_MCP_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbMcpUrl}}
+            - name: POLICY_DOCS_MCP_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: policyDocsMcpUrl}}
+            - name: CLAIMS_DB_API_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbApiUrl}}
+            - name: AGENT_VERSION
+              valueFrom: {configMapKeyRef: {name: agent-config, key: version}}
+            # login still happens (beat 1), but the free app does nothing with the identity
+            - name: QUARKUS_OIDC_AUTH_SERVER_URL
+              valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: auth-server-url}}
+            - name: QUARKUS_OIDC_CLIENT_ID
+              valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: client-id}}
+            - name: QUARKUS_OIDC_CREDENTIALS_SECRET
+              valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: client-secret}}
+            - {name: QUARKUS_OIDC_APPLICATION_TYPE, value: web-app}
           ports:
             - containerPort: 8080
           readinessProbe:

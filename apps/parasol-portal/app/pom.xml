@@ -11,12 +11,14 @@
     <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-    <quarkus.langchain4j.version>0.25.0</quarkus.langchain4j.version>
-    <quarkus.playwright.version>2.1.1</quarkus.playwright.version>
-    <quarkus.quinoa.version>2.5.1</quarkus.quinoa.version>
+    <!-- Aligned with the proven agent + MCP-server stack (Quarkus 3.33 LTS, LangChain4j 1.10.0)
+         so the tool-using ClaimsAssistant folds in verbatim (@McpToolBox, Result<String>). -->
+    <quarkus.langchain4j.version>1.10.0</quarkus.langchain4j.version>
+    <quarkus.playwright.version>2.1.2</quarkus.playwright.version>
+    <quarkus.quinoa.version>2.5.5</quarkus.quinoa.version>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
-    <quarkus.platform.version>3.19.2</quarkus.platform.version>
+    <quarkus.platform.version>3.33.2.1</quarkus.platform.version>
     <skipITs>true</skipITs>
     <surefire-plugin.version>3.5.2</surefire-plugin.version>
     <jlama.version>0.8.4</jlama.version>
@@ -52,6 +54,30 @@
     <dependency>
       <groupId>io.quarkiverse.langchain4j</groupId>
       <artifactId>quarkus-langchain4j-openai</artifactId>
+    </dependency>
+    <!-- MCP client: the chat assistant uses the claims-db + policy-docs MCP servers as tools. -->
+    <dependency>
+      <groupId>io.quarkiverse.langchain4j</groupId>
+      <artifactId>quarkus-langchain4j-mcp</artifactId>
+    </dependency>
+    <!-- Login with Keycloak (web-app flow): different people, different rights, shown on screen. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-oidc</artifactId>
+    </dependency>
+    <!-- Token + model-call metrics at /q/metrics; readiness probe at /q/health/ready. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-smallrye-health</artifactId>
+    </dependency>
+    <!-- REST client: the portal reads claims/timeline/documents from the claims-db REST API. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest-client-jackson</artifactId>
     </dependency>
 
     <dependency>

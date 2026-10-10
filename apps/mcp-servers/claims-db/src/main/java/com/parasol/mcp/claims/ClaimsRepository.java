@@ -29,6 +29,12 @@ public class ClaimsRepository {
         return Optional.ofNullable(c).map(ClaimView::of);
     }
 
+    /** Every claim, sorted by claim number (the portal's claims list). */
+    @Transactional
+    public List<ClaimView> all() {
+        return Claim.<Claim>listAll(Sort.by("claimNumber")).stream().map(ClaimView::of).toList();
+    }
+
     /** Every claim in the given workflow status (canonicalized), sorted by claim number. */
     @Transactional
     public List<ClaimView> byStatus(String status) {

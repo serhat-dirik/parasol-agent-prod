@@ -1,55 +1,70 @@
 package org.parasol.resources;
 
-import org.parasol.ai.ClaimService;
-import org.parasol.model.ClaimBotQuery;
-import org.parasol.model.ClaimBotQueryResponse;
+import java.util.ArrayList;
+import java.util.List;
 
+import org.parasol.ai.AgentService;
+import org.parasol.ai.ToolCall;
+import org.parasol.model.ChatFrame;
+import org.parasol.model.ClaimBotQuery;
+
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.quarkus.logging.Log;
-import io.quarkus.websockets.next.OnClose;
 import io.quarkus.websockets.next.OnError;
 import io.quarkus.websockets.next.OnOpen;
 import io.quarkus.websockets.next.OnTextMessage;
 import io.quarkus.websockets.next.WebSocket;
 import io.quarkus.websockets.next.WebSocketConnection;
-
-import io.opentelemetry.instrumentation.annotations.WithSpan;
+import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
 
+/**
+ * The portal chat, now the agent: each user message runs the tool-using {@link AgentService},
+ * and every frame the UI needs is streamed back - a grey chip per MCP tool the model called, then
+ * the answer (or a red error chip). The connection id is the conversation id, so follow-up
+ * questions in the same chat share memory (A5).
+ */
 @WebSocket(path = "/ws/query")
 public class ClaimWebsocketChatBot {
-    private final ClaimService bot;
 
-    public ClaimWebsocketChatBot(ClaimService bot) {
-        this.bot = bot;
+    private final AgentService agent;
+
+    public ClaimWebsocketChatBot(AgentService agent) {
+        this.agent = agent;
     }
 
     @OnOpen
     public void onOpen(WebSocketConnection connection) {
-        Log.infof("Websocket connection %s opened", connection.id());
-    }
-
-    @OnClose
-    public void onClose(WebSocketConnection connection) {
-        Log.infof("Websocket connection %s closed", connection.id());
+        Log.infof("Chat connection %s opened", connection.id());
     }
 
     @OnError
-    public ClaimBotQueryResponse onError(Throwable error) {
-        var message = "Error occurred during chat: %s".formatted(error.getMessage());
-        Log.error(message, error);
-
-        return new ClaimBotQueryResponse("token", message, "");
+    public ChatFrame onError(Throwable error) {
+        Log.error("Error during chat", error);
+        return ChatFrame.error("Error during chat: " + error.getMessage());
     }
 
     @OnTextMessage
+    @Blocking
     @WithSpan("ChatMessage")
-    public Multi<ClaimBotQueryResponse> onMessage(ClaimBotQuery query) {
-        Log.infof("Got chat query: %s", query);
+    public Multi<ChatFrame> onMessage(ClaimBotQuery query, WebSocketConnection connection) {
+        Log.infof("Chat query on %s: claim=%s q=%s", connection.id(), query.claimNumber(), query.query());
+        String question = (query.claimNumber() == null || query.claimNumber().isBlank())
+                ? query.query()
+                : "The user is viewing claim " + query.claimNumber() + ". " + query.query();
 
-        return bot.chat(query)
-          .invoke(response -> Log.debugf("Got chat response: %s", response))
-          .map(resp -> new ClaimBotQueryResponse("token", resp, ""));
+        AgentService.AgentAnswer answer = agent.answer(connection.id(), question);
+
+        List<ChatFrame> frames = new ArrayList<>();
+        for (ToolCall call : answer.toolCalls()) {
+            frames.add(ChatFrame.tool(call.tool(), call.arguments()));
+        }
+        if (answer.error() != null) {
+            frames.add(ChatFrame.error(answer.error()));
+        } else {
+            frames.add(ChatFrame.answer(answer.answer()));
+        }
+        frames.add(ChatFrame.done());
+        return Multi.createFrom().iterable(frames);
     }
 }
-
-
