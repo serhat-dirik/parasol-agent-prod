@@ -33,6 +33,11 @@ spec:
         traces_endpoint: https://mlflow.redhat-ods-applications.svc:8443/v1/traces
         auth:
           authenticator: bearertokenauth
+        # MLflow 3.x workspaces: route chat spans into the parasol-secured workspace's
+        # default experiment (id 0). RBAC for the write is in mlflow-rbac.yaml.
+        headers:
+          x-mlflow-workspace: parasol-secured
+          x-mlflow-experiment-id: "0"
         tls:
           insecure_skip_verify: true
     service:

@@ -5,6 +5,7 @@ resources:
   - tempo.yaml
   - otel-collector.yaml
   - mlflow.yaml
+  - mlflow-rbac.yaml
   - uwm.yaml
   - prometheusrule.yaml
   - servicemonitor.yaml

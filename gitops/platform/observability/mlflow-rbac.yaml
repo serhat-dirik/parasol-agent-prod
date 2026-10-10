@@ -1,0 +1,20 @@
+# Let the OTel collector write chat traces into the MLflow "parasol-secured" workspace.
+# MLflow's kubernetes-auth authorizes OTLP /v1/traces with a SubjectAccessReview on
+# mlflow.kubeflow.org resources (experiments, ...) in the workspace namespace. The collector
+# authenticates with its own ServiceAccount token (bearertokenauth in otel-collector.yaml),
+# so that SA needs the mlflow edit rights in parasol-secured.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: otel-collector-mlflow-writer
+  namespace: parasol-secured
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mlflow-operator-mlflow-edit
+subjects:
+  - kind: ServiceAccount
+    name: otel-collector
+    namespace: observability
