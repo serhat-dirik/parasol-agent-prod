@@ -5,7 +5,7 @@
 #   1. runs the detectors through the orchestrator's /api/v2/text/detection/content on every tool
 #      result and user message (this is where the poisoned retrieved passage is seen);
 #   2. on a detection, answers with a refusal and no tool call (the model never sees the passage);
-#   3. otherwise forwards the request straight to the MaaS (MAAS_URL) and returns its response
+#   3. otherwise forwards the request to OpenShift AI MaaS (MAAS_URL) and returns its response
 #      unchanged. Not through the orchestrator's chat endpoint: that one turns structured tool calls
 #      into text, and it logs request headers (the agent's MaaS key) at INFO. Detection calls carry
 #      no Authorization header.
@@ -26,6 +26,7 @@ data:
     MAAS = os.environ["MAAS_URL"].rstrip("/")
     CTX = ssl.create_default_context(cafile=CA)
     PUBLIC = ssl.create_default_context()
+    MAAS_CTX = CTX if ".svc" in MAAS else PUBLIC   # in-cluster MaaS gateway: service-CA certificate
 
     def post(url, body, auth=None, ctx=CTX):
         h = {"content-type": "application/json"}
@@ -87,7 +88,7 @@ data:
                     print(f"detection: detector={h.get('detector_id')} type={h.get('detection_type')} "
                           f"score={h.get('score')} text={str(h.get('text'))[:80]!r}", flush=True)
                 return self._send(200, refusal(req, hits))
-            code, r = post(MAAS + "/chat/completions", req, self.headers.get("authorization"), PUBLIC)
+            code, r = post(MAAS + "/chat/completions", req, self.headers.get("authorization"), MAAS_CTX)
             self._send(code, r)
 
         def log_message(self, fmt, *args):  # request line only; never headers (the MaaS key)
@@ -116,7 +117,7 @@ spec:
           command: ["python3", "-u", "/app/proxy.py"]
           env:
             - {name: ORCHESTRATOR_URL, value: "https://guardrails-service.parasol-secured.svc:8032"}
-            - {name: MAAS_URL, value: MAAS_ENDPOINT}   # replaced by the Argo Application (envsubst)
+            - {name: MAAS_URL, value: "https://maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local/models-as-a-service/llama-scout-17b/v1"}
             # Regex only inline. The HF prompt-injection classifier stays deployed, but on 1 CPU it takes
             # ~28 s per text and scores the POL-VENDOR-07 passage SAFE (0.0008): inline it only adds latency.
             - name: DETECTORS

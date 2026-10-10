@@ -24,6 +24,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     argocd.argoproj.io/sync-wave: "1"
+    # Authorino serves TLS (OpenShift AI MaaS requires it): the platform then gives this gateway a TLS
+    # EnvoyFilter to Authorino. Interim until Connectivity Link does it natively (CONNLINK-528).
+    security.opendatahub.io/authorino-tls-bootstrap: "true"
 spec:
   gatewayClassName: openshift-default
   # No cloud load balancer on this cluster: a ClusterIP Service (fronted by the Route) lets the Gateway go Programmed.

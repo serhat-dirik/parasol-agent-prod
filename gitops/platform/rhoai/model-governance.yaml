@@ -1,9 +1,9 @@
-# Layer 5, model governance: the secured agent reaches the model only through this Gateway, where a
-# Connectivity Link TokenRateLimitPolicy meters the tokens the model reports (usage.total_tokens) and
-# answers 429 once the stage allowance is spent. This is the same mechanism OpenShift AI MaaS generates
-# (maas-trlp-*); the MaaS API itself needs Authorino listener TLS, which the installed Kuadrant does not
-# wire into the gateways yet, so the policy is declared here directly.
-# Path: agent -> model-gateway (this ns) -> guardrails-proxy (parasol-secured) -> MaaS.
+# Layer 5, model governance. The secured agent reaches the model only through this Gateway, then the
+# guardrails proxy, then OpenShift AI MaaS (maas-default-gateway): MaaS checks the agent's MaaS API key,
+# picks its subscription (parasol-stage) and meters tokens (429 when the allowance is spent). The agent
+# never holds the upstream key; only MaaS does (Secret maas-upstream-api-key).
+# Path: agent -> model-gateway (this ns) -> guardrails-proxy (parasol-secured) -> MaaS -> upstream.
+# The model-gateway hop is what the kill switch cuts (agent egress), see envs/secured/kill-switch.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -54,21 +54,14 @@ spec:
       backendRefs:
         - {group: "", kind: Service, name: guardrails-proxy, port: 8080, weight: 1}
 ---
-# Stage allowance for the secured agent. Generous for a demo session, but the v3 retry storm
-# (~120k tokens/min) crosses the spend alert (20000 tokens/min for 1 min) first and then gets 429s.
-apiVersion: kuadrant.io/v1alpha1
-kind: TokenRateLimitPolicy
+# Identity the agent's MaaS API key is minted for (scripts/maas-key.sh). Its token carries the group
+# system:serviceaccounts:parasol-secured, which MaaSAuthPolicy parasol-access and MaaSSubscription
+# parasol-stage admit.
+apiVersion: v1
+kind: ServiceAccount
 metadata:
-  name: parasol-model-stage
+  name: parasol-model-client
   namespace: parasol-secured
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-spec:
-  targetRef: {group: gateway.networking.k8s.io, kind: HTTPRoute, name: parasol-model}
-  limits:
-    stage-allowance:
-      rates:
-        - {limit: 200000, window: 10m}
 ---
 # Additive to the env's `guardrails` policy: the proxy also accepts the model gateway.
 apiVersion: networking.k8s.io/v1

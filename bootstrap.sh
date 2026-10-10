@@ -86,6 +86,11 @@ kustomize build gitops/bootstrap/apps | envsubst '$CLUSTER_DOMAIN $REPO_URL $REP
 log "6/8 Images"
 [ "${SKIP_BUILDS:-0}" = "1" ] || scripts/build-images.sh
 
+log "6b/8 Authorino TLS (OpenShift AI MaaS needs it) and the secured agent's MaaS API key"
+scripts/authorino-tls.sh || echo "WARN: Authorino TLS not applied (reverted); MaaS stays NotReady. See scripts/authorino-tls.sh"
+for i in $(seq 1 40); do [ "$(oc get datasciencecluster -o jsonpath='{.items[0].status.conditions[?(@.type=="ModelsAsAServiceReady")].status}')" = True ] && break; echo "$(date +%T) waiting for ModelsAsAServiceReady ($i/40)"; sleep 30; done
+scripts/maas-key.sh || echo "WARN: no MaaS key minted; parasol-secured keeps the upstream key"
+
 log "7/8 Prompt-injection detector model"
 scripts/fetch-detector-model.sh || echo "WARN: detector model fetch failed; the regex detector still works. See scripts/fetch-detector-model.sh"
 

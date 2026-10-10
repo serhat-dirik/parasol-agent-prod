@@ -37,7 +37,7 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   subjects:
-    groups: [{name: developers}, {name: parasol-stage}, {name: parasol-prod}]
+    groups: [{name: developers}, {name: parasol-stage}, {name: parasol-prod}, {name: "system:serviceaccounts:parasol-secured"}]
   modelRefs:
     - {name: llama-scout-17b, namespace: models-as-a-service}
 ---
@@ -51,13 +51,13 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   owner:
-    groups: [{name: parasol-stage}, {name: developers}]
+    groups: [{name: parasol-stage}, {name: developers}, {name: "system:serviceaccounts:parasol-secured"}]
   priority: 50
   modelRefs:
     - name: llama-scout-17b
       namespace: models-as-a-service
       tokenRateLimits:
-        - {limit: 20000, window: 1h}
+        - {limit: 200000, window: 10m}   # demo stage allowance: rehearsals fit, the v3 storm trips the alert first, then 429
 ---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription

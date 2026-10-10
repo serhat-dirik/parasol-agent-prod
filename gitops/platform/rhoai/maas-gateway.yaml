@@ -1,6 +1,6 @@
 # The Gateway the MaaS platform attaches to (OpenShift AI 3.5 expects it to exist, created by an admin).
-# No cloud load balancer on this cluster: ClusterIP Service (same pattern as the MCP gateway), in-cluster
-# hostname so MaaSModelRef can derive its endpoint.
+# No cloud load balancer on this cluster: ClusterIP Service (same pattern as the MCP gateway). The listener
+# hostname is the Service's in-cluster name so MaaSModelRef derives a resolvable endpoint.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,6 +16,9 @@ kind: Gateway
 metadata:
   name: maas-default-gateway
   namespace: openshift-ingress
+  annotations:
+    security.opendatahub.io/authorino-tls-bootstrap: "true"   # TLS EnvoyFilter to Authorino
+    opendatahub.io/managed: "false"                            # MaaS owns this gateway's AuthPolicies
 spec:
   gatewayClassName: openshift-default
   infrastructure:
@@ -26,7 +29,7 @@ spec:
   listeners:
     # maas-api only accepts a gateway Service it owns that exposes 443 (ResolveGatewayInternalHost)
     - name: https
-      hostname: maas.parasol.local
+      hostname: maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local   # = the Service name: maas-api probes and the cert use it
       port: 443
       protocol: HTTPS
       tls:
