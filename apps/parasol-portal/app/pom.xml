@@ -14,8 +14,7 @@
     <!-- Aligned with the proven agent + MCP-server stack (Quarkus 3.33 LTS, LangChain4j 1.10.0)
          so the tool-using ClaimsAssistant folds in verbatim (@McpToolBox, Result<String>). -->
     <quarkus.langchain4j.version>1.10.0</quarkus.langchain4j.version>
-    <quarkus.playwright.version>2.1.2</quarkus.playwright.version>
-    <quarkus.quinoa.version>2.5.5</quarkus.quinoa.version>
+    <quarkus.quinoa.version>2.5.1</quarkus.quinoa.version>
     <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
     <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
     <quarkus.platform.version>3.33.2.1</quarkus.platform.version>
@@ -133,12 +132,6 @@
       <groupId>io.quarkiverse.quinoa</groupId>
       <artifactId>quarkus-quinoa-testing</artifactId>
       <version>${quarkus.quinoa.version}</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.quarkiverse.playwright</groupId>
-      <artifactId>quarkus-playwright</artifactId>
-      <version>${quarkus.playwright.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>

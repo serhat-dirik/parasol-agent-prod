@@ -225,3 +225,59 @@ body,
   width: 32px;
   height: 32px;
 }
+/* Agent chat frame chips & banners */
+.tool-chip {
+  display: inline-block;
+  font-family: monospace;
+  font-size: 12px;
+  background-color: #f0f0f0;
+  color: #151515;
+  border: 1px solid #d2d2d2;
+  border-radius: 3px;
+  padding: 2px 8px;
+  margin: 2px 0;
+}
+.tool-chip-name {
+  font-weight: 700;
+}
+.error-chip {
+  display: inline-block;
+  background-color: #faeae8;
+  color: #a30000;
+  border: 1px solid #c9190b;
+  border-radius: 3px;
+  padding: 2px 8px;
+  margin: 2px 0;
+}
+.mask-chip {
+  display: inline-block;
+  font-size: 12px;
+  background-color: #f3faf3;
+  color: #1e4f18;
+  border: 1px solid #95d58e;
+  border-radius: 3px;
+  padding: 2px 8px;
+  margin: 2px 0;
+}
+.guardrail-banner {
+  background-color: #fdf7e7;
+  color: #795600;
+  border: 1px solid #f0ab00;
+  border-radius: 3px;
+  padding: 6px 10px;
+  margin: 4px 0;
+}
+.doc-visible-text {
+  white-space: pre-wrap;
+  font-family: monospace;
+  background-color: #f5f5f5;
+  padding: 10px;
+  border-radius: 3px;
+}
+.doc-hidden-note {
+  color: #ffffff;
+}
+.doc-caption {
+  color: #6a6e73;
+  font-size: 12px;
+}

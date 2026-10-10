@@ -1,0 +1,57 @@
+# Layer 1 for the portal: default-deny (namespace-wide) is already in networkpolicy.yaml; this adds
+# exactly the paths the portal needs. The kill switch (Stream O) revokes the model path by replacing
+# this policy's egress (NetworkPolicies only ADD allows, so a replacement that drops the model-gateway
+# rule severs the model while leaving the pod Running).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: portal
+spec:
+  podSelector:
+    matchLabels: {app: portal}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:   # people, through the router
+        - namespaceSelector:
+            matchLabels: {network.openshift.io/policy-group: ingress}
+    - from:   # Prometheus scraping /q/metrics
+        - namespaceSelector:
+            matchLabels: {network.openshift.io/policy-group: monitoring}
+  egress:
+    - to:   # the MCP tools, only through the MCP gateway (layer 3)
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: gateway-system}
+    - to:   # login (OIDC) against the lab Keycloak, and the redirect back through the router
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: keycloak}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
+    - to:   # the model, ONLY through the rate-limited model gateway (layer 5) - the kill switch drops this
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: parasol-model-gateway}
+    - to:   # traces to the OTel collector
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+    - to:   # read-only claims/timeline/documents for the UI, in-namespace (NOT the MCP tool path)
+        - podSelector:
+            matchExpressions:
+              - {key: app, operator: In, values: [claims-db]}
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+# Additive allow (NetworkPolicies only ADD): claims-db accepts the portal's read-only REST calls.
+# Kept separate from the stream-owned mcp-servers policy so neither stream edits the other's file.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: portal-to-claims-db
+spec:
+  podSelector:
+    matchLabels: {app: claims-db}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: portal}
+      ports:
+        - {protocol: TCP, port: 8080}

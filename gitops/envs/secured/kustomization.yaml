@@ -15,6 +15,7 @@ resources:
   - networkpolicy.yaml
   - mcp-registrations.yaml
   - portal.yaml            # Stream P: the secured claims portal (login, gated writes, guardrails)
+  - portal-networkpolicy.yaml  # Stream P: the portal's layer-1 egress (kill switch patches this)
   - ../base
 # Stream P: the secured portal runs a PINNED, SIGNED digest. The secure pipeline (Stream L) patches
 # only the digest value below after it signs and promotes the image; parasol-free stays on :latest.

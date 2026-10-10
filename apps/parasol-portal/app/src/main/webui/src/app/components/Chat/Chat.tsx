@@ -2,96 +2,142 @@ import config from '@app/config';
 import { faCommentDots, faPaperPlane } from '@fortawesome/free-regular-svg-icons';
 import { faPlusCircle } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { Button, Card, CardBody, CardHeader, Flex, FlexItem, Grid, GridItem, Icon, Panel, PanelMain, PanelMainBody, Stack, StackItem, Text, TextArea, TextContent, TextVariants, Tooltip } from '@patternfly/react-core';
+import { Button, Card, CardBody, CardHeader, Flex, FlexItem, Grid, GridItem, Panel, PanelMain, PanelMainBody, Stack, StackItem, Text, TextArea, TextContent, TextVariants, Tooltip } from '@patternfly/react-core';
 import * as React from 'react';
 import orb from '@app/assets/bgimages/orb.svg';
 import userAvatar from '@app/assets/bgimages/avatar-user.svg';
 
-const Chat: React.FunctionComponent<{ claimSummary: string, claimId: string, inceptionDate: Date }> = ({ claimSummary, claimId, inceptionDate }) => {
+interface Frame {
+    type: string;
+    text: string;
+    data: string;
+}
 
-    type Query = string;
-    type Answer = string[];
-    type Message = Query | Answer;
-    type MessageHistory = Message[];
+interface Turn {
+    query: string;
+    frames: Frame[];
+}
 
-    const [queryText, setQueryText] = React.useState<Query>('');
-    const [answerText, setAnswerText] = React.useState<Answer>([' Hi! I am Parasol Assistant. How can I help you today?']);
-    const [answerSources, setAnswerSources] = React.useState<string[]>([]); // Array of sources for the answer
-    const [messageHistory, setMessageHistory] = React.useState<MessageHistory>([]);
+// Render a tool's JSON args string compactly, e.g. {"claimNumber":"CLM-1004"} -> claimNumber=CLM-1004
+const prettyArgs = (data: string): string => {
+    if (!data) return '';
+    try {
+        const obj = JSON.parse(data);
+        return Object.entries(obj).map(([k, v]) => `${k}=${typeof v === 'string' ? v : JSON.stringify(v)}`).join(', ');
+    } catch {
+        return data;
+    }
+};
+
+const Chat: React.FunctionComponent<{ claimNumber: string, onTurnComplete?: () => void }> = ({ claimNumber, onTurnComplete }) => {
+
+    const [queryText, setQueryText] = React.useState('');
+    const [turns, setTurns] = React.useState<Turn[]>([]);
+    const [isBusy, setIsBusy] = React.useState(false);
 
     const wsUrl = config.backend_api_url.replace(/http/, 'ws').replace(/\/api$/, '/ws');
-
     const connection = React.useRef<WebSocket | null>(null);
-    const chatBotAnswer = document.getElementById('chatBotAnswer');
+    const chatBotAnswer = React.useRef<HTMLDivElement | null>(null);
 
     React.useEffect(() => {
-        const ws = new WebSocket(wsUrl + '/query') || {};
+        const ws = new WebSocket(wsUrl + '/query');
 
-        ws.onopen = () => {
-            console.log('opened ws connection')
-        }
-        ws.onclose = (e) => {
-            console.log('close ws connection: ', e.code, e.reason)
-        }
+        ws.onopen = () => console.log('opened ws connection');
+        ws.onclose = (e) => console.log('close ws connection: ', e.code, e.reason);
 
         ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            if (data['type'] === 'token') {
-                setAnswerText(answerText => [...answerText, data['token']]);
-                return
-            } else if (data['type'] === 'source') {
-                setAnswerSources(answerSources => [...answerSources, data['source']]);
-                return
+            const data: Frame = JSON.parse(event.data);
+            if (data.type === 'done') {
+                setIsBusy(false);
+                onTurnComplete && onTurnComplete();
+                return;
             }
-        }
+            // Append the frame to the current (last) turn.
+            setTurns(prev => {
+                if (prev.length === 0) return prev;
+                const next = [...prev];
+                const last = next[next.length - 1];
+                next[next.length - 1] = { ...last, frames: [...last.frames, data] };
+                return next;
+            });
+        };
 
         connection.current = ws;
-
-        // Clean up function
         return () => {
-            if (connection.current) {
-                connection.current.close();
-                console.log('WebSocket connection closed');
-            }
+            ws.close();
+            console.log('WebSocket connection closed');
         };
-    }, [])
+    }, []);
 
     React.useEffect(() => {
-        if (chatBotAnswer) {
-            chatBotAnswer.scrollTop = chatBotAnswer.scrollHeight;
+        if (chatBotAnswer.current) {
+            chatBotAnswer.current.scrollTop = chatBotAnswer.current.scrollHeight;
         }
-    }, [answerText, answerSources]);  // Dependency array
+    }, [turns]);
 
+    const send = (query: string) => {
+        if (connection.current?.readyState !== WebSocket.OPEN || !query) return;
+        setTurns(prev => [...prev, { query, frames: [] }]);
+        setIsBusy(true);
+        connection.current.send(JSON.stringify({ claimNumber, query }));
+    };
 
     const sendQueryText = () => {
-        if (connection.current?.readyState === WebSocket.OPEN) {
-            const previousAnswer = answerText; // Save the previous response, needed because states are updated asynchronously
-            setMessageHistory([...messageHistory, previousAnswer, queryText]); // Add the previous response to the message history
-            setQueryText(''); // Clear the query text
-            setAnswerText([]); // Clear the previous response
-            setAnswerSources([]); // Clear the previous sources
-            // Put the query in a JSON object so that we can add other info later
-            if (queryText != "" ) {
-                let data = {
-                    claimId: claimId,
-                    query: queryText,
-                    claim: claimSummary,
-                    inceptionDate: inceptionDate
-                };
-                connection.current?.send(JSON.stringify(data)); // Send the query to the server
-            } else {
-                setAnswerText(['Please enter a query...']);
-             }
-            
-            
-            
-        };
-    }
+        send(queryText.trim());
+        setQueryText('');
+    };
 
     const resetMessageHistory = () => {
-        setMessageHistory([]);
-        setAnswerSources([]);
-        setAnswerText(['Hi! I am Parasol Assistant. How can I help you today?']);
+        setTurns([]);
+        setIsBusy(false);
+    };
+
+    const renderFrame = (frame: Frame, key: number) => {
+        switch (frame.type) {
+            case 'tool':
+                return (
+                    <div key={key}>
+                        <span className='tool-chip'>
+                            called <span className='tool-chip-name'>{frame.text}</span>({prettyArgs(frame.data)})
+                        </span>
+                    </div>
+                );
+            case 'guardrail':
+                return (
+                    <div key={key} className='guardrail-banner'>
+                        blocked by guardrails: {frame.text} ({frame.data})
+                    </div>
+                );
+            case 'mask':
+                return (
+                    <div key={key}>
+                        <span className='mask-chip'>{frame.text}</span>
+                    </div>
+                );
+            case 'error':
+                return (
+                    <div key={key}>
+                        <span className='error-chip'>{frame.text}</span>
+                    </div>
+                );
+            case 'propose':
+                return (
+                    <div key={key}>
+                        <span className='tool-chip'>
+                            proposes <span className='tool-chip-name'>{frame.text}</span>({prettyArgs(frame.data)})
+                        </span>
+                        &nbsp;
+                        <Button variant="primary" size="sm" isDisabled={isBusy}
+                            onClick={() => send('Approve the payout for this claim.')}>Approve</Button>
+                    </div>
+                );
+            case 'answer':
+                return (
+                    <Text key={key} component={TextVariants.p} className='chat-answer-text'>{frame.text}</Text>
+                );
+            default:
+                return null;
+        }
     };
 
     return (
@@ -103,47 +149,33 @@ const Chat: React.FunctionComponent<{ claimSummary: string, claimId: string, inc
             </CardHeader>
             <CardBody className='chat-card-body'>
                 <Stack>
-                    <StackItem isFilled className='chat-bot-answer' id='chatBotAnswer'>
-                        <TextContent>
-                            {messageHistory.map((message, index) => {
-                                const renderMessage = () => {
-                                    if (typeof message === 'string') { // If the message is a query
-                                        return <Grid className='chat-item'>
-                                            <GridItem span={1} className='grid-item-orb'>
-                                                <img src={userAvatar} className='user-avatar' />
-                                            </GridItem>
+                    <StackItem isFilled className='chat-bot-answer'>
+                        <div ref={chatBotAnswer} style={{ height: '100%', overflowY: 'auto' }}>
+                            <TextContent>
+                                <Grid className='chat-item'>
+                                    <GridItem span={1} className='grid-item-orb'><img src={orb} className='orb' /></GridItem>
+                                    <GridItem span={11}>
+                                        <Text component={TextVariants.p} className='chat-answer-text'>Hi! I am Parasol Assistant. How can I help you today?</Text>
+                                    </GridItem>
+                                </Grid>
+                                {turns.map((turn, ti) => (
+                                    <React.Fragment key={ti}>
+                                        <Grid className='chat-item'>
+                                            <GridItem span={1} className='grid-item-orb'><img src={userAvatar} className='user-avatar' /></GridItem>
                                             <GridItem span={11}>
-                                                <Text component={TextVariants.p} className='chat-question-text'>{message}</Text>
+                                                <Text component={TextVariants.p} className='chat-question-text'>{turn.query}</Text>
                                             </GridItem>
                                         </Grid>
-                                    } else { // If the message is a response
-                                        return <Grid className='chat-item'>
-                                            <GridItem span={1} className='grid-item-orb'>
-                                                <img src={orb} className='orb' />
-                                            </GridItem>
+                                        <Grid className='chat-item'>
+                                            <GridItem span={1} className='grid-item-orb'><img src={orb} className='orb' /></GridItem>
                                             <GridItem span={11}>
-                                                <Text component={TextVariants.p} className='chat-answer-text'>{message.join("")}</Text>
+                                                {turn.frames.map((frame, fi) => renderFrame(frame, fi))}
                                             </GridItem>
                                         </Grid>
-                                    }
-                                };
-
-                                return (
-                                    <React.Fragment key={index}>
-                                        {renderMessage()}
                                     </React.Fragment>
-                                );
-                            })}
-                            <Grid className='chat-item'>
-                                <GridItem span={1} className='grid-item-orb'>
-                                    <img src={orb} className='orb' />
-                                </GridItem>
-                                <GridItem span={11}>
-                                    <Text component={TextVariants.p} className='chat-answer-text'>{answerText.join("") != "" && answerText.join("")}</Text>
-                                    <Text component={TextVariants.p} className='chat-source-text'>{answerSources.join("") != "" && "References: "}{answerSources.join("") != "" && answerSources.join(", ")}</Text>
-                                </GridItem>
-                            </Grid>
-                        </TextContent>
+                                ))}
+                            </TextContent>
+                        </div>
                     </StackItem>
                     <StackItem className='chat-input-panel'>
                         <Panel variant="raised">
@@ -155,6 +187,7 @@ const Chat: React.FunctionComponent<{ claimSummary: string, claimId: string, inc
                                         onChange={(_event, queryText) => setQueryText(queryText)}
                                         aria-label="query text input"
                                         placeholder='Ask me anything...'
+                                        isDisabled={isBusy}
                                         onKeyPress={event => {
                                             if (event.key === 'Enter') {
                                                 event.preventDefault();
@@ -164,17 +197,13 @@ const Chat: React.FunctionComponent<{ claimSummary: string, claimId: string, inc
                                     />
                                     <Flex>
                                         <FlexItem>
-                                            <Tooltip
-                                                content={<div>Start a new chat</div>}
-                                            >
+                                            <Tooltip content={<div>Start a new chat</div>}>
                                                 <Button variant="link" onClick={resetMessageHistory} aria-label='StartNewChat'><FontAwesomeIcon icon={faPlusCircle} /></Button>
                                             </Tooltip>
                                         </FlexItem>
                                         <FlexItem align={{ default: 'alignRight' }}>
-                                            <Tooltip
-                                                content={<div>Send your query</div>}
-                                            >
-                                                <Button variant="link" onClick={sendQueryText} aria-label='SendQuery'><FontAwesomeIcon icon={faPaperPlane} /></Button>
+                                            <Tooltip content={<div>Send your query</div>}>
+                                                <Button variant="link" onClick={sendQueryText} aria-label='SendQuery' isDisabled={isBusy}><FontAwesomeIcon icon={faPaperPlane} /></Button>
                                             </Tooltip>
                                         </FlexItem>
                                     </Flex>

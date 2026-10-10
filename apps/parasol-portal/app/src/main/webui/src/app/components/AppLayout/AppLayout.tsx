@@ -28,6 +28,8 @@ import {
   ToolbarItem
 } from '@patternfly/react-core';
 import { BarsIcon, BellIcon, CogIcon, QuestionCircleIcon } from '@patternfly/react-icons';
+import axios from 'axios';
+import config from '@app/config';
 import * as React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
@@ -37,6 +39,14 @@ interface IAppLayout {
 
 const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = React.useState(true);
+
+  const [me, setMe] = React.useState<{ username?: string, name?: string, role?: string }>({});
+  React.useEffect(() => {
+    axios.get(config.backend_api_url + '/me')
+      .then(response => setMe(response.data))
+      .catch(error => console.error(error));
+  }, []);
+  const identity = me.name ? `${me.name}, ${me.role}` : (me.username || '');
 
   const headerToolbar = (
     <Toolbar id="toolbar" isFullHeight isStatic>
@@ -59,12 +69,15 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
         <ToolbarItem>
           <TextContent>
             <Text component={TextVariants.p} className='pf-v5-global--spacer--md'>
-              Alex Garcia
+              {identity}
             </Text>
           </TextContent>
         </ToolbarItem>
         <ToolbarItem>
           <Avatar src={imgAvatar} alt="" border='light' className='avatar'/>
+        </ToolbarItem>
+        <ToolbarItem>
+          <Button variant={ButtonVariant.link} component="a" href="/q/oidc/logout">Log out</Button>
         </ToolbarItem>
       </ToolbarContent>
     </Toolbar>

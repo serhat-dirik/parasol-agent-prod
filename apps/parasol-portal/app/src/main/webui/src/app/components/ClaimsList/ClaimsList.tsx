@@ -7,20 +7,27 @@ import * as React from 'react';
 import { Link } from 'react-router-dom';
 
 interface Row {
-    id: number;
-    claim_number: string;
-    category: string;
-    client_name: string;
-    policy_number: string;
+    claimNumber: string;
+    claimant: string;
+    type: string;
+    amount: string;
+    adjuster: string;
     status: string;
 }
+
+const labelColors: Record<string, 'green' | 'red' | 'gold' | 'blue'> = {
+    'Approved': 'green',
+    'Denied': 'red',
+    'UnderReview': 'gold',
+    'Submitted': 'blue',
+};
 
 const ClaimsList: React.FunctionComponent = () => {
 
     // Claims data
-    const [claims, setClaims] = React.useState([]);
+    const [claims, setClaims] = React.useState<any[]>([]);
     React.useEffect(() => {
-        axios.get(config.backend_api_url + '/db/claims')
+        axios.get(config.backend_api_url + '/claims')
             .then(response => {
                 setClaims(response.data);
             })
@@ -30,46 +37,36 @@ const ClaimsList: React.FunctionComponent = () => {
     }, []);
 
     const rows: Row[] = claims.map((claim: any) => ({
-        id: claim.id,
-        claim_number: claim.claim_number,
-        category: claim.category,
-        client_name: claim.client_name,
-        policy_number: claim.policy_number,
+        claimNumber: claim.claimNumber,
+        claimant: claim.claimant,
+        type: claim.type,
+        amount: claim.amount,
+        adjuster: claim.adjuster,
         status: claim.status,
     }));
 
     // Filter and sort
     const [searchText, setSearchText] = React.useState('');
-    const [formSelectValueCategory, setFormSelectValueCategory] = React.useState('Any category');
     const [formSelectValueStatus, setFormSelectValueStatus] = React.useState('Any status');
-
-    const onChangeCategory = (_event: React.FormEvent<HTMLSelectElement>, value: string) => {
-        setFormSelectValueCategory(value);
-    };
 
     const onChangeStatus = (_event: React.FormEvent<HTMLSelectElement>, value: string) => {
         setFormSelectValueStatus(value);
     };
 
     const filteredRows = rows.filter(row =>
-        Object.entries(row)
-            .filter(([key]) => key !== 'summary') // Exclude the summary field from the search
-            .map(([_, value]) => value)
-            .some(val => val.toString().toLowerCase().includes(searchText.toLowerCase())) // Search all fields with the search text
-        && (
-            row.category === formSelectValueCategory || formSelectValueCategory === 'Any category' // Filter by category
-        )
+        Object.values(row)
+            .some(val => val?.toString().toLowerCase().includes(searchText.toLowerCase())) // Search all fields with the search text
         && (
             row.status === formSelectValueStatus || formSelectValueStatus === 'Any status' // Filter by status
         )
     );
 
     const columnNames = {
-        id: 'ID',
-        claim_number: 'Claim Number',
-        category: 'Category',
-        client_name: 'Client Name',
-        policy_number: 'Policy Number',
+        claimNumber: 'Claim Number',
+        claimant: 'Claimant',
+        type: 'Type',
+        amount: 'Amount',
+        adjuster: 'Adjuster',
         status: 'Status'
     }
 
@@ -80,31 +77,20 @@ const ClaimsList: React.FunctionComponent = () => {
     const [activeSortDirection, setActiveSortDirection] = React.useState<'asc' | 'desc' | null>(null);
 
     // Since OnSort specifies sorted columns by index, we need sortable values for our object by column index.
-    const getSortableRowValues = (row: Row): (string | number)[] => {
-        const { id, claim_number, category, client_name, policy_number, status } = row;
-        return [id, claim_number, category, client_name, policy_number, status];
+    const getSortableRowValues = (row: Row): string[] => {
+        const { claimNumber, claimant, type, amount, adjuster, status } = row;
+        return [claimNumber, claimant, type, amount, adjuster, status];
     };
 
-    // Note that we perform the sort as part of the component's render logic and not in onSort.
-    // We shouldn't store the list of data in state because we don't want to have to sync that with props.
     let sortedRows = filteredRows;
     if (activeSortIndex !== null) {
-        sortedRows = rows.sort((a, b) => {
-            const aValue = getSortableRowValues(a)[activeSortIndex as number];
-            const bValue = getSortableRowValues(b)[activeSortIndex as number];
-            if (typeof aValue === 'number') {
-                // Numeric sort
-                if (activeSortDirection === 'asc') {
-                    return (aValue as number) - (bValue as number);
-                }
-                return (bValue as number) - (aValue as number);
-            } else {
-                // String sort
-                if (activeSortDirection === 'asc') {
-                    return (aValue as string).localeCompare(bValue as string);
-                }
-                return (bValue as string).localeCompare(aValue as string);
+        sortedRows = [...filteredRows].sort((a, b) => {
+            const aValue = getSortableRowValues(a)[activeSortIndex as number] ?? '';
+            const bValue = getSortableRowValues(b)[activeSortIndex as number] ?? '';
+            if (activeSortDirection === 'asc') {
+                return aValue.localeCompare(bValue);
             }
+            return bValue.localeCompare(aValue);
         });
     }
 
@@ -114,7 +100,7 @@ const ClaimsList: React.FunctionComponent = () => {
             index: activeSortIndex,
             // @ts-ignore
             direction: activeSortDirection,
-            defaultDirection: 'asc' // starting sort direction when first sorting a column. Defaults to 'asc'
+            defaultDirection: 'asc'
         },
         onSort: (_event, index, direction) => {
             setActiveSortIndex(index);
@@ -122,14 +108,6 @@ const ClaimsList: React.FunctionComponent = () => {
         },
         columnIndex
     });
-
-    // Custom render for the status column
-    const labelColors = {
-        'Processed': 'green',
-        'New': 'blue',
-        'Denied': 'red',
-        'In Process': 'gold'
-    };
 
     return (
         <Page>
@@ -153,20 +131,6 @@ const ClaimsList: React.FunctionComponent = () => {
                     </FlexItem>
                     <FlexItem align={{ default: 'alignRight' }}>
                         <FormSelect
-                            value={formSelectValueCategory}
-                            onChange={onChangeCategory}
-                            aria-label="FormSelect Input"
-                            ouiaId="BasicFormSelectCategory"
-                            className="claims-list-filter-select"
-                        >
-                            <FormSelectOption key={0} value="Any category" label="Any category" />
-                            <FormSelectOption key={1} value="Single vehicle" label="Single vehicle" />
-                            <FormSelectOption key={2} value="Multiple vehicle" label="Multiple vehicle" />
-                            <FormSelectOption key={3} value="Theft" label="Theft" />
-                        </FormSelect>
-                    </FlexItem>
-                    <FlexItem>
-                        <FormSelect
                             value={formSelectValueStatus}
                             onChange={onChangeStatus}
                             aria-label="FormSelect Input"
@@ -174,9 +138,9 @@ const ClaimsList: React.FunctionComponent = () => {
                             className="claims-list-filter-select"
                         >
                             <FormSelectOption key={0} value="Any status" label="Any status" />
-                            <FormSelectOption key={1} value="New" label="New" />
-                            <FormSelectOption key={2} value="In Process" label="In Process" />
-                            <FormSelectOption key={3} value="Processed" label="Processed" />
+                            <FormSelectOption key={1} value="Submitted" label="Submitted" />
+                            <FormSelectOption key={2} value="UnderReview" label="Under Review" />
+                            <FormSelectOption key={3} value="Approved" label="Approved" />
                             <FormSelectOption key={4} value="Denied" label="Denied" />
                         </FormSelect>
                     </FlexItem>
@@ -187,23 +151,25 @@ const ClaimsList: React.FunctionComponent = () => {
                     <Table aria-label="Claims list" isStickyHeader>
                         <Thead>
                             <Tr>
-                                <Th sort={getSortParams(1)} width={10}>{columnNames.claim_number}</Th>
-                                <Th sort={getSortParams(2)} width={10}>{columnNames.category}</Th>
-                                <Th sort={getSortParams(3)} width={10}>{columnNames.client_name}</Th>
-                                <Th sort={getSortParams(4)} width={10}>{columnNames.policy_number}</Th>
+                                <Th sort={getSortParams(0)} width={15}>{columnNames.claimNumber}</Th>
+                                <Th sort={getSortParams(1)} width={20}>{columnNames.claimant}</Th>
+                                <Th sort={getSortParams(2)} width={10}>{columnNames.type}</Th>
+                                <Th sort={getSortParams(3)} width={10}>{columnNames.amount}</Th>
+                                <Th sort={getSortParams(4)} width={20}>{columnNames.adjuster}</Th>
                                 <Th sort={getSortParams(5)} width={10}>{columnNames.status}</Th>
                             </Tr>
                         </Thead>
                         <Tbody>
                             {sortedRows.map((row, rowIndex) => (
                                 <Tr key={rowIndex}>
-                                    <Td dataLabel={columnNames.claim_number}>
-                                        <Link to={`/ClaimDetail/${row.id}`}>{row.claim_number}</Link>
+                                    <Td dataLabel={columnNames.claimNumber}>
+                                        <Link to={`/ClaimDetail/${row.claimNumber}`}>{row.claimNumber}</Link>
                                     </Td>
-                                    <Td dataLabel={columnNames.category}>{row.category}</Td>
-                                    <Td dataLabel={columnNames.client_name}>{row.client_name}</Td>
-                                    <Td dataLabel={columnNames.policy_number}>{row.policy_number}</Td>
-                                    <Td dataLabel={columnNames.status}><Label color={labelColors[row.status] || 'default'}>{row.status}</Label></Td>
+                                    <Td dataLabel={columnNames.claimant}>{row.claimant}</Td>
+                                    <Td dataLabel={columnNames.type}>{row.type}</Td>
+                                    <Td dataLabel={columnNames.amount}>{row.amount}</Td>
+                                    <Td dataLabel={columnNames.adjuster}>{row.adjuster}</Td>
+                                    <Td dataLabel={columnNames.status}><Label color={labelColors[row.status] || 'grey'}>{row.status}</Label></Td>
                                 </Tr>
                             ))}
                         </Tbody>

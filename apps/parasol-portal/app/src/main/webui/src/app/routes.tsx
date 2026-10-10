@@ -59,7 +59,7 @@ const routes: AppRouteConfig[] = [
   {
     component: ClaimDetail,
     exact: true,
-    path: '/ClaimDetail/:claim_id',
+    path: '/ClaimDetail/:claimNumber',
     title: 'Claim Detail',
   },
   {
