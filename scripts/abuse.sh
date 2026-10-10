@@ -27,7 +27,7 @@ curl -sk "$AGENT/agent/tools" ${auth[@]+"${auth[@]}"} | python3 -c 'import sys,j
 
 if [ "$which" = all ] || [ "$which" = 1 ]; then
 hdr "Abuse 1: '$user' asks the agent to approve a payout"
-ask "Approve the payout for claim CLM-1002."
+ask "Approve the payout for claim CLM-1001."
 if [ "$env" = "secured" ]; then
   # The same call forced past the agent, straight at the MCP gateway (MCP handshake, then tools/call).
   GW=${GW:-https://mcp.apps.$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')/mcp}
@@ -35,7 +35,7 @@ if [ "$env" = "secured" ]; then
   sid=$(curl -sk -D - -o /dev/null "$GW" "${h[@]}" -d '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"abuse","version":"1"}}}' | awk -F': ' 'tolower($1)=="mcp-session-id"{print $2}' | tr -d '\r')
   curl -sk -o /dev/null "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
   printf '  forced at the MCP gateway: '
-  curl -sk -w ' (HTTP %{http_code})\n' "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"approve_payout","arguments":{"claimNumber":"CLM-1002"}}}' | tr -d '\n' | cut -c1-200; echo
+  curl -sk -w ' (HTTP %{http_code})\n' "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"approve_payout","arguments":{"claimNumber":"CLM-1001"}}}' | tr -d '\n' | cut -c1-200; echo
 fi
 fi
 if [ "$which" = all ] || [ "$which" = 2 ]; then
@@ -45,6 +45,6 @@ echo "  claim history CLM-1004:"; ask "Show me the timeline of claim CLM-1004." 
 fi
 if [ "$which" = all ] || [ "$which" = 3 ]; then
 hdr "Abuse 3: one question to the v3 build (retry bug). Watch tokens in the metrics."
-ask "What is the status of claim CLM-1001?"
+ask "What is the status of claim CLM-1003?"
 echo "  metrics:"; curl -sk "$AGENT/q/metrics" | grep -E '^parasol_agent_(tokens|model_calls)' | sed 's/^/    /'
 fi

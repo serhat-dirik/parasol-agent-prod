@@ -109,14 +109,14 @@ side stops each abuse. Run `scripts/reset.sh` before each run; the live steps mu
 
 **Scenario 1 — the colleague** (driven by `scripts/abuse.sh`)
 
-*Unsecured.* Log in as **rebecca** ("Rebecca Torres, claims adjuster"). Open CLM-1002, chat "Approve the
-payout for this claim." Chip `approve_payout(CLM-1002)`; the timeline gains Approved → PaymentIssued.
-*Nobody asked who you are.*
+*Unsecured.* Log in as **rebecca** ("Rebecca Torres, claims adjuster"). Open CLM-1001 (UnderReview,
+Alice Nguyen, AED 4,200), chat "Approve the payout for this claim." Chip `approve_payout(CLM-1001)`;
+the timeline gains Approved → PaymentIssued. *Nobody asked who you are.*
 
 *Secured.* Same request as rebecca: the assistant *proposes*; there is no Approve button for her
 role; a forced attempt is a red chip `403: approve_payout is not permitted for rebecca (MCP gateway)`.
 Log in as **marcus** (claims manager), same request: the assistant proposes, Marcus clicks Approve,
-chip `approve_payout(CLM-1002)`, timeline "Approved by marcus via assistant". In the consoles:
+chip `approve_payout(CLM-1001)`, timeline "Approved by marcus via assistant". In the consoles:
 Keycloak shows the `tool:approve_payout` role on the managers group; the OpenShift console Gateway
 API shows the AuthPolicies (Enforced) and the gateway audit line for rebecca. *The gate before every write.*
 
@@ -251,7 +251,7 @@ field names to check against the installed CRDs with `VERIFY` comments (`oc expl
   registration alone shows zero tools until the broker bounces.
 * **A live `oc patch` reverts itself.** Argo `selfHeal` on `env-secured` reverts live edits. Change
   synced resources (e.g. the MCPVirtualServer tool list) via Git + an Argo refresh, not `oc`.
-* **Reset before each run.** The live gate/propose tests re-approve CLM-1002 and mutate claims;
+* **Reset before each run.** The live gate/propose tests re-approve CLM-1001 and mutate claims;
   `scripts/reset.sh` restores both the data and the per-user token allowance (it restarts Limitador).
 * **429 shows as HTTP 502.** The portal surfaces the upstream 429 as a 502 whose chat body still reads
   "you have reached your usage limit (429)". The on-screen wording is correct; only the HTTP status
