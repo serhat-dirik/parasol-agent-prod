@@ -1,0 +1,11 @@
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: parasol-playground
+  namespace: parasol-ogx-playground
+spec:
+  distribution:
+    name: rh
+  overrideConfig:
+    name: parasol-playground-config
+    key: config.yaml

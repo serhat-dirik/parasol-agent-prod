@@ -1,0 +1,40 @@
+# Full Llama Stack config override for the OGXServer.
+# overrideConfig is used because the OGX operator (TP) cannot resolve the
+# distribution base config from the image OCI labels (HTTP 401 - the operator
+# mounts no registry.redhat.io credentials). Supplying a full config.yaml here
+# bypasses that fetch. The MaaS API key is NOT in this file: it is read from the
+# OPENAI_API_KEY env var, injected from the ogx-maas-key Secret by
+# scripts/ogx-playground.sh (secret never committed).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: parasol-playground-config
+  namespace: parasol-ogx-playground
+  labels:
+    ogx.io/watch: "true"
+data:
+  config.yaml: |
+    version: '2'
+    image_name: rh
+    apis:
+    - inference
+    - tool_runtime
+    providers:
+      inference:
+      - provider_id: maas-llama-scout
+        provider_type: remote::openai
+        config:
+          api_key: ${env.OPENAI_API_KEY:=placeholder}
+          base_url: https://maas-rhdp.apps.maas.redhatworkshops.io/v1
+      tool_runtime:
+      - provider_id: model-context-protocol
+        provider_type: remote::model-context-protocol
+        config: {}
+    models:
+    - model_id: llama-scout-17b
+      provider_id: maas-llama-scout
+      provider_model_id: llama-scout-17b
+      model_type: llm
+    tool_groups: []
+    server:
+      port: 8321
