@@ -1,0 +1,43 @@
+# Red Hat Trusted Artifact Signer (Securesign) - the keyless signing backend for the pipeline.
+# Fulcio (CA), Rekor (transparency log), CTlog, Trillian (DB), TUF (trust root).
+# OIDC issuer = the cluster's own Kubernetes ServiceAccount issuer, so an in-cluster CI
+# ServiceAccount token is the signing identity (no interactive browser flow). A Tekton task
+# projects an SA token (audience below) and cosign exchanges it with Fulcio for a short-lived
+# signing certificate. This replaces the cluster cosign keypair ("keyed") signing fallback.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trusted-artifact-signer
+---
+apiVersion: rhtas.redhat.com/v1
+kind: Securesign
+metadata:
+  name: securesign
+  namespace: trusted-artifact-signer
+  labels:
+    app.kubernetes.io/part-of: trusted-artifact-signer
+spec:
+  fulcio:
+    config:
+      oidcIssuers:
+        - issuer: https://kubernetes.default.svc
+          issuerURL: https://kubernetes.default.svc
+          clientID: trusted-artifact-signer
+          type: kubernetes
+    ingress:
+      enabled: true
+    signer:
+      certificateChain:
+        organizationName: Parasol
+        organizationEmail: security@parasol.example
+        commonName: fulcio.parasol.example
+  rekor:
+    ingress:
+      enabled: true
+  ctlog: {}
+  trillian:
+    database:
+      create: true
+  tuf:
+    ingress:
+      enabled: true

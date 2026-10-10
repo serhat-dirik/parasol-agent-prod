@@ -1,0 +1,134 @@
+# Keyless image signing with Red Hat Trusted Artifact Signer (Fulcio + Rekor), identity-based.
+#
+# The signing identity is a SPIFFE JWT-SVID obtained from the in-cluster SPIRE Workload API
+# (ZTWIM / SPIRE, Stream S3) via the SPIFFE CSI driver. SPIRE's OIDC discovery provider is the
+# OIDC issuer Fulcio trusts (type: spiffe). cosign exchanges the JWT-SVID for a short-lived
+# Fulcio certificate, signs, and records the signature in Rekor. There is NO long-lived private
+# signing key - this replaces the cluster cosign keypair ("keyed") fallback.
+#
+# The certificate identity that admission (ClusterImagePolicy) verifies is:
+#   issuer:  https://oidc-discovery.apps.cluster-znh6n.dyn.redhatworkshops.io
+#   subject: spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer
+#
+# The TaskRun/PipelineRun pod MUST carry the label parasol.example/keyless-signer=true so the
+# ClusterSPIFFEID parasol-build-signer mints an SVID for it, and run as the keyless-signer SA.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: keyless-signer
+  namespace: parasol-build
+---
+# Let the signer SA push signature (.sig) artifacts to the internal registry.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: keyless-signer-registry
+  namespace: parasol-build
+subjects:
+  - {kind: ServiceAccount, name: keyless-signer, namespace: parasol-build}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:image-builder
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: keyless-sign-images
+  namespace: parasol-build
+  labels: {app.kubernetes.io/version: "0.2"}
+spec:
+  description: >-
+    Keyless-sign the three Parasol images (portal, claims-db, policy-docs) with Trusted Artifact
+    Signer (Fulcio + Rekor), using a SPIFFE JWT-SVID from the SPIRE Workload API as the identity.
+  params:
+    - {name: portal-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:latest"}
+    - {name: claims-db-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/claims-db:latest"}
+    - {name: policy-docs-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/policy-docs:latest"}
+    - {name: fulcio-url, type: string}
+    - {name: rekor-url, type: string}
+    - {name: tuf-url, type: string}
+    - {name: oidc-issuer, type: string, default: "https://oidc-discovery.apps.cluster-znh6n.dyn.redhatworkshops.io"}
+    - {name: audience, type: string, default: "trusted-artifact-signer"}
+  results:
+    - {name: SIGNED, description: comma-separated list of keyless-signed images}
+  volumes:
+    - name: svcca
+      configMap: {name: openshift-service-ca.crt}
+    - name: spiffe-workload-api
+      csi:
+        driver: csi.spiffe.io
+        readOnly: true
+    - name: svid
+      emptyDir: {}
+    - name: home
+      emptyDir: {}
+  steps:
+    - name: fetch-svid
+      image: registry.redhat.io/zero-trust-workload-identity-manager/spiffe-spire-agent-rhel9@sha256:1bf815cd075391be392a77e8f196285958c9919c81257d0a98293fc4eb9dc47f
+      volumeMounts:
+        - {name: spiffe-workload-api, mountPath: /spiffe-workload-api, readOnly: true}
+        - {name: svid, mountPath: /svid}
+      script: |
+        #!/bin/sh
+        set -u
+        SOCK=/spiffe-workload-api/spire-agent.sock
+        echo "Fetching JWT-SVID (audience=$(params.audience)) from the SPIRE Workload API ..."
+        ls -l /spiffe-workload-api/ || true
+        i=0
+        while [ $i -lt 24 ]; do
+          /spire-agent api fetch jwt -audience "$(params.audience)" -socketPath "$SOCK" > /svid/out.txt 2>&1 || true
+          if grep -qoE 'eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' /svid/out.txt; then
+            break
+          fi
+          echo "attempt $i: SVID not ready yet"; tail -1 /svid/out.txt
+          i=$((i+1)); sleep 5
+        done
+        cat /svid/out.txt
+        grep -oE 'eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+' /svid/out.txt | head -1 > /svid/jwt_svid.token
+        test -s /svid/jwt_svid.token && echo "JWT-SVID extracted." || { echo "FAILED to get JWT-SVID"; exit 1; }
+    - name: sign
+      image: quay.io/redhat-appstudio/rhtap-task-runner:latest
+      env:
+        - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
+        - {name: HOME, value: /tekton-home}
+        - {name: COSIGN_YES, value: "true"}
+      volumeMounts:
+        - {name: svcca, mountPath: /svcca, readOnly: true}
+        - {name: svid, mountPath: /svid, readOnly: true}
+        - {name: home, mountPath: /tekton-home}
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        mkdir -p "$HOME/.docker"
+        AUTH=$(printf "pipeline:%s" "$TOKEN" | base64 | tr -d '\n')
+        printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
+
+        FULCIO="$(params.fulcio-url)"; REKOR="$(params.rekor-url)"; TUF="$(params.tuf-url)"
+        ISSUER="$(params.oidc-issuer)"
+        IDT=$(cat /svid/jwt_svid.token)
+
+        echo "===== cosign initialize against TAS TUF ====="
+        cosign initialize --mirror="$TUF" --root="$TUF/root.json"
+
+        PORTAL="$(params.portal-image)"; CLAIMS="$(params.claims-db-image)"; DOCS="$(params.policy-docs-image)"
+        for IMG in "$PORTAL" "$CLAIMS" "$DOCS"; do
+          echo "===== keyless sign $IMG ====="
+          cosign sign --yes \
+            --fulcio-url="$FULCIO" --rekor-url="$REKOR" \
+            --oidc-issuer="$ISSUER" --identity-token="$IDT" \
+            --allow-insecure-registry "$IMG"
+        done
+
+        SUBJECT="spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer"
+        echo "===== verify keyless (identity-bound) ====="
+        for IMG in "$PORTAL" "$CLAIMS" "$DOCS"; do
+          cosign verify \
+            --rekor-url="$REKOR" \
+            --certificate-identity="$SUBJECT" \
+            --certificate-oidc-issuer="$ISSUER" \
+            --allow-insecure-registry "$IMG" >/dev/null \
+            && echo "VERIFIED (keyless) $IMG"
+        done
+        printf "parasol-portal,claims-db,policy-docs" > "$(results.SIGNED.path)"

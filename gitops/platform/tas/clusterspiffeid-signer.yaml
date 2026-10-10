@@ -1,0 +1,16 @@
+# Give the keyless signing workload a SPIFFE identity so it can obtain a JWT-SVID from the
+# SPIRE Workload API (via the SPIFFE CSI driver). That JWT-SVID is the keyless signing identity
+# Fulcio trusts. className must match the ZTWIM SPIRE instance or no entry is minted.
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterSPIFFEID
+metadata:
+  name: parasol-build-signer
+spec:
+  className: zero-trust-workload-identity-manager-spire
+  spiffeIDTemplate: "spiffe://{{ .TrustDomain }}/ns/{{ .PodMeta.Namespace }}/sa/{{ .PodSpec.ServiceAccountName }}"
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: parasol-build
+  podSelector:
+    matchLabels:
+      parasol.example/keyless-signer: "true"
