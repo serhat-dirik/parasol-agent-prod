@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: guardian-detector
+  namespace: parasol-guardian
+  labels: {app: guardian-detector}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: guardian-detector}
+  template:
+    metadata:
+      labels: {app: guardian-detector}
+    spec:
+      containers:
+        - name: detector
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "-u", "/app/guardian_detector.py"]
+          env:
+            # MaaS guard tier (granite-guardian-3-1-8b). Key is out-of-band (Secret maas-guardian),
+            # never in Git — same handling as S4's maas-nemo.
+            - {name: GUARD_URL, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD_URL}}}
+            - {name: GUARD_KEY, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD_KEY}}}
+            - {name: GUARD_MODEL, value: "granite-guardian-3-1-8b"}
+            - {name: GUARD_THRESHOLD, value: "0.5"}
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet: {path: /health, port: 8080}
+          resources:
+            requests: {cpu: 20m, memory: 64Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+          volumeMounts:
+            - {name: app, mountPath: /app}
+      volumes:
+        - name: app
+          configMap: {name: guardian-detector}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: guardian-detector
+  namespace: parasol-guardian
+  labels: {app: guardian-detector}
+spec:
+  selector: {app: guardian-detector}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}

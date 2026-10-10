@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Isolated, additive, NOT wired into Argo (applied manually, like guardrails-nemo).
+# The guard-tier key lives in Secret maas-guardian, created out-of-band by scripts/guardian-key.sh
+# (never in Git). prove-job.yaml is applied on demand to produce the proof output.
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - deployment.yaml
