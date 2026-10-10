@@ -79,9 +79,10 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: version}}
             # model client timeout under the router's 30 s, so the kill switch yields a fast 502
             - {name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_TIMEOUT, value: "25s"}
-            # --- observability: traces to the OTel collector (gRPC 4317, matching parasol-agent) ---
-            - {name: QUARKUS_OTEL_ENABLED, value: "true"}
-            - {name: QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
+            # --- observability: traces to the OTel collector (gRPC 4317), mirroring parasol-agent exactly.
+            # quarkus.otel.enabled is build-time (true in the image); sdk.disabled is the runtime toggle. ---
+            - {name: QUARKUS_OTEL_SDK_DISABLED, value: "false"}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
           ports:
             - {name: http, containerPort: 8080}
           # tcpSocket (like free): the pod is Ready once HTTP is up; the MCP gateway path is exercised
