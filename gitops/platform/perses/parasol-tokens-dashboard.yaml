@@ -148,6 +148,146 @@ spec:
                 spec:
                   query: 'sum by (version) (parasol_agent_tokens_total{user!=""})'
                   seriesNameFormat: '{{version}}'
+      # --- O2: tool calls, guardrails, latency and the alert state (Demo 3 morning report) ---
+      toolCallsByStatus:
+        kind: Panel
+        spec:
+          display:
+            name: Tool calls by status (200 / 403)
+            description: sum by(status) parasol_tool_calls_total — reads pass (200), unauthorised writes are refused (403)
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: list
+                position: bottom
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.3
+                stack: all
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'sum by (status) (parasol_tool_calls_total)'
+                  seriesNameFormat: 'status {{status}}'
+      deniedPerTool:
+        kind: Panel
+        spec:
+          display:
+            name: 403s per tool (identity-bound authorization)
+            description: sum by(tool) parasol_tool_calls_total{status="403"} — which tool a caller was denied
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: list
+                position: bottom
+              visual:
+                display: bar
+                areaOpacity: 0.6
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'sum by (tool) (parasol_tool_calls_total{status="403"})'
+                  seriesNameFormat: '{{tool}}'
+      detectorHits:
+        kind: Panel
+        spec:
+          display:
+            name: Guardrail detector hits (detector / action)
+            description: sum by(detector,action) parasol_guardrail_detections_total — what the guardrails proxy caught and did
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: list
+                position: bottom
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.2
+                stack: all
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'sum by (detector, action) (parasol_guardrail_detections_total)'
+                  seriesNameFormat: '{{detector}} ({{action}})'
+      latencyP95:
+        kind: Panel
+        spec:
+          display:
+            name: Assistant turn latency P95 (seconds)
+            description: histogram_quantile(0.95, rate(parasol_agent_latency_seconds_bucket[5m])) by version
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: list
+                position: bottom
+              visual:
+                display: line
+                lineWidth: 1.5
+              yAxis:
+                format:
+                  unit: seconds
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'histogram_quantile(0.95, sum by (le, version) (rate(parasol_agent_latency_seconds_bucket[5m])))'
+                  seriesNameFormat: 'P95 {{version}}'
+      alertState:
+        kind: Panel
+        spec:
+          display:
+            name: ParasolAssistantTokenSpendHigh — alert state
+            description: ALERTS{alertname="ParasolAssistantTokenSpendHigh"} — 1 while the 3am spend alert is firing, labelled by user/namespace
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: list
+                position: bottom
+              visual:
+                display: line
+                lineWidth: 2
+                areaOpacity: 0.3
+              yAxis:
+                format:
+                  unit: decimal
+              thresholds:
+                steps:
+                - value: 1
+                  color: "#d9534f"
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'max by (alertstate, user, namespace) (ALERTS{alertname="ParasolAssistantTokenSpendHigh"})'
+                  seriesNameFormat: '{{alertstate}} {{user}}'
     layouts:
     - kind: Grid
       spec:
@@ -172,5 +312,35 @@ spec:
         - content: {$ref: '#/spec/panels/byVersion'}
           x: 0
           y: 17
+          width: 12
+          height: 8
+    - kind: Grid
+      spec:
+        display:
+          title: Tool calls, guardrails and latency (Demo 3 morning report)
+        items:
+        - content: {$ref: '#/spec/panels/alertState'}
+          x: 0
+          y: 0
+          width: 24
+          height: 7
+        - content: {$ref: '#/spec/panels/toolCallsByStatus'}
+          x: 0
+          y: 7
+          width: 12
+          height: 8
+        - content: {$ref: '#/spec/panels/deniedPerTool'}
+          x: 12
+          y: 7
+          width: 12
+          height: 8
+        - content: {$ref: '#/spec/panels/detectorHits'}
+          x: 0
+          y: 15
+          width: 12
+          height: 8
+        - content: {$ref: '#/spec/panels/latencyP95'}
+          x: 12
+          y: 15
           width: 12
           height: 8
