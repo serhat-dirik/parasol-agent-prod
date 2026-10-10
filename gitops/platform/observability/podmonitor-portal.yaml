@@ -1,0 +1,18 @@
+# Scrape the secured portal's /q/metrics (parasol_agent_tokens_total{type,version,user}, model calls)
+# so the per-user token-spend alert and the console dashboards see the portal. A PodMonitor (not a
+# ServiceMonitor) because the portal Service carries no labels to select on, while the pods are labelled
+# app=portal with a named "http" port.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: parasol-portal
+  namespace: parasol-secured
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchLabels: {app: portal}
+  podMetricsEndpoints:
+    - port: http
+      path: /q/metrics
+      interval: 15s

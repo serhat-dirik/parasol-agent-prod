@@ -9,5 +9,5 @@ resources:
   - uwm.yaml
   - prometheusrule.yaml
   - servicemonitor.yaml
-  - servicemonitor-portal.yaml
+  - podmonitor-portal.yaml
   - uiplugin.yaml
