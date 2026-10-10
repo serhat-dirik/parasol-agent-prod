@@ -84,4 +84,7 @@ for i in $(seq 1 "$count"); do
   fi
   sleep "$interval"
 done
-[ "$spent_429" = 0 ] && echo ">>> finished $count requests without a 429 (raise count, or check the policyholder-tier token limit)."
+if [ "$spent_429" = 0 ]; then
+  echo ">>> finished $count requests without hitting the usage limit (raise count, or check the policyholder-tier token limit)."
+fi
+exit 0
