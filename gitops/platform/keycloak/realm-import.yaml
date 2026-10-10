@@ -43,6 +43,30 @@ spec:
       protocol: openid-connect
       enabled: true
       fullScopeAllowed: true
+    # Portal login (quarkus-oidc web-app, authorization-code flow). Confidential: on a fresh realm import
+    # Keycloak generates the secret; scripts/portal-oidc-client.sh reads it into the parasol-portal-oidc
+    # Secret in parasol-free and parasol-secured. The secret is never committed.
+    - clientId: parasol-portal
+      name: Parasol claims portal (web-app)
+      publicClient: false
+      standardFlowEnabled: true
+      directAccessGrantsEnabled: false
+      serviceAccountsEnabled: false
+      protocol: openid-connect
+      enabled: true
+      fullScopeAllowed: true
+      redirectUris:
+      - https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io/*
+      - https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io/*
+      webOrigins:
+      - https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io
+      - https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io
+      defaultClientScopes:
+      - roles
+      - profile
+      - email
+      optionalClientScopes:
+      - groups
     - clientId: parasol-secured/claims-db
       name: claims-db MCP server (resource server)
       publicClient: true
@@ -116,6 +140,10 @@ spec:
         parasol-secured/policy-docs: *id001
         mcp-gateway:
         - impersonator
+    # Policyholders (customers). No tool client-roles on purpose: a customer must not reach claims tools,
+    # so any tool call is a 403 by least privilege. Used by the night-shift user tom.becker (plan A7).
+    - name: policyholders
+      path: /policyholders
     users:
     - username: rebecca
       enabled: true
@@ -155,6 +183,19 @@ spec:
         temporary: false
       groups:
       - /developers
+      requiredActions: []
+    - username: tom.becker
+      enabled: true
+      emailVerified: true
+      firstName: Tom
+      lastName: Becker
+      email: tom.becker@customer.example
+      credentials:
+      - type: password
+        value: tom.becker
+        temporary: false
+      groups:
+      - /policyholders
       requiredActions: []
     clientScopes:
     - name: groups
