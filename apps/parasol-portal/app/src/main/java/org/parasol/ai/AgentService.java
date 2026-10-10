@@ -58,6 +58,10 @@ public class AgentService {
     @ConfigProperty(name = "agent.version", defaultValue = "dev")
     String version;
 
+    /** The MLflow Prompt Registry version this deployment runs (e.g. parasol-claims-assistant-system-prompt@1). */
+    @ConfigProperty(name = "agent.prompt-version", defaultValue = "unset")
+    String promptVersion;
+
     @ConfigProperty(name = "quarkus.langchain4j.openai.parasol-chat.chat-model.model-name", defaultValue = "parasol-chat")
     String modelName;
 
@@ -98,7 +102,8 @@ public class AgentService {
             // Trace semantics: name the observed steps so the MLflow/Tempo trace reads as the story
             // (guardrails.tool_result when a detector flagged a tool result, the propose step).
             emitStorySpans(guardrail, proposal);
-            LOG.infof("chat caller=%s version=%s tools=%s guardrail=%s tokens=%s", caller.subject(), version,
+            LOG.infof("chat caller=%s version=%s prompt=%s tools=%s guardrail=%s tokens=%s", caller.subject(), version,
+                    promptVersion,
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     guardrail == null ? "none" : guardrail.action(),
                     result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount());

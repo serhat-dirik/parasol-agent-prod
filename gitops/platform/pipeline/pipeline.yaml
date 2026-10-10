@@ -18,6 +18,8 @@ spec:
     - {name: path-context, type: string, default: "source/gitops/platform/pipeline/build"}
     - {name: dockerfile, type: string, default: "Containerfile"}
     - {name: candidate, type: string, default: "v2"}
+    # MLflow Prompt Registry entry the gate evaluated and the promotion commit references.
+    - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@1"}
   results:
     - {name: IMAGE_URL, value: "$(tasks.build-container.results.IMAGE_URL)"}
     - {name: IMAGE_DIGEST, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
@@ -92,6 +94,7 @@ spec:
       params:
         - {name: image, value: "$(params.output-image)"}
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
+        - {name: prompt-ref, value: "$(params.prompt-ref)"}
       workspaces:
         - {name: source, workspace: workspace}
   finally:

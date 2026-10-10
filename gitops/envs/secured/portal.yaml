@@ -77,6 +77,9 @@ spec:
             - {name: PORTAL_PROPOSE_ENABLED, value: "true"}
             - name: AGENT_VERSION
               valueFrom: {configMapKeyRef: {name: agent-config, key: version}}
+            # prompt version this deployment runs, logged by the portal (MLflow Prompt Registry ref)
+            - name: AGENT_PROMPT_VERSION
+              valueFrom: {configMapKeyRef: {name: agent-config, key: promptVersion, optional: true}}
             # model client timeout under the router's 30 s, so the kill switch yields a fast 502
             - {name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_TIMEOUT, value: "25s"}
             # --- observability: traces to the OTel collector (gRPC 4317), mirroring parasol-agent exactly.

@@ -254,6 +254,10 @@ spec:
     - {name: git-url, type: string, default: "https://github.com/serhat-dirik/parasol-agent-prod.git"}
     - {name: overlay-file, type: string, default: "gitops/envs/secured/kustomization.yaml"}
     - {name: gitops-auth-secret, type: string, default: gitops-auth-secret}
+    # The MLflow Prompt Registry entry the promoted image runs (name@version); the agent-eval gate
+    # evaluated this exact version. The promotion commit references it, so git history ties the
+    # promoted digest to the prompt the gate passed.
+    - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@1"}
   workspaces:
     - {name: source}
   steps:
@@ -284,7 +288,7 @@ spec:
           git config user.name "parasol-pipeline"
           URL=$(printf "%s" "$(params.git-url)" | sed "s#https://#https://$(cat $TOKEN_FILE)@#")
           git add "$FILE"
-          git commit -m "chore: promote parasol-portal ${DIGEST} to secured overlay" || { echo "nothing to commit"; exit 0; }
+          git commit -m "chore: promote parasol-portal ${DIGEST} to secured overlay (prompt $(params.prompt-ref))" || { echo "nothing to commit"; exit 0; }
           git push "$URL" HEAD:main && echo "PROMOTED: pushed pin to main"
         else
           echo "No gitops-auth token mounted; promotion diff prepared but not pushed (demo-safe)."

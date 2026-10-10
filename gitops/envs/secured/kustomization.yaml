@@ -38,6 +38,7 @@ configMapGenerator:
       - policyDocsMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
       - claimsDbApiUrl=http://claims-db:8080        # Stream P: direct REST read for the portal UI (not via the MCP gateway)
       - version=v1-secured
+      - promptVersion=parasol-claims-assistant-system-prompt@1   # G2: MLflow Prompt Registry version the secured portal runs
       - tokenUrl=https://sso.apps.CLUSTER_DOMAIN/realms/parasol/protocol/openid-connect/token
     files:
       - safetyRules=safety-rules.txt

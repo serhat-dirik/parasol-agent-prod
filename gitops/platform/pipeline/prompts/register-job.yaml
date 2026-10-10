@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: parasol-prompt-registrar
+  namespace: observability
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: parasol-prompt-registrar
+      containers:
+        - name: register
+          image: registry.redhat.io/rhoai/odh-mlflow-rhel9@sha256:47fafaaf715bd05347105fa8c7bc9b2cafb8931ab4859f9ccde68fe8a4fac61c
+          command: ["/usr/bin/python3.12", "/scripts/register-prompts.py"]
+          env:
+            - {name: MLFLOW_TRACKING_URI, value: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
+            - {name: MLFLOW_WORKSPACE, value: "parasol-secured"}
+            - {name: MLFLOW_TRACKING_INSECURE_TLS, value: "true"}
+            - {name: RESET, value: "1"}
+            - {name: HOME, value: "/tmp"}
+          volumeMounts:
+            - {name: scripts, mountPath: /scripts}
+      volumes:
+        - name: scripts
+          configMap: {name: parasol-prompt-registrar}
