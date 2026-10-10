@@ -12,10 +12,11 @@ spec:
     - name: parasol-agent
       rules:
         - alert: ParasolAssistantTokenSpendHigh
-          # Per user: a single account looping off-topic requests (the night shift) crosses the
-          # threshold on its own. The portal tags the token counter with the caller's username;
-          # until then this still fires on the namespace aggregate (user empty).
-          expr: sum by (namespace, user) (rate(parasol_agent_tokens_total[2m])) * 60 > 20000
+          # Per user: a single account looping heavy requests (the night shift) crosses the threshold on
+          # its own. Threshold 5000 tokens/min is well above normal single-user interactive load
+          # (an adjuster runs a few hundred to low-thousands/min) and below the measured night-shift rate
+          # (~9000/min for tom.becker). The portal tags the counter with the caller's username.
+          expr: sum by (namespace, user) (rate(parasol_agent_tokens_total[2m])) * 60 > 5000
           for: 1m
           labels:
             severity: warning
