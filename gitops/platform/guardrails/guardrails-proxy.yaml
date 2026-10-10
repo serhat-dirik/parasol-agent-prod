@@ -154,9 +154,10 @@ spec:
             - {name: MAAS_URL, value: "https://maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local/models-as-a-service/llama-scout-17b/v1"}
             # Regex only inline. The HF prompt-injection classifier stays deployed, but on 1 CPU it takes
             # ~28 s per text and scores the POL-VENDOR-07 passage SAFE (0.0008): inline it only adds latency.
+            # Owner preset (10 Oct): the three phrases a document would use to address the assistant.
             - name: DETECTORS
               value: >-
-                {"regex": {"regex": ["(?i)processing note", "(?i)call the approve_payout tool"]}}
+                {"regex": {"regex": ["(?i)automated processing note", "(?i)assistant action required", "(?i)note to the claims assistant"]}}
           ports:
             - containerPort: 8080
           readinessProbe:
