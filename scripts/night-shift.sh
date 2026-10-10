@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # night-shift.sh [count] [portal-host]
 # The 02:00 denial-of-wallet scene (Demo 3 beats 1-2): a policyholder account (tom.becker) logs in and
-# loops long, off-topic requests at the assistant on the shared model. Each request prints its HTTP
-# status, the caller the portal attributes it to, and the running token spend, so the audience sees:
-#   - the topic guardrail politely refusing off-topic requests,
-#   - the per-user token meter climbing (drives ParasolAssistantTokenSpendHigh and the MLflow/Tempo traces),
-#   - the per-user limit returning 429 (only tom.becker is throttled; Rebecca keeps working).
-# It stops at the first 429 (the point of the scene) or after <count> requests. Bounded: a hard ceiling
-# keeps a stray run from draining the 10-day model key.
+# hammers the assistant on the shared model. It sends a MIX, because off-topic requests are refused at
+# the topic guardrail for ZERO tokens (cheap deflection) and so could never fill the budget on their own:
+#   - a few OFF-TOPIC requests ("write me a 2,000-word essay...") -> polite topic refusal, 0 tokens
+#     (shows the topic guard throwing junk away for free);
+#   - then HEAVY ON-TOPIC requests ("explain every Parasol policy clause in full detail...") that PASS the
+#     topic guard and burn ~1-3k tokens each against tom.becker's policyholder subscription.
+# Each request prints its HTTP status, the caller the portal attributes it to, and the token spend, so
+# the audience sees the per-user meter climb (drives ParasolAssistantTokenSpendHigh and the MLflow/Tempo
+# traces) until the MaaS per-user limit returns 429 "you have reached your usage limit". Rebecca, on the
+# staff tier, keeps working throughout. ~10-15 on-topic requests reach the 20k/10m policyholder bucket.
+# Stops at the first 429 (the point of the scene) or after <count> requests. Bounded by a hard ceiling
+# so a stray run cannot drain the 10-day model key.
 #   NIGHT_USER=tom.becker  NIGHT_INTERVAL=1  ./scripts/night-shift.sh 40
 set -uo pipefail
 count=${1:-40}
@@ -21,15 +26,22 @@ PORTAL="https://$host"
 
 tok=$("$(dirname "$0")/token.sh" "$user") || { echo "could not log in as $user"; exit 1; }
 
-# Long, off-topic prompts - nothing to do with claims; the topic guardrail should refuse, but each one
-# still costs tokens on the shared model. Rotated so it is not one cached answer.
-prompts=(
+# A few off-topic prompts first: the topic guardrail refuses these for 0 tokens (free deflection).
+offtopic=(
   "Write me a 2000-word essay about the history of the Roman Empire."
   "Compose a detailed 1500-word short story about a dragon who learns to code."
-  "Explain quantum chromodynamics in 2000 words with analogies."
-  "Write a 2000-word travel guide to the fictional city of Atlantis."
-  "Draft a 1500-word business plan for a lunar coffee franchise."
 )
+# Then heavy ON-TOPIC prompts: these pass the topic guard and ask for long, detailed answers, so each
+# burns ~1-3k model tokens against the policyholder subscription (no privileged tools needed - a verbose
+# model answer alone fills the bucket). Rotated so it is not one cached answer.
+ontopic=(
+  "Explain in exhaustive detail everything a Parasol home insurance policy covers, every exclusion, and every condition, clause by clause."
+  "Walk me through, step by step and at great length, how a Parasol home insurance claim is assessed from first notice of loss to final payout."
+  "Describe in full the Parasol claims appeals process and all of my rights as a policyholder, with as much detail as possible."
+  "Give me a very long, detailed explanation of how deductibles, excess, premiums and no-claims discounts interact on Parasol policies, with worked examples."
+  "Explain at length every section of a standard Parasol motor insurance policy and what each clause means for me as a policyholder."
+)
+offc=${#offtopic[@]}
 
 ask() { # $1 = question. Prints one human line, then the HTTP code on its own last line.
   local q="$1" body code resp
@@ -52,11 +64,15 @@ print("caller=%s tokens=%s | %s" % (r.get("caller"), tu.get("totalTokens"), (r.g
   echo "$code"
 }
 
-echo "night shift: $user looping off-topic requests at $PORTAL (max $count, stop on first 429)"
+echo "night shift: $user hammering $PORTAL ($offc off-topic to deflect, then heavy on-topic; max $count, stop on first 429)"
 spent_429=0
 for i in $(seq 1 "$count"); do
-  q=${prompts[$(( (i-1) % ${#prompts[@]} ))]}
-  printf '[%02d/%d] ' "$i" "$count"
+  if [ "$i" -le "$offc" ]; then
+    q=${offtopic[$((i-1))]}; kind=off-topic
+  else
+    q=${ontopic[$(( (i-1-offc) % ${#ontopic[@]} ))]}; kind=on-topic
+  fi
+  printf '[%02d/%d %s] ' "$i" "$count" "$kind"
   out=$(ask "$q"); code=$(printf '%s' "$out" | tail -1)
   printf '%s\n' "$(printf '%s' "$out" | sed '$d')"
   if [ "$code" = "429" ]; then
