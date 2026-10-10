@@ -1,0 +1,145 @@
+# V3 - the fraud-check agent: a SECOND agent behind the MCP gateway, callable agent-to-agent.
+# Additive to the secured sandbox. The claims assistant calls fraud_check THROUGH the gateway with
+# the caller's own token, so the same per-identity authz as every other tool applies (AuthPolicy
+# checks tool:fraud_check on resource client parasol-secured/fraud-check). The verdict is a hard
+# numeric rule over the real claim record + uploaded document (a money decision is not a model opinion).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-check
+  labels: {app: fraud-check, app.kubernetes.io/part-of: parasol-agent}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: fraud-check}
+  template:
+    metadata:
+      labels: {app: fraud-check, app.kubernetes.io/part-of: parasol-agent}
+    spec:
+      containers:
+        - name: fraud-check
+          image: image-registry.openshift-image-registry.svc:5000/parasol-build/fraud-check:latest
+          imagePullPolicy: Always
+          ports:
+            - {name: http, containerPort: 8080}
+          env:
+            # The data source of truth: the fraud-check agent reads the claim record + documents from
+            # the claims-db read API. It keeps no copy, so it judges exactly what the demo shows.
+            - {name: CLAIMS_DB_API_URL, value: http://claims-db:8080}
+            - {name: QUARKUS_OTEL_SDK_DISABLED, value: "false"}
+            - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
+          readinessProbe:
+            httpGet: {path: /q/health/ready, port: 8080}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /q/health/live, port: 8080}
+            initialDelaySeconds: 20
+            periodSeconds: 15
+          resources:
+            requests: {cpu: 100m, memory: 256Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraud-check
+  labels: {app: fraud-check}
+spec:
+  selector: {app: fraud-check}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+# Layer 1 for the new agent: ingress ONLY from the MCP gateway data plane and the Gateway pods
+# (so it is reachable only through the gateway, like claims-db/policy-docs). Egress to claims-db
+# (its data source) and the OTel collector. DNS is covered by the shared allow-dns policy.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fraud-check
+spec:
+  podSelector:
+    matchLabels: {app: fraud-check}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: gateway-system}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: mcp-system}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
+    - from:
+        - namespaceSelector:
+            matchLabels: {network.openshift.io/policy-group: monitoring}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: claims-db}
+      ports:
+        - {protocol: TCP, port: 8080}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+---
+# Additive ingress allow on claims-db for the one new caller: the fraud-check agent. NetworkPolicies
+# only ADD allows, so this leaves the existing mcp-servers policy (gateway-only ingress) untouched.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-claims-db-from-fraud-check
+spec:
+  podSelector:
+    matchLabels: {app: claims-db}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {app: fraud-check}
+      ports:
+        - {protocol: TCP, port: 8080}
+---
+# Layer 3: the fraud-check server exists for agents only through the gateway. The HTTPRoute attaches
+# to the internal "mcps" listener; the MCPServerRegistration tells the broker to federate its tools.
+# The registration NAME (namespaced) is the resource_access key in Keycloak: parasol-secured/fraud-check.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: fraud-check
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parentRefs:
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: mcp-gateway, namespace: gateway-system, sectionName: mcps}
+  hostnames: [fraud-check.mcp.local]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - {group: "", kind: Service, name: fraud-check, port: 8080, weight: 1}
+---
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPServerRegistration
+metadata:
+  name: fraud-check
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: fraud-check
+    namespace: parasol-secured
+---
+# The agent's fraud-check MCP client sends X-Mcp-Virtualserver: parasol-secured/fraud-check.
+# One tool, exposed to tools/list for every identity; the gateway AuthPolicy still gates tools/call
+# per identity (adjusters + claims-managers hold tool:fraud_check; policyholders do not -> 403).
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPVirtualServer
+metadata:
+  name: fraud-check
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  description: Fraud-check agent tools
+  tools: [fraud_check]

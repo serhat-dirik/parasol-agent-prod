@@ -52,3 +52,17 @@ spec:
     to: {kind: ImageStreamTag, name: "parasol-portal:latest"}
   resources:
     limits: {cpu: "2", memory: 4Gi}
+---
+# The fraud-check agent (V3): a second MCP server behind the gateway, built the same binary way.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata: {name: fraud-check}
+spec:
+  source: {type: Binary}
+  strategy:
+    type: Docker
+    dockerStrategy: {dockerfilePath: Containerfile}
+  output:
+    to: {kind: ImageStreamTag, name: "fraud-check:latest"}
+  resources:
+    limits: {cpu: "2", memory: 3Gi}

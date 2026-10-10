@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.parasol</groupId>
+  <artifactId>fraud-check-mcp</artifactId>
+  <version>1.0.0</version>
+  <name>fraud-check-mcp</name>
+  <description>Parasol fraud-check MCP server (Quarkus): a second agent behind the MCP gateway. Exposes one tool, fraud_check, that inspects a claim and its uploaded documents and returns a risk verdict. Called agent-to-agent by the claims assistant through the gateway (V3).</description>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
+    <!-- Same Quarkus LTS BOM as every other Parasol service so they move in lockstep. -->
+    <quarkus.platform.group-id>io.quarkus.platform</quarkus.platform.group-id>
+    <quarkus.platform.artifact-id>quarkus-bom</quarkus.platform.artifact-id>
+    <quarkus.platform.version>3.33.2.1</quarkus.platform.version>
+
+    <!-- Same MCP server extension + version as claims-db: serves /mcp (Streamable HTTP) and /mcp/sse. -->
+    <quarkus-mcp-server.version>1.13.1</quarkus-mcp-server.version>
+
+    <compiler-plugin.version>3.13.0</compiler-plugin.version>
+    <surefire-plugin.version>3.5.2</surefire-plugin.version>
+    <skipITs>true</skipITs>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>${quarkus.platform.group-id}</groupId>
+        <artifactId>${quarkus.platform.artifact-id}</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- MCP server over HTTP/SSE: turns the @Tool method into an MCP tool the gateway federates. -->
+    <dependency>
+      <groupId>io.quarkiverse.mcp</groupId>
+      <artifactId>quarkus-mcp-server-http</artifactId>
+      <version>${quarkus-mcp-server.version}</version>
+    </dependency>
+    <!-- REST client: the fraud-check agent reads the claim record + uploaded documents from the
+         claims-db read API (http://claims-db:8080/api/claims/...). This is the agent-to-service hop
+         behind the agent-to-agent call; claims-db stays the single source of truth for the data. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-rest-client-jackson</artifactId>
+    </dependency>
+    <!-- Health probes: /q/health/live and /q/health/ready. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-smallrye-health</artifactId>
+    </dependency>
+    <!-- Prometheus metrics at /q/metrics. -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-micrometer-registry-prometheus</artifactId>
+    </dependency>
+    <!-- Distributed tracing: a fraud_check call shows as its own span in the gateway trace. Exporter
+         is OFF by default; turned on to the collector via env (OTEL_EXPORTER_OTLP_ENDPOINT). -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-opentelemetry</artifactId>
+    </dependency>
+
+    <!-- Test-only: deterministic unit test over the verdict logic (the money path). -->
+    <dependency>
+      <groupId>io.quarkus</groupId>
+      <artifactId>quarkus-junit5</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>${quarkus.platform.group-id}</groupId>
+        <artifactId>quarkus-maven-plugin</artifactId>
+        <version>${quarkus.platform.version}</version>
+        <extensions>true</extensions>
+        <executions>
+          <execution>
+            <goals>
+              <goal>build</goal>
+              <goal>generate-code</goal>
+              <goal>generate-code-tests</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${compiler-plugin.version}</version>
+      </plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${surefire-plugin.version}</version>
+        <configuration>
+          <systemPropertyVariables>
+            <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

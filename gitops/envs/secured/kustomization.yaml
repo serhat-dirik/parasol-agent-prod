@@ -14,6 +14,7 @@ resources:
   - quota.yaml
   - networkpolicy.yaml
   - mcp-registrations.yaml
+  - fraud-check.yaml       # V3: the fraud-check agent (2nd MCP server behind the gateway, agent-to-agent)
   - portal.yaml            # Stream P: the secured claims portal (login, gated writes, guardrails)
   - portal-networkpolicy.yaml  # Stream P: the portal's layer-1 egress (kill switch patches this)
   - ../base

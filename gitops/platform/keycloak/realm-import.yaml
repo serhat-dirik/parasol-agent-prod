@@ -107,6 +107,17 @@ spec:
       defaultClientScopes:
       - roles
       fullScopeAllowed: true
+    # V3: the fraud-check agent is a resource server too; the gateway checks tool:fraud_check here.
+    - clientId: parasol-secured/fraud-check
+      name: fraud-check agent (resource server)
+      publicClient: true
+      standardFlowEnabled: false
+      directAccessGrantsEnabled: false
+      protocol: openid-connect
+      enabled: true
+      defaultClientScopes:
+      - roles
+      fullScopeAllowed: true
     roles:
       client:
         parasol-secured/claims-db:
@@ -127,6 +138,9 @@ spec:
           clientRole: true
         - name: tool:list_policies
           clientRole: true
+        parasol-secured/fraud-check:
+        - name: tool:fraud_check
+          clientRole: true
         mcp-gateway:
         - name: impersonator
           clientRole: true
@@ -143,6 +157,8 @@ spec:
         - tool:search_policies
         - tool:get_policy
         - tool:list_policies
+        parasol-secured/fraud-check: &id003
+        - tool:fraud_check
         mcp-gateway:
         - impersonator
     - name: claims-managers
@@ -155,6 +171,7 @@ spec:
         - tool:get_claim_documents
         - tool:approve_payout
         parasol-secured/policy-docs: *id001
+        parasol-secured/fraud-check: *id003
         mcp-gateway:
         - impersonator
     - name: developers
