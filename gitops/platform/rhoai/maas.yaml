@@ -75,3 +75,23 @@ spec:
       namespace: models-as-a-service
       tokenRateLimits:
         - {limit: 2000000, window: 24h}
+---
+# Policyholder tier (Demo 3): the secured portal mints a separate key on this subscription for users in
+# the Keycloak group `policyholders` (tom.becker). Its allowance is tiny, so his "3am" storm trips 429 on
+# this bucket alone while staff (stage subscription) keep working. Per-subscription counter -> isolated 429.
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: parasol-policyholder
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  owner:
+    groups: [{name: parasol-policyholder}, {name: "system:serviceaccounts:parasol-secured"}]
+  priority: 10
+  modelRefs:
+    - name: llama-scout-17b
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 20000, window: 10m}   # policyholder allowance: a short night-shift storm exhausts it on camera

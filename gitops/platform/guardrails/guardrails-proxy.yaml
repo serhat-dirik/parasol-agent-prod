@@ -17,8 +17,14 @@ metadata:
   name: guardrails-proxy
 data:
   proxy.py: |
-    import json, os, ssl, sys, urllib.request, urllib.error
+    import json, os, re, ssl, sys, urllib.request, urllib.error
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    # A1 PII masking preset (input): applied to the user's message before it reaches the model.
+    # The matched text is redacted in place and the portal shows a "personal data masked" chip.
+    PII = [("email", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
+           ("Emirates ID", re.compile(r"\b784-?\d{4}-?\d{7}-?\d\b")),
+           ("payment card", re.compile(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b"))]
 
     ORCH = os.environ.get("ORCHESTRATOR_URL", "https://guardrails-service:8032")
     CA = os.environ.get("ORCHESTRATOR_CA", "/etc/service-ca/service-ca.crt")
@@ -60,15 +66,31 @@ data:
             hits += r.get("detections") or []
         return hits
 
+    def mask_pii(messages):
+        # Redact PII in the latest user message; return the labels masked (for the portal chip).
+        masked = []
+        for m in messages:
+            if m.get("role") != "user" or not isinstance(m.get("content"), str):
+                continue
+            for label, rx in PII:
+                m["content"], n = rx.subn("[" + label + " redacted]", m["content"])
+                if n:
+                    masked.append(label)
+        return sorted(set(masked))
+
     def refusal(req, hits):
         names = sorted({h.get("detector_id") or h.get("detection_type", "?") for h in hits})
+        score = max([h.get("score") or 0 for h in hits] or [0])
         msg = ("Guardrails blocked this request: a retrieved document contains instructions aimed at "
                "the assistant (detectors: " + ", ".join(names) + "). No action was taken.")
         return {"id": "guardrails-block", "object": "chat.completion", "model": req.get("model"),
                 "choices": [{"index": 0, "finish_reason": "stop",
                              "message": {"role": "assistant", "content": msg}}],
                 "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
-                "detections": hits}
+                "detections": hits,
+                # portal signal: amber banner. detectors + score are real detector output.
+                "guardrails": {"action": "block", "detectors": names, "score": score,
+                               "message": "prompt injection in document"}}
 
     class H(BaseHTTPRequestHandler):
         def _send(self, code, body):
@@ -92,7 +114,12 @@ data:
                     print(f"detection: detector={h.get('detector_id')} type={h.get('detection_type')} "
                           f"score={h.get('score')} text={str(h.get('text'))[:80]!r}", flush=True)
                 return self._send(200, refusal(req, hits))
+            masked = mask_pii(req.get("messages", []))   # redacts in place -> forwarded masked
             code, r = post(MAAS + "/chat/completions", req, self.headers.get("authorization"), MAAS_CTX)
+            if masked and isinstance(r, dict):
+                print("masked PII: " + ", ".join(masked), flush=True)
+                r["guardrails"] = {"action": "mask", "detectors": ["pii"], "masked": masked,
+                                   "message": "personal data masked"}
             self._send(code, r)
 
         def log_message(self, fmt, *args):  # request line only; never headers (the MaaS key)
@@ -100,6 +127,9 @@ data:
 
     if __name__ == "__main__":
         assert texts([{"role": "user", "content": "q"}, {"role": "tool", "content": "doc"}]) == ["doc", "q"]
+        _m = [{"role": "user", "content": "mail me at a@b.com, card 4111 1111 1111 1111, id 784-1990-1234567-1"}]
+        assert mask_pii(_m) == ["Emirates ID", "email", "payment card"], mask_pii(_m)
+        assert "redacted" in _m[0]["content"] and "4111" not in _m[0]["content"]
         ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
 ---
 apiVersion: apps/v1
