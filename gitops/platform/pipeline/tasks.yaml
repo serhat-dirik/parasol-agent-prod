@@ -335,7 +335,11 @@ spec:
         N=$(grep -o '"bom-ref"' sbom.json | wc -l | tr -d ' ')
         echo "SBOM written to sbom.json with ~$N components."
         printf "%s" "${N:-0}" > "$(results.SBOM_COMPONENTS.path)"
-        echo "Upload to Trusted Profile Analyzer with the upload-sbom task (TPA endpoint)."
+        # Ship to Trusted Profile Analyzer once a TPA instance exists (rhtpa-operator is installed;
+        # a full TrustedProfileAnalyzer stack is deferred). Uncomment and set TPA_ENDPOINT/TPA_TOKEN:
+        #   curl -sf -X POST "$TPA_ENDPOINT/api/v2/sbom" -H "authorization: Bearer $TPA_TOKEN" \
+        #        -H "content-type: application/json" --data-binary @sbom.json && echo "uploaded to TPA"
+        echo "SBOM ready for Trusted Profile Analyzer (upload step stubbed; see comment above)."
 ---
 apiVersion: tekton.dev/v1
 kind: Task
