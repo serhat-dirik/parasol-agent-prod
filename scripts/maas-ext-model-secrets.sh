@@ -15,4 +15,8 @@ oc -n "$NS" create secret generic maas-upstream-granite-tiny \
   --from-literal=api-key="$MAAS_KEY_STAGE" --dry-run=client -o yaml | oc apply -f - >/dev/null
 oc -n "$NS" create secret generic maas-upstream-granite-guardian \
   --from-literal=api-key="$MAAS_KEY_GUARD" --dry-run=client -o yaml | oc apply -f - >/dev/null
+# REQUIRED: the ai-gateway apikey-injection plugin only loads upstream-key Secrets carrying this label
+# into its credential store; without it the gateway returns 500 "credentials not found in store".
+oc -n "$NS" label secret maas-upstream-granite-tiny maas-upstream-granite-guardian \
+  inference.llm-d.ai/ipp-managed=true --overwrite >/dev/null
 echo "upstream secrets written in $NS: maas-upstream-granite-tiny, maas-upstream-granite-guardian"
