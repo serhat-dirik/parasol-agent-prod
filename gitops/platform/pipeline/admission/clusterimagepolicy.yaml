@@ -1,0 +1,19 @@
+# Admission policy: the parasol-portal image must carry a valid cosign signature from the
+# cluster signing key (the one Tekton Chains uses). Scoped to the portal image glob so other
+# (as-yet unsigned) workloads in parasol-secured are untouched; see the no-match-policy=allow
+# note in README. The public key below matches openshift-pipelines/signing-secrets (cosign.pub).
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: parasol-portal-must-be-signed
+spec:
+  images:
+    - glob: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal**"
+  authorities:
+    - name: parasol-cosign-key
+      key:
+        data: |
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEwRuUMuT2/oNKZ2J0BHwU3fP2yC7i
+          alcI0flhp06867dBqk9emjdvcj4W3BkB+PU5wa4fT1IcfYdRpVNg8sfr4w==
+          -----END PUBLIC KEY-----

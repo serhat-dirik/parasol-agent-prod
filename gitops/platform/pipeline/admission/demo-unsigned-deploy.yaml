@@ -1,0 +1,19 @@
+# Demo: deploying the UNSIGNED portal image (the plain :latest BuildConfig output, which Tekton
+# Chains never signed) into a namespace the policy-controller guards. Admission refuses it with a
+# visible message. The pipeline-built, Chains-signed image is admitted instead.
+# Apply into a namespace labelled policy.rhtas.com/include=true.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: portal-unsigned
+  labels: {app: portal-unsigned}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: portal-unsigned}}
+  template:
+    metadata: {labels: {app: portal-unsigned}}
+    spec:
+      containers:
+        - name: portal
+          image: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:latest
+          ports: [{containerPort: 8080}]

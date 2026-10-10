@@ -182,13 +182,13 @@ spec:
     - {name: verified, description: "true if a valid signature was found"}
   steps:
     - name: cosign-verify
-      image: ghcr.io/sigstore/cosign/cosign:v2.4.3
+      image: quay.io/redhat-appstudio/rhtap-task-runner:latest
       env:
         - name: COSIGN_PUB
           valueFrom:
             configMapKeyRef: {name: $(params.cosign-key-configmap), key: cosign.pub}
       script: |
-        #!/busybox/sh
+        #!/usr/bin/env bash
         set -u
         IMG="$(params.image)@$(params.image-digest)"
         TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
@@ -280,9 +280,9 @@ spec:
     - {name: IMAGE_URL, type: string}
   steps:
     - name: show-sbom
-      image: ghcr.io/sigstore/cosign/cosign:v2.4.3
+      image: quay.io/redhat-appstudio/rhtap-task-runner:latest
       script: |
-        #!/busybox/sh
+        #!/usr/bin/env bash
         echo "SBOM / attestation location for $(params.IMAGE_URL):"
         echo "  cosign download sbom $(params.IMAGE_URL)  (generated and attached by the build platform)"
 ---
