@@ -68,6 +68,8 @@ done
 oc -n parasol-secured create secret generic agent-service-identity --from-literal=username=dev --from-literal=password=dev --dry-run=client -o yaml | oc apply -f -
 oc get ns models-as-a-service >/dev/null 2>&1 || oc create ns models-as-a-service
 oc -n models-as-a-service create secret generic maas-upstream-api-key --from-literal=api-key="$MAAS_API_KEY" --dry-run=client -o yaml | oc apply -f -
+# MaaS payload processing (key injection) only reads Secrets with this label
+oc -n models-as-a-service label secret maas-upstream-api-key inference.llm-d.ai/ipp-managed=true --overwrite
 # MaaS API database (gitops/platform/rhoai/maas-db.yaml): password generated once, never printed
 ns=redhat-ai-gateway-infra; oc get ns $ns >/dev/null 2>&1 || oc create ns $ns
 if ! oc get secret maas-postgres -n $ns >/dev/null 2>&1; then
