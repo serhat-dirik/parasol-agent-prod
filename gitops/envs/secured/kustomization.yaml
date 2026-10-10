@@ -22,7 +22,7 @@ resources:
 # only the digest value below after it signs and promotes the image; parasol-free stays on :latest.
 images:
   - name: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal
-    digest: sha256:d4304a454737268ae1acb514aeadee1117ca09e77c296e3d4a4622c105d1dd6f
+    digest: sha256:bb44e473f883ad13bb154218e5ab15558d3f310a05ba75c96e6ca738d6a6d843
 components: []   # add ./kill-switch here to revoke the agent's access via a Git commit
 patches:
   - path: agent-identity-patch.yaml
