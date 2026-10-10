@@ -15,7 +15,7 @@ resources:
   - networkpolicy.yaml
   - mcp-registrations.yaml
   - ../base
-components: [./kill-switch]   # remove this line (back to []) to restore the agent
+components: []   # add ./kill-switch here to revoke the agent's access via a Git commit
 patches:
   - path: agent-identity-patch.yaml
     target: {kind: Deployment, name: parasol-agent}
