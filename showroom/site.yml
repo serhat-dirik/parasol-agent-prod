@@ -5,11 +5,12 @@ site:
 
 content:
   sources:
-    # The in-cluster build (quay.io/rhpds/showroom-content) runs `antora showroom/site.yml`.
-    # Antora resolves a relative content url against the playbook's own directory (showroom/),
-    # so url:.. points at the git repo root, and start_path is relative to that root.
-    - url: ..
+    # Point Antora straight at the published repository. This is portable (it does not depend
+    # on where the content is checked out in the build container) and reads the committed
+    # content from the main branch.
+    - url: https://github.com/serhat-dirik/parasol-agent-prod
       start_path: showroom/content
+      branches: main
 
 ui:
   bundle:
