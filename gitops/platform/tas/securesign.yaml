@@ -41,3 +41,17 @@ spec:
   tuf:
     ingress:
       enabled: true
+  # Timestamp Authority: issues RFC3161 signed timestamps so keyless signatures remain verifiable
+  # after the short-lived Fulcio certificate expires. NOTE: to make admission (policy-controller)
+  # trust TSA timestamps, the TUF trust root must be regenerated to include the TSA cert chain
+  # (re-init the TUF repository); until then admission trusts keyless only while the Fulcio cert is
+  # unexpired, and the cluster-cosign-key authority covers durable admission of the running image.
+  tsa:
+    ingress:
+      enabled: true
+    signer:
+      certificateChain:
+        rootCA: {organizationName: Parasol, commonName: tsa-root.parasol}
+        intermediateCA:
+          - {organizationName: Parasol, commonName: tsa-int.parasol}
+        leafCA: {organizationName: Parasol, commonName: tsa.parasol}
