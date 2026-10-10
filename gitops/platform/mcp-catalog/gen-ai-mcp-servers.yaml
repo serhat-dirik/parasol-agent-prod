@@ -1,0 +1,23 @@
+# Surface the Parasol MCP gateway in the OpenShift AI dashboard (Gen AI studio > Playground).
+# RHOAI 3.5 reads this ConfigMap (schema {url, description}, no header field) to list selectable
+# MCP servers in the playground; it does NOT deploy anything. The URL is the gateway's aggregate
+# "mcp" listener, which federates claims-db (get_claim, list_claims_by_status, get_claim_history,
+# approve_payout) and policy-docs (search_policies, get_policy, list_policies) as one server.
+#
+# Why not the AI hub "MCP catalog": that surface (ConfigMap mcp-catalog-sources in
+# rhoai-model-registries) describes DEPLOYABLE container MCP servers for the MCPLifecycleOperator to
+# run as a pod; it has no "register an already-running external URL" entry type on 3.5 (Developer
+# Preview). Our servers already run and federate through the Kuadrant gateway, so the playground
+# ConfigMap is the correct surface. Applied directly to the operator-owned namespace (not Argo-synced);
+# this file is the source of record.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gen-ai-aa-mcp-servers
+  namespace: redhat-ods-applications
+data:
+  Parasol-MCP-Gateway: |
+    {
+      "url": "https://mcp.apps.cluster-znh6n.dyn.redhatworkshops.io/mcp",
+      "description": "Parasol federated MCP tools via the Kuadrant MCP gateway: claims-db (get_claim, list_claims_by_status, get_claim_history, approve_payout) and policy-docs (search_policies, get_policy, list_policies). Per-identity tool authorization and the Read-Propose-Act gate are enforced at the gateway."
+    }
