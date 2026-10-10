@@ -4,12 +4,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.parasol.ai.AgentService;
+import org.parasol.ai.CallerIdentity;
 import org.parasol.ai.ToolCall;
 import org.parasol.model.ChatFrame;
 import org.parasol.model.ClaimBotQuery;
 
 import io.opentelemetry.instrumentation.annotations.WithSpan;
 import io.quarkus.logging.Log;
+import io.quarkus.oidc.AccessTokenCredential;
+import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.websockets.next.OnError;
 import io.quarkus.websockets.next.OnOpen;
 import io.quarkus.websockets.next.OnTextMessage;
@@ -17,6 +20,7 @@ import io.quarkus.websockets.next.WebSocket;
 import io.quarkus.websockets.next.WebSocketConnection;
 import io.smallrye.common.annotation.Blocking;
 import io.smallrye.mutiny.Multi;
+import jakarta.inject.Inject;
 
 /**
  * The portal chat, now the agent: each user message runs the tool-using {@link AgentService},
@@ -27,11 +31,14 @@ import io.smallrye.mutiny.Multi;
 @WebSocket(path = "/ws/query")
 public class ClaimWebsocketChatBot {
 
-    private final AgentService agent;
+    @Inject
+    AgentService agent;
 
-    public ClaimWebsocketChatBot(AgentService agent) {
-        this.agent = agent;
-    }
+    @Inject
+    CallerIdentity caller;
+
+    @Inject
+    SecurityIdentity identity;
 
     @OnOpen
     public void onOpen(WebSocketConnection connection) {
@@ -49,6 +56,14 @@ public class ClaimWebsocketChatBot {
     @WithSpan("ChatMessage")
     public Multi<ChatFrame> onMessage(ClaimBotQuery query, WebSocketConnection connection) {
         Log.infof("Chat query on %s: claim=%s q=%s", connection.id(), query.claimNumber(), query.query());
+        // Carry the logged-in user's OIDC token to the MCP gateway so it filters tools per that user
+        // (secured). There is no JAX-RS filter on the WebSocket path, so set it from the session here.
+        if (identity != null && !identity.isAnonymous()) {
+            AccessTokenCredential cred = identity.getCredential(AccessTokenCredential.class);
+            if (cred != null && cred.getToken() != null) {
+                caller.setBearerToken(cred.getToken());
+            }
+        }
         String question = (query.claimNumber() == null || query.claimNumber().isBlank())
                 ? query.query()
                 : "The user is viewing claim " + query.claimNumber() + ". " + query.query();

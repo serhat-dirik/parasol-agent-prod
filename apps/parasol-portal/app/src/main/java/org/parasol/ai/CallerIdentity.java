@@ -37,6 +37,17 @@ public class CallerIdentity {
         this.subject = JwtPeek.preferredUsername(authorization);
     }
 
+    /**
+     * Set the caller from a raw OIDC access token (the chat WebSocket path, where there is no
+     * JAX-RS request filter to capture an Authorization header). The agent then carries the
+     * logged-in user's token to the MCP gateway, so the gateway filters tools per that user.
+     */
+    public void setBearerToken(String rawAccessToken) {
+        if (rawAccessToken != null && !rawAccessToken.isBlank()) {
+            set("Bearer " + rawAccessToken);
+        }
+    }
+
     @Provider
     public static class Capture implements ContainerRequestFilter {
 
