@@ -1,0 +1,19 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-perses
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: parasol
+  destination: {server: https://kubernetes.default.svc, namespace: openshift-operators}
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_REVISION}
+    path: gitops/platform/perses
+    kustomize:
+      patches: []
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=false, RespectIgnoreDifferences=true, ServerSideApply=true]

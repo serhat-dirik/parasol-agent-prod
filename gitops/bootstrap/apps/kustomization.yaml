@@ -11,5 +11,6 @@ resources:
   - platform-builds.yaml
   - platform-rhoai.yaml
   - platform-guardrails.yaml
+  - platform-perses.yaml
   - env-free.yaml
   - env-secured.yaml

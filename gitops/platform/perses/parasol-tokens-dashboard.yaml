@@ -1,0 +1,176 @@
+# Perses dashboard for the Parasol assistant token metrics.
+# Rendered by the Cluster Observability Operator's console Perses backend
+# (UIPlugin "monitoring", spec.monitoring.perses.enabled) which lives in
+# openshift-operators; the perses-operator pushes each PersesDashboard to
+# perses.<its-namespace>.svc, so this CR must sit in openshift-operators to
+# land in the console-integrated Perses instance. Purely additive.
+# Queries omit a datasource and use the project default
+# (accelerators-thanos-querier-datasource -> thanos-querier, UWM-aware).
+apiVersion: perses.dev/v1alpha2
+kind: PersesDashboard
+metadata:
+  name: parasol-assistant-tokens
+  namespace: openshift-operators
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+  labels:
+    app.kubernetes.io/part-of: parasol
+spec:
+  config:
+    display:
+      name: Parasol Assistant Token Spend
+      description: Per-user token consumption of the Parasol claims assistant and the spend that drives the ParasolAssistantTokenSpendHigh alert
+    duration: 6h
+    variables:
+    - kind: ListVariable
+      spec:
+        name: user
+        display:
+          name: User
+        allowAllValue: true
+        allowMultiple: true
+        defaultValue: ["$__all"]
+        sort: alphabetical-asc
+        plugin:
+          kind: PrometheusLabelValuesVariable
+          spec:
+            labelName: user
+            matchers:
+            - 'parasol_agent_tokens_total{user!=""}'
+    panels:
+      spendRate:
+        kind: Panel
+        spec:
+          display:
+            name: Per-user token spend (tokens/min) — alert at 5000
+            description: sum by(user) rate(parasol_agent_tokens_total[2m]) * 60 — the exact ParasolAssistantTokenSpendHigh expression
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: list
+                position: bottom
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.1
+              yAxis:
+                format:
+                  unit: decimal
+              thresholds:
+                steps:
+                - value: 5000
+                  color: "#d9534f"
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'sum by (user) (rate(parasol_agent_tokens_total{user=~"$user"}[2m])) * 60'
+                  seriesNameFormat: '{{user}}'
+      cumulativeByUser:
+        kind: Panel
+        spec:
+          display:
+            name: Cumulative tokens by user
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: list
+                position: bottom
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.15
+                stack: all
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'sum by (user) (parasol_agent_tokens_total{user=~"$user"})'
+                  seriesNameFormat: '{{user}}'
+      byType:
+        kind: Panel
+        spec:
+          display:
+            name: Tokens by type (input / output)
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: list
+                position: bottom
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.3
+                stack: all
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'sum by (type) (parasol_agent_tokens_total{user!=""})'
+                  seriesNameFormat: '{{type}}'
+      byVersion:
+        kind: Panel
+        spec:
+          display:
+            name: Tokens by assistant version
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: list
+                position: bottom
+              visual:
+                display: line
+                lineWidth: 1.5
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: 'sum by (version) (parasol_agent_tokens_total{user!=""})'
+                  seriesNameFormat: '{{version}}'
+    layouts:
+    - kind: Grid
+      spec:
+        display:
+          title: Token spend
+        items:
+        - content: {$ref: '#/spec/panels/spendRate'}
+          x: 0
+          y: 0
+          width: 24
+          height: 9
+        - content: {$ref: '#/spec/panels/cumulativeByUser'}
+          x: 0
+          y: 9
+          width: 12
+          height: 8
+        - content: {$ref: '#/spec/panels/byType'}
+          x: 12
+          y: 9
+          width: 12
+          height: 8
+        - content: {$ref: '#/spec/panels/byVersion'}
+          x: 0
+          y: 17
+          width: 12
+          height: 8

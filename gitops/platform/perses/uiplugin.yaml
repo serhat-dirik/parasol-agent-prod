@@ -1,0 +1,16 @@
+# Cluster Observability Operator "Monitoring" console plugin with the Perses
+# dashboards backend enabled. Deploys the Perses instance (perses-0) and the
+# monitoring-console-plugin in openshift-operators, surfacing Perses dashboards
+# under the OpenShift console Observe > Dashboards. Cluster-scoped, additive;
+# separate from the existing distributed-tracing UIPlugin.
+apiVersion: observability.openshift.io/v1alpha1
+kind: UIPlugin
+metadata:
+  name: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  type: Monitoring
+  monitoring:
+    perses:
+      enabled: true

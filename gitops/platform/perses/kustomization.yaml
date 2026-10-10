@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Perses token dashboard (V9). The Monitoring UIPlugin stands up the COO Perses
+# backend; the PersesDashboard must live in openshift-operators because the
+# perses-operator pushes each dashboard to perses.<its-namespace>.svc.
+resources:
+  - uiplugin.yaml
+  - parasol-tokens-dashboard.yaml
