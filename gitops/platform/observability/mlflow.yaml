@@ -13,5 +13,4 @@ spec:
   serveArtifacts: true
   artifactsDestination: "file:///mlflow/artifacts"
   storage:
-    size: 5Gi
     storageClassName: ocs-external-storagecluster-ceph-rbd
