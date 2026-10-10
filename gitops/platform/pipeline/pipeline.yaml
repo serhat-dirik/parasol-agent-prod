@@ -22,6 +22,8 @@ spec:
     - {name: IMAGE_URL, value: "$(tasks.build-container.results.IMAGE_URL)"}
     - {name: IMAGE_DIGEST, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
     - {name: EVAL_SCORE, value: "$(tasks.agent-eval.results.score)"}
+    - {name: SIGNED_IMAGES, value: "$(tasks.sign-images.results.SIGNED)"}
+    - {name: SBOM_COMPONENTS, value: "$(tasks.generate-sbom.results.SBOM_COMPONENTS)"}
   workspaces:
     - {name: workspace}
   tasks:
@@ -70,11 +72,17 @@ spec:
       workspaces:
         - {name: source, workspace: workspace}
     - name: verify-enterprise-contract
-      runAfter: [build-container]
+      runAfter: [sign-images]
       taskRef: {name: verify-enterprise-contract}
       params:
         - {name: image, value: "$(params.output-image)"}
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
+    - name: sign-images
+      runAfter: [build-container]
+      taskRef: {name: sign-images}
+      params:
+        - {name: portal-image, value: "$(params.output-image)"}
+        - {name: portal-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
     - name: promote
       runAfter: [scan-image, agent-eval, verify-enterprise-contract]
       when:

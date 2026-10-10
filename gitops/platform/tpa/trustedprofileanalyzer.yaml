@@ -1,0 +1,50 @@
+# Red Hat Trusted Profile Analyzer (Trustify) instance for SBOM ingestion/analysis.
+# The rhtpa-operator is installed by gitops/platform/pipeline/operators/tpa.yaml.
+#
+# STATUS (10 Oct, Stream S1): operator v3.1.0 reconciles the `server` and `importer`
+# Deployments from this CR, but a fully browsable UI additionally needs, as cluster
+# prerequisites the operator does NOT self-provision here:
+#   - a shared RWX "storage" PVC (filesystem storage backend; or switch spec.storage to s3),
+#   - a PostgreSQL reachable at spec.database.host (the operator's createDatabase/migrateDatabase
+#     init Jobs are blocked by a Helm-engine bug in this operator build:
+#     `deepCopy .Values.{create,migrate}Database -> reflect: call of reflect.Value.Type on zero
+#     Value`, so they are disabled below and the DB must be supplied out of band),
+#   - an OIDC issuer + clients for UI login (spec.oidc).
+# Bringing all three up exceeds the demo's 45-min Technology-Preview cap, so the SBOM is surfaced
+# instead as a PipelineRun result (SBOM_COMPONENTS) and a signed cosign CycloneDX attestation on
+# the image (see gitops/platform/pipeline generate-sbom task; verify with
+# `cosign verify-attestation --type cyclonedx` / `cosign download sbom`).
+apiVersion: rhtpa.io/v1
+kind: TrustedProfileAnalyzer
+metadata:
+  name: tpa
+  namespace: trusted-profile-analyzer
+spec:
+  appDomain: .apps.cluster-znh6n.dyn.redhatworkshops.io
+  openshift:
+    useServiceCa: true
+  storage:
+    type: filesystem
+    size: 16Gi
+  database:
+    host: tpa-db
+    port: "5432"
+    name: trustify
+    username: trustify
+    # Supply out of band (never commit a real value); matches the Postgres you provision at tpa-db.
+    password: REPLACE_WITH_DB_PASSWORD
+  modules:
+    # init Jobs disabled: this operator build's Helm chart cannot render them (deepCopy bug above).
+    createDatabase: {enabled: false, image: {}}
+    migrateDatabase: {enabled: false, image: {}}
+    createImporters: {enabled: false, image: {}, importers: {}}
+    importer:
+      enabled: true
+      replicas: 1
+      concurrency: 1
+      resources: {requests: {cpu: 1, memory: 8Gi}}
+      workingDirectory: {size: 32Gi}
+    server:
+      enabled: true
+      replicas: 1
+      resources: {requests: {cpu: 1, memory: 8Gi}}

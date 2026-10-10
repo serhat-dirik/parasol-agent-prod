@@ -314,13 +314,16 @@ spec:
     - {name: source}
   volumes:
     - {name: svcca, configMap: {name: openshift-service-ca.crt}}
+    - {name: keys, secret: {secretName: cosign-signing-key}}
   steps:
     - name: syft
       image: quay.io/redhat-appstudio/rhtap-task-runner:latest
       env:
         - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
+        - {name: COSIGN_PASSWORD, valueFrom: {secretKeyRef: {name: cosign-signing-key, key: cosign.password}}}
       volumeMounts:
         - {name: svcca, mountPath: /svcca, readOnly: true}
+        - {name: keys, mountPath: /keys, readOnly: true}
       workingDir: $(workspaces.source.path)
       script: |
         #!/usr/bin/env bash
@@ -335,11 +338,19 @@ spec:
         N=$(grep -o '"bom-ref"' sbom.json | wc -l | tr -d ' ')
         echo "SBOM written to sbom.json with ~$N components."
         printf "%s" "${N:-0}" > "$(results.SBOM_COMPONENTS.path)"
-        # Ship to Trusted Profile Analyzer once a TPA instance exists (rhtpa-operator is installed;
-        # a full TrustedProfileAnalyzer stack is deferred). Uncomment and set TPA_ENDPOINT/TPA_TOKEN:
+        # Attach the SBOM to the image as a signed cosign attestation (CycloneDX predicate), signed
+        # with the cluster key. This makes the SBOM travel with the image and be independently
+        # verifiable (cosign verify-attestation / cosign download sbom). It is the durable SBOM
+        # surface; a Trusted Profile Analyzer UI ingest is the richer surface when a TPA instance is up.
+        echo "Attaching SBOM as a cosign attestation to $IMG ..."
+        cosign attest --predicate sbom.json --type cyclonedx --key /keys/cosign.key \
+          --tlog-upload=false --allow-insecure-registry --yes "$IMG"
+        cosign verify-attestation --type cyclonedx --key /keys/cosign.pub \
+          --insecure-ignore-tlog=true --allow-insecure-registry "$IMG" >/dev/null \
+          && echo "VERIFIED CycloneDX SBOM attestation on $IMG"
+        # TPA UI upload (when a TrustedProfileAnalyzer instance is running + OIDC configured):
         #   curl -sf -X POST "$TPA_ENDPOINT/api/v2/sbom" -H "authorization: Bearer $TPA_TOKEN" \
         #        -H "content-type: application/json" --data-binary @sbom.json && echo "uploaded to TPA"
-        echo "SBOM ready for Trusted Profile Analyzer (upload step stubbed; see comment above)."
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -382,3 +393,54 @@ spec:
         echo "  Image       : $(params.image-url)"
         echo "  Build status: $(params.build-task-status)"
         echo "End Summary"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sign-images
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: >-
+    cosign-sign all THREE Parasol images (parasol-portal, claims-db, policy-docs) with the cluster
+    signing key (the same key Tekton Chains uses, copied into parasol-build as cosign-signing-key).
+    Tekton Chains only signs images produced by a Tekton TaskRun (the portal), so claims-db and
+    policy-docs - built by BuildConfigs - are signed here. Verifies each signature before returning.
+  params:
+    - {name: portal-image, type: string}
+    - {name: portal-digest, type: string}
+    - {name: claims-db-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/claims-db:latest"}
+    - {name: policy-docs-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/policy-docs:latest"}
+  results:
+    - {name: SIGNED, description: comma-separated list of signed images}
+  volumes:
+    - {name: keys, secret: {secretName: cosign-signing-key}}
+    - {name: svcca, configMap: {name: openshift-service-ca.crt}}
+  steps:
+    - name: sign
+      image: quay.io/redhat-appstudio/rhtap-task-runner:latest
+      env:
+        - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
+        - {name: COSIGN_PASSWORD, valueFrom: {secretKeyRef: {name: cosign-signing-key, key: cosign.password}}}
+      volumeMounts:
+        - {name: keys, mountPath: /keys, readOnly: true}
+        - {name: svcca, mountPath: /svcca, readOnly: true}
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        mkdir -p "$HOME/.docker"
+        AUTH=$(printf "pipeline:%s" "$TOKEN" | base64 | tr -d '\n')
+        printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
+        PORTAL="$(params.portal-image)@$(params.portal-digest)"
+        CLAIMS="$(params.claims-db-image)"
+        DOCS="$(params.policy-docs-image)"
+        for IMG in "$PORTAL" "$CLAIMS" "$DOCS"; do
+          echo "===== cosign sign $IMG ====="
+          cosign sign --key /keys/cosign.key --tlog-upload=false --allow-insecure-registry --yes "$IMG"
+        done
+        echo "===== verify all three ====="
+        for IMG in "$PORTAL" "$CLAIMS" "$DOCS"; do
+          cosign verify --key /keys/cosign.pub --insecure-ignore-tlog=true --allow-insecure-registry "$IMG" >/dev/null \
+            && echo "VERIFIED $IMG"
+        done
+        printf "parasol-portal,claims-db,policy-docs" > "$(results.SIGNED.path)"
