@@ -17,12 +17,23 @@ data:
         default upgrade;
         '' close;
       }
+      # HTML (the cockpit root and every guide page) is never cached, so a browser that saw an
+      # older guide always reloads the current one. Other assets keep the upstream headers.
+      map $upstream_http_content_type $html_cache_control {
+        ~*text/html "no-store";
+        default     $upstream_http_cache_control;
+      }
       server {
         listen 8081;
         absolute_redirect off;
 
-        location = /wetty { return 302 /wetty/; }
-        location /wetty/ {
+        # wetty serves its page at /wetty and 301s /wetty/ back to it, so never redirect here:
+        # /wetty/ is proxied straight to /wetty, everything else under /wetty passes through.
+        location = /wetty/ {
+          proxy_pass http://127.0.0.1:3000/wetty;
+          proxy_set_header Host $http_host;
+        }
+        location /wetty {
           proxy_pass http://127.0.0.1:3000;
           proxy_http_version 1.1;
           proxy_set_header Upgrade $http_upgrade;
@@ -35,6 +46,8 @@ data:
 
         location / {
           proxy_pass http://127.0.0.1:8080;
+          proxy_hide_header Cache-Control;
+          add_header Cache-Control $html_cache_control always;
           proxy_set_header Host $http_host;
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Proto $scheme;
