@@ -69,10 +69,10 @@ between runs — the demo itself is the browser.
 <details>
 <summary><b>Quick install</b></summary>
 
-Prerequisites: a fresh OpenShift 4.22 cluster (3 workers, 16 vCPU / 64 GB recommended, no GPU),
-`oc` logged in as cluster-admin, `kustomize`, `envsubst`, `openssl` and `python3` with PyYAML.
-OpenShift GitOps and a Keycloak instance may already be present — `bootstrap.sh` detects and reuses
-them.
+Prerequisites: a fresh OpenShift 4.22 cluster (3 workers, 16 vCPU / 64 GB recommended, no GPU; OpenShift
+AI not needed), `oc` logged in as cluster-admin (token login), `kustomize`, `envsubst`, `openssl`, `curl`,
+`jq` and `python3` with PyYAML. Every prerequisite (OpenShift GitOps, each operator, a Keycloak instance,
+the OpenShift AI DataScienceCluster) is detected first and installed only if missing.
 
 The demo calls three models over OpenAI-compatible APIs. Each one can come from a **different
 provider**, so each has its own endpoint (a base URL ending in `/v1`) and its own key:
@@ -96,14 +96,21 @@ export LLAMAGUARD_ENDPOINT=https://<provider>/v1    LLAMAGUARD_KEY=<key>
 If all models sit behind one endpoint, set the same URL for each. `bootstrap.sh` checks the three
 required pairs before it touches the cluster and names any that are missing.
 
-`bootstrap.sh` is idempotent: it installs the operators; creates the secrets (MaaS credentials, the
-per-model MaaS keys via `scripts/maas-model-keys.sh`, service identities, trusted-header keys — none
-ever in Git); builds the images in-cluster (binary builds, no registry credentials); and applies the
-Argo CD app-of-apps, which syncs the whole platform — the two portals, the Keycloak realm, the MCP
-gateway, MaaS tiers (two external models — the qwen agent + the guardian detector), guardrails, observability (OTel → Tempo and MLflow), the
-signed build pipeline with admission control, TrustyAI evaluation, the Developer Hub golden path, the
-Connectivity Link developer portal, and the Showroom guide. The repo must be pushed to a Git remote
-Argo can reach (`REPO_URL`) before Argo can sync.
+`bootstrap.sh` is idempotent (re-run it after any failure; every WARN names the command to re-run). It
+installs what is missing, creates the secrets (none ever in Git), builds the images in-cluster, applies the
+Argo CD app-of-apps, sets up the supply chain (SPIRE, Trusted Artifact Signer, cosign key, admission) and
+seeds the demo data (MLflow golden-set runs v1 20/20 and v2 17/20, prompt and model registry versions,
+the EvalHub run, the GenAI Studio playground, the blocked v2 release run). On a bare cluster it takes
+**75 to 120 minutes**. The repo must be pushed to a Git remote Argo can reach (`REPO_URL`).
+
+**The one manual step.** The secured portal runs only the image the release pipeline signs and promotes,
+and promotion is a commit to this repo, so the pipeline needs your GitHub token (contents:write on the
+repo). Before or after `bootstrap.sh` (the namespace must exist):
+
+```bash
+read -s T && oc create secret generic gitops-auth-secret -n parasol-build --from-literal=token="$T" && unset T
+scripts/pipeline-runs.sh --wait    # release run v1 (~25 min): signed, promoted, rolled out by Argo CD
+```
 
 Verify the install with `scripts/status.sh` (all Argo apps Synced/Healthy, both portals up), or Argo CD
 directly. Then open the portals in a browser — **this is the demo**:
@@ -167,10 +174,11 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
 
 Other helpers:
 - `scripts/token.sh <user>` — print a demo user's access token.
-- Bootstrap helpers, called by `bootstrap.sh` or run once by an operator: `build-images.sh`,
-  `rhoai-enable.sh`, `wait-csv.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`,
-  `maas-portal-keys.sh`, `mlflow-experiment.sh`, `portal-oidc-client.sh`, `portal-users.sh`,
-  `fetch-detector-model.sh`.
+- Bootstrap helpers, called by `bootstrap.sh` (each idempotent, re-runnable alone): `ensure-operators.py`,
+  `rhoai-enable.sh`, `build-images.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`,
+  `maas-portal-keys.sh`, `portal-oidc-client.sh`, `portal-users.sh`, `fetch-detector-model.sh`,
+  `supply-chain.sh` (SPIRE, Trusted Artifact Signer, cosign key, admission), `seed-demo.sh` (MLflow,
+  prompt/model registry, `eval-seed.sh`, `evalhub-run.sh`, `ogx-playground.sh`, `pipeline-runs.sh`).
 - MaaS catalogue (two external models, per-tier keys): `maas-model-keys.sh` puts each per-model MaaS
   key into its own cluster Secret; `maas-ext-model-secrets.sh` creates the upstream per-model key Secrets
   (and the required `inference.llm-d.ai/ipp-managed=true` label); `maas-tier-keys.sh` mints the prod + guard

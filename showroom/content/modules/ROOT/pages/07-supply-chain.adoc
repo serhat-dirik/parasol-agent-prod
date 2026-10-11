@@ -19,7 +19,7 @@ What runs next to customer data must be the exact image the pipeline built, eval
 +
 What you should see: the release process is code too. Argo CD keeps the `parasol-portal-secure-build` Pipeline and its Tasks in the state Git describes (Synced, Healthy). A run is an event, not desired state, so runs are not part of the app.
 
-. Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-secure-build-vrdql`.
+. Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-secure-build-v1`.
 +
 What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Scenario 4 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom` and `register-model-version`.
 +

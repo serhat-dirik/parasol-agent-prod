@@ -49,7 +49,7 @@ What you should see: both versions registered, so the failure is on record and a
 
 . Select the *OpenShift Console* tab and open *Pipelines*, project `parasol-build`, then *Pipeline runs*. Direct link: link:{console_url}/k8s/ns/parasol-build/tekton.dev~v1~PipelineRun[parasol-build pipeline runs,window=_blank].
 +
-What you should see: two release runs of the same pipeline. In `parasol-portal-secure-build-vrdql` (candidate v1) `agent-eval` passed with `EVAL_SCORE 1.00` and `promote` ran. In `parasol-portal-secure-build-dhd8k` (candidate v2) `agent-eval` failed with `EVAL_SCORE 0.85` and `promote` is *skipped*: v2 was built, scanned and even signed, but nothing reached Git, so nothing reached production.
+What you should see: two release runs of the same pipeline. In `parasol-portal-secure-build-v1` (candidate v1) `agent-eval` passed with `EVAL_SCORE 1.00` and `promote` ran. In `parasol-portal-secure-build-v2` (candidate v2) `agent-eval` failed with `EVAL_SCORE 0.85` and `promote` is *skipped*: v2 was built, scanned and even signed, but nothing reached Git, so nothing reached production.
 +
 image::sc-pipeline-v2-blocked.png["The v2 release run: every stage ran, and promote was skipped by the evaluation gate"]
 
