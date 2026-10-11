@@ -118,6 +118,7 @@ else scripts/build-images.sh || warn "an image build failed" scripts/build-image
 log "8/12 MaaS: Authorino TLS, tiers, keys"
 for i in $(seq 1 40); do oc rollout status deploy/guardrails-proxy -n parasol-secured --timeout=5s >/dev/null 2>&1 && break
   echo "$(date +%T) waiting for guardrails-proxy (Argo platform-guardrails) ($i/40)"; sleep 15; done
+scripts/kuadrant-ready.sh || warn "Kuadrant not Ready: no AuthPolicy is enforced (MaaS keys fail with 500)" scripts/kuadrant-ready.sh
 scripts/authorino-tls.sh || warn "Authorino TLS not applied (reverted); MaaS stays NotReady" scripts/authorino-tls.sh
 for i in $(seq 1 60); do [ "$(oc get datasciencecluster -o jsonpath='{.items[0].status.conditions[?(@.type=="ModelsAsAServiceReady")].status}')" = True ] && break; echo "$(date +%T) waiting for ModelsAsAServiceReady ($i/60)"; sleep 30; done
 kustomize build gitops/platform/maas-tiers | envsubst '$GUARD_HOST' | oc apply -f - \
