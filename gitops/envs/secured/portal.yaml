@@ -12,6 +12,9 @@ metadata:
   labels: {app: portal}
 spec:
   replicas: 1
+  # Recreate (not RollingUpdate): secured CPU is tight (limits.cpu ~7600m/8000m). A rolling surge
+  # would add a second 1000m portal pod and be quota-rejected, so replace in place on a new digest.
+  strategy: {type: Recreate}
   selector:
     matchLabels: {app: portal}
   template:
@@ -56,12 +59,17 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: policyDocsMcpUrl}}
             - name: CLAIMS_DB_API_URL
               valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbApiUrl}}
+            # V3: the fraud-check agent reached through the same one gateway, per-identity authz
+            - name: FRAUD_CHECK_MCP_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: fraudCheckMcpUrl}}
             - name: JAVA_TOOL_OPTIONS
               value: >-
                 -Dquarkus.langchain4j.mcp.claims-db.header.X-Mcp-Virtualserver=parasol-secured/claims-db
                 -Dquarkus.langchain4j.mcp.policy-docs.header.X-Mcp-Virtualserver=parasol-secured/policy-docs
                 -Dquarkus.langchain4j.mcp.claims-db.cache-tool-list=false
                 -Dquarkus.langchain4j.mcp.policy-docs.cache-tool-list=false
+                -Dquarkus.langchain4j.mcp.fraud-check.header.X-Mcp-Virtualserver=parasol-secured/fraud-check
+                -Dquarkus.langchain4j.mcp.fraud-check.cache-tool-list=false
             # Service identity for non-caller MCP contexts (startup/background); the caller's own
             # forwarded token always takes precedence (McpBearerTokenProvider) so the gateway sees the user.
             - name: MCP_AUTH_TOKEN_URL

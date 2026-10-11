@@ -42,7 +42,7 @@ public interface ClaimsAssistant {
             - If a question needs both a claim fact and a policy rule, call both kinds of tool.
             {safetyRules}
             """)
-    @McpToolBox({"claims-db", "policy-docs"})
+    @McpToolBox({"claims-db", "policy-docs", "fraud-check"})
     Result<String> ask(@MemoryId String conversationId,
                        @V("safetyRules") String safetyRules,
                        @UserMessage String question);
@@ -54,7 +54,7 @@ public interface ClaimsAssistant {
      * approve_payout). In secured the gateway filters the real approve_payout out of an adjuster's
      * tools, so the model can only PROPOSE here (Read-Propose-Act, A2).
      */
-    @McpToolBox({"claims-db", "policy-docs"})
+    @McpToolBox({"claims-db", "policy-docs", "fraud-check"})
     @ToolBox(ProposePayoutTool.class)
     Result<String> askWithPropose(@MemoryId String conversationId,
                                   @V("safetyRules") String safetyRules,

@@ -135,7 +135,11 @@ public class ClaimResource {
     public Response approve(@PathParam("number") String number, @QueryParam("amount") Double amount) {
         String traceId = Span.current().getSpanContext().getTraceId();
         if (!groups().contains("claims-managers")) {
-            toolCall("approve_payout", "403");
+            // O2: this role-block runs BEFORE forwardToken()/CallerIdentity is populated, so
+            // caller.subject() is still "anonymous" here. Attribute the denied call to the
+            // AUTHENTICATED identity instead, so the 403 metric carries the real user (e.g. rebecca).
+            String user = identity.isAnonymous() ? "anonymous" : identity.getPrincipal().getName();
+            toolCall("approve_payout", "403", user);
             gatewayAuthz("approve_payout", true);
             return Response.status(Response.Status.FORBIDDEN)
                     .entity(Map.of("error", "approve_payout is not permitted for this role",
@@ -170,7 +174,13 @@ public class ClaimResource {
 
     /** parasol_tool_calls_total{tool,user,status}: the per-tool authz outcome for the operator dashboard. */
     private void toolCall(String tool, String status) {
-        metrics.counter("parasol_tool_calls_total", "tool", tool, "user", caller.subject(), "status", status)
+        toolCall(tool, status, caller.subject());
+    }
+
+    /** As {@link #toolCall(String, String)} but with an explicit user, for paths where the caller
+     * identity is known from SecurityIdentity before the forwarded token populates CallerIdentity. */
+    private void toolCall(String tool, String status, String user) {
+        metrics.counter("parasol_tool_calls_total", "tool", tool, "user", user, "status", status)
                 .increment();
     }
 
