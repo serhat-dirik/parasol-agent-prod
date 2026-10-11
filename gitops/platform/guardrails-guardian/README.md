@@ -18,15 +18,16 @@ request it runs the detectors named in the `detectors` field:
 | `granite_guardian` | `granite-guardian-3-1-8b` (MaaS)    | any text                        |
 | `llama_guard`      | `Llama-Guard-3-1B` (MaaS), optional | the **user message** only       |
 
-### Scoring (why the verdict token, not a logprob threshold)
+### Scoring (verdict token, confirmed by confidence)
 
 Each guard model emits a verdict token — Granite Guardian `Yes`/`No`, Llama Guard `safe`/`unsafe`.
 The **decision is the emitted verdict token** (authoritative). The **score** is `P(risky)` read from
 `top_logprobs` **at the position the verdict token is emitted** — Granite emits it first; Llama emits
 a `\n\n` token first, so position-0 logprobs are noise. Two traps handled: (1) case/space variants
 (`Yes`/`yes`/`YES`) are collapsed keeping the **best** logprob, else a decisive `Yes` reads as ~0;
-(2) a clean `No` with tied logprobs still decides *safe* (no false positive). No fixed threshold gates
-the detection — the model's label does.
+(2) a clean `No` with tied logprobs still decides *safe* (no false positive). A risky token also needs
+`P(risky) >= GUARD_MIN_SCORE` (default 0.7): a near-tie `Yes` (a clean question once scored 0.504) flips
+between runs at temperature 0, so it is reported as *safe* with its score instead of a coin-flip detection.
 
 ## Proof (real models, reproducible)
 

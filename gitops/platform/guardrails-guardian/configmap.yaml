@@ -44,6 +44,9 @@ data:
             "risky": {"unsafe", "yes"}, "safe": {"safe", "no"}, "detection": "unsafe",
         },
     }
+    # A risky verdict token only counts when the model is confident: a near-tie (P(risky) ~0.5) flips
+    # between runs at temperature 0, so it is treated as safe instead of a coin-flip false positive.
+    MIN_RISKY = float(os.environ.get("GUARD_MIN_SCORE", "0.7"))
     CTX = ssl.create_default_context()
     CTX.check_hostname = False
     CTX.verify_mode = ssl.CERT_NONE                        # lab MaaS public ingress cert
@@ -60,7 +63,7 @@ data:
 
     def classify(resp, risky, safe):
         # risky/safe = the verdict tokens for this guard ("yes"/"no" for Granite, "unsafe"/"safe" for
-        # Llama). The DECISION is the emitted verdict token (authoritative for both models); the SCORE is
+        # Llama). The DECISION is the emitted verdict token, confirmed by P(risky) >= MIN_RISKY; the SCORE is
         # P(risky) read from the logprobs AT THE POSITION the verdict token is emitted (Granite emits it
         # first; Llama emits a "\n\n" token first, so position 0 logprobs are noise). Returns (risky, score).
         ch = resp["choices"][0]
@@ -77,7 +80,7 @@ data:
                     er = math.exp(max(rk)) if rk else 0.0
                     es = math.exp(max(sf)) if sf else 0.0
                     score = er / (er + es) if (er + es) else (1.0 if tk in risky else 0.0)
-                    return tk in risky, score
+                    return tk in risky and score >= MIN_RISKY, score
         except (KeyError, IndexError, TypeError):
             pass
         # no usable logprobs: decide from the emitted text, report a nominal confidence
@@ -164,6 +167,12 @@ data:
         # Granite SAFE with TIED logprobs: emitted "No" must decide safe even though score ~0.5.
         risky, sc = classify(_r("No", [_tok("No", [("No", -0.69), ("Yes", -0.69)])]), R, S)
         assert not risky, (risky, sc)
+        # Near-tie the other way (observed on a clean question: "Yes" at P=0.504): not confident -> safe.
+        risky, sc = classify(_r("Yes", [_tok("Yes", [("Yes", -0.685), ("No", -0.701)])]), R, S)
+        assert not risky and 0.5 < sc < 0.51, (risky, sc)
+        # Document note observed at 0.979 stays risky.
+        risky, sc = classify(_r("Yes", [_tok("Yes", [("Yes", -0.021), ("No", -3.87)])]), R, S)
+        assert risky and sc > 0.97, (risky, sc)
         # Llama: verdict word follows a leading "\n\n" token -> use the verdict position, not position 0.
         toks = [_tok("\n\n", [("\n\n", 0.0), ("safe", -19.5)]),
                 _tok("unsafe", [("unsafe", -0.1), ("safe", -3.0)])]
