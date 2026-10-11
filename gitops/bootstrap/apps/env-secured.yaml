@@ -18,7 +18,7 @@ spec:
           patch: |-
             - op: replace
               path: /data/model
-              value: ${MAAS_MODEL}
+              value: qwen3-14b   # secured portal runs on the injection-obeying model; the controls (not model luck) stop the payout
             - op: replace
               path: /data/claimsDbMcpUrl
               value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp

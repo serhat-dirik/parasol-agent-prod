@@ -27,6 +27,34 @@ metadata:
 spec:
   modelRef: {kind: ExternalModel, name: llama-scout-17b}
 ---
+# qwen3-14b: an injection-obeying model, served on the governed path so the SECURED portal can run on it
+# and prove the controls (not model luck) stop the payout. Same LiteLLM endpoint (the Argo patch above sets
+# /spec/endpoint to $MAAS_HOST); upstream key Secret maas-upstream-qwen3-14b (data key "api-key", label
+# inference.llm-d.ai/ipp-managed=true) created at run time, never committed. Additive: llama-scout-17b
+# stays the prod model and is still authorized on every policy/subscription below.
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: qwen3-14b
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  provider: openai
+  endpoint: maas.invalid.example    # FQDN only; the Argo Application patches /spec/endpoint with $MAAS_HOST
+  targetModel: qwen3-14b
+  credentialRef: {name: maas-upstream-qwen3-14b}
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: qwen3-14b
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  modelRef: {kind: ExternalModel, name: qwen3-14b}
+---
 # Who may call what.
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSAuthPolicy
@@ -40,6 +68,7 @@ spec:
     groups: [{name: developers}, {name: parasol-stage}, {name: parasol-prod}, {name: "system:serviceaccounts:parasol-secured"}]
   modelRefs:
     - {name: llama-scout-17b, namespace: models-as-a-service}
+    - {name: qwen3-14b, namespace: models-as-a-service}        # secured portal runs on qwen; scout still permitted
 ---
 # How much. The stage allowance is deliberately small: the "3am" clip exhausts it in minutes.
 apiVersion: maas.opendatahub.io/v1alpha1
@@ -58,6 +87,10 @@ spec:
       namespace: models-as-a-service
       tokenRateLimits:
         - {limit: 200000, window: 10m}   # demo stage allowance: rehearsals fit, the v3 storm trips the alert first, then 429
+    - name: qwen3-14b                     # secured portal's model; same stage allowance so budget behaviour is unchanged
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 200000, window: 10m}
 ---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription
