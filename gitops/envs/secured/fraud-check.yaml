@@ -133,7 +133,7 @@ spec:
 ---
 # The agent's fraud-check MCP client sends X-Mcp-Virtualserver: parasol-secured/fraud-check.
 # One tool, exposed to tools/list for every identity; the gateway AuthPolicy still gates tools/call
-# per identity (adjusters + claims-managers hold tool:fraud_check; policyholders do not -> 403).
+# per identity (adjusters + claims-managers hold tool:fraud_check; contractors do not -> 403).
 apiVersion: mcp.kuadrant.io/v1alpha1
 kind: MCPVirtualServer
 metadata:

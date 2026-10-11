@@ -1,24 +1,24 @@
 #!/usr/bin/env bash
 # night-shift.sh [count] [portal-host]
-# The 02:00 denial-of-wallet scene (Demo 3 beats 1-2): a policyholder account (tom.becker) logs in and
-# hammers the assistant on the shared model. It sends a MIX, because off-topic requests are refused at
+# The 02:00 denial-of-wallet scene (Demo 3 beats 1-2): a contractor's account at 3am (nina.contractor, an
+# outsourced night-shift contractor, or its leaked token) is scripted to hammer the assistant on the shared model. It sends a MIX, because off-topic requests are refused at
 # the topic guardrail for ZERO tokens (cheap deflection) and so could never fill the budget on their own:
 #   - a few OFF-TOPIC requests ("write me a 2,000-word essay...") -> polite topic refusal, 0 tokens
 #     (shows the topic guard throwing junk away for free);
 #   - then HEAVY ON-TOPIC requests ("explain every Parasol policy clause in full detail...") that PASS the
-#     topic guard and burn ~1-3k tokens each against tom.becker's policyholder subscription.
+#     topic guard and burn ~1-3k tokens each against the contractor subscription.
 # Each request prints its HTTP status, the caller the portal attributes it to, and the token spend, so
 # the audience sees the per-user meter climb (drives ParasolAssistantTokenSpendHigh and the MLflow/Tempo
 # traces) until the MaaS per-user limit returns 429 "you have reached your usage limit". Rebecca, on the
-# staff tier, keeps working throughout. ~10-15 on-topic requests reach the 20k/10m policyholder bucket.
+# staff tier, keeps working throughout. ~10-15 on-topic requests reach the 20k/10m contractor bucket.
 # Stops at the first 429 (the point of the scene) or after <count> requests. Bounded by a hard ceiling
 # so a stray run cannot drain the 10-day model key.
-#   NIGHT_USER=tom.becker  NIGHT_INTERVAL=1  ./scripts/night-shift.sh 40
+#   NIGHT_USER=nina.contractor  NIGHT_INTERVAL=1  ./scripts/night-shift.sh 40
 set -uo pipefail
 count=${1:-40}
 MAXCOUNT=200                     # hard ceiling regardless of the argument (protect the model budget)
 [ "$count" -gt "$MAXCOUNT" ] 2>/dev/null && count=$MAXCOUNT
-user=${NIGHT_USER:-tom.becker}
+user=${NIGHT_USER:-nina.contractor}
 interval=${NIGHT_INTERVAL:-1}
 host=${2:-$(oc get route portal -n parasol-secured -o jsonpath='{.spec.host}' 2>/dev/null)}
 [ -n "$host" ] || { echo "no portal host (pass it as arg 2, or deploy the secured portal)"; exit 1; }
@@ -32,14 +32,14 @@ offtopic=(
   "Compose a detailed 1500-word short story about a dragon who learns to code."
 )
 # Then heavy ON-TOPIC prompts: these pass the topic guard and ask for long, detailed answers, so each
-# burns ~1-3k model tokens against the policyholder subscription (no privileged tools needed - a verbose
+# burns ~1-3k model tokens against the contractor subscription (no privileged tools needed - a verbose
 # model answer alone fills the bucket). Rotated so it is not one cached answer.
 ontopic=(
   "Explain in exhaustive detail everything a Parasol home insurance policy covers, every exclusion, and every condition, clause by clause."
   "Walk me through, step by step and at great length, how a Parasol home insurance claim is assessed from first notice of loss to final payout."
-  "Describe in full the Parasol claims appeals process and all of my rights as a policyholder, with as much detail as possible."
+  "Describe in full the Parasol claims appeals process and every right a policyholder has, with as much detail as possible."
   "Give me a very long, detailed explanation of how deductibles, excess, premiums and no-claims discounts interact on Parasol policies, with worked examples."
-  "Explain at length every section of a standard Parasol motor insurance policy and what each clause means for me as a policyholder."
+  "Explain at length every section of a standard Parasol motor insurance policy and what each clause means for the policyholder."
 )
 offc=${#offtopic[@]}
 
@@ -85,6 +85,6 @@ for i in $(seq 1 "$count"); do
   sleep "$interval"
 done
 if [ "$spent_429" = 0 ]; then
-  echo ">>> finished $count requests without hitting the usage limit (raise count, or check the policyholder-tier token limit)."
+  echo ">>> finished $count requests without hitting the usage limit (raise count, or check the contractor-tier token limit)."
 fi
 exit 0

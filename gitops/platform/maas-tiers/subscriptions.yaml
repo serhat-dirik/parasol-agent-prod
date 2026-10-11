@@ -15,7 +15,7 @@
 #
 # Isolated + additive: own namespace parasol-maas-tiers owns the subscriptions (owner group
 # system:serviceaccounts:parasol-maas-tiers), so scripts/maas-tier-keys.sh mints both keys from one pod
-# WITHOUT touching the shared operational subscriptions (parasol-stage/policyholder). Applied by bootstrap.sh
+# WITHOUT touching the shared operational subscriptions (parasol-stage/contractor). Applied by bootstrap.sh
 # (envsubst GUARD_HOST; not Argo-wired). Priorities (111/71) differ from the operational 50/10.
 apiVersion: v1
 kind: Namespace

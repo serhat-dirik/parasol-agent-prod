@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Idempotent: add the 'policyholders' group and the 'tom.becker' policyholder user to realm 'parasol'
-# (plan A7, the night-shift customer login). Policyholders get NO tool client-roles: a customer must not
-# reach claims tools, so any tool call is a 403 by least privilege. Password equals the username.
+# Idempotent: add the 'contractors' group and the 'nina.contractor' user to realm 'parasol' (the
+# night-shift login: an outsourced contractor on the employee claims portal). Contractors get READ-ONLY
+# claim and policy tools; no approve_payout and no fraud_check, so those are a 403 by least privilege.
+# Password equals the username. Also removes the retired 'tom.becker' user and 'policyholders' group.
 # KeycloakRealmImport only creates; the realm already exists, so changes go through the admin REST API
 # and are mirrored into gitops/platform/keycloak/realm-import.yaml.
 set -euo pipefail
@@ -15,6 +16,7 @@ KC_PASS="$(_cred keycloak_admin_password)"
 DOMAIN="$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')"
 KC="https://sso.${DOMAIN}"
 REALM=parasol
+API="$KC/admin/realms/$REALM"
 
 TOKEN="$(curl -sk "$KC/realms/master/protocol/openid-connect/token" \
   -d grant_type=password -d client_id=admin-cli \
@@ -23,34 +25,53 @@ TOKEN="$(curl -sk "$KC/realms/master/protocol/openid-connect/token" \
 [ -n "$TOKEN" ] && [ "$TOKEN" != null ] || { echo "failed to get admin token"; exit 1; }
 AUTH=(-H "Authorization: Bearer $TOKEN")
 
-# --- group: policyholders ---
-GID="$(curl -sk "${AUTH[@]}" "$KC/admin/realms/$REALM/groups?search=policyholders" | jq -r '.[] | select(.name=="policyholders") | .id' | head -1)"
+group_id() { curl -sk "${AUTH[@]}" -G "$API/groups" --data-urlencode "search=$1" | jq -r ".[] | select(.name==\"$1\") | .id" | head -1; }
+user_id()  { curl -sk "${AUTH[@]}" "$API/users?username=$1&exact=true" | jq -r '.[0].id // empty'; }
+
+# --- retire the old policyholder persona ---
+OLD_UID="$(user_id tom.becker)"
+[ -z "$OLD_UID" ] || curl -sk "${AUTH[@]}" -X DELETE "$API/users/$OLD_UID" -o /dev/null -w "delete user tom.becker http=%{http_code}\n"
+OLD_GID="$(group_id policyholders)"
+[ -z "$OLD_GID" ] || curl -sk "${AUTH[@]}" -X DELETE "$API/groups/$OLD_GID" -o /dev/null -w "delete group policyholders http=%{http_code}\n"
+
+# --- group: contractors ---
+GID="$(group_id contractors)"
 if [ -z "$GID" ]; then
-  echo "creating group policyholders..."
-  curl -sk "${AUTH[@]}" -X POST "$KC/admin/realms/$REALM/groups" \
-    -H 'Content-Type: application/json' -d '{"name":"policyholders"}' \
-    -o /dev/null -w "group http=%{http_code}\n"
-  GID="$(curl -sk "${AUTH[@]}" "$KC/admin/realms/$REALM/groups?search=policyholders" | jq -r '.[] | select(.name=="policyholders") | .id' | head -1)"
+  curl -sk "${AUTH[@]}" -X POST "$API/groups" -H 'Content-Type: application/json' -d '{"name":"contractors"}' \
+    -o /dev/null -w "create group contractors http=%{http_code}\n"
+  GID="$(group_id contractors)"
 else
-  echo "group policyholders exists ($GID)"
+  echo "group contractors exists ($GID)"
 fi
+[ -n "$GID" ] || { echo "missing group id"; exit 1; }
 
-# --- user: tom.becker ---
-UID_="$(curl -sk "${AUTH[@]}" "$KC/admin/realms/$REALM/users?username=tom.becker&exact=true" | jq -r '.[0].id // empty')"
+# --- read-only client roles for contractors ---
+grant() {  # $1 = clientId, rest = role names
+  local client="$1"; shift
+  local cuuid roles
+  cuuid="$(curl -sk "${AUTH[@]}" -G "$API/clients" --data-urlencode "clientId=$client" | jq -r '.[0].id // empty')"
+  [ -n "$cuuid" ] || { echo "client $client not found"; exit 1; }
+  roles="$(for r in "$@"; do curl -sk "${AUTH[@]}" "$API/clients/$cuuid/roles/$(jq -rn --arg r "$r" '$r|@uri')"; done | jq -s -c .)"
+  curl -sk "${AUTH[@]}" -X POST "$API/groups/$GID/role-mappings/clients/$cuuid" -H 'Content-Type: application/json' \
+    -d "$roles" -o /dev/null -w "grant $client http=%{http_code}\n"
+}
+grant parasol-secured/claims-db tool:get_claim tool:list_claims_by_status tool:get_claim_history tool:get_claim_documents
+grant parasol-secured/policy-docs tool:search_policies tool:get_policy tool:list_policies
+grant mcp-gateway impersonator
+
+# --- user: nina.contractor ---
+UID_="$(user_id nina.contractor)"
 if [ -z "$UID_" ]; then
-  echo "creating user tom.becker..."
-  curl -sk "${AUTH[@]}" -X POST "$KC/admin/realms/$REALM/users" -H 'Content-Type: application/json' -d '{
-    "username":"tom.becker","enabled":true,"emailVerified":true,
-    "firstName":"Tom","lastName":"Becker","email":"tom.becker@customer.example",
-    "credentials":[{"type":"password","value":"tom.becker","temporary":false}],
-    "requiredActions":[]}' -o /dev/null -w "user http=%{http_code}\n"
-  UID_="$(curl -sk "${AUTH[@]}" "$KC/admin/realms/$REALM/users?username=tom.becker&exact=true" | jq -r '.[0].id // empty')"
+  curl -sk "${AUTH[@]}" -X POST "$API/users" -H 'Content-Type: application/json' -d '{
+    "username":"nina.contractor","enabled":true,"emailVerified":true,
+    "firstName":"Nina","lastName":"Patel","email":"nina.contractor@parasol.example",
+    "credentials":[{"type":"password","value":"nina.contractor","temporary":false}],
+    "requiredActions":[]}' -o /dev/null -w "create user nina.contractor http=%{http_code}\n"
+  UID_="$(user_id nina.contractor)"
 else
-  echo "user tom.becker exists ($UID_)"
+  echo "user nina.contractor exists ($UID_)"
 fi
-[ -n "$UID_" ] && [ -n "$GID" ] || { echo "missing uid/gid"; exit 1; }
+[ -n "$UID_" ] || { echo "missing user id"; exit 1; }
 
-echo "joining tom.becker to policyholders..."
-curl -sk "${AUTH[@]}" -X PUT "$KC/admin/realms/$REALM/users/$UID_/groups/$GID" \
-  -o /dev/null -w "join http=%{http_code}\n"
+curl -sk "${AUTH[@]}" -X PUT "$API/users/$UID_/groups/$GID" -o /dev/null -w "join nina.contractor to contractors http=%{http_code}\n"
 echo "DONE"

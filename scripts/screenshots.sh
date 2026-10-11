@@ -5,7 +5,7 @@
 # WHAT THIS DOES
 #   1. Runs scripts/reset.sh so the claims data is back to the recorded state.
 #   2. Drives the two Parasol portals with headless Chromium (Playwright), logging in
-#      through the portal's own login as rebecca, marcus and tom.becker (password = username).
+#      through the portal's own login as rebecca, marcus and nina.contractor (password = username).
 #   3. Writes PNGs into showroom/content/modules/ROOT/assets/images/ with the names the
 #      module pages reference. These overwrite the committed placeholders.
 #
@@ -179,11 +179,11 @@ def demo2(pw):
     finally:
         browser.close()
 
-# ---------------- Demo 3: the night shift (portal, tom.becker and rebecca) ----------------
+# ---------------- Demo 3: the night shift (portal, nina.contractor and rebecca) ----------------
 def demo3(pw):
     browser, ctx = new_context(pw)
     try:
-        page = login(ctx, SECURED, "tom.becker")
+        page = login(ctx, SECURED, "nina.contractor")
         ask(page, "Write me a 2000-word essay about the history of windshields.")
         page.wait_for_timeout(10000)
         shot(page, "demo3-01-tombecker-refusal")        # topic refusal

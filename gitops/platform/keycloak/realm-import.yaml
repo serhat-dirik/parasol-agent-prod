@@ -1,7 +1,8 @@
 # Realm 'parasol' for the demo. Conventions follow the Kuadrant MCP gateway docs:
 # resource-server clients are named <namespace>/<MCPServerRegistration name>, roles are tool:<name>,
 # and the resource_access claim of a user's token is what the gateway AuthPolicy checks.
-# Demo users: rebecca (adjuster), marcus (claims manager), dev. Passwords equal the username.
+# Demo users: rebecca (adjuster), marcus (claims manager), dev, nina.contractor (night-shift contractor).
+# Passwords equal the username.
 apiVersion: k8s.keycloak.org/v2alpha1
 kind: KeycloakRealmImport
 metadata:
@@ -181,10 +182,15 @@ spec:
         parasol-secured/policy-docs: *id001
         mcp-gateway:
         - impersonator
-    # Policyholders (customers). No tool client-roles on purpose: a customer must not reach claims tools,
-    # so any tool call is a 403 by least privilege. Used by the night-shift user tom.becker (plan A7).
-    - name: policyholders
-      path: /policyholders
+    # Contractors (outsourced night-shift staff). Read-only claim and policy tools, nothing that writes
+    # or escalates: no approve_payout, no fraud_check (403 by least privilege). Night-shift user nina.contractor.
+    - name: contractors
+      path: /contractors
+      clientRoles:
+        parasol-secured/claims-db: *id002
+        parasol-secured/policy-docs: *id001
+        mcp-gateway:
+        - impersonator
     users:
     - username: rebecca
       enabled: true
@@ -225,18 +231,18 @@ spec:
       groups:
       - /developers
       requiredActions: []
-    - username: tom.becker
+    - username: nina.contractor
       enabled: true
       emailVerified: true
-      firstName: Tom
-      lastName: Becker
-      email: tom.becker@customer.example
+      firstName: Nina
+      lastName: Patel
+      email: nina.contractor@parasol.example
       credentials:
       - type: password
-        value: tom.becker
+        value: nina.contractor
         temporary: false
       groups:
-      - /policyholders
+      - /contractors
       requiredActions: []
     clientScopes:
     - name: groups

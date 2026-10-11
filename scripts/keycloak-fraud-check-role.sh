@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # V3: add the fraud-check resource-server client + tool:fraud_check role to realm 'parasol' and grant it
-# to the adjusters and claims-managers groups (rebecca, marcus). Policyholders (tom.becker) get nothing,
-# so a customer calling fraud_check is a 403 by least privilege - the same per-identity authz as every
+# to the adjusters and claims-managers groups (rebecca, marcus). Contractors (nina.contractor) get nothing,
+# so a contractor calling fraud_check is a 403 by least privilege - the same per-identity authz as every
 # other MCP tool. KeycloakRealmImport only creates; the realm already exists, so this runs against the
 # admin REST API. Mirrored into gitops/platform/keycloak/realm-import.yaml. Idempotent.
 set -euo pipefail

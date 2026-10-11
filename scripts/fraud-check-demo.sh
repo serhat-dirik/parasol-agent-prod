@@ -4,7 +4,7 @@
 # carrying the caller's own Keycloak token, so the same per-identity authz as every other tool applies.
 #   rebecca (adjuster)        -> allowed -> HIGH-risk verdict flagging CLM-1004 AED 84,000 vs record 8,400
 #   marcus  (claims-manager)  -> allowed -> same verdict
-#   tom.becker (policyholder) -> 403 at the gateway (no tool:fraud_check role)
+#   nina.contractor (contractor) -> 403 at the gateway (no tool:fraud_check role)
 # This reproduces exactly what the portal's fraud-check MCP client sends (initialize -> tools/call).
 set -uo pipefail
 HERE="$(dirname "$0")"
@@ -68,5 +68,5 @@ for line in sys.stdin:
 hdr "Abuse case: three identities call the fraud-check agent through the gateway"
 call rebecca
 call marcus
-call tom.becker
+call nina.contractor
 echo
