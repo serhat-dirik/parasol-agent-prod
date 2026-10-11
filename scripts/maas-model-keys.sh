@@ -5,13 +5,14 @@
 set -euo pipefail
 : "${GUARD_KEY:?set the model env (AGENT_KEY, GUARD_KEY, JUDGE_KEY, ...) or source scripts/load-credentials.sh}"
 
-# mk <namespace> <secret-name> <key-value>  — Secret with data key GENAI_API_KEY (+ MAAS_API_KEY alias)
+# mk <namespace> <secret-name> <key-value>  — Secret with data key GENAI_API_KEY (+ MAAS_API_KEY alias,
+# + api-key: the key EvalHub jobs read when the secret is the job's model.auth.secret_ref)
 mk() {
   local ns="$1" name="$2" val="$3"
   if ! oc get ns "$ns" >/dev/null 2>&1; then echo "skip $ns/$name (namespace absent)"; return 0; fi
   if [ -z "$val" ]; then echo "skip $ns/$name (no key set)"; return 0; fi
   oc create secret generic "$name" -n "$ns" \
-    --from-literal=GENAI_API_KEY="$val" --from-literal=MAAS_API_KEY="$val" \
+    --from-literal=GENAI_API_KEY="$val" --from-literal=MAAS_API_KEY="$val" --from-literal=api-key="$val" \
     --dry-run=client -o yaml | oc apply -f - >/dev/null
   echo "secret $ns/$name applied"
 }

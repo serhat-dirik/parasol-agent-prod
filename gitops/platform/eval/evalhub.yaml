@@ -1,0 +1,16 @@
+# TrustyAI EvalHub (Technology Preview) for the dashboard page Develop & train -> Evaluations,
+# project parasol-eval. The dashboard's eval-hub BFF looks for an EvalHub CR in the user's project
+# (then redhat-ods-applications); without one the page says "Evaluations unavailable".
+# Needs OdhDashboardConfig spec.dashboardConfig.disableLMEval=false (scripts/rhoai-enable.sh).
+# Not Argo-wired, consistent with the other eval manifests. Apply it and run the agent-model
+# evaluation with scripts/evalhub-run.sh (idempotent).
+# Revert: oc delete evalhub parasol-evalhub -n parasol-eval
+apiVersion: trustyai.opendatahub.io/v1
+kind: EvalHub
+metadata:
+  name: parasol-evalhub
+  namespace: parasol-eval
+  labels: {app: parasol-eval, purpose: evaluation}
+spec:
+  database:
+    type: sqlite        # demo: in-pod store, run history is lost when the pod restarts

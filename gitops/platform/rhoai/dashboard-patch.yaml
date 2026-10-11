@@ -6,3 +6,4 @@ spec:
     externalModels: true
     observabilityDashboard: true
     disableModelCatalog: false
+    disableLMEval: false        # Develop & train -> Evaluations (EvalHub, gitops/platform/eval/evalhub.yaml)

@@ -15,9 +15,11 @@ A prompt change is a code change: it can silently remove a safety behavior. A ve
 
 == Show: the evaluation run
 
-. Select the *OpenShift AI* tab and open *Model evaluation runs*, project `parasol-eval`.
+. Select the *OpenShift AI* tab, open *Develop & train*, then *Evaluations* (Technology Preview), and select project `parasol-eval`.
 +
-What you should see: the run `parasol-agent-model-eval` in state *Complete*. It is a TrustyAI `LMEvalJob` that evaluated the agent's model (`qwen3-14b`) on the external MaaS endpoint and produced a score. The evaluation surface is live end to end, not a script.
+What you should see: the run `parasol-agent-model-ifeval` in state *Completed*. EvalHub, the TrustyAI evaluation service running in the project, evaluated the agent's model (`qwen3-14b` on the external MaaS endpoint) with LM Evaluation Harness on the IFEval instruction-following benchmark. Open the run to show its metrics (for example `inst_level_strict_acc` 0.375 and `prompt_level_strict_acc` 0.2) and its result against the default pass threshold of 0.5.
++
+Say: this is a five-prompt smoke run of a generic benchmark, so the number is not the point. The point is that evaluation is a platform service with a recorded result per model. Whether this assistant is safe to ship is decided by its own golden set, next.
 
 == Show: the golden set, v1 against v2
 
