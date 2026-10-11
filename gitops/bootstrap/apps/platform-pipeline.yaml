@@ -15,7 +15,48 @@ spec:
     targetRevision: ${REPO_REVISION}
     path: gitops/platform/pipeline
     kustomize:
-      patches: []
+      patches:
+        # Cluster hosts in Task param defaults (Git holds the CLUSTER_DOMAIN placeholder).
+        - target: {kind: Task, name: keyless-sign-images}
+          patch: |-
+            - op: test
+              path: /spec/params/3/name
+              value: fulcio-url
+            - op: replace
+              path: /spec/params/3/default
+              value: https://fulcio-server-trusted-artifact-signer.apps.${CLUSTER_DOMAIN}
+            - op: test
+              path: /spec/params/4/name
+              value: rekor-url
+            - op: replace
+              path: /spec/params/4/default
+              value: https://rekor-server-trusted-artifact-signer.apps.${CLUSTER_DOMAIN}
+            - op: test
+              path: /spec/params/5/name
+              value: tuf-url
+            - op: replace
+              path: /spec/params/5/default
+              value: https://tuf-trusted-artifact-signer.apps.${CLUSTER_DOMAIN}
+            - op: test
+              path: /spec/params/6/name
+              value: oidc-issuer
+            - op: replace
+              path: /spec/params/6/default
+              value: https://oidc-discovery.apps.${CLUSTER_DOMAIN}
+        - target: {kind: Task, name: register-model-version}
+          patch: |-
+            - op: test
+              path: /spec/params/5/name
+              value: mr-base-url
+            - op: replace
+              path: /spec/params/5/default
+              value: https://parasol-model-registry-rest.apps.${CLUSTER_DOMAIN}
+            - op: test
+              path: /spec/params/6/name
+              value: mlflow-ui-base
+            - op: replace
+              path: /spec/params/6/default
+              value: https://rh-ai.apps.${CLUSTER_DOMAIN}/mlflow
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=false, RespectIgnoreDifferences=true, ServerSideApply=true]

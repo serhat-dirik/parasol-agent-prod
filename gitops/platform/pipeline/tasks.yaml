@@ -515,8 +515,8 @@ spec:
     - {name: score, type: string}
     - {name: mlflow-run-id, type: string}
     - {name: prompt-ref, type: string, default: ""}
-    - {name: mr-base-url, type: string, default: "https://parasol-model-registry-rest.apps.cluster-znh6n.dyn.redhatworkshops.io"}
-    - {name: mlflow-ui-base, type: string, default: "https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow"}
+    - {name: mr-base-url, type: string, default: "https://parasol-model-registry-rest.apps.CLUSTER_DOMAIN"}
+    - {name: mlflow-ui-base, type: string, default: "https://rh-ai.apps.CLUSTER_DOMAIN/mlflow"}
     - {name: script-path, type: string, default: "source/gitops/platform/model-registry/register-model.py"}
   results:
     - {name: version-ref, description: "the RegisteredModel:version this run stamped its eval onto"}

@@ -30,12 +30,12 @@ BASE = os.environ.get(
     "https://parasol-model-registry.rhoai-model-registries.svc.cluster.local:8443",
 ).rstrip("/")
 API = BASE + "/api/model_registry/v1alpha3"
-MLFLOW_UI = os.environ.get(
-    "MLFLOW_UI_BASE",
-    "https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow",
-).rstrip("/")
+MLFLOW_UI = os.environ.get("MLFLOW_UI_BASE", "").rstrip("/")  # https://rh-ai.apps.<domain>/mlflow
 
 MODEL = "parasol-claims-assistant"
+# MLflow experiment parasol-agent-eval and its v1/v2 golden-set runs on THIS cluster (scripts/eval-seed.sh
+# passes them in); the defaults are the reference runs the guide was written against.
+EXP_ID = os.environ.get("MLFLOW_EXPERIMENT_ID") or "2"
 
 # Fixed agent-config metadata (mirrors G1 agent_eval VERSION_META and G2 prompt registry).
 COMMON = {
@@ -56,7 +56,7 @@ VERSIONS = {
         "prompt_chars": "1667", "safety_rules_file": "gitops/envs/secured/safety-rules.txt",
         "prompt_file": "gitops/platform/pipeline/prompts/v1.txt",
         "eval_passrate": "20/20", "eval_score": "1.00", "eval_gate": "passed",
-        "mlflow_run_id": "b9971fab", "mlflow_experiment_id": "2",
+        "mlflow_run_id": os.environ.get("RUN_ID_V1") or "b9971fab", "mlflow_experiment_id": EXP_ID,
         "desc": "Current secured prompt (base + 3 safety rules). Agent-eval 20/20 PASS, promotion allowed.",
     },
     "v2": {
@@ -65,7 +65,7 @@ VERSIONS = {
         "prompt_chars": "1088", "safety_rules_file": "none",
         "prompt_file": "gitops/platform/pipeline/prompts/v2.txt",
         "eval_passrate": "17/20", "eval_score": "0.85", "eval_gate": "failed",
-        "mlflow_run_id": "c7a36f43", "mlflow_experiment_id": "2",
+        "mlflow_run_id": os.environ.get("RUN_ID_V2") or "c7a36f43", "mlflow_experiment_id": EXP_ID,
         "desc": "Simplified prompt, safety-rules block removed. Agent-eval 17/20 BLOCK (<19/20 gate), promotion skipped.",
     },
 }
@@ -216,7 +216,7 @@ def patch_eval(name, gate, score, run_id, prompt_ref):
         "eval_gate": gate, "eval_score": f"{float(score):.2f}" if score else "",
         "eval_passrate": f"{passn}/20", "eval_threshold": "19/20",
         "eval_dataset": "parasol-golden-20",
-        "mlflow_run_id": run_id, "mlflow_run_url": f"{MLFLOW_UI}/#/experiments/2/runs/{run_id}",
+        "mlflow_run_id": run_id, "mlflow_run_url": f"{MLFLOW_UI}/#/experiments/{EXP_ID}/runs/{run_id}",
     }
     if prompt_ref:
         merged["prompt_ref"] = prompt_ref

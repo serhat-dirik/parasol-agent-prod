@@ -130,7 +130,7 @@ metadata:
     haproxy.router.openshift.io/timeout: 120s
 spec:
   # Explicit host so it matches the Keycloak redirect URI registered for the portal client.
-  host: portal.apps.cluster-znh6n.dyn.redhatworkshops.io
+  host: portal.apps.CLUSTER_DOMAIN   # set by the env-secured Argo Application
   to: {kind: Service, name: portal}
   port: {targetPort: http}
   tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}

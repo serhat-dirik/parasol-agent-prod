@@ -12,5 +12,5 @@ spec:
   backendStoreUri: "sqlite:////mlflow/mlflow.db"
   serveArtifacts: true
   artifactsDestination: "file:///mlflow/artifacts"
-  storage:
-    storageClassName: ocs-external-storagecluster-ceph-rbd
+  storage:                    # the cluster's default StorageClass
+    accessModes: [ReadWriteOnce]

@@ -1,0 +1,9 @@
+# The cluster's base domain (hosts are <name>.apps.<domain>). Set by the platform-showroom Argo
+# Application from bootstrap.sh's CLUSTER_DOMAIN; read by the Showroom init containers.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: showroom-cluster
+  namespace: parasol-showroom
+data:
+  domain: CLUSTER_DOMAIN

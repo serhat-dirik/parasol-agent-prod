@@ -70,6 +70,6 @@ spec:
   egress:
     - to:
         - ipBlock:
-            cidr: 10.10.10.101/32
+            cidr: INGRESS_CIDR   # set by the env-secured Argo Application (bootstrap.sh)
       ports:
         - {protocol: TCP, port: 443}

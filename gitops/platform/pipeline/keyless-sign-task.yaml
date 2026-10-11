@@ -7,7 +7,7 @@
 # signing key - this replaces the cluster cosign keypair ("keyed") fallback.
 #
 # The certificate identity that admission (ClusterImagePolicy) verifies is:
-#   issuer:  https://oidc-discovery.apps.cluster-znh6n.dyn.redhatworkshops.io
+#   issuer:  https://oidc-discovery.apps.CLUSTER_DOMAIN
 #   subject: spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer
 #
 # The Task carries the label parasol.example/keyless-signer=true, which Tekton propagates to the
@@ -46,10 +46,10 @@ spec:
     - {name: portal-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:latest"}
     - {name: claims-db-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/claims-db:latest"}
     - {name: policy-docs-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/policy-docs:latest"}
-    - {name: fulcio-url, type: string, default: "https://fulcio-server-trusted-artifact-signer.apps.cluster-znh6n.dyn.redhatworkshops.io"}
-    - {name: rekor-url, type: string, default: "https://rekor-server-trusted-artifact-signer.apps.cluster-znh6n.dyn.redhatworkshops.io"}
-    - {name: tuf-url, type: string, default: "https://tuf-trusted-artifact-signer.apps.cluster-znh6n.dyn.redhatworkshops.io"}
-    - {name: oidc-issuer, type: string, default: "https://oidc-discovery.apps.cluster-znh6n.dyn.redhatworkshops.io"}
+    - {name: fulcio-url, type: string, default: "https://fulcio-server-trusted-artifact-signer.apps.CLUSTER_DOMAIN"}
+    - {name: rekor-url, type: string, default: "https://rekor-server-trusted-artifact-signer.apps.CLUSTER_DOMAIN"}
+    - {name: tuf-url, type: string, default: "https://tuf-trusted-artifact-signer.apps.CLUSTER_DOMAIN"}
+    - {name: oidc-issuer, type: string, default: "https://oidc-discovery.apps.CLUSTER_DOMAIN"}
     - {name: audience, type: string, default: "trusted-artifact-signer"}
   results:
     - {name: SIGNED, description: comma-separated list of keyless-signed images}

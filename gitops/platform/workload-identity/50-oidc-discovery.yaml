@@ -8,7 +8,7 @@ metadata:
   name: cluster
 spec:
   csiDriverName: csi.spiffe.io
-  jwtIssuer: https://oidc-discovery.apps.cluster-znh6n.dyn.redhatworkshops.io
+  jwtIssuer: https://oidc-discovery.apps.${CLUSTER_DOMAIN}
   managedRoute: "true"
   replicaCount: 1
   logLevel: info

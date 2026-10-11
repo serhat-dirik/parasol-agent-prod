@@ -28,6 +28,26 @@ spec:
             - op: replace
               path: /data/tokenUrl
               value: https://sso.apps.${CLUSTER_DOMAIN}/realms/parasol/protocol/openid-connect/token
+            - op: replace
+              path: /data/fraudCheckMcpUrl
+              value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
+        - target: {kind: Route, name: portal}
+          patch: |-
+            - op: replace
+              path: /spec/host
+              value: portal.apps.${CLUSTER_DOMAIN}
+        # In-cluster calls to the public *.apps hosts (Keycloak, MCP gateway) leave through the ingress
+        # address; bootstrap.sh derives it (INGRESS_CIDR) from the cluster's Infrastructure object.
+        - target: {kind: NetworkPolicy, name: parasol-agent-ingress-vip}
+          patch: |-
+            - op: replace
+              path: /spec/egress/0/to/0/ipBlock/cidr
+              value: ${INGRESS_CIDR}
+        - target: {kind: NetworkPolicy, name: portal-ingress-vip}
+          patch: |-
+            - op: replace
+              path: /spec/egress/0/to/0/ipBlock/cidr
+              value: ${INGRESS_CIDR}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

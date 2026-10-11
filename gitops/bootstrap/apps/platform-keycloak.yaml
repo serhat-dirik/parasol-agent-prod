@@ -12,6 +12,19 @@ spec:
     repoURL: ${REPO_URL}
     targetRevision: ${REPO_REVISION}
     path: gitops/platform/keycloak
+    kustomize:
+      patches:
+        - target: {kind: KeycloakRealmImport, name: parasol-realm}
+          patch: |-
+            - op: test
+              path: /spec/realm/clients/2/clientId
+              value: parasol-portal
+            - op: replace
+              path: /spec/realm/clients/2/redirectUris
+              value: ["https://portal-free.apps.${CLUSTER_DOMAIN}/*", "https://portal.apps.${CLUSTER_DOMAIN}/*"]
+            - op: replace
+              path: /spec/realm/clients/2/webOrigins
+              value: ["https://portal-free.apps.${CLUSTER_DOMAIN}", "https://portal.apps.${CLUSTER_DOMAIN}"]
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

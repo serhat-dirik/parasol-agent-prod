@@ -60,12 +60,13 @@ spec:
       # post_logout_redirect_uri back to the portal is accepted and users can switch accounts.
       attributes:
         post.logout.redirect.uris: '+'
+      # Hosts are set by the platform-keycloak Argo Application (CLUSTER_DOMAIN from bootstrap.sh).
       redirectUris:
-      - https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io/*
-      - https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io/*
+      - https://portal-free.apps.CLUSTER_DOMAIN/*
+      - https://portal.apps.CLUSTER_DOMAIN/*
       webOrigins:
-      - https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io
-      - https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io
+      - https://portal-free.apps.CLUSTER_DOMAIN
+      - https://portal.apps.CLUSTER_DOMAIN
       defaultClientScopes:
       - roles
       - profile

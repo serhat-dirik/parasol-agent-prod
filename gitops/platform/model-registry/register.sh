@@ -18,6 +18,7 @@ oc -n "$NS" delete configmap parasol-model-registrar --ignore-not-found
 oc -n "$NS" create configmap parasol-model-registrar \
   --from-file=register-model.py="$DIR/register-model.py"
 oc -n "$NS" delete job parasol-model-registrar --ignore-not-found
-envsubst '$AGENT_MODEL $AGENT_ENDPOINT' < "$DIR/register-job.yaml" | oc apply -f -
+CLUSTER_DOMAIN="${CLUSTER_DOMAIN:-$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')}" \
+  envsubst '$AGENT_MODEL $AGENT_ENDPOINT $CLUSTER_DOMAIN $MLFLOW_EXPERIMENT_ID $RUN_ID_V1 $RUN_ID_V2' < "$DIR/register-job.yaml" | oc apply -f -
 oc -n "$NS" wait --for=condition=complete job/parasol-model-registrar --timeout=180s
 oc -n "$NS" logs job/parasol-model-registrar

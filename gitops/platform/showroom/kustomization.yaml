@@ -3,6 +3,7 @@ kind: Kustomization
 # No `namespace:` here: terminal-rbac.yaml binds the Terminal ServiceAccount in other demo
 # namespaces. Every parasol-showroom resource sets its namespace explicitly.
 resources:
+  - cluster-configmap.yaml
   - sitecfg-configmap.yaml
   - uiconfig-configmap.yaml
   - nginx-configmap.yaml

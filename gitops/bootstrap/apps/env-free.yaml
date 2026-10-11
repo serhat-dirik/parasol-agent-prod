@@ -22,6 +22,11 @@ spec:
             - op: replace
               path: /data/model
               value: ${AGENT_MODEL}   # unsecured portal uses an injection-obeying model to show the risk live
+        - target: {kind: Route, name: portal-free}
+          patch: |-
+            - op: replace
+              path: /spec/host
+              value: portal-free.apps.${CLUSTER_DOMAIN}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

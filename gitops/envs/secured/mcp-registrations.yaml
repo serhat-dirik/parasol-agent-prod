@@ -61,7 +61,7 @@ spec:
 ---
 # The agent reaches the MCP gateway and Keycloak by their public hosts (mcp.apps / sso.apps), which in-cluster DNS
 # resolves to the bare-metal ingress VIP (host network, so no namespaceSelector matches it). Only port 443 on that VIP.
-# Cluster-specific: oc get infrastructure cluster -o jsonpath='{.status.platformStatus.baremetal.ingressIPs}'
+# Cluster-specific: bootstrap.sh derives it from the Infrastructure ingressIPs (0.0.0.0/0 when the platform has none).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -72,7 +72,7 @@ spec:
   policyTypes: [Egress]
   egress:
     - to:
-        - ipBlock: {cidr: 10.10.10.101/32}
+        - ipBlock: {cidr: INGRESS_CIDR}   # set by the env-secured Argo Application (bootstrap.sh)
       ports:
         - {protocol: TCP, port: 443}
 ---

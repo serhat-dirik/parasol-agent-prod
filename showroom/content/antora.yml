@@ -9,14 +9,14 @@ asciidoc:
     experimental: true
     page-pagination: true
     lab_name: 'AI Agents in Production'
-    # Cluster-specific values. Overridden at build time from the DOMAIN env on this cluster;
+    # Cluster-specific values. The deployed Showroom overrides them with --attribute (CLUSTER_DOMAIN);
     # the defaults below let the guide render correctly in a local preview and in CI.
-    domain: apps.cluster-znh6n.dyn.redhatworkshops.io
-    portal_free_url: https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io
-    portal_secured_url: https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io
-    keycloak_url: https://sso.apps.cluster-znh6n.dyn.redhatworkshops.io
-    rhoai_url: https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io
-    console_url: https://console-openshift-console.apps.cluster-znh6n.dyn.redhatworkshops.io
-    argocd_url: https://openshift-gitops-server-openshift-gitops.apps.cluster-znh6n.dyn.redhatworkshops.io
-    mlflow_url: https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow
+    domain: apps.cluster.example.com
+    portal_free_url: https://portal-free.apps.cluster.example.com
+    portal_secured_url: https://portal.apps.cluster.example.com
+    keycloak_url: https://sso.apps.cluster.example.com
+    rhoai_url: https://rh-ai.apps.cluster.example.com
+    console_url: https://console-openshift-console.apps.cluster.example.com
+    argocd_url: https://openshift-gitops-server-openshift-gitops.apps.cluster.example.com
+    mlflow_url: https://rh-ai.apps.cluster.example.com/mlflow
     repo_url: https://github.com/serhat-dirik/parasol-agent-prod

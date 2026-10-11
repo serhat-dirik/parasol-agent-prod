@@ -13,7 +13,12 @@ spec:
     targetRevision: ${REPO_REVISION}
     path: gitops/platform/showroom
     kustomize:
-      patches: []
+      patches:
+        - target: {kind: ConfigMap, name: showroom-cluster}
+          patch: |-
+            - op: replace
+              path: /data/domain
+              value: ${CLUSTER_DOMAIN}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

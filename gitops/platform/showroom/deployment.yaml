@@ -26,13 +26,40 @@ spec:
           resources:
             requests: {cpu: 10m, memory: 16Mi}
             limits: {cpu: 100m, memory: 64Mi}
+        # Render the cockpit tab list (uiconfig-configmap.yaml) for this cluster's domain.
+        - name: uiconfig
+          image: quay.io/rhpds/nginx:1.25
+          command: ["sh", "-c", "sed \"s/CLUSTER_DOMAIN/$CLUSTER_DOMAIN/g\" /src/ui-config.yml > /rendered/ui-config.yml"]
+          env:
+            - name: CLUSTER_DOMAIN
+              valueFrom: {configMapKeyRef: {name: showroom-cluster, key: domain}}
+          volumeMounts:
+            - {name: nookbagcfg-src, mountPath: /src}
+            - {name: nookbagcfg, mountPath: /rendered}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
         # Build the Antora site from the committed content into the shared volume.
         # site.yml points at the remote repo, so the builder only needs the playbook and network.
         - name: antora-build
           image: docker.io/antora/antora:3.1.5
           command: ["antora"]
-          args: ["--fetch", "--to-dir=/out", "/config/site.yml"]
+          # Cluster-specific guide attributes (CLI attributes override the component's antora.yml defaults).
+          args:
+            - --fetch
+            - --to-dir=/out
+            - --attribute=domain=apps.$(CLUSTER_DOMAIN)
+            - --attribute=portal_free_url=https://portal-free.apps.$(CLUSTER_DOMAIN)
+            - --attribute=portal_secured_url=https://portal.apps.$(CLUSTER_DOMAIN)
+            - --attribute=keycloak_url=https://sso.apps.$(CLUSTER_DOMAIN)
+            - --attribute=rhoai_url=https://rh-ai.apps.$(CLUSTER_DOMAIN)
+            - --attribute=console_url=https://console-openshift-console.apps.$(CLUSTER_DOMAIN)
+            - --attribute=argocd_url=https://openshift-gitops-server-openshift-gitops.apps.$(CLUSTER_DOMAIN)
+            - --attribute=mlflow_url=https://rh-ai.apps.$(CLUSTER_DOMAIN)/mlflow
+            - /config/site.yml
           env:
+            - name: CLUSTER_DOMAIN
+              valueFrom: {configMapKeyRef: {name: showroom-cluster, key: domain}}
             - {name: HOME, value: /antora-home}
             - {name: ANTORA_CACHE_DIR, value: /antora-home/.cache}
           volumeMounts:
@@ -124,7 +151,8 @@ spec:
         - {name: site, emptyDir: {}}
         - {name: antora-home, emptyDir: {}}
         - {name: sitecfg, configMap: {name: showroom-sitecfg}}
-        - {name: nookbagcfg, configMap: {name: showroom-uiconfig}}
+        - {name: nookbagcfg-src, configMap: {name: showroom-uiconfig}}
+        - {name: nookbagcfg, emptyDir: {}}
         - {name: nginx-config, configMap: {name: showroom-proxy}}
         - {name: nginx-cache, emptyDir: {}}
         - {name: nginx-run, emptyDir: {}}

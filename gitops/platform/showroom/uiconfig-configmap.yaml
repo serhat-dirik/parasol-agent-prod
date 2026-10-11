@@ -34,29 +34,28 @@ data:
         - name: 07-supply-chain
         - name: 08-reset-troubleshooting
 
-    # Full hostnames are used on purpose. This is a single, disposable lab cluster and the
-    # cluster domain is safe to commit (see the media-capture conventions). It also avoids
-    # relying on runtime ${DOMAIN} substitution, which the static content server does not do.
+    # CLUSTER_DOMAIN is replaced at pod start (deployment.yaml, init container uiconfig) with the
+    # domain in ConfigMap showroom-cluster, which the platform-showroom Argo Application sets.
     tabs:
       # The two Parasol portals are our own app and can be framed inline.
       - name: Portal unsecured
-        url: 'https://portal-free.apps.cluster-znh6n.dyn.redhatworkshops.io'
+        url: 'https://portal-free.apps.CLUSTER_DOMAIN'
       - name: Portal secured
-        url: 'https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io'
+        url: 'https://portal.apps.CLUSTER_DOMAIN'
 
       # The platform consoles are framed like the portals. Their own X-Frame-Options / CSP would
       # block that, so scripts/showroom-framing.sh (run by bootstrap.sh) rewrites both headers on the
       # default IngressController to allow this Showroom origin only.
       - name: Keycloak
-        url: 'https://sso.apps.cluster-znh6n.dyn.redhatworkshops.io/admin/master/console/#/parasol'
+        url: 'https://sso.apps.CLUSTER_DOMAIN/admin/master/console/#/parasol'
       - name: OpenShift AI
-        url: 'https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io'
+        url: 'https://rh-ai.apps.CLUSTER_DOMAIN'
       - name: OpenShift Console
-        url: 'https://console-openshift-console.apps.cluster-znh6n.dyn.redhatworkshops.io'
+        url: 'https://console-openshift-console.apps.CLUSTER_DOMAIN'
       - name: Argo CD
-        url: 'https://openshift-gitops-server-openshift-gitops.apps.cluster-znh6n.dyn.redhatworkshops.io'
+        url: 'https://openshift-gitops-server-openshift-gitops.apps.CLUSTER_DOMAIN'
       - name: MLflow
-        url: 'https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow'
+        url: 'https://rh-ai.apps.CLUSTER_DOMAIN/mlflow'
 
       # Terminal served by the ttyd sidecar, reverse-proxied at /wetty/ on the Route host.
       - name: Terminal
