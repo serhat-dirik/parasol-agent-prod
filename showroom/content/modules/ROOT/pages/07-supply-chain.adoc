@@ -15,17 +15,27 @@ What runs next to customer data must be the exact image the pipeline built, eval
 
 == Show: the secure build pipeline
 
-. Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, and open the latest succeeded run of `parasol-portal-secure-build`.
+. Select the *Argo CD* tab and open application `platform-pipeline`.
 +
-What you should see: every task green, in order: `clone-repository`, `build-container`, `scan-image`, `generate-sbom`, `agent-eval` (the Scenario 4 gate), `register-model-version`, `verify-enterprise-contract`, `sign-images`, `promote`; then `show-sbom` and `show-summary`.
+What you should see: the release process is code too. Argo CD keeps the `parasol-portal-secure-build` Pipeline and its Tasks in the state Git describes (Synced, Healthy). A run is an event, not desired state, so runs are not part of the app.
 
-. Open the `sign-images` task log.
+. Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-secure-build-vrdql`.
 +
-What you should see: the portal image signed twice: keyless (Trusted Artifact Signer, recorded in a transparency log) and with the cluster signing key.
+What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Scenario 4 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom` and `register-model-version`.
++
+image::sc-pipeline-v1-promoted.png[The release run: build, scan, keyed and keyless signing, Conforma, the evaluation gate, then promote]
+
+. Open the `keyless-sign` task log.
++
+What you should see: `tlog entry created` and `VERIFIED (keyless)` for the portal digest. No long-lived key: the pipeline's workload identity gets a certificate valid for minutes, signs, and the signature lands in the Rekor transparency log. `sign-images` shows the same image signed with the cluster key; admission accepts either.
+
+. Open the repository's link:{repo_url}/commits/main[commit history,window=_blank] and the latest commit by `parasol-pipeline`.
++
+What you should see: one line changed, the new image digest in the secured overlay. Promotion is a Git commit, so the audit trail is `git log`.
 
 . Select the *Argo CD* tab, open application `env-secured`, then the `portal` Deployment.
 +
-What you should see: the secured portal runs a *pinned, signed digest*. The `promote` task changes only that digest in Git; Argo CD rolls it out.
+What you should see: the secured portal runs exactly that pinned digest; Argo CD rolled it out from the commit.
 
 == Show: admission refuses an unsigned image
 

@@ -24,9 +24,11 @@ An agent on a shared key is an open invoice: anyone who can reach the chat can s
 scripts/night-shift.sh 40 portal-free.{domain}
 ----
 
-. Watch the script output, then select the *OpenShift AI* tab and open the Models-as-a-Service usage view.
+. Watch the script output.
 +
-What you should see: every request is answered and the token spend keeps climbing; there is no per-user limit on the shared key. Left running all night, the budget is gone by morning and the assistant answers the claims staff with "budget exhausted".
+What you should see: every request is answered; there is no per-user limit on the shared key. Left running all night, the budget is gone by morning and the assistant answers the claims staff with "budget exhausted".
++
+Then look for this traffic on the platform: there is none to find. The unsecured portal calls the model provider directly with a key from a Secret, so no subscription, budget, dashboard or alert covers it.
 +
 The point: denial of wallet, and nobody was watching.
 
@@ -66,9 +68,11 @@ What you should see: `ParasolAssistantTokenSpendHigh` firing, naming the user `t
 +
 What you should see: a night request with the user on the span.
 
-. Select the *OpenShift AI* tab and open Models-as-a-Service.
+. Select the *OpenShift AI* tab and open *Settings*, then *MaaS governance*.
 +
-What you should see: the spend attributed to the policyholder account, while the production allowance is untouched.
+What you should see: every model call from the secured side goes through a subscription with its own token limit. `parasol-policyholder` is the policyholder tier, separate from the staff tiers, which is why only tom.becker hit the limit while the claims staff kept working. *Gen AI studio*, *API keys* shows when each key was last used; the per-user token spend is on the operator dashboard.
++
+image::s3-maas-subscriptions.png[MaaS governance: the policyholder, stage and guard subscriptions, each Ready with its own priority and token limit]
 
 . Check it: in the *Terminal* tab, find the per-user 429 in the Limitador log:
 +

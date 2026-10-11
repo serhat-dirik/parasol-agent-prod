@@ -20,6 +20,8 @@ A prompt change is a code change: it can silently remove a safety behavior. A ve
 What you should see: the run `parasol-agent-model-ifeval` in state *Completed*. EvalHub, the TrustyAI evaluation service running in the project, evaluated the agent's model (`qwen3-14b` on the external MaaS endpoint) with LM Evaluation Harness on the IFEval instruction-following benchmark. Open the run to show its metrics (for example `inst_level_strict_acc` 0.375 and `prompt_level_strict_acc` 0.2) and its result against the default pass threshold of 0.5.
 +
 Say: this is a five-prompt smoke run of a generic benchmark, so the number is not the point. The point is that evaluation is a platform service with a recorded result per model. Whether this assistant is safe to ship is decided by its own golden set, next.
++
+image::s4-rhoai-evaluations.png[OpenShift AI Evaluations page: the completed IFEval run of qwen3-14b in project parasol-eval]
 
 == Show: the golden set, v1 against v2
 
@@ -29,6 +31,13 @@ What you should see: the golden set `parasol-golden-20` scored twice, each case 
 +
 * *v1* (the current prompt): *20/20, PASS*;
 * *v2* (the simplified prompt): *17/20, BLOCK*. It fails the injection-document, role-authorization and other-claimant cases.
+
++
+image::s4-mlflow-eval-runs.png[MLflow evaluation runs: v1 runs at 20/20 with gate 1, v2 runs at 17/20 with gate 0]
++
+Open two runs and *Compare* them to see why:
++
+image::s4-mlflow-v1-vs-v2.png[MLflow run comparison: prompt v1 against v2, gate_passed 1 against 0 and every detector rate lower for v2]
 
 . Open the v2 run and its injection-document case.
 +
@@ -40,9 +49,11 @@ What you should see: both versions registered, so the failure is on record and a
 
 == Show: the gate
 
-. Select the *OpenShift Console* tab and open *Pipelines*, project `parasol-build`, then *PipelineRuns*. Direct link: link:{console_url}/pipelines/ns/parasol-build[parasol-build pipelines,window=_blank].
+. Select the *OpenShift Console* tab and open *Pipelines*, project `parasol-build`, then *Pipeline runs*. Direct link: link:{console_url}/k8s/ns/parasol-build/tekton.dev~v1~PipelineRun[parasol-build pipeline runs,window=_blank].
 +
-What you should see: the two gate runs. `parasol-agent-eval-gate-v1` reports `EVAL_SCORE 1.00` and `EVAL_GATE passed`; `parasol-agent-eval-gate-v2` reports `EVAL_SCORE 0.85` and `EVAL_GATE failed`. The `agent-eval` task blocks promotion below 19/20, so v2 never reaches production while v1 does.
+What you should see: two release runs of the same pipeline. In `parasol-portal-secure-build-vrdql` (candidate v1) `agent-eval` passed with `EVAL_SCORE 1.00` and `promote` ran. In `parasol-portal-secure-build-dhd8k` (candidate v2) `agent-eval` failed with `EVAL_SCORE 0.85` and `promote` is *skipped*: v2 was built, scanned and even signed, but nothing reached Git, so nothing reached production.
++
+image::sc-pipeline-v2-blocked.png[The v2 release run: every stage ran, and promote was skipped by the evaluation gate]
 
 . Select the *OpenShift AI* tab and open *Model registry*, then `parasol-claims-assistant`, then *Versions*.
 +
