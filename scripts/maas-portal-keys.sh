@@ -2,7 +2,7 @@
 # maas-portal-keys.sh : mint the two OpenShift AI MaaS API keys the SECURED portal selects per request
 # from the logged-in user's Keycloak group (Demo 3 per-user 429):
 #   STAFF_MAAS_KEY        -> subscription parasol-stage        (200k tokens / 10m)  adjusters, claims-managers, developers
-#   POLICYHOLDER_MAAS_KEY -> subscription parasol-policyholder ( 20k tokens / 10m)  group policyholders (tom.becker)
+#   CONTRACTOR_MAAS_KEY   -> subscription parasol-contractor   ( 20k tokens / 10m)  group contractors (nina.contractor)
 # Both keys belong to ServiceAccount parasol-model-client (group system:serviceaccounts:parasol-secured,
 # which both subscriptions admit); the per-subscription token bucket is what isolates the 429. Stored in
 # Secret maas-portal-keys in parasol-secured; the portal (Stream P) mounts it. Never prints a key.
@@ -24,11 +24,11 @@ print(json.load(u.urlopen(req, context=ctx, timeout=30))["key"])' "$GW" "$tok" "
 }
 
 staff=$(mint parasol-stage)
-poly=$(mint parasol-policyholder)
-[[ "$staff" == sk-* && "$poly" == sk-* ]] || { echo "MaaS did not return both keys"; exit 1; }
+contractor=$(mint parasol-contractor)
+[[ "$staff" == sk-* && "$contractor" == sk-* ]] || { echo "MaaS did not return both keys"; exit 1; }
 oc -n "$NS" create secret generic maas-portal-keys \
   --from-literal=STAFF_MAAS_KEY="$staff" \
-  --from-literal=POLICYHOLDER_MAAS_KEY="$poly" \
+  --from-literal=CONTRACTOR_MAAS_KEY="$contractor" \
   --dry-run=client -o yaml | oc apply -f - >/dev/null
-unset staff poly
-echo "Secret maas-portal-keys written in $NS (STAFF_MAAS_KEY=parasol-stage, POLICYHOLDER_MAAS_KEY=parasol-policyholder)"
+unset staff contractor
+echo "Secret maas-portal-keys written in $NS (STAFF_MAAS_KEY=parasol-stage, CONTRACTOR_MAAS_KEY=parasol-contractor)"

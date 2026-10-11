@@ -66,22 +66,22 @@ spec:
       tokenRateLimits:
         - {limit: 200000, window: 10m}   # rehearsals fit, the v3 storm trips the alert first, then 429
 ---
-# Policyholder tier (Demo 3): the secured portal mints a separate key on this subscription for users in
-# the Keycloak group `policyholders` (tom.becker). Its allowance is tiny, so his "3am" storm trips 429 on
+# Contractor tier (Demo 3): the secured portal mints a separate key on this subscription for users in
+# the Keycloak group `contractors` (nina.contractor). Its allowance is tiny, so a "3am" storm trips 429 on
 # this bucket alone while staff (stage subscription) keep working. Per-subscription counter -> isolated 429.
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription
 metadata:
-  name: parasol-policyholder
+  name: parasol-contractor
   namespace: models-as-a-service
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   owner:
-    groups: [{name: parasol-policyholder}, {name: "system:serviceaccounts:parasol-secured"}]
+    groups: [{name: parasol-contractor}, {name: "system:serviceaccounts:parasol-secured"}]
   priority: 10
   modelRefs:
     - name: qwen3-14b
       namespace: models-as-a-service
       tokenRateLimits:
-        - {limit: 20000, window: 10m}   # policyholder allowance: a short night-shift storm exhausts it on camera
+        - {limit: 20000, window: 10m}   # contractor allowance: a short night-shift storm exhausts it on camera
