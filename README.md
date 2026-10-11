@@ -70,40 +70,31 @@ between runs — the demo itself is the browser.
 <summary><b>Quick install</b></summary>
 
 Prerequisites: a fresh OpenShift 4.22 cluster (3 workers, 16 vCPU / 64 GB recommended, no GPU),
-`oc` logged in as cluster-admin, `kustomize`, `envsubst`, `openssl`, `python3` with PyYAML, and an
-OpenAI-compatible MaaS endpoint serving the demo's models. The demo needs a per-model key for **three
-models**:
+`oc` logged in as cluster-admin, `kustomize`, `envsubst`, `openssl` and `python3` with PyYAML.
+OpenShift GitOps and a Keycloak instance may already be present — `bootstrap.sh` detects and reuses
+them.
 
-* **`qwen3-14b`** — the agent both portals run; must emit structured tool calls **and** obey an instruction hidden in a document (that is what makes Scenario 2 live).
-* **`granite-guardian-3-1-8b`** — the guard-tier detector (and the GenAI Studio beat).
-* **`gpt-oss-120b`** — the evaluation judge (Scenario 4).
+The demo calls three models over OpenAI-compatible APIs. Each one can come from a **different
+provider**, so each has its own endpoint (a base URL ending in `/v1`) and its own key:
 
-Optionally **`Llama-Guard-3-1B`** as a 3rd detector (skipped if absent). Put each key as a `curl` sample
-in the "MAAS keys" section of the credentials file; `source scripts/load-credentials.sh` reads them and
-exports `MAAS_KEY_<MODEL>` without printing values. OpenShift GitOps and a Keycloak instance may already
-be present — `bootstrap.sh` detects and reuses them.
+| Role | Model | Endpoint | Key | Must support |
+|---|---|---|---|---|
+| Agent, both portals | `qwen3-14b` (set another with `AGENT_MODEL`) | `AGENT_ENDPOINT` | `AGENT_KEY` | structured tool calls, and obeying an instruction hidden in a document (that is what makes Scenario 2 live) |
+| Guard detector | `granite-guardian-3-1-8b` | `GUARD_ENDPOINT` | `GUARD_KEY` | chat completions with `logprobs` (the risk score is read from them) |
+| Evaluation judge | `gpt-oss-120b` | `JUDGE_ENDPOINT` | `JUDGE_KEY` | strong instruction following (Scenario 4) |
+| Third detector (optional) | `Llama-Guard-3-1B` | `LLAMAGUARD_ENDPOINT` | `LLAMAGUARD_KEY` | chat completions with `logprobs` |
 
 ```bash
-# The three model keys live in the credentials file's "MAAS keys" section; load them all in one step:
-source scripts/load-credentials.sh   # exports MAAS_ENDPOINT, the base MAAS_API_KEY, and a
-                                     # MAAS_KEY_<MODEL> for every model in that section
-export MAAS_MODEL=qwen3-14b          # the agent model both portals run (injection-obeying)
+export AGENT_ENDPOINT=https://<agent-provider>/v1   AGENT_KEY=<key>
+export GUARD_ENDPOINT=https://<guard-provider>/v1   GUARD_KEY=<key>
+export JUDGE_ENDPOINT=https://<judge-provider>/v1   JUDGE_KEY=<key>
+# optional
+export LLAMAGUARD_ENDPOINT=https://<provider>/v1    LLAMAGUARD_KEY=<key>
 ./bootstrap.sh
 ```
 
-Porting to a non-lab MaaS (no credentials file)? Export the endpoint and the **three model keys**
-directly instead of sourcing the file — `bootstrap.sh` and `scripts/maas-model-keys.sh` read exactly these:
-
-```bash
-export MAAS_ENDPOINT=https://<maas-host>/v1
-export MAAS_API_KEY=<base endpoint key>
-export MAAS_MODEL=qwen3-14b
-export MAAS_KEY_QWEN3_14B=<key>     # agent, both portals (tool-calling + injection-obeying)
-export MAAS_KEY_GUARD=<key>         # granite-guardian-3-1-8b (guard-tier detector)
-export MAAS_KEY_JUDGE=<key>         # gpt-oss-120b (evaluation judge)
-export MAAS_KEY_LLAMAGUARD=<key>    # optional: Llama-Guard-3-1B (3rd detector)
-./bootstrap.sh
-```
+If all models sit behind one endpoint, set the same URL for each. `bootstrap.sh` checks the three
+required pairs before it touches the cluster and names any that are missing.
 
 `bootstrap.sh` is idempotent: it installs the operators; creates the secrets (MaaS credentials, the
 per-model MaaS keys via `scripts/maas-model-keys.sh`, service identities, trusted-header keys — none
@@ -264,10 +255,10 @@ regression is caught and promotion is blocked. This beat is in the consoles, not
 <summary><b>Demo scripts</b> — the operator's runbook</summary>
 
 The demo itself happens in the browser (see **Demo UI**); these are the terminal steps behind it.
-First: `source scripts/load-credentials.sh` (it never prints or commits secret values).
+First: export the model variables from **Quick install** (`AGENT_*`, `GUARD_*`, `JUDGE_*`).
 
 Before the demo:
-1. `scripts/probe-maas.sh $MAAS_MODEL` — confirm the model emits structured tool calls.
+1. `scripts/probe-maas.sh` — confirm the agent model emits structured tool calls (pass other model ids as arguments to compare).
 2. `scripts/status.sh` — confirm all Argo apps are Synced/Healthy and both portals are up.
 
 The scripts behind each scenario (the browser steps are in **Demo UI**):

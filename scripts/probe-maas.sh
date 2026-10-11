@@ -2,10 +2,10 @@
 # Does this model, on this endpoint, emit STRUCTURED tool calls? Run for each candidate model.
 # PASS = finish_reason "tool_calls" and a tool_calls array. FAIL = the call narrated in content.
 set -euo pipefail
-: "${MAAS_ENDPOINT:?}"; : "${MAAS_API_KEY:?}"
-for m in ${*:-llama-scout-17b qwen3-14b qwen3-235b}; do
+ENDPOINT="${AGENT_ENDPOINT:-${MAAS_ENDPOINT:?set AGENT_ENDPOINT}}"; KEY="${AGENT_KEY:-${MAAS_API_KEY:?set AGENT_KEY}}"
+for m in ${*:-${AGENT_MODEL:-qwen3-14b}}; do
   printf '%-22s' "$m"
-  curl -sk "$MAAS_ENDPOINT/chat/completions" -H "Authorization: Bearer $MAAS_API_KEY" -H 'content-type: application/json' -d "{
+  curl -sk "$ENDPOINT/chat/completions" -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d "{
     \"model\": \"$m\", \"temperature\": 0,
     \"messages\": [{\"role\":\"system\",\"content\":\"You are a claims assistant. Use tools instead of guessing.\"},{\"role\":\"user\",\"content\":\"What is the status of claim CLM-1001?\"}],
     \"tools\": [{\"type\":\"function\",\"function\":{\"name\":\"get_claim\",\"description\":\"Look up a claim by number, e.g. CLM-1001\",\"parameters\":{\"type\":\"object\",\"properties\":{\"claimNumber\":{\"type\":\"string\"}},\"required\":[\"claimNumber\"]}}}]}" \
