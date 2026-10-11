@@ -21,7 +21,7 @@ policy documents and to approve payouts. The *same* portal image runs twice on o
 * **`portal` (secured)** — the same image behind a layered sandbox: namespace isolation, Keycloak
   identity carried to every tool call, per-identity tool authorization at an MCP gateway, content
   guardrails, model-as-a-service governance with per-tier token budgets, OpenTelemetry tracing and
-  token metrics, a Git-commit kill switch, and a signed-image supply chain with admission control.
+  token metrics, a GitOps kill switch on the Argo CD Application, and a signed-image supply chain with admission control.
 
 Three scenarios — things a real user might do — are run against both portals, and every step is
 something you watch happen in a browser:
@@ -100,17 +100,10 @@ required pairs before it touches the cluster and names any that are missing.
 installs what is missing, creates the secrets (none ever in Git), builds the images in-cluster, applies the
 Argo CD app-of-apps, sets up the supply chain (SPIRE, Trusted Artifact Signer, cosign key, admission) and
 seeds the demo data (MLflow golden-set runs v1 20/20 and v2 17/20, prompt and model registry versions,
-the EvalHub run, the GenAI Studio playground, the blocked v2 release run). On a bare cluster it takes
-**75 to 120 minutes**. The repo must be pushed to a Git remote Argo can reach (`REPO_URL`).
-
-**The one manual step.** The secured portal runs only the image the release pipeline signs and promotes,
-and promotion is a commit to this repo, so the pipeline needs your GitHub token (contents:write on the
-repo). Before or after `bootstrap.sh` (the namespace must exist):
-
-```bash
-read -s T && oc create secret generic gitops-auth-secret -n parasol-build --from-literal=token="$T" && unset T
-scripts/pipeline-runs.sh --wait    # release run v1 (~25 min): signed, promoted, rolled out by Argo CD
-```
+the EvalHub run, the GenAI Studio playground), then runs the first release: v1 is signed, passes the gate
+and is promoted (pinned on the Argo CD Application `env-secured`; nothing is written to Git), v2 is
+blocked by the gate. No manual step. On a bare cluster it takes **75 to 120 minutes**. Argo CD only reads
+the repo (`REPO_URL`, any remote it can reach).
 
 Verify the install with `scripts/status.sh` (all Argo apps Synced/Healthy, both portals up), or Argo CD
 directly. Then open the portals in a browser — **this is the demo**:
@@ -206,7 +199,7 @@ of the stack is that a *different* layer catches each scenario:
 * **Scenario 3 (the night shift)** → **model governance + observability.** MaaS gives the contractor a
   low per-tier token budget and returns 429 for that account alone (Layer 5); the topic guardrail refuses
   off-topic junk at zero cost (Layer 4); token metrics raise an alert naming the user, and the kill switch
-  severs egress on a Git commit (Layer 7). Namespace isolation (Layer 1) bounds the blast radius throughout.
+  severs egress with one change on the Argo CD Application (Layer 7). Namespace isolation (Layer 1) bounds the blast radius throughout.
 
 | # | Layer | Defends | Component | In this repo |
 |---|---|---|---|---|
@@ -223,7 +216,7 @@ of the stack is that a *different* layer catches each scenario:
 hidden-note obedience is live. Tools: portal → MCP gateway (`https://mcp.apps.<domain>/mcp`, per-client virtual server)
 → `claims-db` / `policy-docs`. The **kill switch** is a kustomize component that *replaces* the
 agent/portal NetworkPolicy egress (a NetworkPolicy only ever adds allows, so a "deny" policy would
-do nothing); commit it and Argo severs the model path — pods keep running, the agent reaches nothing.
+do nothing); add it to the `env-secured` Application (`spec.source.kustomize.components`) and Argo severs the model path — pods keep running, the agent reaches nothing.
 
 **Read-Propose-Act.** `approve_payout` is hidden from the gateway's `tools/list` for every identity
 (so no model ever auto-calls it) but stays backend-federated; `tools/call` is still authorized by

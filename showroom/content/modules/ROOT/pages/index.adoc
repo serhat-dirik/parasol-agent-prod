@@ -13,7 +13,7 @@ An agent that can move money is an agent worth abusing.
 The same portal image runs twice on one cluster, over separate, identically seeded claims databases:
 
 * *Portal unsecured* (`portal-free`): the laptop setup lifted into a namespace. Nothing sits between the agent and its tools, and nothing between the agent and the model but an API key in a Secret.
-* *Portal secured* (`portal`): the same image behind a layered sandbox: namespace isolation, Keycloak identity on every tool call, per-identity tool authorization at an MCP gateway, content guardrails, Models-as-a-Service governance with per-user token budgets, tracing and token metrics, a Git-commit kill switch, and a signed-image supply chain with admission control.
+* *Portal secured* (`portal`): the same image behind a layered sandbox: namespace isolation, Keycloak identity on every tool call, per-identity tool authorization at an MCP gateway, content guardrails, Models-as-a-Service governance with per-user token budgets, tracing and token metrics, a GitOps kill switch on the Argo CD Application, and a signed-image supply chain with admission control.
 
 You demo the *same claim* with the *same request* on each portal. The only variable is the platform.
 

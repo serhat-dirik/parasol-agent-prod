@@ -108,26 +108,36 @@ What you should see: the script cannot log in as `nina.contractor`. Everyone els
 
 === Option B: the kill switch
 
-. Open the secured environment in Git: link:{repo_url}/edit/main/gitops/envs/secured/kustomization.yaml[gitops/envs/secured/kustomization.yaml,window=_blank].
+The kill switch is a kustomize component already in Git (`gitops/envs/secured/kill-switch`). You switch it on in the cluster, on the Argo CD Application, not with a Git commit.
 
-. Change the line `components: []` to:
+. Select the *Argo CD* tab and open application `env-secured`. Click *Details* in the top bar, select the *Manifest* tab and click *Edit*.
+
+. Under `spec.source.kustomize`, at the same indentation as `patches:`, add one line, then click *Save*:
 +
 [source,yaml]
 ----
-components: [./kill-switch]
+components: [kill-switch]
 ----
 +
-Commit to `main`.
-
-. Select the *Argo CD* tab, open the `env-secured` application and click *Refresh*.
+The same change from the *Terminal* tab:
 +
-What you should see: Argo CD syncs the change; the component replaces the portal's network egress.
+[source,bash,role=execute]
+----
+oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"kustomize":{"components":["kill-switch"]}}}}'
+----
++
+What you should see: Argo CD syncs `env-secured` on its own; the component replaces the portal's network egress.
 
 . Select the *Portal secured* tab and ask the assistant anything.
 +
 What you should see: after about 50 seconds the assistant reports it is offline. In the *OpenShift Console* tab, the pods in project `parasol-secured` are still *Running*: they simply reach nothing.
 
-. Revert the commit (set `components: []` again) and refresh `env-secured` in the *Argo CD* tab to bring the assistant back.
+. Switch it off to bring the assistant back: in *Details* > *Manifest* > *Edit*, delete the `components` line and click *Save*. From the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"kustomize":{"components":null}}}}'
+----
 
 The morning report is two screens you already have open: the alert and the dashboard.
 

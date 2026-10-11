@@ -30,7 +30,12 @@ What you should see: CLM-1001 *UnderReview*, CLM-1004 *Denied*.
 
 . Repeat on the *Portal secured* tab.
 
-. If you used an operator response in Scenario 3, undo it: re-enable `nina.contractor` in the *Keycloak* tab, or revert the kill-switch commit and refresh `env-secured` in the *Argo CD* tab.
+. If you used an operator response in Scenario 3, undo it: re-enable `nina.contractor` in the *Keycloak* tab, or switch the kill switch off: in the *Argo CD* tab open `env-secured`, *Details* > *Manifest* > *Edit*, delete the `components` line and *Save*. From the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"kustomize":{"components":null}}}}'
+----
 
 == Headless equivalents
 

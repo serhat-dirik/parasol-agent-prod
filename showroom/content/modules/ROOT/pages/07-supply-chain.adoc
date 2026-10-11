@@ -29,13 +29,17 @@ image::sc-pipeline-v1-promoted.png["The release run: build, scan, keyed and keyl
 +
 What you should see: `tlog entry created` and `VERIFIED (keyless)` for the portal digest. No long-lived key: the pipeline's workload identity gets a certificate valid for minutes, signs, and the signature lands in the Rekor transparency log. `sign-images` shows the same image signed with the cluster key; admission accepts either.
 
-. Open the repository's link:{repo_url}/commits/main[commit history,window=_blank] and the latest commit by `parasol-pipeline`.
+. Open the `promote` task log.
 +
-What you should see: one line changed, the new image digest in the secured overlay. Promotion is a Git commit, so the audit trail is `git log`.
+What you should see: `PROMOTED: env-secured runs ...parasol-portal@sha256:...` with the prompt and model version the gate evaluated. Promotion writes nothing to Git: the repository stays read-only for releases. The task pins the signed digest on the Argo CD Application `env-secured` and waits until Argo CD reports it Synced and Healthy.
 
-. Select the *Argo CD* tab, open application `env-secured`, then the `portal` Deployment.
+. Select the *Argo CD* tab, open application `env-secured`, click *Details* and select the *Parameters* tab.
 +
-What you should see: the secured portal runs exactly that pinned digest; Argo CD rolled it out from the commit.
+What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref` and `model-ref`. *History and rollback* lists the sync that rolled it out.
+
+. Close the panel and open the `portal` Deployment.
++
+What you should see: the secured portal runs exactly that pinned digest; admission verified its signature when Argo CD rolled it out.
 
 == Show: admission refuses an unsigned image
 
@@ -66,6 +70,6 @@ The four scenarios made one argument. The unsecured and the secured portal are t
 * A document is data, not a command: guardrails and the Read-Propose-Act gate.
 * Budgets and alerts with a name: OpenShift AI Models-as-a-Service, Connectivity Link, and the OpenShift console.
 * Quality and provenance enforced: the evaluation gate, signing and admission.
-* The sandbox has a front door: access is identity-bound, and the kill switch is a Git commit.
+* The sandbox has a front door: access is identity-bound, and the kill switch is one change on the Argo CD Application.
 
 Continue with xref:08-reset-troubleshooting.adoc[08. Reset and troubleshooting].
