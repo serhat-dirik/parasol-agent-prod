@@ -71,15 +71,22 @@ between runs — the demo itself is the browser.
 
 Prerequisites: a fresh OpenShift 4.22 cluster (3 workers, 16 vCPU / 64 GB recommended, no GPU),
 `oc` logged in as cluster-admin, `kustomize`, `envsubst`, `openssl`, `python3` with PyYAML, and an
-OpenAI-compatible MaaS endpoint. The endpoint may serve several models with their own keys (a "MAAS
-keys" section in the credentials file); `source scripts/load-credentials.sh` reads them and exports
-`MAAS_KEY_<MODEL>` without printing values. OpenShift GitOps and a Keycloak instance may already be
-present — `bootstrap.sh` detects and reuses them.
+OpenAI-compatible MaaS endpoint serving the demo's models. The demo needs a per-model key for **three
+models**:
+
+* **`qwen3-14b`** — the agent both portals run; must emit structured tool calls **and** obey an instruction hidden in a document (that is what makes Scenario 2 live).
+* **`granite-guardian-3-1-8b`** — the guard-tier detector (and the GenAI Studio beat).
+* **`gpt-oss-120b`** — the evaluation judge (Scenario 4).
+
+Optionally **`Llama-Guard-3-1B`** as a 3rd detector (skipped if absent). Put each key as a `curl` sample
+in the "MAAS keys" section of the credentials file; `source scripts/load-credentials.sh` reads them and
+exports `MAAS_KEY_<MODEL>` without printing values. OpenShift GitOps and a Keycloak instance may already
+be present — `bootstrap.sh` detects and reuses them.
 
 ```bash
 export MAAS_ENDPOINT=https://<maas-host>/v1
-export MAAS_API_KEY=<key>              # the agent/prod key (llama-scout-17b tier)
-export MAAS_MODEL=llama-scout-17b      # default agent model; the demo repoints both portals to qwen3-14b (an injection-obeying model) via the env overlays
+export MAAS_API_KEY=<key>              # base endpoint key
+export MAAS_MODEL=qwen3-14b            # the agent model both portals run (injection-obeying, to show the risk live)
 ./bootstrap.sh
 ```
 
@@ -87,7 +94,7 @@ export MAAS_MODEL=llama-scout-17b      # default agent model; the demo repoints 
 per-model MaaS keys via `scripts/maas-model-keys.sh`, service identities, trusted-header keys — none
 ever in Git); builds the images in-cluster (binary builds, no registry credentials); and applies the
 Argo CD app-of-apps, which syncs the whole platform — the two portals, the Keycloak realm, the MCP
-gateway, MaaS tiers (four external models), guardrails, observability (OTel → Tempo and MLflow), the
+gateway, MaaS tiers (two external models — the qwen agent + the guardian detector), guardrails, observability (OTel → Tempo and MLflow), the
 signed build pipeline with admission control, TrustyAI evaluation, the Developer Hub golden path, the
 Connectivity Link developer portal, and the Showroom guide. The repo must be pushed to a Git remote
 Argo can reach (`REPO_URL`) before Argo can sync.
@@ -129,7 +136,7 @@ step only where it is needed below.
 just in the portal chat. By `<cluster-domain>`:
 
 * **Argo CD** (`openshift-gitops-server-openshift-gitops.apps.<domain>`) — every component Synced/Healthy; the GitOps source of truth. `scripts/status.sh` summarizes.
-* **OpenShift AI** (`rh-ai.apps.<domain>`) — Models-as-a-Service (four external models + per-key usage), the GenAI Studio playground, MLflow (chat traces + the `parasol-agent-eval` golden-set runs), and Model evaluation runs (TrustyAI/LMEval).
+* **OpenShift AI** (`rh-ai.apps.<domain>`) — Models-as-a-Service (two external models — qwen agent + guardian detector — with per-key usage), the GenAI Studio playground, MLflow (chat traces + the `parasol-agent-eval` golden-set runs), and Model evaluation runs (TrustyAI/LMEval).
 * **OpenShift console → Observe** — **Dashboards** → the *Parasol assistant* one-page (tool calls by status, guardrail hits, token spend, P95 latency, the alert); **Alerting** (`ParasolAssistantTokenSpendHigh`); **Metrics** (`parasol_tool_calls_total`, token spend); **Traces** (Tempo).
 * **OpenShift console → Networking / Gateways** — the MCP and MaaS Gateways and their AuthPolicies (Enforced).
 * **Keycloak** (`sso.apps.<domain>`) — realm `parasol`: users, groups, and the `tool:*` roles.
@@ -280,9 +287,9 @@ Other helpers:
   `rhoai-enable.sh`, `wait-csv.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`,
   `maas-portal-keys.sh`, `mlflow-experiment.sh`, `portal-oidc-client.sh`, `portal-users.sh`,
   `fetch-detector-model.sh`.
-- MaaS catalogue (four external models, per-tier keys): `maas-model-keys.sh` puts each per-model MaaS
+- MaaS catalogue (two external models, per-tier keys): `maas-model-keys.sh` puts each per-model MaaS
   key into its own cluster Secret; `maas-ext-model-secrets.sh` creates the upstream per-model key Secrets
-  (and the required `inference.llm-d.ai/ipp-managed=true` label); `maas-tier-keys.sh` mints the three
+  (and the required `inference.llm-d.ai/ipp-managed=true` label); `maas-tier-keys.sh` mints the prod + guard
   tier keys; `maas-extproc-reload.sh` reloads the ai-gateway ext-procs for the "model registered before
   the ext-proc started" case.
 
@@ -315,13 +322,13 @@ of the stack is that a *different* layer catches each scenario:
 | 2 | Identity | Scenario 1 | Keycloak user identity forwarded by the portal to every tool call; service identity for discovery | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak` |
 | 3 | Tool authorization | Scenario 1 | MCP gateway (Connectivity Link, TP): federation, per-identity tool list, per-tool AuthPolicy | `gitops/platform/mcp-gateway`, `gitops/envs/secured/mcp-registrations.yaml` |
 | 4 | Guardrails | Scenarios 2 and 3 | Guardrails detection proxy (enforced): regex + prompt-injection detector, PII masking, topic refusal; flag-and-continue or block. Additive model-based detectors in the guard tier: Granite Guardian (`granite-guardian-3-1-8b`) and optional Llama-Guard (user message only), shown in GenAI Studio | `gitops/platform/guardrails`, `gitops/platform/guardrails-guardian` |
-| 5 | Model governance | Scenario 3 | OpenShift AI MaaS: **four external models** on their own tiers — `qwen3-14b` (the model both portals run, to show live prompt injection), `llama-scout-17b` (prod, former agent model), `granite-4-0-h-tiny` (stage), `granite-guardian-3-1-8b` (guard) — each a MaaSSubscription + MaaSAuthPolicy with its own key and per-tier token budget enforced by Connectivity Link; the agent never holds the upstream key (TP for external models) | `gitops/platform/rhoai/*`, `gitops/platform/maas-tiers`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh`, `scripts/maas-tier-keys.sh` |
+| 5 | Model governance | Scenario 3 | OpenShift AI MaaS: **two external models** on their own tiers — `qwen3-14b` (prod, the agent both portals run) and `granite-guardian-3-1-8b` (guard, the detector) — each a MaaSSubscription + MaaSAuthPolicy with its own key and per-tier token budget enforced by Connectivity Link; the agent never holds the upstream key (TP for external models). The eval judge `gpt-oss-120b` is reached via its own key, off the tiers | `gitops/platform/rhoai/*`, `gitops/platform/maas-tiers`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh`, `scripts/maas-tier-keys.sh` |
 | 6 | Lifecycle gate | regressions, unsigned images (cross-cutting) | Tekton pipeline (build → scan → eval gate → cosign sign → promote); Sigstore admission `ClusterImagePolicy` | `gitops/platform/pipeline`, `scripts/signing-demo.sh` |
 | 7 | Observability and control | Scenario 3; knowing and stopping | OTel → Tempo and MLflow, token metrics + PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
 
 **Request paths (secured).** Model: portal → model-gateway → guardrails-proxy → OpenShift AI MaaS
-→ LiteLLM; the MaaS serves the model named in `agent-config` — now **`qwen3-14b`** on both portals so the
-hidden-note obedience is live, with `llama-scout-17b` still registered and authorized. Tools: portal → MCP gateway (`https://mcp.apps.<domain>/mcp`, per-client virtual server)
+→ LiteLLM; the MaaS serves the model named in `agent-config` — **`qwen3-14b`** on both portals so the
+hidden-note obedience is live. Tools: portal → MCP gateway (`https://mcp.apps.<domain>/mcp`, per-client virtual server)
 → `claims-db` / `policy-docs`. The **kill switch** is a kustomize component that *replaces* the
 agent/portal NetworkPolicy egress (a NetworkPolicy only ever adds allows, so a "deny" policy would
 do nothing); commit it and Argo severs the model path — pods keep running, the agent reaches nothing.
@@ -336,12 +343,12 @@ executes it and an adjuster's forced call is a 403.
 MAAS_*) and is not itself git-synced; everything else syncs from the remote. Argo `selfHeal` reverts
 live `oc patch`es, so change synced resources via Git, not `oc`.
 
-**Visible in OpenShift AI (not just YAML).** Models-as-a-Service lists **four external models**
-(`qwen3-14b` the portals run on, prod `llama-scout-17b`, stage `granite-4-0-h-tiny`, guard
-`granite-guardian-3-1-8b`) with their subscriptions, auth policies and per-key usage; the MCP catalog
-entries; the GenAI Studio playground (model picker incl. Granite Guardian + MCP tools + guardrails
-toggles); the Guardrails Orchestrator and its detectors; **Model evaluation runs** (TrustyAI/LMEval);
-and MLflow traces + the `parasol-agent-eval` golden-set runs (prompt, tool calls, tokens).
+**Visible in OpenShift AI (not just YAML).** Models-as-a-Service lists the **two external models the
+demo uses** (`qwen3-14b` the portals run on, and guard-tier `granite-guardian-3-1-8b`) with their
+subscriptions, auth policies and per-key usage; the MCP catalog entries; the GenAI Studio playground
+(model picker incl. Granite Guardian + MCP tools + guardrails toggles); the Guardrails Orchestrator and
+its detectors; **Model evaluation runs** (TrustyAI/LMEval); and MLflow traces + the `parasol-agent-eval`
+golden-set runs (prompt, tool calls, tokens).
 
 Technology Preview as of OpenShift AI 3.5 / Connectivity Link 1.4 (Oct 2026): MCP gateway, MCP
 catalog + lifecycle operator, MaaS external-model egress, GenAI Studio guardrails. **Gateway-native MCP
