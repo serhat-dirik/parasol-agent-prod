@@ -1,0 +1,27 @@
+# The OpenShift AI Model Registry instance the guide's Scenario 4 opens (Model registry ->
+# parasol-model-registry). Same spec the dashboard's "Create model registry" (default database) writes.
+# Applied by scripts/seed-demo.sh once the DataScienceCluster modelregistry component has installed the
+# CRD and namespace rhoai-model-registries; register.sh then registers the model and its versions.
+apiVersion: modelregistry.opendatahub.io/v1beta1
+kind: ModelRegistry
+metadata:
+  name: parasol-model-registry
+  namespace: rhoai-model-registries
+  annotations:
+    openshift.io/display-name: parasol-model-registry
+    openshift.io/description: ""
+spec:
+  grpc:
+    port: 9090
+  kubeRBACProxy:
+    port: 8443
+    routePort: 443
+    serviceRoute: enabled
+  postgres:
+    generateDeployment: true
+    port: 5432
+    skipDBCreation: false
+    sslMode: disable
+  rest:
+    port: 8080
+    serviceRoute: disabled

@@ -1,9 +1,9 @@
 # Red Hat Trusted Artifact Signer (Securesign) - the keyless signing backend for the pipeline.
 # Fulcio (CA), Rekor (transparency log), CTlog, Trillian (DB), TUF (trust root).
-# OIDC issuer = the cluster's own Kubernetes ServiceAccount issuer, so an in-cluster CI
-# ServiceAccount token is the signing identity (no interactive browser flow). A Tekton task
-# projects an SA token (audience below) and cosign exchanges it with Fulcio for a short-lived
-# signing certificate. This replaces the cluster cosign keypair ("keyed") signing fallback.
+# OIDC issuer = SPIRE's OIDC discovery provider (gitops/platform/workload-identity), type spiffe: the
+# pipeline's keyless-signer pod presents a SPIFFE JWT-SVID (audience trusted-artifact-signer) and Fulcio
+# issues a short-lived signing certificate for spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer.
+# Applied by scripts/supply-chain.sh: envsubst '$CLUSTER_DOMAIN' < securesign.yaml | oc apply -f -
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -20,10 +20,11 @@ spec:
   fulcio:
     config:
       oidcIssuers:
-        - issuer: https://kubernetes.default.svc
-          issuerURL: https://kubernetes.default.svc
+        - issuer: https://oidc-discovery.apps.${CLUSTER_DOMAIN}
+          issuerURL: https://oidc-discovery.apps.${CLUSTER_DOMAIN}
           clientID: trusted-artifact-signer
-          type: kubernetes
+          type: spiffe
+          spiffeTrustDomain: parasol-demo
     ingress:
       enabled: true
     signer:

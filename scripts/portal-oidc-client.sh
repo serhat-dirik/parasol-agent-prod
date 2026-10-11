@@ -2,14 +2,11 @@
 # Idempotent: create/update the 'parasol-portal' confidential OIDC client in realm 'parasol'
 # (quarkus-oidc web-app for the portal login), and mirror its secret into a k8s Secret in
 # parasol-free and parasol-secured. The client secret is NEVER printed or committed.
-# Usage: scripts/portal-oidc-client.sh   (needs CREDENTIALS_FILE or ../../credentials.txt, oc login as admin)
+# Usage: scripts/portal-oidc-client.sh   (oc login as admin; Keycloak admin login via scripts/keycloak-admin.sh)
 set -euo pipefail
 
-CRED="${CREDENTIALS_FILE:-$(dirname "$0")/../../credentials.txt}"
-[ -r "$CRED" ] || { echo "credentials file not found: $CRED"; exit 1; }
-_cred() { awk -v k="$1" '$0==k {getline; print; exit}' "$CRED"; }
-KC_USER="$(_cred keycloak_admin_user)"
-KC_PASS="$(_cred keycloak_admin_password)"
+# shellcheck source=keycloak-admin.sh
+. "$(dirname "$0")/keycloak-admin.sh"   # KC_USER / KC_PASS
 
 DOMAIN="$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')"
 KC="https://sso.${DOMAIN}"

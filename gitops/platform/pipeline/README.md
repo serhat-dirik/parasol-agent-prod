@@ -33,7 +33,8 @@ it the run prints the pin diff and pushes nothing.
   (kustomize namespace `parasol-build`, synced by Argo CD).
 * `pipelinerun.yaml` — a release run (`candidate=v1`); with `candidate=v2` the gate blocks promote.
 * `eval/` — `ec-policy.rego` (the `ec-policy` ConfigMap) and the earlier 3-case golden set.
-* `operators/subscriptions.yaml` — RHTAS (Trusted Artifact Signer) + Sigstore policy-controller.
+* Operators (RHTAS, policy-controller, SPIRE) are in `gitops/bootstrap/operators/supply-chain.yaml`;
+  their operands, the cosign keypair and the admission policy are set up by `scripts/supply-chain.sh`.
 * `admission/` — the policy-controller webhook (`policycontroller.yaml`), the key-based
   `clusterimagepolicy.yaml`, and `demo-unsigned-deploy.yaml`. The live policy trusts both the
   keyless identity and the cluster key (`gitops/platform/tas/clusterimagepolicy-keyless.yaml`).
@@ -69,8 +70,11 @@ oc label namespace parasol-secured policy.rhtas.com/include=true --overwrite
 # Chains-signed    -> admitted
 ```
 
-### Manual cluster steps not in git-synced manifests
-* generate the cosign keypair into `signing-secrets` (Job above) and restart `tekton-chains-controller`;
-* `oc patch cm config-policy-controller -n policy-controller-operator --type merge -p '{"data":{"no-match-policy":"allow"}}'`;
-* the webhook's service-CA trust (`SSL_CERT_FILE` + `config-service-cabundle` mount) is carried in
-  `policycontroller.yaml` so it survives operator reconciles.
+### Cluster steps outside the synced manifests
+`scripts/supply-chain.sh` (run by `bootstrap.sh`, idempotent) does them: the cosign keypair in
+`openshift-pipelines/signing-secrets` (Job, password generated in-cluster) + Chains restart, its copy
+`parasol-build/cosign-signing-key` and ConfigMap `cosign-pub`, `no-match-policy=allow`, the
+TrustRoot/ClusterImagePolicy rendered from this cluster's TUF root and cosign key
+(`gitops/platform/tas/clusterimagepolicy-keyless.yaml` is the template), and the
+`policy.rhtas.com/include=true` label on `parasol-secured`. `scripts/pipeline-runs.sh` starts the
+release runs (v1 promotes once `gitops-auth-secret` exists; v2 is blocked by the gate).

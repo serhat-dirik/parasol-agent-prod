@@ -1,0 +1,50 @@
+# Supply chain (guide 07): Trusted Artifact Signer (Fulcio/Rekor/TUF for keyless signing), the Sigstore
+# policy-controller (admission), and Zero Trust Workload Identity Manager (SPIRE: the pipeline's keyless
+# signing identity is a SPIFFE JWT-SVID). Operands: scripts/supply-chain.sh.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: rhtas-operator
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: rhtas-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: policy-controller-operator
+  namespace: openshift-operators
+spec:
+  channel: stable
+  installPlanApproval: Automatic
+  name: policy-controller-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zero-trust-workload-identity-manager
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: zero-trust-workload-identity-manager
+  namespace: zero-trust-workload-identity-manager
+spec: {}  # AllNamespaces: the owned CRDs (ClusterSPIFFEID, SpireServer, ...) are cluster-scoped
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-zero-trust-workload-identity-manager
+  namespace: zero-trust-workload-identity-manager
+spec:
+  channel: stable-v1
+  installPlanApproval: Automatic
+  name: openshift-zero-trust-workload-identity-manager
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace

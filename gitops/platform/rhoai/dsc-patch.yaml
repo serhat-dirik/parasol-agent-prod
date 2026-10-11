@@ -1,4 +1,5 @@
-# Merged into the existing DataScienceCluster by scripts/rhoai-enable.sh (oc patch --type merge).
+# The DataScienceCluster spec the demo needs: scripts/rhoai-enable.sh creates default-dsc with it when the
+# cluster has none, or merges it into the existing one (oc patch --type merge).
 # Component names verified against the OpenShift AI 3.5.1 DataScienceCluster v2 CRD.
 spec:
   components:
@@ -6,18 +7,23 @@ spec:
     kserve:
       managementState: Managed
       rawDeploymentServiceConfig: Headed
-    aigateway:
+    aigateway:                                                   # Models-as-a-Service (scenario 3)
       managementState: Managed
       modelsAsAService: {managementState: Managed}
-    ogx: {managementState: Managed}
-    trustyai: {managementState: Managed}
-    mlflowoperator: {managementState: Managed}
-    modelregistry: {managementState: Managed}
-    mcplifecycleoperator: {managementState: Managed}            # MCP catalog + lifecycle operator (TP)
+    ogx: {managementState: Managed}                              # GenAI Studio playground
+    trustyai:                                                    # guardrails orchestrator + LMEval/EvalHub (scenario 4)
+      managementState: Managed
+      eval:
+        lmeval: {permitOnline: allow, permitCodeExecution: allow}
+    mlflowoperator: {managementState: Managed}                   # traces + golden-set runs + prompt registry
+    modelregistry:                                               # Model registry (scenario 4)
+      managementState: Managed
+      registriesNamespace: rhoai-model-registries
+    mcplifecycleoperator: {managementState: Managed}             # MCP catalog + lifecycle operator (TP)
     workbenches: {managementState: Removed}
     aipipelines: {managementState: Removed}
     ray: {managementState: Removed}
-    kueue: {managementState: Unmanaged}
+    kueue: {managementState: Removed}
     trainingoperator: {managementState: Removed}
     feastoperator: {managementState: Removed}
     llamastackoperator: {managementState: Removed}

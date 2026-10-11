@@ -1,0 +1,31 @@
+# Applied by bootstrap.sh ONLY when namespace keycloak has no Keycloak instance (or this Application
+# already exists), so a lab-provided Keycloak is reused untouched. envsubst: CLUSTER_DOMAIN, REPO_*.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-keycloak-instance
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  project: parasol
+  destination: {server: https://kubernetes.default.svc, namespace: keycloak}
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_REVISION}
+    path: gitops/platform/keycloak-instance
+    kustomize:
+      patches:
+        - target: {kind: Keycloak, name: keycloak}
+          patch: |-
+            - op: replace
+              path: /spec/hostname/hostname
+              value: https://sso.apps.${CLUSTER_DOMAIN}
+        - target: {kind: Route, name: keycloak}
+          patch: |-
+            - op: replace
+              path: /spec/host
+              value: sso.apps.${CLUSTER_DOMAIN}
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

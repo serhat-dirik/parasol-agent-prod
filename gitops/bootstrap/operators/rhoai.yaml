@@ -1,4 +1,7 @@
-# OpenShift AI 3.5. Skip (bootstrap.sh detects it) when the RHDP item already installed it.
+# OpenShift AI, pinned to 3.5.1 (the release the demo's DataScienceCluster component names and the
+# MaaS/MCP/EvalHub objects were verified against). Manual approval + startingCSV: scripts/ensure-operators.py
+# approves only the InstallPlan for startingCSV, so a newer 3.x in the channel is not picked up.
+# Override with RHOAI_CHANNEL / RHOAI_CSV (bootstrap.sh). Skipped when OpenShift AI is already installed.
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
@@ -12,7 +15,8 @@ metadata:
   namespace: redhat-ods-operator
 spec:
   channel: stable-3.x   # verified: carries 3.5.1
-  installPlanApproval: Automatic
+  installPlanApproval: Manual
+  startingCSV: rhods-operator.3.5.1
   name: rhods-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace

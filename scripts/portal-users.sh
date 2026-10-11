@@ -7,11 +7,8 @@
 # and are mirrored into gitops/platform/keycloak/realm-import.yaml.
 set -euo pipefail
 
-CRED="${CREDENTIALS_FILE:-$(dirname "$0")/../../credentials.txt}"
-[ -r "$CRED" ] || { echo "credentials file not found: $CRED"; exit 1; }
-_cred() { awk -v k="$1" '$0==k {getline; print; exit}' "$CRED"; }
-KC_USER="$(_cred keycloak_admin_user)"
-KC_PASS="$(_cred keycloak_admin_password)"
+# shellcheck source=keycloak-admin.sh
+. "$(dirname "$0")/keycloak-admin.sh"   # KC_USER / KC_PASS
 
 DOMAIN="$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')"
 KC="https://sso.${DOMAIN}"

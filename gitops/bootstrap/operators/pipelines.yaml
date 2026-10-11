@@ -1,4 +1,4 @@
-# OpenShift Pipelines (stretch: Clip E lifecycle gate).
+# OpenShift Pipelines + Tekton Chains: the secure build pipeline (guide 06-07).
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
