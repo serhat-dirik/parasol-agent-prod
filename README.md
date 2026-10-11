@@ -84,9 +84,24 @@ exports `MAAS_KEY_<MODEL>` without printing values. OpenShift GitOps and a Keycl
 be present — `bootstrap.sh` detects and reuses them.
 
 ```bash
+# The three model keys live in the credentials file's "MAAS keys" section; load them all in one step:
+source scripts/load-credentials.sh   # exports MAAS_ENDPOINT, the base MAAS_API_KEY, and a
+                                     # MAAS_KEY_<MODEL> for every model in that section
+export MAAS_MODEL=qwen3-14b          # the agent model both portals run (injection-obeying)
+./bootstrap.sh
+```
+
+Porting to a non-lab MaaS (no credentials file)? Export the endpoint and the **three model keys**
+directly instead of sourcing the file — `bootstrap.sh` and `scripts/maas-model-keys.sh` read exactly these:
+
+```bash
 export MAAS_ENDPOINT=https://<maas-host>/v1
-export MAAS_API_KEY=<key>              # base endpoint key
-export MAAS_MODEL=qwen3-14b            # the agent model both portals run (injection-obeying, to show the risk live)
+export MAAS_API_KEY=<base endpoint key>
+export MAAS_MODEL=qwen3-14b
+export MAAS_KEY_QWEN3_14B=<key>     # agent, both portals (tool-calling + injection-obeying)
+export MAAS_KEY_GUARD=<key>         # granite-guardian-3-1-8b (guard-tier detector)
+export MAAS_KEY_JUDGE=<key>         # gpt-oss-120b (evaluation judge)
+export MAAS_KEY_LLAMAGUARD=<key>    # optional: Llama-Guard-3-1B (3rd detector)
 ./bootstrap.sh
 ```
 
