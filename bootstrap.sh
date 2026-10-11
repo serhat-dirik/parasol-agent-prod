@@ -106,6 +106,7 @@ log "7/8 Prompt-injection detector model"
 scripts/fetch-detector-model.sh || echo "WARN: detector model fetch failed; the regex detector still works. See scripts/fetch-detector-model.sh"
 
 log "8/8 Status"
+scripts/showroom-framing.sh || echo "WARN: console framing headers not applied; Showroom console tabs stay blank. See scripts/showroom-framing.sh"
 scripts/status.sh
 cat <<MSG
 
