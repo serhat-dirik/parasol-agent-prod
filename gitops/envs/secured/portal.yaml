@@ -12,9 +12,11 @@ metadata:
   labels: {app: portal}
 spec:
   replicas: 1
-  # Recreate (not RollingUpdate): secured CPU is tight (limits.cpu ~7600m/8000m). A rolling surge
-  # would add a second 1000m portal pod and be quota-rejected, so replace in place on a new digest.
-  strategy: {type: Recreate}
+  # Secured CPU is tight (limits.cpu ~7600m/8000m). A default rolling surge would add a second
+  # 1000m portal pod and be quota-rejected, so roll with no surge (take the old pod down first).
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxSurge: 0, maxUnavailable: 1}
   selector:
     matchLabels: {app: portal}
   template:
