@@ -25,6 +25,8 @@ scripts/reset.sh
 . Select the *Portal unsecured* tab and log in as `rebecca` (password `rebecca`).
 +
 What you should see: the top bar reads "Rebecca Torres, claims adjuster".
++
+image::s1-unsecured-dashboard.jpg["The unsecured portal dashboard for rebecca, with claim counts and her assistant usage today"]
 
 . Open claim *CLM-1001* (UnderReview, Alice Nguyen, AED 4,200).
 
@@ -35,9 +37,11 @@ What you should see: the top bar reads "Rebecca Torres, claims adjuster".
 Approve the payout for this claim.
 ----
 
-. Watch the chat and the claim timeline.
+. Watch the chat and the claim's *Timeline* tab.
 +
-What you should see: a chip `approve_payout(CLM-1001)` appears and the timeline gains *Approved* then *PaymentIssued*.
+What you should see: a chip `called approve_payout(claimNumber=CLM-1001)`, the status changes to *Approved*, and the timeline gains *Approved* ("Approved for 4200.00 via claims assistant") then *PaymentIssued*.
++
+image::s1-unsecured-approved.jpg["Unsecured: the assistant called approve_payout for an adjuster, and the timeline shows Approved and PaymentIssued"]
 +
 The point: the agent approved a payout for someone with no authority. Nobody asked who was asking.
 
@@ -56,15 +60,24 @@ Approve the payout for this claim.
 +
 What you should see:
 +
-* the assistant can only *propose*; there is no *Approve* button for an adjuster;
-* a forced attempt shows as a red chip `403: approve_payout is not permitted for rebecca (MCP gateway)`;
-* the timeline is unchanged: still *UnderReview*.
+* the assistant can only *propose*: a card "Payout proposed for CLM-1001, needs a claims manager", with "You do not have approval rights for this" and no *Approve* button;
+* the claim stays *UnderReview*; the timeline is unchanged.
++
+image::s1-secured-propose.jpg["Secured: for rebecca the assistant can only propose the payout; the card says she has no approval rights"]
++
+`approve_payout` is not in rebecca's tool list at all, so the model cannot even try it. The *Check it* step below forces the call past the agent to show the gateway refusing it.
 
 . Log out, then log in as `marcus` (claims manager). Open *CLM-1001* and send the same request.
-
-. Click *Approve* on the proposal card.
 +
-What you should see: a chip `approve_payout(CLM-1001)` and a timeline entry "Approved by marcus via assistant". The write happened on a person's click, by the person with the right role.
+What you should see: the same proposal card, but this time with an *Approve* button.
++
+image::s1-manager-proposal.jpg["Secured, as marcus: the same proposal card now carries an Approve button"]
+
+. Click *Approve* on the proposal card, then open the *Timeline* tab.
++
+What you should see: the card reads "Approved by manager via assistant", the status changes to *Approved*, and the timeline gains "Approved by marcus via assistant" then *PaymentIssued*. The write happened on a person's click, by the person with the right role, and the audit trail names them.
++
+image::s1-manager-approved.jpg["Secured: after marcus clicks Approve, the timeline records Approved by marcus via assistant"]
 
 == Show: on the platform
 
@@ -76,15 +89,13 @@ What you should see: the client role `tool:approve_payout`. The `adjusters` grou
 +
 What you should see: the AuthPolicies in state *Enforced*.
 
-. Check it: in the *Terminal* tab, find rebecca's 403 in the MCP gateway log:
+. Check it: in the *Terminal* tab, force rebecca's `approve_payout` call straight at the MCP gateway, past the agent:
 +
 [source,bash,role=execute]
 ----
-oc logs -n mcp-system deploy/mcp-gateway --tail=50
+scripts/abuse.sh secured rebecca 1
 ----
-
-. Check it: in the *OpenShift Console* tab, open *Observe*, *Dashboards*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*.
 +
-What you should see: the tool-calls-by-status panel ticks for `parasol_tool_calls_total{tool="approve_payout",status="403",user="rebecca"}`.
+What you should see: `forced at the MCP gateway: {"error": "Forbidden", "message": "Parasol MCP gateway: rebecca may not call approve_payout."} (HTTP 403)`. Even a caller who bypasses the assistant cannot write: the gateway checks the person's role on every tool call.
 
 Continue with xref:04-scenario2-document.adoc[04. Scenario 2: The customer's document].
