@@ -1,9 +1,9 @@
 # Identity of the Showroom Terminal tab. The terminal runs `oc` with this ServiceAccount's in-cluster
 # token, scoped to what the demo scripts need (night-shift.sh, signing-demo.sh, status.sh, the
-# Limitador refill in reset.sh and the `oc logs` checks). No cluster-admin, no
-# Secret access and no pods/exec (so the claims-db part of reset.sh runs from a workstation shell).
+# reset.sh and the `oc logs` checks). No cluster-admin and no Secret access. pods/exec is granted in
+# parasol-free and parasol-secured only, for the claims-db reset in reset.sh.
 # The Showroom Route sits behind an OpenShift oauth-proxy: only signed-in cluster users who can get
-# Services in parasol-showroom reach the Terminal.
+# Services in parasol-showroom reach the Terminal. Keep it that way before granting anything here.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -37,6 +37,29 @@ rules:
   - apiGroups: [trustyai.opendatahub.io]
     resources: [lmevaljobs]
     verbs: [get, list, watch]
+---
+# reset.sh: the claims-db admin reset runs through `oc exec` (the secured NetworkPolicy blocks a
+# direct call from the Showroom namespace).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: parasol-showroom-presenter-exec
+rules:
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [create, get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-exec, namespace: parasol-free}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter-exec}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-exec, namespace: parasol-secured}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter-exec}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
 ---
 # Cluster-scoped reads the scripts use (cluster domain, gateway/policy status) and the two narrow
 # writes signing-demo.sh needs (label its namespace, bind the image-puller role).
