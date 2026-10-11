@@ -57,6 +57,10 @@ metadata:
 spec:
   predictor:
     automountServiceAccountToken: false   # KServe default, declared so Argo shows Synced
+    # The model sits on an RWO PVC: a rolling-update surge pod on another node can never attach it
+    # (Multi-Attach) and also needs quota headroom. Recreate swaps the single replica in place.
+    deploymentStrategy:
+      type: Recreate
     maxReplicas: 1
     minReplicas: 1
     model:
