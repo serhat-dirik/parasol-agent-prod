@@ -3,7 +3,7 @@
 Additive. A second (and optional third) model-based content detector **alongside** the wave-1 regex
 detector, served via the **MaaS endpoint's guard tier**. It does **not** touch the production
 `guardrails-proxy` or the enforced wave-1 guardrails path. Everything lives in the isolated namespace
-`parasol-guardian` and is applied manually (not wired into Argo), exactly like `guardrails-nemo` (S4).
+`parasol-guardian` and is applied manually (not wired into Argo).
 
 ## What it is
 
