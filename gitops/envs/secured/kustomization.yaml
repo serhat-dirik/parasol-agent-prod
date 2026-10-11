@@ -20,12 +20,14 @@ resources:
   - ../base
 # The secured portal runs a PINNED, SIGNED digest, but the pin does NOT live in Git: the release
 # pipeline's promote task sets it on the Argo CD Application env-secured (spec.source.kustomize.images,
-# plus kustomize.replicas portal=1). The digest below is a PLACEHOLDER (no such image) and the portal
-# stays at 0 replicas until the first promote, so nothing is pulled or sent to admission before a
-# signed, eval-passed digest exists. parasol-free stays on :latest.
+# plus kustomize.replicas portal=1, as `NAME=NAME@sha256:...` on the name below). Until the first
+# promote the Git values are PLACEHOLDERS: a name outside the admission policy's parasol-portal** glob
+# (admission checks ReplicaSets too, so an unsigned placeholder digest would wedge the rollout) and
+# 0 portal replicas, so nothing is pulled and Argo CD stays Healthy. parasol-free stays on :latest.
 images:
   - name: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal
-    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000   # placeholder, see above
+    newName: image-registry.openshift-image-registry.svc:5000/parasol-build/awaiting-first-promote   # placeholder
+    newTag: placeholder
 replicas:
   - {name: portal, count: 0}   # placeholder; the promote's Application override sets 1
 # Kill switch: not edited here. The operator adds the component on the Application
