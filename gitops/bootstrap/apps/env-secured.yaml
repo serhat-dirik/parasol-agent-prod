@@ -48,6 +48,16 @@ spec:
             - op: replace
               path: /spec/egress/0/to/0/ipBlock/cidr
               value: ${INGRESS_CIDR}
+  # Admission (policy-controller, policy.rhtas.com) resolves image tags to digests in parasol-secured,
+  # so the :latest images of the other workloads would differ from Git forever (OutOfSync, selfHeal
+  # loop). Ignore that field except on the portal container, whose image is the promoted pin.
+  # The promoted pin itself (spec.source.kustomize.images/replicas) is set by the release pipeline,
+  # not here; bootstrap.sh keeps it when it re-applies this file.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jqPathExpressions:
+        - '.spec.template.spec.containers[] | select(.name != "portal") | .image'
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]
