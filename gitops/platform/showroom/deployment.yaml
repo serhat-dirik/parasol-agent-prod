@@ -15,6 +15,7 @@ spec:
       labels:
         app: showroom
     spec:
+      serviceAccountName: showroom-terminal
       initContainers:
         # Build the Antora site from the committed content into the shared volume.
         # site.yml points at the remote repo, so the builder only needs the playbook and network.
@@ -50,15 +51,22 @@ spec:
           resources:
             requests: {cpu: 50m, memory: 128Mi}
             limits: {cpu: 500m, memory: 512Mi}
-        # Terminal. Default entrypoint (yarn start) serves the terminal at /wetty/ on :3000.
+        # Terminal: the RHDP showroom terminal image (ttyd + bash + oc) on :7681. Each session runs
+        # start.sh, which fetches the demo repository and opens bash in it; oc runs as the
+        # showroom-terminal ServiceAccount (scoped RBAC in terminal-rbac.yaml).
         - name: terminal
-          image: quay.io/rhpds/wetty:latest
-          imagePullPolicy: Always
+          image: quay.io/rhpds/openshift-showroom-terminal-ocp:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - {name: RUNCOMMAND, value: /opt/showroom/start.sh}
           ports:
-            - {containerPort: 3000, name: wetty}
+            - {containerPort: 7681, name: ttyd}
+          volumeMounts:
+            - {name: terminal-home, mountPath: /home/lab-user}
+            - {name: terminal-start, mountPath: /opt/showroom}
           resources:
-            requests: {cpu: 50m, memory: 128Mi}
-            limits: {cpu: 500m, memory: 256Mi}
+            requests: {cpu: 50m, memory: 256Mi}
+            limits: {cpu: "1", memory: 1Gi}
         # Front proxy, the only container the Service/Route target.
         #   /       -> nookbag cockpit (:8080), which also serves /nookbag.yml and /antora
         #   /wetty  -> wetty terminal (:3000), websocket
@@ -86,3 +94,5 @@ spec:
         - {name: nginx-config, configMap: {name: showroom-proxy}}
         - {name: nginx-cache, emptyDir: {}}
         - {name: nginx-run, emptyDir: {}}
+        - {name: terminal-home, emptyDir: {}}
+        - {name: terminal-start, configMap: {name: showroom-terminal, defaultMode: 0755}}

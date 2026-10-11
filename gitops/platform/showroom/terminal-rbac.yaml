@@ -1,0 +1,198 @@
+# Identity of the Showroom Terminal tab. The terminal runs `oc` with this ServiceAccount's in-cluster
+# token, scoped to what the demo scripts need (night-shift.sh, signing-demo.sh, status.sh, the
+# Limitador refill in reset.sh and the `oc logs` checks). No cluster-admin, no
+# Secret access and no pods/exec (so the claims-db part of reset.sh runs from a workstation shell).
+# The Showroom Route is unauthenticated, so everything granted here is reachable by anyone with its URL.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: showroom-terminal
+  namespace: parasol-showroom
+---
+# Read-only view of the demo workloads and their logs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: parasol-showroom-presenter
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log, services, endpoints, configmaps, events]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, statefulsets]
+    verbs: [get, list, watch]
+  - apiGroups: [route.openshift.io]
+    resources: [routes]
+    verbs: [get, list, watch]
+  - apiGroups: [tekton.dev]
+    resources: [pipelines, pipelineruns, taskruns]
+    verbs: [get, list, watch]
+  - apiGroups: [image.openshift.io]
+    resources: [imagestreams, imagestreamtags]
+    verbs: [get, list, watch]
+  - apiGroups: [trustyai.opendatahub.io]
+    resources: [lmevaljobs]
+    verbs: [get, list, watch]
+---
+# Cluster-scoped reads the scripts use (cluster domain, gateway/policy status) and the two narrow
+# writes signing-demo.sh needs (label its namespace, bind the image-puller role).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: parasol-showroom-presenter-cluster
+rules:
+  - apiGroups: [config.openshift.io]
+    resources: [dnses, ingresses]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [namespaces]
+    verbs: [get, list]
+  - apiGroups: [""]
+    resources: [namespaces]
+    resourceNames: [parasol-admission-demo]
+    verbs: [patch, update]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    resourceNames: ["system:image-puller"]
+    verbs: [bind]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gateways, httproutes]
+    verbs: [get, list, watch]
+  - apiGroups: [kuadrant.io]
+    resources: [authpolicies, ratelimitpolicies, tokenratelimitpolicies]
+    verbs: [get, list, watch]
+  - apiGroups: [mcp.kagenti.com, mcp.kuadrant.io]
+    resources: [mcpgatewayextensions, mcpserverregistrations, mcpvirtualservers]
+    verbs: [get, list, watch]
+  - apiGroups: [policy.sigstore.dev]
+    resources: [clusterimagepolicies]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: parasol-showroom-presenter-cluster
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter-cluster}
+subjects:
+  - {kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}
+---
+# Read access in every demo namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: parasol-free}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: parasol-secured}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: parasol-build}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: parasol-eval}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: parasol-guardian}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: parasol-showroom}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: models-as-a-service}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: mcp-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: kuadrant-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: parasol-admission-demo}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: openshift-gitops}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-argo-view}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-argo-view, namespace: openshift-gitops}
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    verbs: [get, list, watch]
+---
+# reset.sh: restart Limitador to refill the per-user token budgets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-limitador-restart, namespace: kuadrant-system}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [limitador-limitador]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-limitador-restart, namespace: kuadrant-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-limitador-restart}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+# signing-demo.sh: run a signed and an unsigned test pod in the admission demo namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-admission-demo, namespace: parasol-admission-demo}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [create, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-admission-demo, namespace: parasol-admission-demo}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-admission-demo}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+# signing-demo.sh: (re)apply the image-puller RoleBinding that lets the demo namespace pull the portal.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-sign-demo-pull, namespace: parasol-build}
+rules:
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [rolebindings]
+    verbs: [get, create, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-sign-demo-pull, namespace: parasol-build}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-sign-demo-pull}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]

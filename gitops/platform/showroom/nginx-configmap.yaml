@@ -5,7 +5,7 @@ metadata:
   namespace: parasol-showroom
 # Front proxy. The Route targets this container only.
 #   /       -> nookbag cockpit SPA (:8080), which also serves /nookbag.yml and /antora
-#   /wetty  -> wetty terminal sidecar (:3000), with websocket upgrade
+#   /wetty/ -> ttyd terminal sidecar (:7681), with websocket upgrade
 data:
   nginx.conf: |
     events {}
@@ -27,21 +27,18 @@ data:
         listen 8081;
         absolute_redirect off;
 
-        # wetty serves its page at /wetty and 301s /wetty/ back to it, so never redirect here:
-        # /wetty/ is proxied straight to /wetty, everything else under /wetty passes through.
-        location = /wetty/ {
-          proxy_pass http://127.0.0.1:3000/wetty;
-          proxy_set_header Host $http_host;
-        }
-        location /wetty {
-          proxy_pass http://127.0.0.1:3000;
+        # Terminal (ttyd, :7681) under /wetty/. ttyd builds its token and websocket URLs relative to
+        # the page, so the bare /wetty gets one redirect to /wetty/ (ttyd never redirects back).
+        location = /wetty { return 302 /wetty/; }
+        location /wetty/ {
+          proxy_pass http://127.0.0.1:7681/;
           proxy_http_version 1.1;
           proxy_set_header Upgrade $http_upgrade;
           proxy_set_header Connection $connection_upgrade;
           proxy_set_header Host $http_host;
           proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
           proxy_set_header X-Forwarded-Proto $scheme;
-          proxy_read_timeout 43200000;
+          proxy_read_timeout 43200s;
         }
 
         location / {

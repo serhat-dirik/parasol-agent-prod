@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: showroom-terminal
+  namespace: parasol-showroom
+# Each Terminal session starts here: fetch the demo repository (main) into the home volume, then
+# open bash in it. `oc` uses the pod's ServiceAccount token (showroom-terminal) via in-cluster config.
+data:
+  start.sh: |
+    #!/bin/bash
+    REPO=https://github.com/serhat-dirik/parasol-agent-prod
+    DIR="$HOME/parasol-agent-prod"
+    if [ -d "$DIR/.git" ]; then
+      git -C "$DIR" pull -q --ff-only 2>/dev/null || true
+    else
+      git clone -q --depth 1 "$REPO" "$DIR"
+    fi
+    cd "$DIR" || cd "$HOME"
+    echo "Parasol demo terminal: repository at $DIR, oc as $(oc whoami 2>/dev/null)"
+    exec /usr/bin/bash
