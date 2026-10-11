@@ -3,7 +3,14 @@
 set -euo pipefail
 # A Job pod template is immutable: drop a previous (failed or stale) copy before applying.
 oc delete job fetch-prompt-injection-model -n parasol-secured --ignore-not-found
-oc apply -n parasol-secured -f - <<'YAML'
+# The PVC is ReadWriteOnce: if the detector predictor already mounts it, the job must run on that node
+# (pods on one node share an RWO volume; on another node the attach fails with Multi-Attach).
+node=$(oc get pods -n parasol-secured -o json | python3 -c 'import sys,json
+for p in json.load(sys.stdin)["items"]:
+    if p["status"].get("phase")=="Running" and any(v.get("persistentVolumeClaim",{}).get("claimName")=="prompt-injection-model" for v in p["spec"].get("volumes",[])):
+        print(p["spec"]["nodeName"]); break')
+pin=""; [ -n "$node" ] && pin="      nodeSelector: {kubernetes.io/hostname: $node}" && echo "detector PVC in use on $node: the fetch job runs there"
+sed "s|^      #NODE_PIN#\$|$pin|" <<'YAML' | oc apply -n parasol-secured -f -
 # parasol-secured is default-deny: this one-off job needs DNS and HTTPS to huggingface.co
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -24,6 +31,7 @@ spec:
   template:
     spec:
       restartPolicy: Never
+      #NODE_PIN#
       containers:
         - name: fetch
           image: registry.access.redhat.com/ubi9/python-312:latest
