@@ -8,6 +8,8 @@
 # The same register-model.py is what the Tekton register-model-version gate step imports with
 # --patch-eval to stamp a run's gate/score/mlflow-run-id onto the matching ModelVersion.
 set -euo pipefail
+: "${AGENT_ENDPOINT:?export the install contract (AGENT_ENDPOINT, AGENT_MODEL) or source scripts/load-credentials.sh}"
+export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}"
 NS=observability
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -16,6 +18,6 @@ oc -n "$NS" delete configmap parasol-model-registrar --ignore-not-found
 oc -n "$NS" create configmap parasol-model-registrar \
   --from-file=register-model.py="$DIR/register-model.py"
 oc -n "$NS" delete job parasol-model-registrar --ignore-not-found
-oc apply -f "$DIR/register-job.yaml"
+envsubst '$AGENT_MODEL $AGENT_ENDPOINT' < "$DIR/register-job.yaml" | oc apply -f -
 oc -n "$NS" wait --for=condition=complete job/parasol-model-registrar --timeout=180s
 oc -n "$NS" logs job/parasol-model-registrar

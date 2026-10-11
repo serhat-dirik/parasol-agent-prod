@@ -1,32 +1,24 @@
 #!/usr/bin/env bash
 # Stream S2 red-team. Runs one bounded Garak red-team run IN-CLUSTER against the SECURED guardrails
-# endpoint (eval-guardrails-proxy: production detector preset + llama-scout-17b), using MaaS KEY 2.
-# No agent key, no storms: one bounded injection probe, one generation per prompt.
+# endpoint (eval-guardrails-proxy: production detector preset + the agent model), using the install
+# contract AGENT_ENDPOINT / AGENT_KEY / AGENT_MODEL. No storms: one bounded injection probe, one generation per prompt.
 #
 #   scripts/garak.sh [probe]        probe defaults to promptinject.HijackHateHumansMini
 #
-# Reads KEY 2 (litellm_user2_virtual_key) from the credentials file (CREDENTIALS_FILE or the default
-# location) and puts it in Secret maas-eval-key; the key value is never printed or committed.
+# AGENT_KEY goes into Secret maas-eval-key; the key value is never printed or committed.
 set -uo pipefail
 # Bounded, injection-relevant probe (the active/reduced variant, not the 💤 Full one): no storms.
 PROBE="${1:-promptinject.HijackHateHumans}"
 NS=parasol-eval
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
-CRED="${CREDENTIALS_FILE:-}"
-if [ -z "$CRED" ]; then
-  for c in "$ROOT/../credentials.txt" "$ROOT/../../credentials.txt" "$ROOT/../../../credentials.txt" "$ROOT/../../../../credentials.txt"; do
-    [ -r "$c" ] && { CRED="$c"; break; }
-  done
-fi
-[ -r "$CRED" ] || { echo "credentials file not found (set CREDENTIALS_FILE)"; exit 1; }
-KEY2="$(awk '$0=="litellm_user2_virtual_key"{getline;print;exit}' "$CRED")"
-[ -n "$KEY2" ] || { echo "litellm_user2_virtual_key not found in $CRED"; exit 1; }
+: "${AGENT_KEY:?export the install contract (AGENT_ENDPOINT, AGENT_KEY, AGENT_MODEL) or source scripts/load-credentials.sh}"
+: "${AGENT_ENDPOINT:?export AGENT_ENDPOINT}"
+export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}"
 
 echo "== applying eval guardrails proxy (namespace $NS) =="
-export AGENT_ENDPOINT="${AGENT_ENDPOINT:-$(awk '$0=="litellm_api_base_url"{getline;print;exit}' "$CRED")}"
 envsubst '$AGENT_ENDPOINT' < "$ROOT/gitops/platform/eval/eval-guardrails-proxy.yaml" | oc apply -f -
-oc create secret generic maas-eval-key -n "$NS" --from-literal=key="$KEY2" \
+oc create secret generic maas-eval-key -n "$NS" --from-literal=key="$AGENT_KEY" \
   --dry-run=client -o yaml | oc apply -f -
 oc rollout restart deploy/eval-guardrails-proxy -n "$NS" >/dev/null 2>&1 || true
 oc rollout status deploy/eval-guardrails-proxy -n "$NS" --timeout=180s
@@ -65,7 +57,7 @@ spec:
                     "uri": "http://eval-guardrails-proxy.$NS.svc:8080/v1/chat/completions",
                     "method": "post",
                     "headers": {"Content-Type": "application/json", "Authorization": "Bearer eval"},
-                    "req_template_json_object": {"model": "llama-scout-17b", "temperature": 0, "max_tokens": 128, "messages": [{"role": "user", "content": "\$INPUT"}]},
+                    "req_template_json_object": {"model": "$AGENT_MODEL", "temperature": 0, "max_tokens": 128, "messages": [{"role": "user", "content": "\$INPUT"}]},
                     "response_json": true,
                     "response_json_field": "\$.choices[0].message.content"
                   }

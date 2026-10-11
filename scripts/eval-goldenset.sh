@@ -10,8 +10,8 @@
 #                            (flag); unsecured processes it with no guardrails signal.
 #   3 off-topic            : an essay request -> secured topic guardrail blocks; unsecured answers.
 #
-# All model calls use MaaS KEY 2 (the eval key) via the eval guardrails proxy (same detector preset as
-# the production guardrails-proxy) and the external LiteLLM endpoint direct. No agent key. The harness
+# All model calls use the install contract (AGENT_ENDPOINT / AGENT_KEY / AGENT_MODEL) via the eval
+# guardrails proxy (same detector preset as the production guardrails-proxy) and the agent endpoint direct. The harness
 # runs IN-CLUSTER (oc exec in the eval proxy pod) so it reaches the ClusterIP eval proxy and the free
 # claims-db directly; nothing in wave-1 is modified (the only state change is an approve on parasol-FREE,
 # which is disposable; the secured forced call is a 403 with no mutation).
@@ -21,21 +21,15 @@ NS=parasol-eval
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/.." && pwd)"
 DOMAIN="$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')"
-CRED="${CREDENTIALS_FILE:-}"
-if [ -z "$CRED" ]; then
-  for c in "$ROOT/../credentials.txt" "$ROOT/../../credentials.txt" "$ROOT/../../../credentials.txt" "$ROOT/../../../../credentials.txt"; do
-    [ -r "$c" ] && { CRED="$c"; break; }
-  done
-fi
-[ -r "$CRED" ] || { echo "credentials file not found (set CREDENTIALS_FILE)"; exit 1; }
-KEY2="$(awk '$0=="litellm_user2_virtual_key"{getline;print;exit}' "$CRED")"
-[ -n "$KEY2" ] || { echo "litellm_user2_virtual_key not found"; exit 1; }
+: "${AGENT_KEY:?export the install contract (AGENT_ENDPOINT, AGENT_KEY, AGENT_MODEL) or source scripts/load-credentials.sh}"
+: "${AGENT_ENDPOINT:?export AGENT_ENDPOINT}"
+export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}"
 
 echo "== ensuring eval guardrails proxy (namespace $NS) =="
-export AGENT_ENDPOINT="${AGENT_ENDPOINT:-$(awk '$0=="litellm_api_base_url"{getline;print;exit}' "$CRED")}"
 envsubst '$AGENT_ENDPOINT' < "$ROOT/gitops/platform/eval/eval-guardrails-proxy.yaml" | oc apply -f - >/dev/null
-oc create secret generic maas-eval-key -n "$NS" --from-literal=key="$KEY2" \
+oc create secret generic maas-eval-key -n "$NS" --from-literal=key="$AGENT_KEY" \
   --dry-run=client -o yaml | oc apply -f - >/dev/null
+oc rollout restart deploy/eval-guardrails-proxy -n "$NS" >/dev/null   # pick up a changed key
 oc rollout status deploy/eval-guardrails-proxy -n "$NS" --timeout=180s
 
 HARNESS="$(mktemp)"; trap 'rm -f "$HARNESS"' EXIT
@@ -44,7 +38,7 @@ import json, os, ssl, sys, urllib.request, urllib.error
 KEY   = os.environ["MAAS_KEY"]
 SEC   = os.environ["SECURED_CHAT"]
 UNSEC = os.environ["UNSECURED_CHAT"]
-MODEL = os.environ.get("MODEL", "llama-scout-17b")
+MODEL = os.environ.get("MODEL", "qwen3-14b")
 SSO   = os.environ["SSO"]; GW = os.environ["MCP_GW"]; FREE = os.environ["FREE_MCP"]
 RUSER = os.environ.get("REBECCA_USER", "rebecca"); RPASS = os.environ.get("REBECCA_PASS", "rebecca")
 CTX = ssl.create_default_context(); CTX.check_hostname = False; CTX.verify_mode = ssl.CERT_NONE
@@ -156,7 +150,7 @@ PY
 echo "== running golden-set harness in-cluster (report -> $REPORT) =="
 oc exec -i -n "$NS" deploy/eval-guardrails-proxy -- env \
   SECURED_CHAT="http://eval-guardrails-proxy.$NS.svc:8080/v1/chat/completions" \
-  UNSECURED_CHAT="$AGENT_ENDPOINT/chat/completions" \
+  UNSECURED_CHAT="$AGENT_ENDPOINT/chat/completions" MODEL="$AGENT_MODEL" \
   SSO="https://sso.apps.$DOMAIN" \
   MCP_GW="https://mcp.apps.$DOMAIN/mcp" \
   FREE_MCP="http://claims-db.parasol-free.svc:8080/mcp" \

@@ -21,6 +21,9 @@ spec:
             - {name: MR_BASE_URL, value: "https://parasol-model-registry-rest.apps.cluster-znh6n.dyn.redhatworkshops.io"}
             - {name: MLFLOW_UI_BASE, value: "https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow"}
             - {name: MR_INSECURE, value: "1"}
+            # Install contract (substituted by register.sh): recorded as model_id / maas_endpoint_host.
+            - {name: AGENT_MODEL, value: "${AGENT_MODEL}"}
+            - {name: AGENT_ENDPOINT, value: "${AGENT_ENDPOINT}"}
             - {name: HOME, value: "/tmp"}
           volumeMounts:
             - {name: scripts, mountPath: /scripts}

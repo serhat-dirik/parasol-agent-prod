@@ -9,7 +9,7 @@
 # template ref ("the reference name of the custom template is not defined: templates.qa.open.*") -
 # a known Technology-Preview card-authoring quirk. The golden-set COMPLIANCE scoring (v1 20/20 PASS,
 # v2 17/20 BLOCK, judged by gpt-oss-120b) is carried authoritatively by MLflow experiment
-# parasol-agent-eval (id 2); see docs/handover.md (G1) and lmevaljob-goldenset.yaml.
+# parasol-agent-eval (id 2); see docs/handover.md (G1).
 #
 # Prereqs (all already present):
 #   - namespace parasol-eval; Secret maas-key-qwen3-14b (GENAI_API_KEY=<AGENT_KEY>, written by

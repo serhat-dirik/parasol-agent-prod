@@ -2,7 +2,7 @@
 """Register the Parasol claims-assistant in the OpenShift AI (RHOAI) Model Registry as a
 RegisteredModel with ModelVersions v1 and v2, and carry the agent-eval result on each version.
 
-The served model is an EXTERNAL MaaS model (llama-scout-17b), so a "version" is the AGENT CONFIG
+The served model is an EXTERNAL MaaS model (AGENT_MODEL, default qwen3-14b), so a "version" is the AGENT CONFIG
 (system-prompt version + prompt sha + tools-authpolicy sha + model id), not model weights. Each
 ModelVersion carries the eval score / pass-rate + the MLflow run id + the gate result + the
 prompt@version it was evaluated with, as customProperties the registry UI shows.
@@ -21,8 +21,9 @@ Config (env):
   MR_TOKEN      bearer token; else read from TOKEN_FILE; else the pod SA token.
   TOKEN_FILE    path to a bearer token (default: the in-cluster SA token).
   MR_INSECURE   "1" (default) to skip TLS verify (lab reencrypt / service CA).
+  AGENT_MODEL, AGENT_ENDPOINT   install contract: recorded as model_id / maas_endpoint_host.
 """
-import argparse, json, os, ssl, sys, urllib.request, urllib.error
+import argparse, json, os, ssl, sys, urllib.parse, urllib.request, urllib.error
 
 BASE = os.environ.get(
     "MR_BASE_URL",
@@ -40,9 +41,9 @@ MODEL = "parasol-claims-assistant"
 COMMON = {
     "agent": "parasol-claims-assistant",
     "model_kind": "external-maas-agent-config",
-    "model_id": "llama-scout-17b",
+    "model_id": os.environ.get("AGENT_MODEL") or "qwen3-14b",
     "model_config_name": "parasol-chat",
-    "maas_endpoint_host": "maas-rhdp.apps.maas.redhatworkshops.io",
+    "maas_endpoint_host": urllib.parse.urlparse(os.environ.get("AGENT_ENDPOINT", "")).hostname or "unset",
     "prompt_name": "parasol-claims-assistant-system-prompt",
     "source_file": "apps/parasol-portal/app/src/main/java/org/parasol/ai/ClaimsAssistant.java",
     "tools_authpolicy_path": "gitops/platform/mcp-gateway/authpolicy-tools.yaml",
@@ -155,7 +156,7 @@ def version_props(v):
         "eval_dataset": "parasol-golden-20",
         "eval_passrate": v["eval_passrate"], "eval_score": v["eval_score"],
         "eval_gate": v["eval_gate"], "eval_threshold": "19/20",
-        "eval_judge_model": "llama-scout-17b (stand-in for gpt-oss-120b, swap-ready)",
+        "eval_judge_model": "gpt-oss-120b",
         "mlflow_run_id": v["mlflow_run_id"], "mlflow_experiment_id": v["mlflow_experiment_id"],
         "mlflow_run_url": f"{MLFLOW_UI}/#/experiments/{v['mlflow_experiment_id']}/runs/{v['mlflow_run_id']}",
     })
