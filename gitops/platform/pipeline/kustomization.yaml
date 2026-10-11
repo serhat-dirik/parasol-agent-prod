@@ -1,13 +1,16 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-# The pipeline Tasks and Pipeline live in parasol-build alongside the BuildConfigs.
-# Operators (gitops/platform/pipeline/operators) and the admission webhook/policy
-# (gitops/platform/pipeline/admission) are cluster-scoped / other namespaces and are
-# applied directly, not from this kustomization. The build/ and eval/ files are plain
-# build context and gate data fetched by the pipeline's git-clone, not k8s manifests.
+# Synced by the Argo CD Application platform-pipeline (gitops/bootstrap/apps/platform-pipeline.yaml):
+# the pipeline Tasks, the Pipeline and the keyless signer live in parasol-build alongside the
+# BuildConfigs. PipelineRuns are run objects, not desired state: pipelinerun.yaml is created by hand
+# and is deliberately not listed here. Operators (operators/), the admission webhook/policy
+# (admission/), the prompt registration (prompts/) and the TAS instance (gitops/platform/tas) are
+# cluster-scoped or live in other namespaces and are applied directly. eval/ holds gate data read by
+# the pipeline's git-clone, not k8s manifests.
 namespace: parasol-build
 resources:
   - tasks.yaml
+  - keyless-sign-task.yaml
   - pipeline.yaml
 configMapGenerator:
   - name: ec-policy

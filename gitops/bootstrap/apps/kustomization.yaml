@@ -9,6 +9,7 @@ resources:
   - platform-mcp-gateway.yaml
   - platform-observability.yaml
   - platform-builds.yaml
+  - platform-pipeline.yaml
   - platform-rhoai.yaml
   - platform-guardrails.yaml
   - platform-perses.yaml

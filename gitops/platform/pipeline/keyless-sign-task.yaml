@@ -10,8 +10,9 @@
 #   issuer:  https://oidc-discovery.apps.cluster-znh6n.dyn.redhatworkshops.io
 #   subject: spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer
 #
-# The TaskRun/PipelineRun pod MUST carry the label parasol.example/keyless-signer=true so the
-# ClusterSPIFFEID parasol-build-signer mints an SVID for it, and run as the keyless-signer SA.
+# The Task carries the label parasol.example/keyless-signer=true, which Tekton propagates to the
+# TaskRun pod, so the ClusterSPIFFEID parasol-build-signer (gitops/platform/tas) mints an SVID for it.
+# The pod must run as the keyless-signer SA (pipelinerun.yaml sets it through taskRunSpecs).
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -36,7 +37,7 @@ kind: Task
 metadata:
   name: keyless-sign-images
   namespace: parasol-build
-  labels: {app.kubernetes.io/version: "0.2"}
+  labels: {app.kubernetes.io/version: "0.3", parasol.example/keyless-signer: "true"}
 spec:
   description: >-
     Keyless-sign the three Parasol images (portal, claims-db, policy-docs) with Trusted Artifact
@@ -45,9 +46,9 @@ spec:
     - {name: portal-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:latest"}
     - {name: claims-db-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/claims-db:latest"}
     - {name: policy-docs-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/policy-docs:latest"}
-    - {name: fulcio-url, type: string}
-    - {name: rekor-url, type: string}
-    - {name: tuf-url, type: string}
+    - {name: fulcio-url, type: string, default: "https://fulcio-server-trusted-artifact-signer.apps.cluster-znh6n.dyn.redhatworkshops.io"}
+    - {name: rekor-url, type: string, default: "https://rekor-server-trusted-artifact-signer.apps.cluster-znh6n.dyn.redhatworkshops.io"}
+    - {name: tuf-url, type: string, default: "https://tuf-trusted-artifact-signer.apps.cluster-znh6n.dyn.redhatworkshops.io"}
     - {name: oidc-issuer, type: string, default: "https://oidc-discovery.apps.cluster-znh6n.dyn.redhatworkshops.io"}
     - {name: audience, type: string, default: "trusted-artifact-signer"}
   results:

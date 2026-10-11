@@ -140,8 +140,9 @@ spec:
     parasol-golden-20 dataset in the parasol-secured MLflow workspace. Deterministic scorers
     (contains_expected, no_payout_without_approval, no_other_claimant_data) decide the gate; a
     release that scores below 19/20 fails the gate so the `promote` task is skipped. The judge
-    scorers (ToolCallCorrectness, ToolCallEfficiency, RelevanceToQuery, Safety, Guidelines, judge =
-    llama-scout-17b, a swap-ready stand-in for gpt-oss-120b) attach per-case assessments to the run.
+    scorers (ToolCallCorrectness, ToolCallEfficiency, RelevanceToQuery, Safety, Guidelines; judge =
+    gpt-oss-120b on its own key from secret maas-eval-key, never the agent key) attach per-case
+    assessments to the run. The agent under test is qwen3-14b (AGENT_MODEL).
     The MLflow run id is written as a result so the pipeline stamps it onto the PipelineRun.
   params:
     - {name: candidate, type: string, default: v2}
@@ -286,6 +287,8 @@ spec:
     # and this release promotes. The promotion commit references it, so git history ties the promoted
     # digest to the registered, eval-scored model version.
     - {name: model-ref, type: string, default: "parasol-claims-assistant:v1"}
+  results:
+    - {name: commit, description: the promotion commit on main (empty when not pushed)}
   workspaces:
     - {name: source}
   steps:
@@ -298,30 +301,43 @@ spec:
         microdnf install -y git >/dev/null 2>&1 || microdnf install -y git
         FILE="$(params.overlay-file)"
         DIGEST="$(params.image-digest)"
+        printf "" > "$(results.commit.path)"
+        # Replace only the digest line that follows the parasol-portal images entry; touch nothing else.
+        pin() {
+          awk -v d="$DIGEST" 'prev ~ /parasol-portal/ && $1=="digest:" {sub(/digest:.*/,"digest: " d)} {print; prev=$0}' \
+            "$FILE" > "$FILE.new" && mv "$FILE.new" "$FILE"
+          grep -A1 "parasol-portal" "$FILE" | sed -n '1,2p'
+        }
         echo "Promoting $(params.image)@$DIGEST into $FILE"
-        # Targeted patch: replace only the digest value on the parasol-portal images entry.
-        if grep -q "parasol-portal" "$FILE" 2>/dev/null && grep -q "digest:" "$FILE"; then
-          # Patch only the digest line that follows the parasol-portal name line; touch nothing else.
-          awk -v d="$DIGEST" '
-            prev ~ /parasol-portal/ && $1=="digest:" {sub(/digest:.*/,"digest: " d)}
-            {print; prev=$0}' "$FILE" > "$FILE.new" && mv "$FILE.new" "$FILE"
-          echo "--- pinned entry ---"; grep -A1 "parasol-portal" "$FILE" | sed -n '1,2p'
-        else
-          echo "NOTE: parasol-portal images:/digest: block not found in $FILE (Stream P seeds it). Printing intended pin only."
-          echo "  digest: ${DIGEST}"
-        fi
         TOKEN_FILE=/workspace/git-token/token
-        if [ -f "$TOKEN_FILE" ]; then
+        if [ ! -f "$TOKEN_FILE" ]; then
+          pin
+          echo "No gitops-auth-secret mounted; promotion diff prepared but not pushed."
+          git --no-pager diff -- "$FILE" || true
+          exit 0
+        fi
+        # The token travels as an HTTP header, never in a URL, so it cannot show up in clone/push output.
+        AUTH="Authorization: Basic $(printf 'x-access-token:%s' "$(cat "$TOKEN_FILE")" | base64 -w0)"
+        MSG="chore: promote parasol-portal ${DIGEST} to secured overlay (prompt $(params.prompt-ref), model $(params.model-ref), run $(context.pipelineRun.name))"
+        # Fresh clone of main at push time (the build takes minutes and main moves); retry on a race.
+        for i in 1 2 3; do
+          rm -rf /tmp/promote
+          git -c http.extraHeader="$AUTH" clone -q --depth 1 --branch main "$(params.git-url)" /tmp/promote
+          cd /tmp/promote
           git config user.email "pipeline@parasol.local"
           git config user.name "parasol-pipeline"
-          URL=$(printf "%s" "$(params.git-url)" | sed "s#https://#https://$(cat $TOKEN_FILE)@#")
+          pin
           git add "$FILE"
-          git commit -m "chore: promote parasol-portal ${DIGEST} to secured overlay (prompt $(params.prompt-ref), model $(params.model-ref))" || { echo "nothing to commit"; exit 0; }
-          git push "$URL" HEAD:main && echo "PROMOTED: pushed pin to main"
-        else
-          echo "No gitops-auth token mounted; promotion diff prepared but not pushed (demo-safe)."
-          git --no-pager diff -- "$FILE" || true
-        fi
+          if git diff --cached --quiet; then echo "Already pinned to $DIGEST on main; nothing to promote."; exit 0; fi
+          git commit -q -m "$MSG"
+          if git -c http.extraHeader="$AUTH" push -q origin HEAD:main; then
+            git rev-parse HEAD | tr -d '\n' > "$(results.commit.path)"
+            echo "PROMOTED: $(git log --oneline -1)"
+            exit 0
+          fi
+          echo "push rejected (main moved), retrying ($i/3)"; cd /; sleep 5
+        done
+        echo "PROMOTION FAILED: could not push the pin"; exit 1
       volumeMounts:
         - {name: git-token, mountPath: /workspace/git-token}
   volumes:
@@ -336,7 +352,7 @@ metadata:
   name: generate-sbom
   labels: {app.kubernetes.io/version: "0.1"}
 spec:
-  description: Generate a CycloneDX SBOM for the built image with syft and stage it for Trusted Profile Analyzer.
+  description: Generate a CycloneDX SBOM for the built image with syft and attach it as a signed cosign attestation.
   params:
     - {name: image, type: string}
     - {name: image-digest, type: string}
@@ -372,17 +388,13 @@ spec:
         printf "%s" "${N:-0}" > "$(results.SBOM_COMPONENTS.path)"
         # Attach the SBOM to the image as a signed cosign attestation (CycloneDX predicate), signed
         # with the cluster key. This makes the SBOM travel with the image and be independently
-        # verifiable (cosign verify-attestation / cosign download sbom). It is the durable SBOM
-        # surface; a Trusted Profile Analyzer UI ingest is the richer surface when a TPA instance is up.
+        # verifiable (cosign verify-attestation --type cyclonedx).
         echo "Attaching SBOM as a cosign attestation to $IMG ..."
         cosign attest --predicate sbom.json --type cyclonedx --key /keys/cosign.key \
           --tlog-upload=false --allow-insecure-registry --yes "$IMG"
         cosign verify-attestation --type cyclonedx --key /keys/cosign.pub \
           --insecure-ignore-tlog=true --allow-insecure-registry "$IMG" >/dev/null \
           && echo "VERIFIED CycloneDX SBOM attestation on $IMG"
-        # TPA UI upload (when a TrustedProfileAnalyzer instance is running + OIDC configured):
-        #   curl -sf -X POST "$TPA_ENDPOINT/api/v2/sbom" -H "authorization: Bearer $TPA_TOKEN" \
-        #        -H "content-type: application/json" --data-binary @sbom.json && echo "uploaded to TPA"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -486,7 +498,7 @@ spec:
   description: >-
     Governance: stamp this release's agent-eval result onto the matching ModelVersion of the RHOAI
     Model Registry RegisteredModel parasol-claims-assistant. The served model is an EXTERNAL MaaS
-    model (llama-scout-17b), so a ModelVersion is the agent CONFIG (prompt version + tools-authpolicy
+    model (qwen3-14b), so a ModelVersion is the agent CONFIG (prompt version + tools-authpolicy
     sha + model id); this step writes the gate result, pass-rate/score, MLflow run id and prompt@version
     that the agent-eval gate just produced onto that version, so the registry UI shows what the pipeline
     evaluated. Best-effort by design: it never fails the pipeline (the agent-eval gate alone decides

@@ -1,5 +1,7 @@
-# Demo PipelineRun for the Parasol secure supply-chain pipeline.
-# Launch a fresh run with: oc create -n parasol-build -f pipelinerun.yaml
+# Release run of the Parasol secure supply-chain pipeline (not synced by Argo CD; a run is an event).
+#   oc create -n parasol-build -f gitops/platform/pipeline/pipelinerun.yaml
+# candidate v1 passes the agent-eval gate and promotes; to show the gate blocking a release:
+#   sed "s/value: v1$/value: v2/" gitops/platform/pipeline/pipelinerun.yaml | oc create -f -
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
@@ -7,8 +9,15 @@ metadata:
   namespace: parasol-build
 spec:
   pipelineRef: {name: parasol-portal-secure-build}
+  params:
+    - name: candidate
+      value: v1
+  timeouts: {pipeline: 1h30m0s}
   taskRunTemplate:
     serviceAccountName: pipeline
+  taskRunSpecs:
+    # The keyless signature identity is the SPIFFE ID of this service account.
+    - {pipelineTaskName: keyless-sign, serviceAccountName: keyless-signer}
   workspaces:
     - name: workspace
       volumeClaimTemplate:

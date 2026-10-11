@@ -1,39 +1,42 @@
 # Secure supply-chain pipeline (layer 6: the lifecycle gate)
 
-A Tekton pipeline in namespace `parasol-build` that builds the Parasol portal image, has
-Tekton Chains **sign** it, **scans** it, runs a **lifecycle evaluation gate**, verifies the
-**signature**, and **promotes** the signed digest into the secured (prod) overlay. Task names and
-order mirror the Red Hat `tssc-sample-pipelines` reference so the console PipelineRun reads the
-same; ACS/Quay/GitLab are not on this cluster, so the scan is Trivy, the registry is the internal
-OpenShift registry, the SCM is GitHub `serhat-dirik/parasol-agent-prod`, and promotion is a commit
-to the prod overlay in this repo.
+A Tekton pipeline in namespace `parasol-build` that **builds the Parasol portal from source**,
+**scans** it, attaches a signed **SBOM**, runs the **agent evaluation gate**, **signs** it keyless
+(Trusted Artifact Signer) and with the cluster key, checks the **Conforma** contract, and
+**promotes** the signed digest by committing the pin into `gitops/envs/secured/kustomization.yaml`;
+Argo CD rolls the secured portal to it and admission verifies the signature. Task names and order
+mirror the Red Hat `tssc-sample-pipelines` reference; ACS/Quay/GitLab are not on this cluster, so
+the scan is Trivy, the registry is the internal OpenShift registry and the SCM is GitHub.
+
+The Tasks and the Pipeline are desired state, synced by the Argo CD Application
+`platform-pipeline` (`gitops/bootstrap/apps/platform-pipeline.yaml`). PipelineRuns are events and
+are created by hand from `pipelinerun.yaml`, which is not part of the synced kustomization.
 
 ```
-init → clone-repository → build-container → scan-image ────────────────────┐
-                                          → generate-sbom (syft, CycloneDX) │
-                                          → agent-eval (lifecycle gate) ─────┼→ promote
-                                          → verify-enterprise-contract ──────┘
-                                            (Conforma: signature + SLSA provenance)
+init → clone-repository → build-container ─┬→ scan-image (Trivy) ──────────────────────────┐
+                                           ├→ generate-sbom (syft CycloneDX, cosign attest)  │
+                                           ├→ agent-eval (gate) → register-model-version    ├→ promote
+                                           ├→ sign-images (cluster key) ─┐                  │  (commit pin)
+                                           └→ keyless-sign (TAS) ────────┴→ verify-enterprise-contract
 finally: show-sbom, show-summary
 ```
 
-`verify-enterprise-contract` is the Conforma / Enterprise Contract gate: it runs `ec validate image`
-and enforces the release contract — the image must carry a valid cosign signature AND a signed SLSA
-provenance attestation from the cluster key (both produced by Tekton Chains). `generate-sbom` runs
-syft to produce a CycloneDX SBOM of the built image (ready to ship to Trusted Profile Analyzer; the
-rhtpa operator is installed via operators/tpa.yaml). The gate data/policy lives in `eval/`
-(`ec-policy.rego`, generated into the `ec-policy` ConfigMap by the kustomization).
+`agent-eval` runs the MLflow evaluation of the claims assistant (agent model qwen3-14b, judge
+gpt-oss-120b on its own key in secret `maas-eval-key`); below 19/20 the gate is `failed` and
+`promote` is skipped. `verify-enterprise-contract` is the Conforma gate: the image must carry a valid
+signature AND a signed SLSA provenance attestation (Tekton Chains). The SBOM ships as a signed
+cosign attestation (`cosign verify-attestation --type cyclonedx`). `promote` needs a GitHub token in
+secret `gitops-auth-secret` (key `token`, contents:write on this repository; never in Git); without
+it the run prints the pin diff and pushes nothing.
 
-* `pipeline.yaml`, `tasks.yaml` — the Pipeline and Tasks (kustomize: `parasol-build`).
-* `pipelinerun.yaml` — launch a run: `oc create -n parasol-build -f pipelinerun.yaml`.
-* `build/Containerfile` — provenance build context (re-wraps the published portal image so each
-  promotion gets a fresh, signable digest fast; point `build-container` CONTEXT at
-  `apps/parasol-portal/app` to build the portal from source instead).
-* `eval/` — the lifecycle gate: `golden-set.json` (3 safety cases), `candidate-v{1,2}.json`,
-  `score.py` (gates `promote` at the threshold; v2 passes, a v1-style regression is blocked).
+* `pipeline.yaml`, `tasks.yaml`, `keyless-sign-task.yaml` — Pipeline, Tasks, keyless signer SA
+  (kustomize namespace `parasol-build`, synced by Argo CD).
+* `pipelinerun.yaml` — a release run (`candidate=v1`); with `candidate=v2` the gate blocks promote.
+* `eval/` — `ec-policy.rego` (the `ec-policy` ConfigMap) and the earlier 3-case golden set.
 * `operators/subscriptions.yaml` — RHTAS (Trusted Artifact Signer) + Sigstore policy-controller.
 * `admission/` — the policy-controller webhook (`policycontroller.yaml`), the key-based
-  `clusterimagepolicy.yaml`, and `demo-unsigned-deploy.yaml`.
+  `clusterimagepolicy.yaml`, and `demo-unsigned-deploy.yaml`. The live policy trusts both the
+  keyless identity and the cluster key (`gitops/platform/tas/clusterimagepolicy-keyless.yaml`).
 
 ## Signing
 
@@ -46,9 +49,11 @@ cosign generate-key-pair k8s://openshift-pipelines/signing-secrets   # run as a 
 ```
 
 `cosign.pub` is mirrored to configmap `parasol-build/cosign-pub` (used by `verify-signature`) and
-embedded in the ClusterImagePolicy. Rekor/transparency is off (keypair mode). The RHTAS operator is
-installed so keyless-with-Fulcio/Rekor is the production story on the slide; the working backend
-here is the cluster keypair (the owner's documented fallback #1).
+embedded in the ClusterImagePolicy. The `keyless-sign` task adds the keyless signature: the pod
+(SA `keyless-signer`, SPIFFE ID `spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer`) fetches
+a JWT-SVID from SPIRE, exchanges it at Fulcio for a short-lived certificate, signs, and records the
+signature in Rekor (Trusted Artifact Signer, `gitops/platform/tas`). Admission accepts either
+authority; the keyed one stays because Fulcio certificates expire and no trusted timestamp is wired.
 
 ## Admission (parasol-secured)
 

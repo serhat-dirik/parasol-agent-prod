@@ -1,8 +1,9 @@
 # Parasol secure supply-chain pipeline (layer 6), namespace parasol-build.
-# Reads like the Red Hat tssc reference: init -> clone-repository -> build-container -> scan,
-# with a lifecycle gate (agent-eval) and signature verification before the image is promoted
-# (a commit that pins the signed digest into the secured/prod overlay). Tekton Chains signs the
-# image the build-container task produces.
+# Reads like the Red Hat tssc reference: init -> clone-repository -> build-container (the portal,
+# from source) -> scan + SBOM, a lifecycle gate (agent-eval), keyless (Trusted Artifact Signer) and
+# keyed (cluster cosign key) signatures, the Conforma contract, then promote: a commit that pins the
+# signed digest into the secured overlay, which Argo CD rolls out and admission verifies.
+# Synced by the Argo CD Application platform-pipeline; PipelineRuns are created by hand (pipelinerun.yaml).
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
@@ -15,9 +16,10 @@ spec:
     - {name: git-url, type: string, default: "https://github.com/serhat-dirik/parasol-agent-prod.git"}
     - {name: revision, type: string, default: "main"}
     - {name: output-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:signed"}
-    - {name: path-context, type: string, default: "source/gitops/platform/pipeline/build"}
+    - {name: path-context, type: string, default: "source/apps/parasol-portal/app"}
     - {name: dockerfile, type: string, default: "Containerfile"}
-    - {name: candidate, type: string, default: "v2"}
+    # Agent config version the gate evaluates (v1 = current prompt, passes; v2 = simplified, blocked).
+    - {name: candidate, type: string, default: "v1"}
     # MLflow Prompt Registry entry the gate evaluated and the promotion commit references.
     - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@1"}
   results:
@@ -28,6 +30,8 @@ spec:
     - {name: MLFLOW_RUN_ID, value: "$(tasks.agent-eval.results.mlflow-run-id)"}
     - {name: REGISTERED_MODEL_VERSION, value: "$(tasks.register-model-version.results.version-ref)"}
     - {name: SIGNED_IMAGES, value: "$(tasks.sign-images.results.SIGNED)"}
+    - {name: KEYLESS_SIGNED_IMAGES, value: "$(tasks.keyless-sign.results.SIGNED)"}
+    - {name: PROMOTION_COMMIT, value: "$(tasks.promote.results.commit)"}
     - {name: SBOM_COMPONENTS, value: "$(tasks.generate-sbom.results.SBOM_COMPONENTS)"}
   workspaces:
     - {name: workspace}
@@ -90,7 +94,7 @@ spec:
       workspaces:
         - {name: source, workspace: workspace}
     - name: verify-enterprise-contract
-      runAfter: [sign-images]
+      runAfter: [sign-images, keyless-sign]
       taskRef: {name: verify-enterprise-contract}
       params:
         - {name: image, value: "$(params.output-image)"}
@@ -101,6 +105,12 @@ spec:
       params:
         - {name: portal-image, value: "$(params.output-image)"}
         - {name: portal-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
+    # Keyless signature: SPIFFE JWT-SVID -> Fulcio certificate -> Rekor entry (runs as SA keyless-signer).
+    - name: keyless-sign
+      runAfter: [build-container]
+      taskRef: {name: keyless-sign-images}
+      params:
+        - {name: portal-image, value: "$(params.output-image)@$(tasks.build-container.results.IMAGE_DIGEST)"}
     - name: promote
       runAfter: [scan-image, agent-eval, verify-enterprise-contract]
       when:
