@@ -27,11 +27,12 @@ for line in open(sys.argv[1]):
     if mm and key:
         print("MAAS_KEY_"+re.sub(r"[^A-Z0-9]","_",mm.group(1).upper())+"="+key); key=None
 ' "$f")
-# Role aliases (empty string if that model has no key in the file)
+# Role aliases for the models the demo exercises (empty string if that model has no key in the file).
+# Required: qwen3-14b (agent, exported directly as MAAS_KEY_QWEN3_14B), granite-guardian (detector),
+# gpt-oss-120b (judge). Optional: Llama-Guard-3-1B (3rd detector). Keys for dropped models
+# (llama-scout-17b, granite-4-0-h-tiny) are still parsed if present but nothing requires them.
 export MAAS_KEY_GUARD="${MAAS_KEY_GRANITE_GUARDIAN_3_1_8B:-}"     # granite-guardian-3-1-8b (guard detector)
-export MAAS_KEY_STAGE="${MAAS_KEY_GRANITE_4_0_H_TINY:-}"          # granite-4-0-h-tiny (stage tier)
 export MAAS_KEY_JUDGE="${MAAS_KEY_GPT_OSS_120B:-}"               # gpt-oss-120b (eval judge)
 export MAAS_KEY_LLAMAGUARD="${MAAS_KEY_LLAMA_GUARD_3_1B:-}"       # Llama-Guard-3-1B (optional 3rd detector)
-export MAAS_KEY_PROD="${MAAS_KEY_LLAMA_SCOUT_17B:-$MAAS_API_KEY}" # llama-scout-17b (prod tier)
 echo "loaded: api=$OCP_API maas=$MAAS_ENDPOINT model=$MAAS_MODEL (secrets not shown)"
 echo "maas per-model keys: $(env | sed -n 's/^\(MAAS_KEY_[A-Z0-9_]*\)=..*/\1/p' | sort | tr '\n' ' ')"

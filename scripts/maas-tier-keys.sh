@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
 # maas-tier-keys.sh : mint one OpenShift AI MaaS API key for each demo tier and store them as Secrets.
-#   parasol-tier-stage  -> Secret maas-tier-keys  key STAGE_MAAS_KEY
-#   parasol-tier-prod   -> Secret maas-tier-keys  key PROD_MAAS_KEY
-#   parasol-tier-guard  -> Secret maas-tier-keys  key GUARD_MAAS_KEY  (+ standalone Secret maas-guard-key
-#                          for stream P1-GUARDIAN; data key GENAI_API_KEY)
-# All three back the one accessible ExternalModel llama-scout-17b (see gitops/platform/maas-tiers).
+#   parasol-tier-prod   -> Secret maas-tier-keys  key PROD_MAAS_KEY   (backs qwen3-14b, the agent model)
+#   parasol-tier-guard  -> Secret maas-tier-keys  key GUARD_MAAS_KEY  (backs granite-guardian-3-1-8b;
+#                          + standalone Secret maas-guard-key for stream P1-GUARDIAN; data key GENAI_API_KEY)
+# The two tiers back the two external models the demo exercises (see gitops/platform/maas-tiers).
 # Keys belong to ServiceAccount parasol-maas-tiers/maas-tier-client, whose group each tier subscription
 # admits. The mint call runs from a throwaway pod in parasol-maas-tiers (the MaaS gateway is ClusterIP);
 # keys are never printed, logged or committed. Idempotent: re-running mints fresh keys and overwrites.
@@ -35,7 +34,7 @@ out=$(oc -n "$NS" exec "$pod" -- env GW="$GW" TOK="$tok" python3 -c '
 import json, os, ssl, urllib.request as u
 ctx = ssl.create_default_context(cafile="/etc/service-ca/service-ca.crt")
 gw, tok = os.environ["GW"], os.environ["TOK"]
-tiers = {"STAGE": "parasol-tier-stage", "PROD": "parasol-tier-prod", "GUARD": "parasol-tier-guard"}
+tiers = {"PROD": "parasol-tier-prod", "GUARD": "parasol-tier-guard"}
 for label, sub in tiers.items():
     body = {"name": "parasol-"+sub, "description": "demo tier "+label.lower(),
             "expiresIn": "30d", "subscription": sub}
@@ -46,14 +45,12 @@ for label, sub in tiers.items():
 oc -n "$NS" delete pod "$pod" --wait=false >/dev/null 2>&1 || true
 unset tok
 
-stage=$(printf '%s\n' "$out" | sed -n 's/^STAGE=//p')
 prod=$(printf '%s\n' "$out" | sed -n 's/^PROD=//p')
 guard=$(printf '%s\n' "$out" | sed -n 's/^GUARD=//p')
 unset out
-[[ "$stage" == sk-* && "$prod" == sk-* && "$guard" == sk-* ]] || { echo "MaaS did not return all three keys"; exit 1; }
+[[ "$prod" == sk-* && "$guard" == sk-* ]] || { echo "MaaS did not return both keys"; exit 1; }
 
 oc -n "$NS" create secret generic maas-tier-keys \
-  --from-literal=STAGE_MAAS_KEY="$stage" \
   --from-literal=PROD_MAAS_KEY="$prod" \
   --from-literal=GUARD_MAAS_KEY="$guard" \
   --dry-run=client -o yaml | oc apply -f - >/dev/null
@@ -61,5 +58,5 @@ oc -n "$NS" create secret generic maas-tier-keys \
 oc -n "$NS" create secret generic maas-guard-key \
   --from-literal=GENAI_API_KEY="$guard" \
   --dry-run=client -o yaml | oc apply -f - >/dev/null
-unset stage prod guard
-echo "Secrets written in $NS: maas-tier-keys (STAGE/PROD/GUARD_MAAS_KEY), maas-guard-key (GENAI_API_KEY)"
+unset prod guard
+echo "Secrets written in $NS: maas-tier-keys (PROD/GUARD_MAAS_KEY), maas-guard-key (GENAI_API_KEY)"

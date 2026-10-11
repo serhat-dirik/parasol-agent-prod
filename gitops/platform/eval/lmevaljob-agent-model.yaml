@@ -1,7 +1,8 @@
 # Stream P-EVAL. TrustyAI LMEvalJob that RUNS and renders a completed run in the RHOAI dashboard
 # (TrustyAI / LMEval -> "Model evaluation runs", namespace parasol-eval). It evaluates the model
-# behind the Parasol claims assistant (llama-scout-17b) on a small, self-contained standard task so
-# the LMEval product surface is proven working end-to-end against the agent's own MaaS model.
+# behind the Parasol claims assistant (qwen3-14b, the model both portals run) on a small,
+# self-contained standard task so the LMEval product surface is proven working end-to-end against the
+# agent's own MaaS model.
 #
 # Why a standard task and not the golden-set custom card: on this build (TrustyAI operator v1.37.0 /
 # lm-eval-harness v0.4.8) a custom unitxt card (load_from_dictionary) fails to resolve a catalog
@@ -11,7 +12,9 @@
 # parasol-agent-eval (id 2); see docs/handover.md (G1) and lmevaljob-goldenset.yaml.
 #
 # Prereqs (all already present):
-#   - namespace parasol-eval; Secret maas-eval-key (key=<MaaS virtual key 2>), never committed.
+#   - namespace parasol-eval; Secret maas-key-qwen3-14b (GENAI_API_KEY=<qwen3-14b per-model key>, minted
+#     by scripts/maas-model-keys.sh), never committed. qwen3-14b is 401 on the shared user virtual keys,
+#     so it must use its own per-model key.
 #   - TrustyAI operator online + code-execution enabled cluster-wide:
 #       oc patch datasciencecluster default-dsc --type merge \
 #         -p '{"spec":{"components":{"trustyai":{"eval":{"lmeval":{"permitOnline":"allow","permitCodeExecution":"allow"}}}}}}'
@@ -30,7 +33,7 @@ spec:
   model: local-chat-completions
   modelArgs:
     - {name: base_url, value: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1/chat/completions"}
-    - {name: model, value: "llama-scout-17b"}
+    - {name: model, value: "qwen3-14b"}
     - {name: num_concurrent, value: "1"}       # lab budget: no storms (10-day virtual keys)
     - {name: max_retries, value: "3"}
     - {name: tokenized_requests, value: "False"}
@@ -47,4 +50,4 @@ spec:
     container:
       env:
         - name: OPENAI_API_KEY
-          valueFrom: {secretKeyRef: {name: maas-eval-key, key: key}}
+          valueFrom: {secretKeyRef: {name: maas-key-qwen3-14b, key: GENAI_API_KEY}}

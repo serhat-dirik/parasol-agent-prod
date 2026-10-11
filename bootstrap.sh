@@ -6,7 +6,7 @@
 #   MAAS_ENDPOINT   OpenAI-compatible base URL of the upstream MaaS, e.g. https://maas.example.com/v1
 #   MAAS_API_KEY    key for that endpoint
 # Optional env:
-#   MAAS_MODEL      model id the agent uses (default llama-scout-17b; qwen3-14b once probe-maas.sh says tool calls work)
+#   MAAS_MODEL      model id the agent uses (default qwen3-14b, the model both portals run)
 #   REPO_URL        Git URL Argo CD syncs from (default: this repo's origin)
 #   REPO_REVISION   branch/tag (default: main)
 #   SKIP_BUILDS=1   do not start image builds
@@ -15,7 +15,11 @@ cd "$(dirname "$0")"
 
 : "${MAAS_ENDPOINT:?set MAAS_ENDPOINT}"
 : "${MAAS_API_KEY:?set MAAS_API_KEY}"
-export MAAS_MODEL="${MAAS_MODEL:-llama-scout-17b}"
+export MAAS_MODEL="${MAAS_MODEL:-qwen3-14b}"
+# The agent runs qwen3-14b, so its MaaS key is qwen's own per-model key (exported by
+# scripts/load-credentials.sh as MAAS_KEY_QWEN3_14B). A fresh install's agent then calls qwen with no
+# repoint. Falls back to MAAS_API_KEY only if the per-model key is absent from the credentials file.
+export AGENT_MAAS_KEY="${MAAS_KEY_QWEN3_14B:-$MAAS_API_KEY}"
 export REPO_URL="${REPO_URL:-$(git remote get-url origin 2>/dev/null || echo https://github.com/CHANGEME/parasol-agent-prod.git)}"
 export REPO_REVISION="${REPO_REVISION:-main}"
 export CLUSTER_DOMAIN="$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')"
@@ -63,13 +67,14 @@ log "3/8 Secrets that never go to Git"
 scripts/gen-trusted-keys.sh
 for ns in parasol-free parasol-secured; do
   oc get ns $ns >/dev/null 2>&1 || oc create ns $ns
-  oc -n $ns create secret generic maas-credentials --from-literal=GENAI_API_KEY="$MAAS_API_KEY" --dry-run=client -o yaml | oc apply -f -
+  oc -n $ns create secret generic maas-credentials --from-literal=GENAI_API_KEY="$AGENT_MAAS_KEY" --dry-run=client -o yaml | oc apply -f -
 done
 oc -n parasol-secured create secret generic agent-service-identity --from-literal=username=dev --from-literal=password=dev --dry-run=client -o yaml | oc apply -f -
 oc get ns models-as-a-service >/dev/null 2>&1 || oc create ns models-as-a-service
-oc -n models-as-a-service create secret generic maas-upstream-api-key --from-literal=api-key="$MAAS_API_KEY" --dry-run=client -o yaml | oc apply -f -
+# Upstream (LiteLLM) key the qwen3-14b ExternalModel (gitops/platform/rhoai/maas.yaml) resolves through.
+oc -n models-as-a-service create secret generic maas-upstream-qwen3-14b --from-literal=api-key="$AGENT_MAAS_KEY" --dry-run=client -o yaml | oc apply -f -
 # MaaS payload processing (key injection) only reads Secrets with this label
-oc -n models-as-a-service label secret maas-upstream-api-key inference.llm-d.ai/ipp-managed=true --overwrite
+oc -n models-as-a-service label secret maas-upstream-qwen3-14b inference.llm-d.ai/ipp-managed=true --overwrite
 # MaaS API database (gitops/platform/rhoai/maas-db.yaml): password generated once, never printed
 ns=redhat-ai-gateway-infra; oc get ns $ns >/dev/null 2>&1 || oc create ns $ns
 if ! oc get secret maas-postgres -n $ns >/dev/null 2>&1; then
