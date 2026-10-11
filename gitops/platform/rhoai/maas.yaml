@@ -8,8 +8,8 @@
 #
 # qwen3-14b is THE agent model: both the free and the secured portal run on it. It obeys the injected
 # "processing note", so the secured side proves that the CONTROLS (identity-bound tool authz +
-# Read-Propose-Act), not model luck, stop the payout. Same LiteLLM endpoint (the Argo Application patches
-# /spec/endpoint with $MAAS_HOST); upstream key Secret maas-upstream-qwen3-14b (data key "api-key", label
+# Read-Propose-Act), not model luck, stop the payout. The Argo Application patches /spec/endpoint
+# with $AGENT_HOST and /spec/targetModel with $AGENT_MODEL; upstream key Secret maas-upstream-qwen3-14b (data key "api-key", label
 # inference.llm-d.ai/ipp-managed=true) created at run time, never committed.
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: ExternalModel
@@ -20,7 +20,7 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   provider: openai
-  endpoint: maas.invalid.example    # FQDN only; the Argo Application patches /spec/endpoint with $MAAS_HOST
+  endpoint: maas.invalid.example    # FQDN only; the Argo Application patches /spec/endpoint with $AGENT_HOST
   targetModel: qwen3-14b
   credentialRef: {name: maas-upstream-qwen3-14b}
 ---

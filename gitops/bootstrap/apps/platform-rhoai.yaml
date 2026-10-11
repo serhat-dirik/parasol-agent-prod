@@ -14,11 +14,14 @@ spec:
     path: gitops/platform/rhoai
     kustomize:
       patches:
-        - target: {kind: ExternalModel}
+        - target: {kind: ExternalModel, name: qwen3-14b}   # the agent model: AGENT_ENDPOINT's host + AGENT_MODEL
           patch: |-
             - op: replace
               path: /spec/endpoint
-              value: ${MAAS_HOST}
+              value: ${AGENT_HOST}
+            - op: replace
+              path: /spec/targetModel
+              value: ${AGENT_MODEL}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

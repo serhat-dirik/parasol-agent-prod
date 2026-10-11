@@ -1,6 +1,6 @@
 # chat_generation = the model the agent talks to, i.e. the MaaS endpoint. The agent sends its own
 # Authorization header (its MaaS key) and the orchestrator passes it through (passthrough_headers).
-# MAAS_HOST / MAAS_PORT are set by bootstrap.sh from $MAAS_ENDPOINT. TLS to an external HTTPS host:
+# The Argo Application sets hostname/port from bootstrap.sh's $AGENT_ENDPOINT (AGENT_HOST / AGENT_PORT). TLS to an external HTTPS host:
 # tls is a map of named configs; the orchestrator requires cert_path (no key_path = no client auth),
 # so the system CA bundle is used for both cert_path and the server CA.
 apiVersion: v1

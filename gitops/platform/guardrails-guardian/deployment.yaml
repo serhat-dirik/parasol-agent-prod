@@ -22,9 +22,10 @@ spec:
             - {name: GUARD_URL, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD_URL}}}
             - {name: GUARD_KEY, valueFrom: {secretKeyRef: {name: maas-key-granite-guardian, key: GENAI_API_KEY}}}
             - {name: GUARD_MODEL, value: "granite-guardian-3-1-8b"}
-            # Optional second guard model (Llama-Guard-3-1B), used on the USER MESSAGE only.
-            - {name: GUARD2_URL, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD_URL}}}
-            - {name: GUARD2_KEY, valueFrom: {secretKeyRef: {name: maas-key-llama-guard, key: GENAI_API_KEY}}}
+            # Optional second guard model (Llama-Guard-3-1B), used on the USER MESSAGE only. Its own endpoint
+            # (LLAMAGUARD_ENDPOINT -> maas-guardian GUARD2_URL) and key; skipped when either is absent.
+            - {name: GUARD2_URL, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD2_URL, optional: true}}}
+            - {name: GUARD2_KEY, valueFrom: {secretKeyRef: {name: maas-key-llama-guard, key: GENAI_API_KEY, optional: true}}}
             - {name: GUARD2_MODEL, value: "Llama-Guard-3-1B"}
           ports:
             - containerPort: 8080

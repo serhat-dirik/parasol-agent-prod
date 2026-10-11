@@ -53,8 +53,9 @@ regex detector, and Llama Guard flags the user-message injection as the optional
   selectable there (a cluster-admin sees all MaaS models; the auth-walled dashboard screen is captured
   in the operator's logged-in browser at record time, per the handover decision).
 * The guard-tier keys are out-of-band Secrets (`maas-key-granite-guardian`, `maas-key-llama-guard`,
-  data key `GENAI_API_KEY`), **never in Git**. `scripts/guardian-key.sh` creates the base-URL Secret
-  `maas-guardian`; `load-credentials.sh` also exports `MAAS_KEY_GUARD` / `MAAS_KEY_LLAMAGUARD`.
+  data key `GENAI_API_KEY`, from `GUARD_KEY` / `LLAMAGUARD_KEY` via `scripts/maas-model-keys.sh`),
+  **never in Git**. `scripts/guardian-key.sh` creates the base-URL Secret `maas-guardian`
+  (`GUARD_URL` from `GUARD_ENDPOINT`, `GUARD2_URL` from the optional `LLAMAGUARD_ENDPOINT`).
 
 ## History (fallback that is no longer needed)
 

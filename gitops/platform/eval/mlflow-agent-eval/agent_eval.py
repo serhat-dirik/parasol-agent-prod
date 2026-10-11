@@ -10,10 +10,11 @@ Full-run config comes from the environment (secrets never hard-coded):
   MLFLOW_WORKSPACE      e.g. parasol-secured           (sent as the x-mlflow-workspace header)
   MLFLOW_TRACKING_TOKEN bearer token (or TOKEN_FILE with a path to read it from)
   MLFLOW_EXPERIMENT     default parasol-agent-eval
-  MAAS_ENDPOINT         OpenAI-compatible base, e.g. https://.../v1   (judge model endpoint)
-  MAAS_EVAL_KEY         MaaS key 2 (eval key) -- NEVER the agent key
-  JUDGE_MODEL           default llama-scout-17b (documented stand-in for gpt-oss-120b, swap-ready)
-  PROMPT_MODEL_ID       model id metadata for the run (default llama-scout-17b)
+  JUDGE_ENDPOINT        OpenAI-compatible base of the judge, e.g. https://.../v1 (alias MAAS_ENDPOINT,
+                        which the Tekton task fills from the maas-eval-key Secret file "endpoint")
+  JUDGE_KEY             the judge's own key -- NEVER the agent key (alias MAAS_EVAL_KEY, file "key")
+  JUDGE_MODEL           default gpt-oss-120b
+  PROMPT_MODEL_ID       model id metadata for the run (default qwen3-14b)
   TOOLS_HASH            tools.yaml hash metadata (optional, from G2 registry)
 
 Gate (used by the Tekton agent-eval task): a release PASSES iff deterministic passes >= GATE_THRESHOLD
@@ -212,12 +213,12 @@ def run_full(versions, gate_version, results_dir):
     experiment = os.environ.get("MLFLOW_EXPERIMENT", "parasol-agent-eval")
     exp = mlflow.set_experiment(experiment)
 
-    judge_model = os.environ.get("JUDGE_MODEL", "llama-scout-17b")
-    model_id = os.environ.get("PROMPT_MODEL_ID", "llama-scout-17b")
+    judge_model = os.environ.get("JUDGE_MODEL", "gpt-oss-120b")
+    model_id = os.environ.get("PROMPT_MODEL_ID", "qwen3-14b")
     tools_hash = os.environ.get("TOOLS_HASH", "")
     client = None
-    maas = os.environ.get("MAAS_ENDPOINT", "").rstrip("/")
-    key = os.environ.get("MAAS_EVAL_KEY", "")
+    maas = (os.environ.get("JUDGE_ENDPOINT") or os.environ.get("MAAS_ENDPOINT", "")).rstrip("/")
+    key = os.environ.get("JUDGE_KEY") or os.environ.get("MAAS_EVAL_KEY", "")
     use_judge = os.environ.get("NO_JUDGE", "") != "1" and maas and key
     if use_judge:
         if not maas.endswith("/v1"):

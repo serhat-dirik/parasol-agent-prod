@@ -2,34 +2,37 @@
 # One-shot, repeatable bootstrap of the "AI Agents: from localhost to production" demo on a fresh
 # OpenShift 4.22 cluster. Idempotent: run it again after a failure.
 #
-# Required env (or: source scripts/load-credentials.sh to read them from the RHDP credentials file):
-#   MAAS_ENDPOINT   OpenAI-compatible base URL of the upstream MaaS, e.g. https://maas.example.com/v1
-#   MAAS_API_KEY    key for that endpoint
+# Each model may come from a DIFFERENT OpenAI-compatible endpoint (base URL ending in /v1) with its own key.
+# Required env:
+#   AGENT_ENDPOINT, AGENT_KEY   the agent model both portals run (AGENT_MODEL)
+#   GUARD_ENDPOINT, GUARD_KEY   granite-guardian-3-1-8b: guard-tier detector + playground external model
+#   JUDGE_ENDPOINT, JUDGE_KEY   gpt-oss-120b: evaluation judge
 # Optional env:
-#   MAAS_MODEL      model id the agent uses (default qwen3-14b, the model both portals run)
+#   AGENT_MODEL     upstream model id of the agent (default qwen3-14b)
+#   LLAMAGUARD_ENDPOINT, LLAMAGUARD_KEY   Llama-Guard-3-1B, optional 3rd detector (skipped if unset)
 #   REPO_URL        Git URL Argo CD syncs from (default: this repo's origin)
 #   REPO_REVISION   branch/tag (default: main)
 #   SKIP_BUILDS=1   do not start image builds
 set -euo pipefail
 cd "$(dirname "$0")"
 
-: "${MAAS_ENDPOINT:?set MAAS_ENDPOINT}"
-: "${MAAS_API_KEY:?set MAAS_API_KEY}"
-export MAAS_MODEL="${MAAS_MODEL:-qwen3-14b}"
-# The agent runs qwen3-14b, so its MaaS key is qwen's own per-model key (exported by
-# scripts/load-credentials.sh as MAAS_KEY_QWEN3_14B). A fresh install's agent then calls qwen with no
-# repoint. Falls back to MAAS_API_KEY only if the per-model key is absent from the credentials file.
-export AGENT_MAAS_KEY="${MAAS_KEY_QWEN3_14B:-$MAAS_API_KEY}"
+missing=""
+for v in AGENT_ENDPOINT AGENT_KEY GUARD_ENDPOINT GUARD_KEY JUDGE_ENDPOINT JUDGE_KEY; do
+  [ -n "${!v:-}" ] || missing="$missing $v"
+done
+[ -z "$missing" ] || { echo "bootstrap.sh: missing required env:$missing (each model needs <ROLE>_ENDPOINT and <ROLE>_KEY; see the header of bootstrap.sh)" >&2; exit 1; }
+export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}"
 export REPO_URL="${REPO_URL:-$(git remote get-url origin 2>/dev/null || echo https://github.com/CHANGEME/parasol-agent-prod.git)}"
 export REPO_REVISION="${REPO_REVISION:-main}"
 export CLUSTER_DOMAIN="$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')"
-export MAAS_HOST="$(echo "$MAAS_ENDPOINT" | sed -E 's#https?://([^/:]+).*#\1#')"
-export MAAS_PORT="$(echo "$MAAS_ENDPOINT" | sed -nE 's#https?://[^/:]+:([0-9]+).*#\1#p')"; export MAAS_PORT="${MAAS_PORT:-443}"
+host() { echo "$1" | sed -E 's#https?://([^/:]+).*#\1#'; }
+port() { local p; p="$(echo "$1" | sed -nE 's#https?://[^/:]+:([0-9]+).*#\1#p')"; echo "${p:-443}"; }
+export AGENT_HOST="$(host "$AGENT_ENDPOINT")" AGENT_PORT="$(port "$AGENT_ENDPOINT")" GUARD_HOST="$(host "$GUARD_ENDPOINT")"
 command -v envsubst >/dev/null || { echo "envsubst (gettext) is required"; exit 1; }
 
 log(){ printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
-log "Cluster $CLUSTER_DOMAIN, repo $REPO_URL@$REPO_REVISION, model $MAAS_MODEL"
+log "Cluster $CLUSTER_DOMAIN, repo $REPO_URL@$REPO_REVISION, agent $AGENT_MODEL@$AGENT_HOST, guard @$GUARD_HOST"
 
 log "1/8 OpenShift GitOps"
 if oc get deploy openshift-gitops-server -n openshift-gitops >/dev/null 2>&1; then
@@ -67,14 +70,12 @@ log "3/8 Secrets that never go to Git"
 scripts/gen-trusted-keys.sh
 for ns in parasol-free parasol-secured; do
   oc get ns $ns >/dev/null 2>&1 || oc create ns $ns
-  oc -n $ns create secret generic maas-credentials --from-literal=GENAI_API_KEY="$AGENT_MAAS_KEY" --dry-run=client -o yaml | oc apply -f -
+  oc -n $ns create secret generic maas-credentials --from-literal=GENAI_API_KEY="$AGENT_KEY" --dry-run=client -o yaml | oc apply -f -
 done
 oc -n parasol-secured create secret generic agent-service-identity --from-literal=username=dev --from-literal=password=dev --dry-run=client -o yaml | oc apply -f -
 oc get ns models-as-a-service >/dev/null 2>&1 || oc create ns models-as-a-service
-# Upstream (LiteLLM) key the qwen3-14b ExternalModel (gitops/platform/rhoai/maas.yaml) resolves through.
-oc -n models-as-a-service create secret generic maas-upstream-qwen3-14b --from-literal=api-key="$AGENT_MAAS_KEY" --dry-run=client -o yaml | oc apply -f -
-# MaaS payload processing (key injection) only reads Secrets with this label
-oc -n models-as-a-service label secret maas-upstream-qwen3-14b inference.llm-d.ai/ipp-managed=true --overwrite
+# Upstream keys the external models resolve through: qwen3-14b <- AGENT_KEY, granite-guardian <- GUARD_KEY
+scripts/maas-ext-model-secrets.sh
 # MaaS API database (gitops/platform/rhoai/maas-db.yaml): password generated once, never printed
 ns=redhat-ai-gateway-infra; oc get ns $ns >/dev/null 2>&1 || oc create ns $ns
 if ! oc get secret maas-postgres -n $ns >/dev/null 2>&1; then
@@ -88,7 +89,7 @@ log "4/8 OpenShift AI components (DataScienceCluster patch)"
 scripts/rhoai-enable.sh
 
 log "5/8 Argo CD app-of-apps"
-kustomize build gitops/bootstrap/apps | envsubst '$CLUSTER_DOMAIN $REPO_URL $REPO_REVISION $MAAS_ENDPOINT $MAAS_MODEL $MAAS_HOST $MAAS_PORT' | oc apply -f -
+kustomize build gitops/bootstrap/apps | envsubst '$CLUSTER_DOMAIN $REPO_URL $REPO_REVISION $AGENT_ENDPOINT $AGENT_MODEL $AGENT_HOST $AGENT_PORT' | oc apply -f -
 
 log "6/8 Images"
 [ "${SKIP_BUILDS:-0}" = "1" ] || scripts/build-images.sh
@@ -96,6 +97,8 @@ log "6/8 Images"
 log "6b/8 Authorino TLS (OpenShift AI MaaS needs it) and the secured agent's MaaS API key"
 scripts/authorino-tls.sh || echo "WARN: Authorino TLS not applied (reverted); MaaS stays NotReady. See scripts/authorino-tls.sh"
 for i in $(seq 1 40); do [ "$(oc get datasciencecluster -o jsonpath='{.items[0].status.conditions[?(@.type=="ModelsAsAServiceReady")].status}')" = True ] && break; echo "$(date +%T) waiting for ModelsAsAServiceReady ($i/40)"; sleep 30; done
+# Guard-tier external model (granite-guardian, on GUARD_ENDPOINT's host) and the two MaaS tiers
+kustomize build gitops/platform/maas-tiers | envsubst '$GUARD_HOST' | oc apply -f - || echo "WARN: MaaS tiers not applied (MaaS CRDs not ready?); re-run bootstrap.sh"
 scripts/maas-key.sh || echo "WARN: no MaaS key minted; parasol-secured keeps the upstream key"
 scripts/maas-model-keys.sh || echo "WARN: per-model MaaS Secrets not all created (namespaces may not exist yet); re-run after the platform apps sync"
 

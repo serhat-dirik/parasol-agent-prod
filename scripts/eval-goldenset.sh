@@ -32,7 +32,8 @@ KEY2="$(awk '$0=="litellm_user2_virtual_key"{getline;print;exit}' "$CRED")"
 [ -n "$KEY2" ] || { echo "litellm_user2_virtual_key not found"; exit 1; }
 
 echo "== ensuring eval guardrails proxy (namespace $NS) =="
-oc apply -f "$ROOT/gitops/platform/eval/eval-guardrails-proxy.yaml" >/dev/null
+export AGENT_ENDPOINT="${AGENT_ENDPOINT:-$(awk '$0=="litellm_api_base_url"{getline;print;exit}' "$CRED")}"
+envsubst '$AGENT_ENDPOINT' < "$ROOT/gitops/platform/eval/eval-guardrails-proxy.yaml" | oc apply -f - >/dev/null
 oc create secret generic maas-eval-key -n "$NS" --from-literal=key="$KEY2" \
   --dry-run=client -o yaml | oc apply -f - >/dev/null
 oc rollout status deploy/eval-guardrails-proxy -n "$NS" --timeout=180s
@@ -155,7 +156,7 @@ PY
 echo "== running golden-set harness in-cluster (report -> $REPORT) =="
 oc exec -i -n "$NS" deploy/eval-guardrails-proxy -- env \
   SECURED_CHAT="http://eval-guardrails-proxy.$NS.svc:8080/v1/chat/completions" \
-  UNSECURED_CHAT="https://maas-rhdp.apps.maas.redhatworkshops.io/v1/chat/completions" \
+  UNSECURED_CHAT="$AGENT_ENDPOINT/chat/completions" \
   SSO="https://sso.apps.$DOMAIN" \
   MCP_GW="https://mcp.apps.$DOMAIN/mcp" \
   FREE_MCP="http://claims-db.parasol-free.svc:8080/mcp" \

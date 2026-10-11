@@ -12,14 +12,14 @@
 # parasol-agent-eval (id 2); see docs/handover.md (G1) and lmevaljob-goldenset.yaml.
 #
 # Prereqs (all already present):
-#   - namespace parasol-eval; Secret maas-key-qwen3-14b (GENAI_API_KEY=<qwen3-14b per-model key>, minted
-#     by scripts/maas-model-keys.sh), never committed. qwen3-14b is 401 on the shared user virtual keys,
-#     so it must use its own per-model key.
+#   - namespace parasol-eval; Secret maas-key-qwen3-14b (GENAI_API_KEY=<AGENT_KEY>, written by
+#     scripts/maas-model-keys.sh), never committed.
 #   - TrustyAI operator online + code-execution enabled cluster-wide:
 #       oc patch datasciencecluster default-dsc --type merge \
 #         -p '{"spec":{"components":{"trustyai":{"eval":{"lmeval":{"permitOnline":"allow","permitCodeExecution":"allow"}}}}}}'
 #     (revert: same patch with deny/deny). Only touch trustyai.eval.lmeval.
-# Apply:  oc apply -f gitops/platform/eval/lmevaljob-agent-model.yaml
+# Apply (the agent endpoint/model come from the install env, see bootstrap.sh):
+#   envsubst '$AGENT_ENDPOINT $AGENT_MODEL' < gitops/platform/eval/lmevaljob-agent-model.yaml | oc apply -f -
 # Watch:  oc get lmevaljob -n parasol-eval parasol-agent-model-eval -w
 # Result: .status.results holds the gsm8k exact_match score; Dashboard -> Model evaluation runs.
 apiVersion: trustyai.opendatahub.io/v1alpha1
@@ -32,8 +32,8 @@ spec:
   # Candidate = the model behind the Parasol assistant, reached OpenAI-compatibly on the external MaaS.
   model: local-chat-completions
   modelArgs:
-    - {name: base_url, value: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1/chat/completions"}
-    - {name: model, value: "qwen3-14b"}
+    - {name: base_url, value: "${AGENT_ENDPOINT}/chat/completions"}
+    - {name: model, value: "${AGENT_MODEL}"}
     - {name: num_concurrent, value: "1"}       # lab budget: no storms (10-day virtual keys)
     - {name: max_retries, value: "3"}
     - {name: tokenized_requests, value: "False"}

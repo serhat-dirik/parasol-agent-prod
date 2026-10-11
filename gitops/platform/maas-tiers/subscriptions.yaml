@@ -6,8 +6,8 @@
 # exactly two external models, each on a tier with a budget and its own key. llama-scout-17b and
 # granite-4-0-h-tiny were dropped (both portals run qwen; those two only populated the dashboard).
 #
-# MODELS: the lab LiteLLM endpoint serves these behind PER-MODEL keys (credentials file "MAAS keys"
-# section; load-credentials.sh exports MAAS_KEY_QWEN3_14B and MAAS_KEY_GUARD). qwen3-14b's ExternalModel +
+# MODELS: each model has its own endpoint + key (bootstrap.sh env: AGENT_ENDPOINT/AGENT_KEY for qwen3-14b,
+# GUARD_ENDPOINT/GUARD_KEY for granite-guardian). qwen3-14b's ExternalModel +
 # MaaSModelRef are registered by the platform (platform-rhoai, gitops/platform/rhoai/maas.yaml);
 # granite-guardian-3-1-8b is added here as an additional ExternalModel. Upstream API-key Secrets (data key
 # api-key) are created out-of-band by scripts/maas-ext-model-secrets.sh (maas-upstream-qwen3-14b,
@@ -15,8 +15,8 @@
 #
 # Isolated + additive: own namespace parasol-maas-tiers owns the subscriptions (owner group
 # system:serviceaccounts:parasol-maas-tiers), so scripts/maas-tier-keys.sh mints both keys from one pod
-# WITHOUT touching the shared operational subscriptions (parasol-stage/policyholder). Applied imperatively
-# (not Argo-wired). Priorities (111/71) differ from the operational 50/10.
+# WITHOUT touching the shared operational subscriptions (parasol-stage/policyholder). Applied by bootstrap.sh
+# (envsubst GUARD_HOST; not Argo-wired). Priorities (111/71) differ from the operational 50/10.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -39,7 +39,7 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   provider: openai
-  endpoint: maas-rhdp.apps.maas.redhatworkshops.io
+  endpoint: ${GUARD_HOST}    # FQDN of GUARD_ENDPOINT; apply with: kustomize build ... | envsubst '$GUARD_HOST' | oc apply -f -
   targetModel: granite-guardian-3-1-8b
   credentialRef: {name: maas-upstream-granite-guardian}
 ---

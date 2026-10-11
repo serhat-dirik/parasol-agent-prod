@@ -5,7 +5,8 @@
 # load stays on the eval key and never touches the agent key or the on-cluster MaaS budget.
 # Detection is done locally in-process with the same regexes the production proxy sends to the
 # orchestrator detector (the orchestrator call there only exists to populate its metrics); the
-# guardrails DECISION is identical. Applied directly with oc (scripts/garak.sh); not Argo-synced,
+# guardrails DECISION is identical. Applied directly with oc through envsubst '$AGENT_ENDPOINT'
+# (scripts/garak.sh, scripts/eval-goldenset.sh); not Argo-synced,
 # so it cannot affect the wave-1 app-of-apps. Nothing here is a secret; KEY 2 arrives at runtime
 # in Secret maas-eval-key, created from credentials.txt and never committed.
 apiVersion: v1
@@ -136,8 +137,8 @@ spec:
           image: registry.access.redhat.com/ubi9/python-312:latest
           command: ["python3", "-u", "/app/proxy.py"]
           env:
-            # External LiteLLM MaaS (serves llama-scout-17b); accepts the eval virtual key.
-            - {name: MAAS_URL, value: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1"}
+            # The agent model's endpoint (AGENT_ENDPOINT, substituted at apply time by the calling script).
+            - {name: MAAS_URL, value: "${AGENT_ENDPOINT}"}
             - name: MAAS_KEY
               valueFrom: {secretKeyRef: {name: maas-eval-key, key: key}}
           ports: [{containerPort: 8080}]

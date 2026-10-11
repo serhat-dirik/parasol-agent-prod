@@ -21,8 +21,8 @@ spec:
               value: |
                 chat_generation:
                   service:
-                    hostname: ${MAAS_HOST}
-                    port: ${MAAS_PORT}
+                    hostname: ${AGENT_HOST}
+                    port: ${AGENT_PORT}
                     tls: maas-upstream
                 detectors:
                   regex:

@@ -24,7 +24,8 @@ KEY2="$(awk '$0=="litellm_user2_virtual_key"{getline;print;exit}' "$CRED")"
 [ -n "$KEY2" ] || { echo "litellm_user2_virtual_key not found in $CRED"; exit 1; }
 
 echo "== applying eval guardrails proxy (namespace $NS) =="
-oc apply -f "$ROOT/gitops/platform/eval/eval-guardrails-proxy.yaml"
+export AGENT_ENDPOINT="${AGENT_ENDPOINT:-$(awk '$0=="litellm_api_base_url"{getline;print;exit}' "$CRED")}"
+envsubst '$AGENT_ENDPOINT' < "$ROOT/gitops/platform/eval/eval-guardrails-proxy.yaml" | oc apply -f -
 oc create secret generic maas-eval-key -n "$NS" --from-literal=key="$KEY2" \
   --dry-run=client -o yaml | oc apply -f -
 oc rollout restart deploy/eval-guardrails-proxy -n "$NS" >/dev/null 2>&1 || true

@@ -18,10 +18,10 @@ spec:
           patch: |-
             - op: replace
               path: /data/endpoint
-              value: ${MAAS_ENDPOINT}
+              value: ${AGENT_ENDPOINT}
             - op: replace
               path: /data/model
-              value: qwen3-14b   # unsecured portal uses an injection-obeying model to show the risk live
+              value: ${AGENT_MODEL}   # unsecured portal uses an injection-obeying model to show the risk live
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]
