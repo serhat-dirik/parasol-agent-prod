@@ -1,0 +1,126 @@
+= 05. Scenario 3: The night shift
+:navtitle: 05. Scenario 3: The night shift
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+A policyholder account loops long requests at 2 a.m. to drain the model budget. Unsecured, the shared key burns all night. Secured, the off-topic junk is refused for free, only that account is throttled, an alert names the user, and the operator has two one-click responses.
+
+The script `scripts/night-shift.sh` plays the abusive customer. It logs in as `tom.becker`, sends two off-topic requests, then loops long on-topic requests, printing the HTTP status, the caller and the token spend of each. It stops at the first usage-limit response and has a hard ceiling, so a stray run cannot drain the model key.
+
+[NOTE]
+.Know: budgets and alerts with a name
+====
+An agent on a shared key is an open invoice: anyone who can reach the chat can spend the budget, and nobody can say who did. On the platform, spend is attributed to a user, so the right account is throttled, everyone else keeps working, and the alert says who.
+====
+
+== Show: unsecured
+
+. In the *Terminal* tab, run the night shift against the unsecured portal:
++
+[source,bash,role=execute,subs=attributes]
+----
+scripts/night-shift.sh 40 portal-free.{domain}
+----
+
+. Watch the script output, then select the *OpenShift AI* tab and open the Models-as-a-Service usage view.
++
+What you should see: every request is answered and the token spend keeps climbing; there is no per-user limit on the shared key. Left running all night, the budget is gone by morning and the assistant answers the claims staff with "budget exhausted".
++
+The point: denial of wallet, and nobody was watching.
+
+== Show: secured
+
+. In the *Terminal* tab, give `tom.becker` a full token budget again:
++
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
+
+. Run the night shift against the secured portal (the default target):
++
+[source,bash,role=execute]
+----
+scripts/night-shift.sh 40
+----
+
+. Watch the script output.
++
+What you should see:
++
+* the off-topic requests get a polite refusal from the topic guardrail at *0 tokens*;
+* the on-topic loop keeps hammering, and the per-user spend climbs;
+* after the per-user limit, the response reads "you have reached your usage limit (429)" and the script stops.
+
+. Meanwhile, select the *Portal secured* tab, log in as `rebecca`, open any claim and ask a question.
++
+What you should see: rebecca keeps working normally. Only `tom.becker` is throttled.
+
+. Select the *OpenShift Console* tab and open *Observe*, *Alerting*.
++
+What you should see: `ParasolAssistantTokenSpendHigh` firing, naming the user `tom.becker` and the namespace.
+
+. Select the *MLflow* tab (or *Observe*, *Traces* in the console).
++
+What you should see: a night request with the user on the span.
+
+. Select the *OpenShift AI* tab and open Models-as-a-Service.
++
+What you should see: the spend attributed to the policyholder account, while the production allowance is untouched.
+
+. Check it: in the *Terminal* tab, find the per-user 429 in the Limitador log:
++
+[source,bash,role=execute]
+----
+oc logs -n kuadrant-system deploy/limitador-limitador --tail=50
+----
+
+. Check it: in the *OpenShift Console* tab, *Observe*, *Dashboards* (project `openshift-operators`, *Parasol Assistant Token Spend*), the token-spend and per-user panels show `tom.becker` peaking, and the alert is firing.
+
+== Show: the operator's response
+
+Pick one. Reach for the precise control first.
+
+=== Option A: disable the user
+
+. Select the *Keycloak* tab. In realm `parasol`, open *Users*, then `tom.becker`, and switch *Enabled* off. Save.
+
+. In the *Terminal* tab, run the night shift once more:
++
+[source,bash,role=execute]
+----
+scripts/night-shift.sh 3
+----
++
+What you should see: the script cannot log in as `tom.becker`. Everyone else keeps working.
+
+. Re-enable `tom.becker` in the *Keycloak* tab after the demo.
+
+=== Option B: the kill switch
+
+. Open the secured environment in Git: link:{repo_url}/edit/main/gitops/envs/secured/kustomization.yaml[gitops/envs/secured/kustomization.yaml,window=_blank].
+
+. Change the line `components: []` to:
++
+[source,yaml]
+----
+components: [./kill-switch]
+----
++
+Commit to `main`.
+
+. Select the *Argo CD* tab, open the `env-secured` application and click *Refresh*.
++
+What you should see: Argo CD syncs the change; the component replaces the portal's network egress.
+
+. Select the *Portal secured* tab and ask the assistant anything.
++
+What you should see: after about 50 seconds the assistant reports it is offline. In the *OpenShift Console* tab, the pods in project `parasol-secured` are still *Running*: they simply reach nothing.
+
+. Revert the commit (set `components: []` again) and refresh `env-secured` in the *Argo CD* tab to bring the assistant back.
+
+The morning report is two screens you already have open: the alert and the dashboard.
+
+Continue with xref:06-scenario4-eval-gate.adoc[06. Scenario 4: The evaluation gate].

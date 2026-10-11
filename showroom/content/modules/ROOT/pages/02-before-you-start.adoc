@@ -1,0 +1,99 @@
+= 02. Before you start
+:navtitle: 02. Before you start
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+Ten minutes before the audience arrives: confirm the platform is healthy, sign in to the consoles, and reset the demo data.
+
+[NOTE]
+.Presenter note
+====
+Do this page before the session, not in front of the audience. Everything after it assumes the consoles are signed in and the claims data is fresh.
+====
+
+== Check the platform
+
+. Select the *Terminal* tab.
++
+What you should see: a shell prompt in the `parasol-agent-prod` repository, with `oc` signed in as the Showroom's terminal identity.
+
+. Confirm every Argo CD application is Synced and Healthy and both portals are up:
++
+[source,bash,role=execute]
+----
+scripts/status.sh
+----
+
+. Select the *Argo CD* tab and sign in.
++
+What you should see: every component Synced and Healthy. Argo CD is the GitOps source of truth for the whole demo.
+
+== Sign in to the consoles
+
+The OpenShift sign-in page cannot be shown inside a tab. Sign in once in a normal browser tab; the tabs on the right then reuse that session.
+
+. Open link:{console_url}[the OpenShift console,window=_blank] in a new browser tab and sign in as the cluster administrator. Leave the tab open.
+
+. Select the *OpenShift Console*, *OpenShift AI*, *MLflow* and *Argo CD* tabs in turn.
++
+What you should see: each one opens signed in. If one still shows a sign-in button, click it once.
+
+. Select the *Keycloak* tab and sign in to the administration console.
++
+What you should see: realm `parasol`.
+
+== Consoles, dashboards and logs: where to look
+
+Every secured beat is visible on the platform, not only in the portal chat.
+
+* *Argo CD* tab: every component Synced and Healthy. `scripts/status.sh` summarizes it.
+* *OpenShift AI* tab: Models-as-a-Service (the two tiered models, `qwen3-14b` and `granite-guardian-3-1-8b`, with per-key usage), the GenAI Studio playground, and Model evaluation runs (TrustyAI LMEval).
+* *MLflow* tab: chat traces, and the `parasol-agent-eval` golden-set runs.
+* *OpenShift Console* tab:
+** Observe, Dashboards, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*: tool calls by status, guardrail hits, token spend per user, P95 latency, and the alert;
+** Observe, Alerting: the alert `ParasolAssistantTokenSpendHigh`;
+** Observe, Metrics: `parasol_tool_calls_total` and token spend;
+** Observe, Traces: the Tempo trace of each chat turn;
+** Networking, Gateways: the MCP and MaaS gateways and their AuthPolicies (Enforced).
+* *Keycloak* tab: realm `parasol`, users, groups and the `tool:*` roles.
+* *Terminal* tab, live logs to confirm a beat at the component level:
+** guardrails flag or block:
++
+[source,bash,role=execute]
+----
+oc logs -n parasol-secured deploy/guardrails-proxy --tail=50
+----
+** tool-authorization 403, in the MCP gateway and in the portal:
++
+[source,bash,role=execute]
+----
+oc logs -n mcp-system deploy/mcp-gateway --tail=50
+oc logs -n parasol-secured deploy/portal --tail=50
+----
+** per-user 429:
++
+[source,bash,role=execute]
+----
+oc logs -n kuadrant-system deploy/limitador-limitador --tail=50
+----
+
+== Reset the demo data
+
+. In the *Terminal* tab, reset both portals' claims and refill the per-user token budgets:
++
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
++
+What you should see: `parasol-free reset`, `parasol-secured reset` and `model allowance reset`.
+
+. Select the *Portal unsecured* tab, then the *Portal secured* tab.
++
+What you should see: the Parasol sign-in page on each.
+
+The two portals have separate databases, so you do not reset when you switch between them within a scenario. The scenarios tell you when a reset is needed.
+
+Continue with xref:03-scenario1-colleague.adoc[03. Scenario 1: The colleague].

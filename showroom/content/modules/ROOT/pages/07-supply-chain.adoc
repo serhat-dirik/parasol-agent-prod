@@ -1,0 +1,61 @@
+= 07. Supply chain: signing and admission
+:navtitle: 07. Supply chain
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+The agent reached production the way any workload should: a pipeline that evaluates, signs and verifies what it builds, and an admission policy that refuses anything unsigned. What runs in `parasol-secured` is provably the image the pipeline built.
+
+[NOTE]
+.Know: provenance is enforced at the door
+====
+What runs next to customer data must be the exact image the pipeline built, evaluated and signed. An unsigned or tampered image cannot start in the secured namespace, whoever deploys it.
+====
+
+== Show: the secure build pipeline
+
+. Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, and open the latest succeeded run of `parasol-portal-secure-build`.
++
+What you should see: every task green, in order: `clone-repository`, `build-container`, `scan-image`, `generate-sbom`, `agent-eval` (the Scenario 4 gate), `register-model-version`, `verify-enterprise-contract`, `sign-images`, `promote`; then `show-sbom` and `show-summary`.
+
+. Open the `sign-images` task log.
++
+What you should see: the portal image signed twice: keyless (Trusted Artifact Signer, recorded in a transparency log) and with the cluster signing key.
+
+. Select the *Argo CD* tab, open application `env-secured`, then the `portal` Deployment.
++
+What you should see: the secured portal runs a *pinned, signed digest*. The `promote` task changes only that digest in Git; Argo CD rolls it out.
+
+== Show: admission refuses an unsigned image
+
+The `ClusterImagePolicy` `parasol-portal-must-be-signed` admits only portal images signed by the pipeline.
+
+. In the *OpenShift Console* tab, open the policy. Direct link: link:{console_url}/k8s/cluster/policy.sigstore.dev~v1beta1~ClusterImagePolicy/parasol-portal-must-be-signed/yaml[ClusterImagePolicy parasol-portal-must-be-signed,window=_blank].
++
+What you should see: the image pattern for the portal and the two accepted signing authorities (keyless and the cluster key).
+
+. In the *Terminal* tab, try to run an unsigned and a signed portal image in the admission demo namespace:
++
+[source,bash,role=execute]
+----
+scripts/signing-demo.sh
+----
++
+What you should see:
++
+* the *unsigned* image is refused by the admission webhook, with a message naming the missing signature;
+* the *signed* image is admitted and its pod is created;
+* the script removes its test pods at the end.
+
+== Conclusion
+
+The four scenarios made one argument. The unsecured and the secured portal are the same image running the same model. The difference is the platform around it, and every piece of that platform is a product an operator already knows:
+
+* Identity on every tool call: Keycloak and the MCP gateway.
+* A document is data, not a command: guardrails and the Read-Propose-Act gate.
+* Budgets and alerts with a name: OpenShift AI Models-as-a-Service, Connectivity Link, and the OpenShift console.
+* Quality and provenance enforced: the evaluation gate, signing and admission.
+* The sandbox has a front door: access is identity-bound, and the kill switch is a Git commit.
+
+Continue with xref:08-reset-troubleshooting.adoc[08. Reset and troubleshooting].

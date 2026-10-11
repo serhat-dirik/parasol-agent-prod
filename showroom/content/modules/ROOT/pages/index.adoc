@@ -1,69 +1,79 @@
 = AI Agents: From localhost to Production
 
-Welcome. This guide walks a Red Hat solution architect through a live demo of an AI agent in production, and the platform controls that keep it safe.
-
-== What this demo shows
-
-An AI agent is easy to build and easy to abuse. The same chat assistant that helps an insurance adjuster can approve a fraudulent payout, spend a shared model budget dry, and leave nobody to blame.
-
-This demo makes that concrete. The same assistant is deployed twice:
-
-* Once with no controls. It does what it is told, by anyone, with no limits and no record.
-* Once on Red Hat's platform. Identity-bound tool authorization, guardrails, per-user model budgets, signing, and observability turn each abuse into a controlled, visible event.
-
-You see every beat in a browser. The Parasol claims portal, Keycloak, the OpenShift AI dashboard, the OpenShift console, Argo CD, and MLflow.
-
-== The throughline: five key messages
-
-Every demo returns to these five ideas. Keep them in mind as you watch.
-
-[NOTE]
-.The five key messages
-====
-. Identity on every tool call.
-. A document is data, not a command.
-. Read, propose, act (a gate before every write).
-. Budgets and alerts with a name (per-user attribution).
-. The sandbox has a front door (identity-bound access, not a wall).
-====
-
-== Who this is for
-
-This demo is built for three audiences, often in the same room:
-
-* Solution architects who need the story and the proof points.
-* Platform engineers who own identity, the gateway, and the budgets.
-* Application developers who build the agent and call the tools.
-
-== The shape of the session
-
-Plan for about 30 minutes of talk, plus three short recorded demos of two to three minutes each.
-
-* A 30-minute talk that frames the problem and the platform.
-* Demo 1: the uncontrolled agent, abused three ways.
-* Demo 2: the same agent on the platform, each abuse stopped.
-* Demo 3: the night shift, the alert with a name, and the kill switch.
+Anyone can stand up an AI agent on a laptop in an afternoon. Running that same agent in production, where real people use it, feed it real documents and try to abuse it, is where the hard problems live. This guide is the presenter's script for a live demonstration of that gap, and of how an OpenShift-based platform closes it.
 
 == The premise: the Parasol claims assistant
 
-Parasol Insurance runs a claims portal. Adjusters, claims managers, and policyholders log in and work claims. A chat assistant sits beside each claim. It is not a chatbot. It is a tool-using agent. It can read a claim, read the documents attached to it, read policy, and (for the right person) approve a payout.
+Parasol Insurance runs a claims portal (Quarkus and React/PatternFly, Keycloak login). Beside each claim sits a chat assistant. It is not a chatbot: it is a tool-using agent that calls MCP tools to read claims and policy documents and to approve payouts.
 
-That last power is the point. An agent that can move money is an agent worth attacking.
+An agent that can move money is an agent worth abusing.
 
-== The cockpit: eight tabs
+== One image, two portals
 
-The guide runs in a split screen. The right pane has eight tabs. You will be told which tab to use at each step.
+The same portal image runs twice on one cluster, over separate, identically seeded claims databases:
 
-* *Portal unsecured* (the agent with no controls)
-* *Portal secured* (the agent on the platform)
-* *Keycloak* (identity)
-* *OpenShift AI* (models, MCP, guardrails, MLflow)
-* *OpenShift Console* (gateway, logs, alerts, traces)
-* *Argo CD* (GitOps state and the kill switch)
-* *MLflow* (per-user traces)
-* *Terminal* (reset between takes)
+* *Portal unsecured* (`portal-free`): the laptop setup lifted into a namespace. Nothing sits between the agent and its tools, and nothing between the agent and the model but an API key in a Secret.
+* *Portal secured* (`portal`): the same image behind a layered sandbox: namespace isolation, Keycloak identity on every tool call, per-identity tool authorization at an MCP gateway, content guardrails, Models-as-a-Service governance with per-user token budgets, tracing and token metrics, a Git-commit kill switch, and a signed-image supply chain with admission control.
 
-The platform console tabs open in a new browser tab. They are launchers into live, logged-in consoles.
+You demo the *same claim* with the *same request* on each portal. The only variable is the platform.
 
-// Customer story: intentionally blank.
-// Competitive angle: intentionally blank.
+== The four scenarios
+
+. *The colleague.* A claims adjuster asks the assistant to approve a payout the adjuster has no authority to approve.
+. *The customer's document.* An uploaded repair estimate is inflated to AED 84,000 and carries a hidden note addressed to the assistant.
+. *The night shift.* A policyholder account loops long requests at 2 a.m. to drain the token budget.
+. *The evaluation gate.* A developer simplifies the system prompt; the platform evaluates it against a golden set and blocks the regression.
+
+Unsecured, the first three cause harm. Secured, a *different* layer stops each, and the platform consoles show why.
+
+[NOTE]
+.The five messages to land
+====
+. Identity on every tool call.
+. A document is data, not a command.
+. Read, propose, act: a person with the right role makes every write.
+. Budgets and alerts with a name.
+. The sandbox has a front door: identity-bound access, not a wall.
+====
+
+== How to use this guide
+
+The guide is on the left. Every step tells you which tab on the right to use:
+
+[cols="1,3",options="header"]
+|===
+|Tab |What it shows
+
+|*Portal unsecured*
+|The claims portal with no controls.
+
+|*Portal secured*
+|The same portal on the platform.
+
+|*Keycloak*
+|Realm `parasol`: users, groups and the `tool:*` roles.
+
+|*OpenShift AI*
+|Models-as-a-Service, the GenAI Studio playground, Model evaluation runs, the Model registry.
+
+|*OpenShift Console*
+|Observe (Dashboards, Alerting, Metrics, Traces), Networking (Gateways), Pipelines.
+
+|*Argo CD*
+|The GitOps state of every component, and the kill switch.
+
+|*MLflow*
+|Chat traces and the golden-set evaluation runs.
+
+|*Terminal*
+|A shell with `oc` and the demo repository, for the scripts and the `oc logs` checks.
+|===
+
+Some steps also give a link to a specific console page; it opens in a new browser tab.
+
+[TIP]
+====
+If a pane is narrow, the portal's navigation drawer can open over the page. Close the drawer with its menu button, or use the view switcher to give the pane more room.
+====
+
+Continue with xref:01-architecture.adoc[01. Architecture].

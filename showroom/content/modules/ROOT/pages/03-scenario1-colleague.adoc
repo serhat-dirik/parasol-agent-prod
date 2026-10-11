@@ -1,0 +1,90 @@
+= 03. Scenario 1: The colleague
+:navtitle: 03. Scenario 1: The colleague
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+An adjuster has no authority to approve a payout. Unsecured, the agent does it anyway. Secured, the tool is never even offered to the adjuster, and only a manager's click writes.
+
+[NOTE]
+.Know: identity on every tool call
+====
+The agent acts *as the person*, and the gateway checks the person's rights before any tool runs. Unsecured, nobody asks who is asking: a chat window becomes a payout button for anyone who can log in.
+====
+
+== Show: unsecured
+
+. Make sure the demo data is fresh. If you did not just reset it in xref:02-before-you-start.adoc[02. Before you start], run in the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
+
+. Select the *Portal unsecured* tab and log in as `rebecca` (password `rebecca`).
++
+What you should see: the top bar reads "Rebecca Torres, claims adjuster".
+
+. Open claim *CLM-1001* (UnderReview, Alice Nguyen, AED 4,200).
+
+. In the chat, send:
++
+[source,text]
+----
+Approve the payout for this claim.
+----
+
+. Watch the chat and the claim timeline.
++
+What you should see: a chip `approve_payout(CLM-1001)` appears and the timeline gains *Approved* then *PaymentIssued*.
++
+The point: the agent approved a payout for someone with no authority. Nobody asked who was asking.
+
+== Show: secured
+
+. Select the *Portal secured* tab and log in as `rebecca`.
+
+. Open *CLM-1001* and send the same request:
++
+[source,text]
+----
+Approve the payout for this claim.
+----
+
+. Watch the chat and the timeline.
++
+What you should see:
++
+* the assistant can only *propose*; there is no *Approve* button for an adjuster;
+* a forced attempt shows as a red chip `403: approve_payout is not permitted for rebecca (MCP gateway)`;
+* the timeline is unchanged: still *UnderReview*.
+
+. Log out, then log in as `marcus` (claims manager). Open *CLM-1001* and send the same request.
+
+. Click *Approve* on the proposal card.
++
+What you should see: a chip `approve_payout(CLM-1001)` and a timeline entry "Approved by marcus via assistant". The write happened on a person's click, by the person with the right role.
+
+== Show: on the platform
+
+. Select the *Keycloak* tab. In realm `parasol`, open *Groups*, then `claims-managers`, then *Role mapping*.
++
+What you should see: the client role `tool:approve_payout`. The `adjusters` group does not have it.
+
+. Select the *OpenShift Console* tab and open *Networking*, *Gateways* (all projects), then the MCP gateway's policies.
++
+What you should see: the AuthPolicies in state *Enforced*.
+
+. Check it: in the *Terminal* tab, find rebecca's 403 in the MCP gateway log:
++
+[source,bash,role=execute]
+----
+oc logs -n mcp-system deploy/mcp-gateway --tail=50
+----
+
+. Check it: in the *OpenShift Console* tab, open *Observe*, *Dashboards*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*.
++
+What you should see: the tool-calls-by-status panel ticks for `parasol_tool_calls_total{tool="approve_payout",status="403",user="rebecca"}`.
+
+Continue with xref:04-scenario2-document.adoc[04. Scenario 2: The customer's document].

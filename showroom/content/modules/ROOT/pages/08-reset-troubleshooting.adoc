@@ -1,0 +1,115 @@
+= 08. Reset and troubleshooting
+:navtitle: 08. Reset and troubleshooting
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+How to get back to a known state between runs, and the operational gotchas worth knowing before you present.
+
+[NOTE]
+.Presenter note
+====
+Reset between every run of the demo, and scan the troubleshooting table once before the first session of the day. Each row cost a run at some point.
+====
+
+== Reset between runs
+
+The scenarios change data: Scenario 1 approves CLM-1001, Scenario 2 pays CLM-1004 on the unsecured portal, and Scenario 3 spends `tom.becker`'s budget.
+
+. In the *Terminal* tab, reset both portals and the per-user token budgets:
++
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
+
+. Select the *Portal unsecured* tab and open *CLM-1001* and *CLM-1004*.
++
+What you should see: CLM-1001 *UnderReview*, CLM-1004 *Denied*.
+
+. Repeat on the *Portal secured* tab.
+
+. If you used an operator response in Scenario 3, undo it: re-enable `tom.becker` in the *Keycloak* tab, or revert the kill-switch commit and refresh `env-secured` in the *Argo CD* tab.
+
+== Headless equivalents
+
+Each scenario has a script that drives the same beats without a browser. Use them to check the platform before a session, not as the demo. Run them in the *Terminal* tab, except where the table says they need the lab credentials file: those run from a workstation shell with a checkout of the repository, `oc` signed in as an administrator, and `source scripts/load-credentials.sh`.
+
+[cols="1,2",options="header"]
+|===
+|Scenario |Command
+
+|1, unsecured
+|`scripts/abuse.sh free`: rebecca approves.
+
+|1, secured
+|`scripts/abuse.sh secured rebecca`: filtered tool list and a 403. `scripts/abuse.sh secured marcus 1`: the manager succeeds.
+
+|2
+|`scripts/abuse-doc.sh both`: the unsecured portal pays AED 84,000; secured flags the note and proposes without writing.
+
+|2, fraud check
+|`scripts/fraud-check-demo.sh`: rebecca and marcus get HIGH; `tom.becker` gets a 403.
+
+|3
+|`scripts/night-shift.sh 40` (secured) or `scripts/night-shift.sh 40 portal-free.{domain}` (unsecured).
+
+|4
+|`scripts/eval-goldenset.sh` (workstation, needs the credentials file): secured blocked, unsecured allowed, PASS 3/3.
+
+|Model check
+|`scripts/probe-maas.sh $MAAS_MODEL` (workstation, needs the credentials file): the agent model emits structured tool calls.
+
+|Supply chain
+|`scripts/signing-demo.sh`
+|===
+
+== Troubleshooting
+
+[cols="1,2",options="header"]
+|===
+|Symptom |What to do
+
+|The guide shows a 404 or an old page
+|Reload with a cache-buster, for example `?cb=2` on the Showroom URL.
+
+|A portal pane's navigation drawer covers the page
+|Close the drawer with its menu button, or use the view switcher to give the pane more room.
+
+|A console tab is blank or shows a refused connection
+|The consoles may only be framed by this Showroom. Re-apply the router header rewrite with `scripts/showroom-framing.sh` (cluster administrator), then reload the tab.
+
+|A console tab shows the OpenShift sign-in, or it will not load
+|The OpenShift sign-in page cannot be framed. Sign in once in a normal browser tab (xref:02-before-you-start.adoc[02. Before you start]), then reload the tab.
+
+|`reset.sh` prints `parasol-free: not running` or `parasol-secured: not running`
+|The claims reset runs through `oc exec` into `claims-db`. If the Terminal identity is not allowed to exec, run `scripts/reset.sh` from a workstation shell signed in as an administrator.
+
+|The 429 shows as HTTP 502
+|Expected. The portal surfaces the upstream 429 as a 502 whose chat body still reads "you have reached your usage limit (429)". `night-shift.sh` detects the limit from the body.
+
+|An MCP tool does not appear, or `TotalTools: 0`
+|Re-federating a tool needs the `MCPServerRegistration` deleted and recreated *and* the `mcp-gateway` broker pod (namespace `mcp-system`) restarted.
+
+|A live `oc patch` reverts itself
+|Argo CD self-heal reverts live edits on synced resources. Change them in Git and refresh the application.
+
+|The kill switch "does nothing"
+|The kill-switch component must *replace* the portal egress NetworkPolicy; a separate deny policy only adds allows. Under the kill switch the assistant returns a clean error after about 50 seconds.
+
+|The assistant's tool list comes back empty
+|The portal must forward a token that carries the `resource_access` roles for `claims-db` and `policy-docs`. Check the `parasol-portal` client mappers in realm `parasol`.
+
+|OpenShift AI MaaS is not Ready
+|Each Gateway that calls Authorino needs the annotation `security.opendatahub.io/authorino-tls-bootstrap: "true"`, and the upstream key Secret needs the label `inference.llm-d.ai/ipp-managed=true`.
+
+|Responses differ from this guide's wording
+|The model is non-deterministic. Watch the chips, the banners, the proposal card and the timeline rather than the prose.
+|===
+
+[NOTE]
+.Model budget
+====
+The model keys have a limited budget. Run the night-shift loop only when you present Scenario 3.
+====

@@ -1,118 +1,134 @@
 = 01. Architecture
-:imagesdir: ../assets/images
 :navtitle: 01. Architecture
 :toc: macro
 :toclevels: 2
 
 toc::[]
 
-This module describes what you are looking at. The application, the two deployments, the people, the model, and the control points that the later modules exercise.
+This module is the map: the application, the people, the models, and the layer that stops each scenario. Everything here is declared in Git and synced by Argo CD.
 
 [NOTE]
 .Know: why the architecture is the story
 ====
-The point to land here is that nothing in this demo is exotic. It is one ordinary insurance application with a chat assistant. The same application is deployed twice, and the only difference is the controls around it. Every control shown later maps to money: an unauthorised payout is unrecoverable spend, a shared model key with no limit is an open invoice, and a change that ships unsigned is a change nobody can account for. Keep returning to that: the platform turns an agent from a liability into something a business can run.
+Nothing here is exotic. It is one ordinary insurance application with a chat assistant, deployed twice; the only difference is the platform around it. Every control maps to money: an unauthorized payout is unrecoverable spend, a shared model key with no limit is an open invoice, and an unsigned change is one nobody can account for.
 ====
 
 == The application
 
-The Parasol claims portal is a Quarkus and React application. The backend is Quarkus. The front end is React, served through Quinoa, with the PatternFly look you recognise from the Red Hat Parasol demos.
+The Parasol claims portal is a Quarkus backend with a React/PatternFly front end and a Keycloak login. It lists claims; each claim has a detail page with a timeline, a *Documents* tab and a chat panel. The chat is the agent.
 
-The portal shows a list of claims and a detail page per claim. Beside each claim is a chat panel. That chat is the agent.
+Its tools come from MCP servers:
 
-The assistant is a tool-using agent, not a prompt-only chatbot. It reasons over a request, decides which tools to call, and calls them. Its tools come from two MCP (Model Context Protocol) servers:
+* *claims-db*: read a claim and its history, read the documents attached to it (`get_claim_documents`), propose a payout (`propose_payout`) and approve one (`approve_payout`, the write).
+* *policy-docs*: read the Parasol policy documents.
+* *fraud-check* (secured only): a second agent behind the same gateway that scores a claim's fraud risk.
 
-* *claims-db*: read a claim, read its history, read the documents attached to it, and approve a payout.
-* *policy-docs*: read the relevant insurance policy text.
+Every tool call streams into the chat as a chip, so you see what the agent did:
 
-Every tool call is streamed back into the chat as a small chip, so you see what the agent did rather than guessing. A denied call shows as a red chip. A guardrail detection shows as an amber banner. A masked field shows as a grey chip.
-
-== Two deployments of one image
-
-The same portal image runs twice, in two namespaces, behind two routes.
+* a normal chip, for example `approve_payout(CLM-1001)`;
+* a red chip for a refused call, for example `403: approve_payout is not permitted for rebecca (MCP gateway)`;
+* an amber banner for a guardrail detection;
+* a grey `personal data masked` chip when guardrails mask personal data.
 
 [cols="1,1,2",options="header"]
 |===
 |Namespace |Tab |What it is
 
-|parasol-free
+|`parasol-free`
 |*Portal unsecured*
-|The agent with no controls. No tool authorization, no guardrails, no per-user budget, no audit.
+|No tool authorization, no guardrails, no per-user budget, no audit.
 
-|parasol-secured
+|`parasol-secured`
 |*Portal secured*
-|The agent on the platform. Every control point is active.
+|Every control below is active.
 |===
 
-The code is identical. The difference is the platform around it.
+== The people
 
-== Identity: the Keycloak realm
-
-Identity comes from Keycloak, realm `parasol`. Three users carry the story. Each signs in with a password equal to the username (this is a disposable lab).
+Keycloak realm `parasol`. Passwords equal the usernames; these users exist only for this lab.
 
 [cols="1,1,2",options="header"]
 |===
 |User |Role |What they can do
 
-|rebecca
+|`rebecca`
 |claims adjuster
-|Read claims, ask the assistant to work a claim, propose a payout. Cannot approve.
+|Read claims and tools; can *propose* a payout but not approve one.
 
-|marcus
+|`marcus`
 |claims manager
-|Everything rebecca can do, plus approve a proposed payout.
+|Can approve a proposed payout (Keycloak role `tool:approve_payout`).
 
-|tom.becker
+|`tom.becker`
 |policyholder
-|A customer login. Can use the assistant on their own claims only.
+|The night-shift account: no claims tools and a low per-user token budget.
+
+|`dev`
+|developer
+|Used for the developer-side views.
 |===
 
-In the secured deployment, the user's token travels with every tool call. The tools know who is asking. That is the first key message, made real.
+== The models
 
-== The model
+The demo uses a lean model set on an external Models-as-a-Service endpoint, reached through OpenShift AI MaaS:
 
-There is one model, `llama-scout-17b`, hosted on an external Models-as-a-Service (MaaS) endpoint. The agent never calls the model directly. It calls it through the model gateway, which applies the subscription, the budget, and the keys.
+* `qwen3-14b`: the agent model. *Both* portals run it. It emits structured tool calls and it obeys an instruction hidden in a document, which is what makes Scenario 2 live.
+* `granite-guardian-3-1-8b`: the guard-tier detector, a model-based second opinion beside the regex detector.
+* `gpt-oss-120b`: the evaluation judge in Scenario 4. It is reached with its own key, off the MaaS tiers.
+* `Llama-Guard-3-1B`: an optional third detector, skipped when absent.
 
-Hosting the model externally is deliberate. It mirrors the common case: cloud AI you already pay for, placed behind your own gateway so your policies still apply.
+The agent never holds the upstream model key. OpenShift AI MaaS lists the two tiered models (`qwen3-14b` on the prod tier, `granite-guardian-3-1-8b` on the guard tier), each with its own subscription, auth policy, key and token budget.
 
-== The secured request path
+== The secured request paths
 
-In the secured deployment, a single chat turn travels two controlled paths.
+* *Model:* portal -> model-gateway -> guardrails-proxy -> OpenShift AI MaaS -> external endpoint. The guardrails proxy scans prompts and tool results; MaaS attributes token spend to the user and enforces the per-tier budget.
+* *Tools:* portal -> MCP gateway (`https://mcp.{domain}/mcp`, one virtual server per client) -> claims-db, policy-docs, fraud-check. The portal forwards the user's Keycloak token on every call; the gateway filters the tool list per identity and enforces a per-tool AuthPolicy.
 
-* For the model: agent to model gateway to guardrails to MaaS. The gateway attributes the spend to a per-user key. Guardrails scan the prompt and the model output.
-* For the tools: agent to MCP gateway to claims-db or policy-docs, carrying the user's token. The MCP gateway authorizes each tool call against the user's role, and audits it.
+The unsecured portal skips all of it: a shared model key, and tools called with no authorization and no record.
 
-The unsecured deployment skips all of it. The agent calls the model on a shared key and calls the tools with no authorization and no record.
+== Read, propose, act
 
-== The control points
+`approve_payout` is hidden from the gateway's tool list for *every* identity, so no model can call it on its own. It stays reachable for a direct call, which is still authorized by the Keycloak role `tool:approve_payout` (claims managers only). The assistant can therefore only *propose*; a claims manager's *Approve* click performs the write, and an adjuster's forced call is a 403.
 
-The later modules exercise these controls. This table is the map.
+== Which layer stops which scenario
 
-[cols="1,2",options="header"]
+[cols="1,2,2",options="header"]
 |===
-|Control point |What it does
+|Layer |Defends |Component
 
-|Identity-bound tool authorization (MCP gateway)
-|Authorizes each tool call against the caller's role. rebecca cannot approve a payout; marcus can.
+|1 Isolation
+|the blast radius of all scenarios
+|Namespace, ResourceQuota, NetworkPolicy, restricted pod security, no service-account token
 
-|Guardrails orchestrator
-|Scans tool results and prompts. Flags hidden instructions in a document. Masks personal data.
+|2 Identity
+|Scenario 1
+|Keycloak user identity forwarded by the portal to every tool call
 
-|Read, propose, act gate
-|The agent proposes a write and renders an Approve button. The write happens on the click, by a person with the right role.
+|3 Tool authorization
+|Scenario 1
+|MCP gateway (Connectivity Link): per-identity tool list, per-tool AuthPolicy
 
-|Per-user model budgets and alerts
-|Each user's model spend is attributed and capped. An alert fires with the user's name attached.
+|4 Guardrails
+|Scenarios 2 and 3
+|Guardrails proxy (enforced): regex and prompt-injection detection, PII masking, topic refusal; Granite Guardian as a model-based detector in the guard tier
 
-|Signing and admission
-|Images are signed in the build. The secured namespace refuses an unsigned image.
+|5 Model governance
+|Scenario 3
+|OpenShift AI MaaS: per-tier subscriptions, auth policies, keys and token budgets enforced by Connectivity Link
 
-|Observability (MLflow and the console)
-|Every chat turn is a trace with the user, the tool calls, and the token counts.
+|6 Lifecycle gate
+|regressions and unsigned images
+|Tekton pipeline (build, scan, evaluation gate, sign, verify, promote) and Sigstore admission policy
+
+|7 Observability and control
+|Scenario 3, knowing and stopping
+|OpenTelemetry to Tempo and MLflow, token metrics and an alert, the kill-switch component
 |===
 
-== Environment facts
+[NOTE]
+.Technology Preview status
+====
+As of OpenShift AI 3.5 and Connectivity Link 1.4, the MCP gateway, the MCP catalog, MaaS external-model egress and GenAI Studio guardrails are Technology Preview. Gateway-native MCP guardrails are the target design but do not yet relay tool-calling turns in this release, so the guardrails proxy is the enforced path for both Scenario 2's flag and Scenario 3's topic refusal.
+====
 
-* OpenShift 4.22
-* Red Hat OpenShift AI 3.5
-* Admin access to a temporary, dedicated lab cluster
+Continue with xref:02-before-you-start.adoc[02. Before you start].

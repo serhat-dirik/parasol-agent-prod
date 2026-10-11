@@ -19,3 +19,4 @@ asciidoc:
     console_url: https://console-openshift-console.apps.cluster-znh6n.dyn.redhatworkshops.io
     argocd_url: https://openshift-gitops-server-openshift-gitops.apps.cluster-znh6n.dyn.redhatworkshops.io
     mlflow_url: https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow
+    repo_url: https://github.com/serhat-dirik/parasol-agent-prod

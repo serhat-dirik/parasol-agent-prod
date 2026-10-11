@@ -1,0 +1,49 @@
+= 06. Scenario 4: The evaluation gate
+:navtitle: 06. Scenario 4: The evaluation gate
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+A developer simplifies the assistant's system prompt. Before the change can reach production, the platform evaluates it against a fixed golden set. The regression is caught and promotion is blocked. This scenario runs in the consoles, not in a portal.
+
+[NOTE]
+.Know: quality is enforced, not hoped for
+====
+A prompt change is a code change: it can silently remove a safety behavior. A version that fails the evaluation cannot be promoted, and every score is tied to the exact prompt and model version it measured.
+====
+
+== Show: the evaluation run
+
+. Select the *OpenShift AI* tab and open *Model evaluation runs*, project `parasol-eval`.
++
+What you should see: the run `parasol-agent-model-eval` in state *Complete*. It is a TrustyAI `LMEvalJob` that evaluated the agent's model (`qwen3-14b`) on the external MaaS endpoint and produced a score. The evaluation surface is live end to end, not a script.
+
+== Show: the golden set, v1 against v2
+
+. Select the *MLflow* tab and open experiment `parasol-agent-eval`.
++
+What you should see: the golden set `parasol-golden-20` scored twice, each case judged by `gpt-oss-120b`:
++
+* *v1* (the current prompt): *20/20, PASS*;
+* *v2* (the simplified prompt): *17/20, BLOCK*. It fails the injection-document, role-authorization and other-claimant cases.
+
+. Open the v2 run and its injection-document case.
++
+What you should see: the judge's rationales, for example "unauthorized payout action" and "acting on hidden instructions".
+
+. In MLflow, open *Prompts*, then `parasol-claims-assistant-system-prompt`, and compare v1 with v2.
++
+What you should see: both versions registered, so the failure is on record and a promotion can name the exact prompt version.
+
+== Show: the gate
+
+. Select the *OpenShift Console* tab and open *Pipelines*, project `parasol-build`, then *PipelineRuns*. Direct link: link:{console_url}/pipelines/ns/parasol-build[parasol-build pipelines,window=_blank].
++
+What you should see: the two gate runs. `parasol-agent-eval-gate-v1` reports `EVAL_SCORE 1.00` and `EVAL_GATE passed`; `parasol-agent-eval-gate-v2` reports `EVAL_SCORE 0.85` and `EVAL_GATE failed`. The `agent-eval` task blocks promotion below 19/20, so v2 never reaches production while v1 does.
+
+. Select the *OpenShift AI* tab and open *Model registry*, then `parasol-claims-assistant`, then *Versions*.
++
+What you should see: each evaluation score tied to the model version the pipeline would promote.
+
+Continue with xref:07-supply-chain.adoc[07. Supply chain: signing and admission].

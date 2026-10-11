@@ -2,8 +2,8 @@
 type: showroom
 theme: rh-one-2025
 
-# Left column (the instructions pane) takes 35% of the width.
-default_width: 35
+# Left column (the guide) takes 30% of the width, leaving the framed tabs as wide as possible.
+default_width: 30
 # Persist the URL state so a browser refresh does not reset the UI.
 persist_url_state: true
 
@@ -17,13 +17,13 @@ antora:
   modules:
     - name: index
     - name: 01-architecture
-    - name: 02-demo1-uncontrolled
-    - name: 03-demo2-sandboxed
-    - name: 04-demo3-night-shift
-    - name: 05-lifecycle
-    - name: 06-platform-tour
-    - name: 07-reset-troubleshooting
-    - name: 08-whats-next
+    - name: 02-before-you-start
+    - name: 03-scenario1-colleague
+    - name: 04-scenario2-document
+    - name: 05-scenario3-night-shift
+    - name: 06-scenario4-eval-gate
+    - name: 07-supply-chain
+    - name: 08-reset-troubleshooting
 
 # Full hostnames are used on purpose. This is a single, disposable lab cluster and the
 # cluster domain is safe to commit (see the media-capture conventions). It also avoids
@@ -35,26 +35,21 @@ tabs:
   - name: Portal secured
     url: 'https://portal.apps.cluster-znh6n.dyn.redhatworkshops.io'
 
-  # The platform consoles send frame-blocking headers (X-Frame-Options / CSP), so they
-  # cannot be embedded in an iframe. external:true renders them as a launcher that opens
-  # the real console in a new browser tab.
+  # The platform consoles are framed like the portals. Their own X-Frame-Options / CSP would
+  # block that, so scripts/showroom-framing.sh (run by bootstrap.sh) rewrites both headers on the
+  # default IngressController to allow this Showroom origin only.
   - name: Keycloak
-    url: 'https://sso.apps.cluster-znh6n.dyn.redhatworkshops.io'
-    external: true
+    url: 'https://sso.apps.cluster-znh6n.dyn.redhatworkshops.io/admin/master/console/#/parasol'
   - name: OpenShift AI
     url: 'https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io'
-    external: true
   - name: OpenShift Console
     url: 'https://console-openshift-console.apps.cluster-znh6n.dyn.redhatworkshops.io'
-    external: true
   - name: Argo CD
     url: 'https://openshift-gitops-server-openshift-gitops.apps.cluster-znh6n.dyn.redhatworkshops.io'
-    external: true
   - name: MLflow
     url: 'https://rh-ai.apps.cluster-znh6n.dyn.redhatworkshops.io/mlflow'
-    external: true
 
-  # Terminal served by the wetty sidecar, reverse-proxied at /wetty on the Route host.
+  # Terminal served by the ttyd sidecar, reverse-proxied at /wetty/ on the Route host.
   - name: Terminal
-    path: /wetty
+    path: /wetty/
     port: 443
