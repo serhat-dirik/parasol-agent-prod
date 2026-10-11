@@ -107,6 +107,7 @@ scripts/fetch-detector-model.sh || echo "WARN: detector model fetch failed; the 
 
 log "8/8 Status"
 scripts/showroom-framing.sh || echo "WARN: console framing headers not applied; Showroom console tabs stay blank. See scripts/showroom-framing.sh"
+scripts/console-plugins.sh || echo "WARN: console plugins not enabled; the PipelineRun graph will be missing. See scripts/console-plugins.sh"
 scripts/status.sh
 cat <<MSG
 
