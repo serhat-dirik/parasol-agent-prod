@@ -71,24 +71,36 @@ between runs — the demo itself is the browser.
 
 Prerequisites: a fresh OpenShift 4.22 cluster (3 workers, 16 vCPU / 64 GB recommended, no GPU),
 `oc` logged in as cluster-admin, `kustomize`, `envsubst`, `openssl`, `python3` with PyYAML, and an
-OpenAI-compatible MaaS endpoint with a key. OpenShift GitOps and a Keycloak instance may already be
+OpenAI-compatible MaaS endpoint. The endpoint may serve several models with their own keys (a "MAAS
+keys" section in the credentials file); `source scripts/load-credentials.sh` reads them and exports
+`MAAS_KEY_<MODEL>` without printing values. OpenShift GitOps and a Keycloak instance may already be
 present — `bootstrap.sh` detects and reuses them.
 
 ```bash
 export MAAS_ENDPOINT=https://<maas-host>/v1
-export MAAS_API_KEY=<key>
-export MAAS_MODEL=llama-scout-17b      # the one model known to emit structured tool calls here
+export MAAS_API_KEY=<key>              # the agent/prod key (llama-scout-17b tier)
+export MAAS_MODEL=llama-scout-17b      # default agent model; the demo repoints both portals to qwen3-14b (an injection-obeying model) via the env overlays
 ./bootstrap.sh
 ```
 
-`bootstrap.sh` is idempotent: it installs the operators, creates the secrets (MaaS credentials,
-service identities, trusted-header keys — none ever in Git), builds the images in-cluster (binary
-builds, no registry credentials), and applies the Argo app-of-apps. The repo must be pushed to a Git
-remote Argo can reach (`REPO_URL`) before Argo can sync. Then open the portals in a browser — **this
-is the demo**:
+`bootstrap.sh` is idempotent: it installs the operators; creates the secrets (MaaS credentials, the
+per-model MaaS keys via `scripts/maas-model-keys.sh`, service identities, trusted-header keys — none
+ever in Git); builds the images in-cluster (binary builds, no registry credentials); and applies the
+Argo CD app-of-apps, which syncs the whole platform — the two portals, the Keycloak realm, the MCP
+gateway, MaaS tiers (four external models), guardrails, observability (OTel → Tempo and MLflow), the
+signed build pipeline with admission control, TrustyAI evaluation, the Developer Hub golden path, the
+Connectivity Link developer portal, and the Showroom guide. The repo must be pushed to a Git remote
+Argo can reach (`REPO_URL`) before Argo can sync.
+
+Verify the install with `scripts/status.sh` (all Argo apps Synced/Healthy, both portals up), or Argo CD
+directly. Then open the portals in a browser — **this is the demo**:
 
 * uncontrolled: `https://portal-free.apps.<cluster-domain>`
 * secured: `https://portal.apps.<cluster-domain>`
+
+Platform consoles (same `<cluster-domain>`): Argo CD `openshift-gitops-server-openshift-gitops.apps.…`,
+OpenShift AI `rh-ai.apps.…`, Keycloak `sso.apps.…`, Showroom `showroom-parasol-showroom.apps.…`,
+Developer Hub `backstage-parasol-parasol-devhub.apps.…`.
 
 Kill switch: add `./kill-switch` to `components:` in `gitops/envs/secured/kustomization.yaml`,
 commit, let Argo sync. The pods keep running; the agent can reach nothing. Remove the line to restore.
@@ -113,6 +125,19 @@ console (Gateway API, Traces, Alerting), Argo CD, GitHub. The claims databases a
 do not reset when switching between the two tabs within a scenario — `scripts/reset.sh` appears as a
 step only where it is needed below.
 
+**Consoles, dashboards & logs — where to look.** Every secured beat is observable on the platform, not
+just in the portal chat. By `<cluster-domain>`:
+
+* **Argo CD** (`openshift-gitops-server-openshift-gitops.apps.<domain>`) — every component Synced/Healthy; the GitOps source of truth. `scripts/status.sh` summarizes.
+* **OpenShift AI** (`rh-ai.apps.<domain>`) — Models-as-a-Service (four external models + per-key usage), the GenAI Studio playground, MLflow (chat traces + the `parasol-agent-eval` golden-set runs), and Model evaluation runs (TrustyAI/LMEval).
+* **OpenShift console → Observe** — **Dashboards** → the *Parasol assistant* one-page (tool calls by status, guardrail hits, token spend, P95 latency, the alert); **Alerting** (`ParasolAssistantTokenSpendHigh`); **Metrics** (`parasol_tool_calls_total`, token spend); **Traces** (Tempo).
+* **OpenShift console → Networking / Gateways** — the MCP and MaaS Gateways and their AuthPolicies (Enforced).
+* **Keycloak** (`sso.apps.<domain>`) — realm `parasol`: users, groups, and the `tool:*` roles.
+* **Live logs** (to confirm a beat at the component level):
+  - guardrails flag/block — `oc logs -n parasol-secured deploy/guardrails-proxy`
+  - tool-authz 403 — `oc logs -n mcp-system deploy/mcp-gateway` (and the portal: `oc logs -n parasol-secured deploy/portal`)
+  - per-user 429 — `oc logs -n kuadrant-system deploy/limitador-limitador`
+
 **Scenario 1 — the colleague.** *An adjuster has no authority to approve a payout. Unsecured, the
 agent does it for her anyway; secured, the tool is never even offered to her, and only a manager's
 click writes.*
@@ -136,6 +161,9 @@ Secured (`portal`), same claim, same request:
    appears, and the timeline reads "Approved by marcus via assistant".
 5. **Consoles:** Keycloak shows the `tool:approve_payout` role on the claims-managers group; OpenShift
    console → Gateway API shows the AuthPolicies (Enforced) and the audit line for rebecca's 403.
+   **Check it:** rebecca's 403 appears in the MCP gateway log (`oc logs -n mcp-system deploy/mcp-gateway`),
+   and `parasol_tool_calls_total{tool="approve_payout",status="403",user="rebecca"}` ticks on the operator
+   dashboard (Observe → Dashboards).
 
 **Scenario 2 — the customer's document.** *Both portals run the same injection-obeying model
 (`qwen3-14b`): unsecured, the model obeys the hidden note and pays the document's figure on a denied
@@ -169,6 +197,10 @@ Secured (`portal`), same claim, same request:
    lists **Granite Guardian** (`granite-guardian-3-1-8b`, the MaaS *guard* tier): select it on the same
    note and it returns **risky ≈ 0.98** — a model-based second detector alongside the regex detector the
    portal enforces.
+   **Check it:** the flag is in the proxy log (`oc logs -n parasol-secured deploy/guardrails-proxy` →
+   `action=flag detectors=regex score=1`); the trace (`model.chat → tool.get_claim_documents →
+   guardrails.tool_result → tool.propose_payout`, with **no** `approve_payout` span) is in Observe →
+   Traces and in MLflow; the guardrail-hit panel ticks on the operator dashboard.
 
 **Scenario 3 — the night shift.** *A policyholder account loops off-topic requests at 2 a.m. to drain
 the budget. Unsecured, the shared key burns all night; secured, the junk is refused for free, only
@@ -188,6 +220,9 @@ Secured (`portal`):
 4. **Watch (consoles):** Observe → Alerting shows `ParasolAssistantTokenSpendHigh` firing, naming the
    user and namespace; Observe → Traces and MLflow show one night request with the user on the span;
    MaaS usage attributes the spend to that account while the production allowance is untouched.
+   **Check it:** the per-user 429 is in `oc logs -n kuadrant-system deploy/limitador-limitador`; the
+   token-spend and per-user panels and the firing alert are on the operator dashboard (Observe →
+   Dashboards); per-key usage is OpenShift AI → Models-as-a-Service.
 5. **Operator's response, in the UI (pick one):**
    - Keycloak → disable user `tom.becker`; his next request is a login failure; or
    - commit the kill switch in GitHub → Argo syncs → the portal shows "assistant offline" while the
