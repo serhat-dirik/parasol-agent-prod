@@ -12,11 +12,11 @@ const USERS: User[] = [
   { name: 'Rebecca Torres', username: 'rebecca', role: 'Claims adjuster', group: 'adjusters' },
   { name: 'Marcus Lee', username: 'marcus', role: 'Claims manager', group: 'claims-managers' },
   { name: 'Dev Patel', username: 'dev', role: 'Developer', group: 'developers' },
-  { name: 'Tom Becker', username: 'tom.becker', role: 'Policyholder', group: 'policyholders' },
+  { name: 'Nina Patel', username: 'nina.contractor', role: 'Night-shift contractor', group: 'contractors' },
 ];
 
 const groupColors: Record<string, 'blue' | 'green' | 'purple' | 'orange'> = {
-  adjusters: 'blue', 'claims-managers': 'green', developers: 'purple', policyholders: 'orange',
+  adjusters: 'blue', 'claims-managers': 'green', developers: 'purple', contractors: 'orange',
 };
 
 const STATUS = [

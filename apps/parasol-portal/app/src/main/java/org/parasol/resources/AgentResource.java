@@ -18,7 +18,7 @@ import jakarta.ws.rs.core.Response;
 /**
  * REST surface for the portal's assistant, kept for scripts and tests (the audience uses the chat
  * WebSocket). {@code POST /agent/ask} with a {@code Authorization: Bearer <token>} header is what
- * {@code scripts/night-shift.sh} drives as the policyholder {@code tom.becker}: same shape as the
+ * {@code scripts/night-shift.sh} drives as the contractor {@code nina.contractor}: same shape as the
  * REST agent's endpoint. {@link org.parasol.ai.CallerIdentity} captures the bearer token and
  * forwards it to the MCP gateway; in the free environment no token is sent (anonymous to tools).
  */

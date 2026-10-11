@@ -74,8 +74,8 @@ public class AgentService {
         Timer.Sample latency = Timer.start(metrics);
         // MLflow 3.14 OTLP ingest reads these span attributes into trace metadata: session.id ->
         // mlflow.trace.session and user.id -> mlflow.trace.user. Keying both on the caller makes
-        // rebecca / marcus / tom.becker each show up as one SESSION (the night shift = one session,
-        // ~200 turns for tom.becker). Set on the current (root) span; the ingest scans all spans.
+        // rebecca / marcus / nina.contractor each show up as one SESSION (the night shift = one session,
+        // ~200 turns for nina.contractor). Set on the current (root) span; the ingest scans all spans.
         Span root = Span.current();
         String who = caller.subject();
         root.setAttribute("session.id", who);
@@ -180,7 +180,7 @@ public class AgentService {
             return;
         }
         // user tag carries the Keycloak preferred_username so the per-user spend alert can NAME the
-        // offender (e.g. tom.becker in the night-shift storm); "anonymous" on the free, no-token path.
+        // offender (e.g. nina.contractor in the night-shift storm); "anonymous" on the free, no-token path.
         String user = caller.subject();
         if (t.inputTokenCount() != null) {
             metrics.counter("parasol_agent_tokens_total", "type", "input", "version", version, "user", user)

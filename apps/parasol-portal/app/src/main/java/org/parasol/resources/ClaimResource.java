@@ -250,7 +250,7 @@ public class ClaimResource {
                 "claims-managers", "claims manager",
                 "adjusters", "claims adjuster",
                 "developers", "developer",
-                "policyholders", "policyholder");
+                "contractors", "night-shift contractor");
         for (String g : groups) {
             String key = g.startsWith("/") ? g.substring(1) : g;
             if (labels.containsKey(key)) {
