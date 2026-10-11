@@ -27,6 +27,20 @@ spec:
     annotations:
       service.beta.openshift.io/serving-cert-secret-name: maas-default-gateway-tls
   listeners:
+    # FIRST on purpose: maas-api /v1/tenants takes the first HTTPS listener's hostname as the MaaS API URL and
+    # rejects *.svc.cluster.local; the dashboard's maas-ui BFF (API keys page) calls that URL and caches it until
+    # restarted. Reached via the passthrough Route below with the cluster's wildcard ingress cert (same namespace).
+    # Hostname patched to maas.apps.<domain> by the platform-rhoai Application.
+    - name: https-external
+      hostname: maas.apps.CLUSTER_DOMAIN
+      port: 443
+      protocol: HTTPS
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - {group: "", kind: Secret, name: cert-manager-ingress-cert}   # = ingresscontroller/default spec.defaultCertificate on this lab
+      allowedRoutes:
+        namespaces: {from: All}
     # maas-api only accepts a gateway Service it owns that exposes 443 (ResolveGatewayInternalHost)
     - name: https
       hostname: maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local   # = the Service name: maas-api probes and the cert use it
@@ -38,3 +52,19 @@ spec:
           - {group: "", kind: Secret, name: maas-default-gateway-tls}
       allowedRoutes:
         namespaces: {from: All}
+---
+# Passthrough (not reencrypt: the router sends no SNI to the backend, and the Gateway selects the listener by SNI).
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: maas-default-gateway
+  namespace: openshift-ingress
+spec:
+  host: maas.apps.CLUSTER_DOMAIN
+  tls:
+    termination: passthrough
+  port:
+    targetPort: 443
+  to:
+    kind: Service
+    name: maas-default-gateway-openshift-default
