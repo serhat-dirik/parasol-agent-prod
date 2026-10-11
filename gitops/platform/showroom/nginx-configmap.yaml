@@ -27,9 +27,20 @@ data:
         listen 8081;
         absolute_redirect off;
 
-        # Terminal (ttyd, :7681) under /wetty/. ttyd builds its token and websocket URLs relative to
-        # the page, so the bare /wetty gets one redirect to /wetty/ (ttyd never redirects back).
-        location = /wetty { return 302 /wetty/; }
+        # Terminal (ttyd, :7681) under /wetty/. The oauth-proxy in front forwards the tab's /wetty/
+        # as /wetty, so the bare path must SERVE the terminal (a redirect to /wetty/ loops forever).
+        # The browser's address stays /wetty/, so ttyd's relative token and websocket URLs still
+        # resolve under /wetty/ and land in the block below.
+        location = /wetty {
+          proxy_pass http://127.0.0.1:7681/;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection $connection_upgrade;
+          proxy_set_header Host $http_host;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_read_timeout 43200s;
+        }
         location /wetty/ {
           proxy_pass http://127.0.0.1:7681/;
           proxy_http_version 1.1;
