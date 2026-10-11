@@ -13,11 +13,26 @@ spec:
   source: redhat-operators
   sourceNamespace: openshift-marketplace
 ---
+# Own namespace, not openshift-operators: its webhook Service selects control-plane=controller-manager,
+# which there also matches the Tempo and OpenTelemetry operator pods, so admission calls land on the
+# wrong pod (x509: certificate is valid for tempo-operator-controller-service).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-policy-controller
+---
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-policy-controller
+  namespace: openshift-policy-controller
+spec: {}  # AllNamespaces
+---
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
 metadata:
   name: policy-controller-operator
-  namespace: openshift-operators
+  namespace: openshift-policy-controller
 spec:
   channel: stable
   installPlanApproval: Automatic

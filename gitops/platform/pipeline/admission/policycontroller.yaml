@@ -20,9 +20,8 @@ spec:
       failurePolicy: Fail
       # Trust the OpenShift service-serving CA so the webhook can fetch image signatures
       # from the internal registry (image-registry.openshift-image-registry.svc) over TLS.
-      env:
-        - name: SSL_CERT_FILE
-          value: /var/run/service-ca/service-ca.crt
+      env:   # a name -> value map in this chart (policy-controller-operator 1.1), not a list
+        SSL_CERT_FILE: /var/run/service-ca/service-ca.crt
       volumes:
         - name: service-ca
           configMap:

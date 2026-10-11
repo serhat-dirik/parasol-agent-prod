@@ -32,9 +32,16 @@ oc wait securesign/securesign -n trusted-artifact-signer --for=condition=Ready -
 
 echo "== 3 cosign keypair (Tekton Chains)"
 wait_for 40 15 "namespace openshift-pipelines" oc get ns openshift-pipelines
-if [ -n "$(oc get secret signing-secrets -n openshift-pipelines -o jsonpath='{.data.cosign\.pub}' 2>/dev/null)" ]; then
+has_pub() { [ -n "$(oc get secret signing-secrets -n openshift-pipelines -o jsonpath='{.data.cosign\.pub}' 2>/dev/null)" ]; }
+# OpenShift Pipelines creates signing-secrets itself (immutable) and fills it with a generated keypair
+# shortly after install. Give it time: generating our own into an immutable Secret fails.
+oc get secret signing-secrets -n openshift-pipelines >/dev/null 2>&1 && ! has_pub \
+  && { wait_for 16 15 "the Pipelines-generated keypair in signing-secrets" has_pub || true; }
+if has_pub; then
   echo "signing-secrets: already present"
 else
+  # still empty: an immutable Secret cannot be filled, so replace it
+  oc delete secret signing-secrets -n openshift-pipelines --ignore-not-found >/dev/null
   echo "signing-secrets: generating the cluster keypair in-cluster (the private key never leaves the cluster)"
   oc -n openshift-pipelines get secret cosign-keygen-password >/dev/null 2>&1 || \
     oc -n openshift-pipelines create secret generic cosign-keygen-password --from-literal=password="$(openssl rand -hex 16)" >/dev/null
