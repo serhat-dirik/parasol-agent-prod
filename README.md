@@ -120,13 +120,6 @@ directly. Then open the portals in a browser — **this is the demo**:
 * uncontrolled: `https://portal-free.apps.<cluster-domain>`
 * secured: `https://portal.apps.<cluster-domain>`
 
-Platform consoles (same `<cluster-domain>`): Argo CD `openshift-gitops-server-openshift-gitops.apps.…`,
-OpenShift AI `rh-ai.apps.…`, Keycloak `sso.apps.…`, Showroom `showroom-parasol-showroom.apps.…`,
-Developer Hub `backstage-parasol-parasol-devhub.apps.…`.
-
-Kill switch: add `./kill-switch` to `components:` in `gitops/envs/secured/kustomization.yaml`,
-commit, let Argo sync. The pods keep running; the agent can reach nothing. Remove the line to restore.
-
 **Demo users** — Keycloak realm `parasol` (passwords equal the usernames; they exist only for this demo):
 
 * `rebecca` — claims adjuster (read-only tools; can propose but not approve)
