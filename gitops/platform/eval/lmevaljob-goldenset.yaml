@@ -4,22 +4,26 @@
 # so LMEval/TrustyAI is the sanctioned path (see docs/handover.md).
 #
 # ------------------------------------------------------------------------------------------------------
-# NOT APPLIED BY DEFAULT. Two gates must clear first (both documented to the coordinator/owner):
+# KEPT FOR REFERENCE - this custom-card golden-set variant does NOT run on the installed build. Use
+# lmevaljob-agent-model.yaml for a run that actually completes and renders in the dashboard; the
+# golden-set COMPLIANCE scoring (v1 20/20 PASS, v2 17/20 BLOCK) is carried by MLflow experiment
+# parasol-agent-eval (id 2), judged by gpt-oss-120b. Status of the two original gates:
 #
-#   GAP 1 - judge model: the item asks for gpt-oss-120b as judge via MaaS key 2, but the lab MaaS
-#           endpoint (maas-rhdp.apps.maas.redhatworkshops.io) serves ONLY llama-scout-17b
-#           (credentials litellm_available_models_list=llama-scout-17b; /v1/models with key2 confirms).
-#           gpt-oss-120b is not served, so the judge below is llama-scout-17b (candidate==judge). When a
-#           gpt-oss-120b endpoint exists, change the judge metric / model id only.
+#   GAP 1 (judge model) - RESOLVED: gpt-oss-120b IS now reachable (Secret maas-key-gpt-oss-120b /
+#           GENAI_API_KEY in parasol-eval; see docs/handover.md "per-model MaaS keys DO exist"). The
+#           MLflow golden-set runs already use it as the judge.
 #
-#   GAP 2 - shared operator flags: LMEval only honours allowOnline/allowCodeExecution when the TrustyAI
-#           operator permits them globally. On this cluster the TrustyAI CR default-trustyai has
-#           spec.eval.lmeval.permitOnline=deny and permitCodeExecution=deny (derived CM
-#           trustyai-service-operator-config: lmes-allow-online=false, lmes-allow-code-execution=false).
-#           Flipping those is a SHARED-operator change flagged by the permission classifier; it is the
-#           owner's call (surfaced). To enable: set permitOnline=allow + permitCodeExecution=allow on the
-#           TrustyAI CR (it is DSC-reconciled, so set it where the DSC sources it), confirm the derived CM
-#           reads true, then apply this file.
+#   GAP 2 (shared operator flags) - RESOLVED (owner-authorized, applied by P-EVAL): the DURABLE control
+#           is the DataScienceCluster, not the operator ConfigMap (both trustyai-service-operator-config
+#           and the TrustyAI CR spec.eval.lmeval revert within ~10s if patched directly). Enable with:
+#             oc patch datasciencecluster default-dsc --type merge \
+#               -p '{"spec":{"components":{"trustyai":{"eval":{"lmeval":{"permitOnline":"allow","permitCodeExecution":"allow"}}}}}}'
+#           (revert: same with deny/deny). With it set, the LMEval controller admits and RUNS jobs.
+#
+#   REMAINING GAP (why this file is reference-only) - the custom unitxt card below fails at template
+#           resolution on TrustyAI v1.37.0 / lm-eval-harness v0.4.8: "the reference name of the custom
+#           template is not defined: templates.qa.open.*". A built-in taskName (see the agent-model file)
+#           sidesteps the custom-card parser. The golden-set judged result lives in MLflow.
 #
 # Prereqs at apply time (already created by scripts/eval-goldenset.sh):
 #   - namespace parasol-eval

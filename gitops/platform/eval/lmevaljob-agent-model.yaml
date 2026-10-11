@@ -1,0 +1,50 @@
+# Stream P-EVAL. TrustyAI LMEvalJob that RUNS and renders a completed run in the RHOAI dashboard
+# (TrustyAI / LMEval -> "Model evaluation runs", namespace parasol-eval). It evaluates the model
+# behind the Parasol claims assistant (llama-scout-17b) on a small, self-contained standard task so
+# the LMEval product surface is proven working end-to-end against the agent's own MaaS model.
+#
+# Why a standard task and not the golden-set custom card: on this build (TrustyAI operator v1.37.0 /
+# lm-eval-harness v0.4.8) a custom unitxt card (load_from_dictionary) fails to resolve a catalog
+# template ref ("the reference name of the custom template is not defined: templates.qa.open.*") -
+# a known Technology-Preview card-authoring quirk. The golden-set COMPLIANCE scoring (v1 20/20 PASS,
+# v2 17/20 BLOCK, judged by gpt-oss-120b) is carried authoritatively by MLflow experiment
+# parasol-agent-eval (id 2); see docs/handover.md (G1) and lmevaljob-goldenset.yaml.
+#
+# Prereqs (all already present):
+#   - namespace parasol-eval; Secret maas-eval-key (key=<MaaS virtual key 2>), never committed.
+#   - TrustyAI operator online + code-execution enabled cluster-wide:
+#       oc patch datasciencecluster default-dsc --type merge \
+#         -p '{"spec":{"components":{"trustyai":{"eval":{"lmeval":{"permitOnline":"allow","permitCodeExecution":"allow"}}}}}}'
+#     (revert: same patch with deny/deny). Only touch trustyai.eval.lmeval.
+# Apply:  oc apply -f gitops/platform/eval/lmevaljob-agent-model.yaml
+# Watch:  oc get lmevaljob -n parasol-eval parasol-agent-model-eval -w
+# Result: .status.results holds the gsm8k exact_match score; Dashboard -> Model evaluation runs.
+apiVersion: trustyai.opendatahub.io/v1alpha1
+kind: LMEvalJob
+metadata:
+  name: parasol-agent-model-eval
+  namespace: parasol-eval
+  labels: {app: parasol-eval, purpose: evaluation}
+spec:
+  # Candidate = the model behind the Parasol assistant, reached OpenAI-compatibly on the external MaaS.
+  model: local-chat-completions
+  modelArgs:
+    - {name: base_url, value: "https://maas-rhdp.apps.maas.redhatworkshops.io/v1/chat/completions"}
+    - {name: model, value: "llama-scout-17b"}
+    - {name: num_concurrent, value: "1"}       # lab budget: no storms (10-day virtual keys)
+    - {name: max_retries, value: "3"}
+    - {name: tokenized_requests, value: "False"}
+  allowOnline: true           # fetch the task dataset (honoured once the DSC flags permit it)
+  allowCodeExecution: true
+  chatTemplate:
+    enabled: true             # required for a chat-completions endpoint (apply_chat_template)
+  logSamples: true
+  limit: "5"                  # keep the lab model budget tiny; proves the surface, not a leaderboard
+  taskList:
+    taskNames:
+      - gsm8k
+  pod:
+    container:
+      env:
+        - name: OPENAI_API_KEY
+          valueFrom: {secretKeyRef: {name: maas-eval-key, key: key}}
