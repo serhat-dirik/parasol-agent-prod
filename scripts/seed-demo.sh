@@ -38,9 +38,9 @@ echo "== 4 model registry"
 if wait_for 40 "Model Registry CRD + namespace" oc get crd modelregistries.modelregistry.opendatahub.io -o name \
    && wait_for 20 "namespace rhoai-model-registries" oc get ns rhoai-model-registries; then
   oc apply -f gitops/platform/model-registry/instance.yaml
-  if oc wait modelregistry/parasol-model-registry -n rhoai-model-registries --for=condition=Available --timeout=600s; then
+  if oc wait modelregistries.modelregistry.opendatahub.io/parasol-model-registry -n rhoai-model-registries --for=condition=Available --timeout=600s; then
     gitops/platform/model-registry/register.sh || warn "model registration" gitops/platform/model-registry/register.sh
-  else warn "parasol-model-registry not Available" "oc get modelregistry -n rhoai-model-registries; gitops/platform/model-registry/register.sh"; fi
+  else warn "parasol-model-registry not Available" "oc get modelregistries.modelregistry.opendatahub.io -n rhoai-model-registries; gitops/platform/model-registry/register.sh"; fi
 else warn "Model Registry component not installed (DSC modelregistry)" scripts/seed-demo.sh; fi
 
 echo "== 5 evaluations (EvalHub, LMEval)"

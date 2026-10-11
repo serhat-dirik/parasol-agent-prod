@@ -9,7 +9,7 @@ sec "Argo applications"
 oc get applications -n openshift-gitops -o custom-columns=NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status 2>/dev/null
 sec "OpenShift AI"
 oc get datasciencecluster -o jsonpath='{range .items[0].status.conditions[*]}{.type}={.status}{"\n"}{end}' 2>/dev/null | grep -E 'Ready=' | sed 's/^/  /'
-oc get modelregistry -n rhoai-model-registries 2>/dev/null; oc get mlflow -A 2>/dev/null; oc get evalhub,lmevaljob -n parasol-eval 2>/dev/null
+oc get modelregistries.modelregistry.opendatahub.io -n rhoai-model-registries 2>/dev/null; oc get mlflow -A 2>/dev/null; oc get evalhub,lmevaljob -n parasol-eval 2>/dev/null
 oc get ogxserver -n parasol-ogx-playground 2>/dev/null; oc get externalmodel,maassubscription -n models-as-a-service 2>/dev/null
 sec "gateway and identity"
 oc get gateway -A 2>/dev/null; oc get mcpserverregistration -A 2>/dev/null; oc get authpolicy -A 2>/dev/null
