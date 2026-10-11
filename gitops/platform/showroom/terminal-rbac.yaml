@@ -179,6 +179,11 @@ rules:
   - apiGroups: [argoproj.io]
     resources: [applications]
     verbs: [get, list, watch]
+  # Guide 05/08 kill switch: add/remove the kill-switch component on env-secured (one `oc patch`).
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    resourceNames: [env-secured]
+    verbs: [patch]
 ---
 # reset.sh: restart Limitador to refill the per-user token budgets.
 apiVersion: rbac.authorization.k8s.io/v1
