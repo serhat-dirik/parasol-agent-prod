@@ -7,7 +7,7 @@
 #   4 Model Registry parasol-model-registry: parasol-claims-assistant v1 + v2 with those eval results
 #   5 EvalHub run parasol-agent-model-ifeval + LMEvalJob parasol-agent-model-eval (Evaluations pages)
 #   6 GenAI Studio playground (OGXServer on the agent model)
-#   7 release PipelineRuns v2 (blocked) and, once the GitHub token Secret exists, v1 (promoted)
+#   7 release PipelineRuns v2 (blocked) and v1 (promoted; bootstrap.sh waits for it)
 # Needs the install contract env (AGENT_*, JUDGE_* ...), see bootstrap.sh.
 set -uo pipefail
 cd "$(dirname "$0")/.."

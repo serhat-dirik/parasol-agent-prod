@@ -19,7 +19,7 @@ oc get securesign -n trusted-artifact-signer 2>/dev/null; oc get zerotrustworklo
 oc get clusterimagepolicy,trustroot 2>/dev/null
 echo "parasol-secured admission label: $(oc get ns parasol-secured -o jsonpath='{.metadata.labels.policy\.rhtas\.com/include}' 2>/dev/null)"
 oc get pipelinerun -n parasol-build -o custom-columns=RUN:.metadata.name,STATUS:.status.conditions[0].reason 2>/dev/null
-echo "gitops-auth-secret (promote token): $(oc get secret gitops-auth-secret -n parasol-build -o name 2>/dev/null || echo MISSING)"
+echo "env-secured promoted pin: $(oc get application env-secured -n openshift-gitops -o jsonpath='{.spec.source.kustomize.images}' 2>/dev/null || true)"
 sec "pods"
 for ns in keycloak parasol-free parasol-secured; do echo "[$ns]"; oc get pods -n $ns 2>/dev/null; done
 echo "secured portal image: $(oc get deploy portal -n parasol-secured -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null)"

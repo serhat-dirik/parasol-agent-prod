@@ -3,8 +3,9 @@
 # OpenShift 4.22 cluster (with or without OpenShift AI, GitOps or Keycloak already installed: every
 # prerequisite is detected and installed only if missing). Idempotent: run it again after a failure or a WARN.
 # Expected total: 75-120 min on a bare cluster (operators 10-15, OpenShift AI components 15-40,
-# image builds 10, Trusted Artifact Signer 10-15, golden-set eval 10-20; release pipeline runs continue
-# in the background another 20-30 min).
+# image builds 10, Trusted Artifact Signer 10-15, golden-set eval 10-20, first release run 20-30).
+# No manual step: the first release (v1) is promoted by the pipeline onto the Argo CD Application env-secured
+# (the Git repo is read-only for releases) and bootstrap waits for it.
 #
 # Each model may come from a DIFFERENT OpenAI-compatible endpoint (base URL ending in /v1) with its own key.
 # Required env:
@@ -18,8 +19,6 @@
 #   REPO_REVISION   branch/tag (default: main)
 #   RHOAI_CHANNEL / RHOAI_CSV   OpenShift AI channel / pinned CSV (default stable-3.x / rhods-operator.3.5.1)
 #   SKIP_BUILDS=1   do not start image builds;  SKIP_SEED=1  skip the demo data (scripts/seed-demo.sh)
-# The one manual step (the release pipeline's promote pushes to Git with your GitHub token):
-#   read -s T && oc create secret generic gitops-auth-secret -n parasol-build --from-literal=token="$T" && unset T
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -108,7 +107,16 @@ log "5/12 OpenShift AI platform (DSCInitialization, DataScienceCluster, dashboar
 scripts/rhoai-enable.sh || warn "OpenShift AI platform objects not complete" scripts/rhoai-enable.sh
 
 log "6/12 Argo CD app-of-apps"
+# A promoted release lives on the Application, not in Git (spec.source.kustomize.images/replicas, set by
+# the pipeline's promote). Read it first and put it back, so a re-run never rolls the secured portal back.
+PIN=$(oc get application env-secured -n openshift-gitops -o jsonpath='{.spec.source.kustomize.images}' 2>/dev/null || true)
+PIN_REPLICAS=$(oc get application env-secured -n openshift-gitops -o jsonpath='{.spec.source.kustomize.replicas}' 2>/dev/null || true)
 kustomize build gitops/bootstrap/apps | envsubst "$APPS_ENV" | oc apply -f -
+if [ -n "$PIN" ]; then
+  oc patch application env-secured -n openshift-gitops --type merge \
+    -p "{\"spec\":{\"source\":{\"kustomize\":{\"images\":$PIN,\"replicas\":${PIN_REPLICAS:-null}}}}}" >/dev/null
+  echo "kept the promoted secured portal pin: $PIN"
+fi
 [ $KC_APP = 1 ] && envsubst "$APPS_ENV" < gitops/bootstrap/optional/platform-keycloak-instance.yaml | oc apply -f -
 
 log "7/12 Images (built from this checkout; the secured portal is built by the release pipeline)"
@@ -144,6 +152,8 @@ if [ "${SKIP_SEED:-0}" = 1 ]; then echo "SKIP_SEED=1"
 else scripts/seed-demo.sh || warn "demo data incomplete (the lines above name each step)" scripts/seed-demo.sh; fi
 scripts/showroom-framing.sh || warn "console framing headers not applied; Showroom console tabs stay blank" scripts/showroom-framing.sh
 scripts/console-plugins.sh || warn "console plugins not enabled; the PipelineRun graph will be missing" scripts/console-plugins.sh
+echo "first release: v1 is promoted onto env-secured, v2 is blocked by the gate (~20-30 min)"
+scripts/pipeline-runs.sh --wait || warn "release v1 not promoted; the secured portal stays at 0 replicas" "scripts/pipeline-runs.sh --wait"
 scripts/status.sh || true
 
 [ -n "$WARNS" ] && printf '\n\033[1;33mFinished with warnings (each line: what, then the command to re-run):\033[0m%b\n' "$WARNS"
@@ -151,12 +161,3 @@ cat <<MSG
 
 Showroom guide: https://showroom-parasol-showroom.apps.$CLUSTER_DOMAIN
 MSG
-if ! oc get secret gitops-auth-secret -n parasol-build >/dev/null 2>&1; then cat <<'MSG'
-
-ONE MANUAL STEP LEFT: the secured portal runs only the image the release pipeline signs and promotes,
-and promotion is a commit to this repo. Give the pipeline a GitHub token (contents:write on the repo):
-  read -s T && oc create secret generic gitops-auth-secret -n parasol-build --from-literal=token="$T" && unset T
-then start the promoted release run (~25 min, then Argo rolls the secured portal):
-  scripts/pipeline-runs.sh --wait
-MSG
-fi
