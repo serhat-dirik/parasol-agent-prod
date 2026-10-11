@@ -2,9 +2,10 @@
 # overrideConfig is used because the OGX operator (TP) cannot resolve the
 # distribution base config from the image OCI labels (HTTP 401 - the operator
 # mounts no registry.redhat.io credentials). Supplying a full config.yaml here
-# bypasses that fetch. The MaaS API key is NOT in this file: it is read from the
-# OPENAI_API_KEY env var, injected from the ogx-maas-key Secret by
-# scripts/ogx-playground.sh (secret never committed).
+# bypasses that fetch. The agent endpoint and model come from the install
+# contract (envsubst '$AGENT_ENDPOINT $AGENT_MODEL' in scripts/ogx-playground.sh).
+# The API key is NOT in this file: it is read from the OPENAI_API_KEY env var,
+# injected from the ogx-maas-key Secret (AGENT_KEY) by that script, never committed.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -21,19 +22,19 @@ data:
     - tool_runtime
     providers:
       inference:
-      - provider_id: maas-llama-scout
+      - provider_id: maas-agent
         provider_type: remote::openai
         config:
           api_key: ${env.OPENAI_API_KEY:=placeholder}
-          base_url: https://maas-rhdp.apps.maas.redhatworkshops.io/v1
+          base_url: ${AGENT_ENDPOINT}
       tool_runtime:
       - provider_id: model-context-protocol
         provider_type: remote::model-context-protocol
         config: {}
     models:
-    - model_id: llama-scout-17b
-      provider_id: maas-llama-scout
-      provider_model_id: llama-scout-17b
+    - model_id: ${AGENT_MODEL}
+      provider_id: maas-agent
+      provider_model_id: ${AGENT_MODEL}
       model_type: llm
     tool_groups: []
     server:
