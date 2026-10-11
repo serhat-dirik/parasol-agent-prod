@@ -17,6 +17,15 @@ spec:
     spec:
       serviceAccountName: showroom-terminal
       initContainers:
+        # Random cookie secret for the oauth-proxy, generated per pod (never stored in a repo or a Secret).
+        - name: oauth-cookie
+          image: quay.io/rhpds/nginx:1.25
+          command: ["sh", "-c", "head -c 24 /dev/urandom | base64 | tr -d '\\n' > /oauth/cookie-secret"]
+          volumeMounts:
+            - {name: oauth-cookie, mountPath: /oauth}
+          resources:
+            requests: {cpu: 10m, memory: 16Mi}
+            limits: {cpu: 100m, memory: 64Mi}
         # Build the Antora site from the committed content into the shared volume.
         # site.yml points at the remote repo, so the builder only needs the playbook and network.
         - name: antora-build
@@ -67,7 +76,32 @@ spec:
           resources:
             requests: {cpu: 50m, memory: 256Mi}
             limits: {cpu: "1", memory: 1Gi}
-        # Front proxy, the only container the Service/Route target.
+        # OpenShift sign-in in front of everything: the Service/Route target this container. Only
+        # signed-in cluster users who can get Services in parasol-showroom reach nginx and the Terminal.
+        - name: oauth-proxy
+          image: image-registry.openshift-image-registry.svc:5000/openshift/oauth-proxy:v4.4
+          args:
+            - --provider=openshift
+            - --openshift-service-account=showroom-terminal
+            - '--openshift-sar={"namespace":"parasol-showroom","resource":"services","verb":"get"}'
+            - --http-address=:4180
+            - --https-address=
+            - --upstream=http://localhost:8081
+            - --cookie-secret-file=/oauth/cookie-secret
+            - --cookie-secure=true
+            - --skip-provider-button=true
+          ports:
+            - {containerPort: 4180, name: oauth}
+          volumeMounts:
+            - {name: oauth-cookie, mountPath: /oauth}
+          readinessProbe:
+            httpGet: {path: /oauth/healthz, port: 4180}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 20m, memory: 32Mi}
+            limits: {cpu: 200m, memory: 128Mi}
+        # Front proxy behind the oauth-proxy.
         #   /       -> nookbag cockpit (:8080), which also serves /nookbag.yml and /antora
         #   /wetty  -> wetty terminal (:3000), websocket
         - name: nginx
@@ -95,4 +129,5 @@ spec:
         - {name: nginx-cache, emptyDir: {}}
         - {name: nginx-run, emptyDir: {}}
         - {name: terminal-home, emptyDir: {}}
+        - {name: oauth-cookie, emptyDir: {medium: Memory}}
         - {name: terminal-start, configMap: {name: showroom-terminal, defaultMode: 0755}}

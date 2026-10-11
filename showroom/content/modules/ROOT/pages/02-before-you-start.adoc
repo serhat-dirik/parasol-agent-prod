@@ -32,13 +32,11 @@ What you should see: every component Synced and Healthy. Argo CD is the GitOps s
 
 == Sign in to the consoles
 
-The OpenShift sign-in page cannot be shown inside a tab. Sign in once in a normal browser tab; the tabs on the right then reuse that session.
-
-. Open link:{console_url}[the OpenShift console,window=_blank] in a new browser tab and sign in as the cluster administrator. Leave the tab open.
+This Showroom itself sits behind the OpenShift sign-in, so you signed in to OpenShift when you opened it. The OpenShift console, OpenShift AI, MLflow and Argo CD tabs use the same OpenShift sign-in and reuse that session. The OpenShift sign-in page itself (a passthrough route) cannot be shown inside a tab.
 
 . Select the *OpenShift Console*, *OpenShift AI*, *MLflow* and *Argo CD* tabs in turn.
 +
-What you should see: each one opens signed in. If one still shows a sign-in button, click it once.
+What you should see: each one opens signed in. If one still shows a sign-in button, click it once. If a tab stays blank, open link:{console_url}[the OpenShift console,window=_blank] in a normal browser tab, sign in there once, and reload the tab.
 
 . Select the *Keycloak* tab and sign in to the administration console.
 +

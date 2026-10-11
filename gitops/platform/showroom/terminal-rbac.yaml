@@ -2,12 +2,16 @@
 # token, scoped to what the demo scripts need (night-shift.sh, signing-demo.sh, status.sh, the
 # Limitador refill in reset.sh and the `oc logs` checks). No cluster-admin, no
 # Secret access and no pods/exec (so the claims-db part of reset.sh runs from a workstation shell).
-# The Showroom Route is unauthenticated, so everything granted here is reachable by anyone with its URL.
+# The Showroom Route sits behind an OpenShift oauth-proxy: only signed-in cluster users who can get
+# Services in parasol-showroom reach the Terminal.
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: showroom-terminal
   namespace: parasol-showroom
+  annotations:
+    # The oauth-proxy in front of the Showroom uses this ServiceAccount as its OpenShift OAuth client.
+    serviceaccounts.openshift.io/oauth-redirectreference.showroom: '{"kind":"OAuthRedirectReference","apiVersion":"v1","reference":{"kind":"Route","name":"showroom"}}'
 ---
 # Read-only view of the demo workloads and their logs.
 apiVersion: rbac.authorization.k8s.io/v1

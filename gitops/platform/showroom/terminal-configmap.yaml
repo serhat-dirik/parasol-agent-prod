@@ -8,6 +8,7 @@ metadata:
 data:
   start.sh: |
     #!/bin/bash
+    export HOME=/home/lab-user USER=lab-user
     REPO=https://github.com/serhat-dirik/parasol-agent-prod
     DIR="$HOME/parasol-agent-prod"
     if [ -d "$DIR/.git" ]; then
