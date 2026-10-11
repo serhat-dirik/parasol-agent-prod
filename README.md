@@ -159,7 +159,10 @@ Secured (`portal`), same claim, same request:
    - if the request includes a card number, a grey `personal data masked` chip appears first.
 3. **Watch:** the timeline is **unchanged (still Denied)** — nothing was written.
 4. **Consoles:** the GenAI Studio playground runs the same model with the MCP tools and guardrails on;
-   paste the hidden-note text there and it is flagged with its score.
+   paste the hidden-note text there and it is flagged with its score. The playground model picker also
+   lists **Granite Guardian** (`granite-guardian-3-1-8b`, the MaaS *guard* tier): select it on the same
+   note and it returns **risky ≈ 0.98** — a model-based second detector alongside the regex detector the
+   portal enforces.
 
 **Scenario 3 — the night shift.** *A policyholder account loops off-topic requests at 2 a.m. to drain
 the budget. Unsecured, the shared key burns all night; secured, the junk is refused for free, only
@@ -217,6 +220,11 @@ Other helpers:
   `rhoai-enable.sh`, `wait-csv.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`,
   `maas-portal-keys.sh`, `mlflow-experiment.sh`, `portal-oidc-client.sh`, `portal-users.sh`,
   `fetch-detector-model.sh`.
+- MaaS catalogue (three external models, per-tier keys): `maas-model-keys.sh` puts each per-model MaaS
+  key into its own cluster Secret; `maas-ext-model-secrets.sh` creates the upstream per-model key Secrets
+  (and the required `inference.llm-d.ai/ipp-managed=true` label); `maas-tier-keys.sh` mints the three
+  tier keys; `maas-extproc-reload.sh` reloads the ai-gateway ext-procs for the "model registered before
+  the ext-proc started" case.
 
 </details>
 
@@ -243,8 +251,8 @@ of the stack is that a *different* layer catches each scenario:
 | 1 | Isolation | blast radius of all three | Namespace, ResourceQuota, NetworkPolicy, restricted PSA, no SA token, (Kata via `runtimeClassName`) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch}.yaml` |
 | 2 | Identity | Scenario 1 | Keycloak user identity forwarded by the portal to every tool call; service identity for discovery | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak` |
 | 3 | Tool authorization | Scenario 1 | MCP gateway (Connectivity Link, TP): federation, per-identity tool list, per-tool AuthPolicy | `gitops/platform/mcp-gateway`, `gitops/envs/secured/mcp-registrations.yaml` |
-| 4 | Guardrails | Scenarios 2 and 3 | Guardrails detection proxy: regex + prompt-injection detector, PII masking, topic refusal; flag-and-continue or block | `gitops/platform/guardrails` |
-| 5 | Model governance | Scenario 3 | OpenShift AI MaaS: per-workload API key, MaaSSubscription + MaaSAuthPolicy, per-tier token budgets enforced by Connectivity Link; the agent never holds the upstream key (TP for external models) | `gitops/platform/rhoai/*`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh` |
+| 4 | Guardrails | Scenarios 2 and 3 | Guardrails detection proxy (enforced): regex + prompt-injection detector, PII masking, topic refusal; flag-and-continue or block. Additive model-based detectors in the guard tier: Granite Guardian (`granite-guardian-3-1-8b`) and optional Llama-Guard (user message only), shown in GenAI Studio | `gitops/platform/guardrails`, `gitops/platform/guardrails-guardian` |
+| 5 | Model governance | Scenario 3 | OpenShift AI MaaS: **three external models** on their own tiers — `llama-scout-17b` (prod, the agent's model), `granite-4-0-h-tiny` (stage), `granite-guardian-3-1-8b` (guard) — each a MaaSSubscription + MaaSAuthPolicy with its own key and per-tier token budget enforced by Connectivity Link; the agent never holds the upstream key (TP for external models) | `gitops/platform/rhoai/*`, `gitops/platform/maas-tiers`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh`, `scripts/maas-tier-keys.sh` |
 | 6 | Lifecycle gate | regressions, unsigned images (cross-cutting) | Tekton pipeline (build → scan → eval gate → cosign sign → promote); Sigstore admission `ClusterImagePolicy` | `gitops/platform/pipeline`, `scripts/signing-demo.sh` |
 | 7 | Observability and control | Scenario 3; knowing and stopping | OTel → Tempo and MLflow, token metrics + PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
 
@@ -264,10 +272,11 @@ executes it and an adjuster's forced call is a 403.
 MAAS_*) and is not itself git-synced; everything else syncs from the remote. Argo `selfHeal` reverts
 live `oc patch`es, so change synced resources via Git, not `oc`.
 
-**Visible in OpenShift AI (not just YAML).** Models-as-a-Service (external model, subscriptions,
-auth policies, per-key usage), the MCP catalog entries, the GenAI Studio playground (model + MCP
-tools + guardrails toggles), the Guardrails Orchestrator and its detectors, and MLflow traces of the
-portal's chat (prompt, tool calls, tokens).
+**Visible in OpenShift AI (not just YAML).** Models-as-a-Service lists **three external models**
+(prod `llama-scout-17b`, stage `granite-4-0-h-tiny`, guard `granite-guardian-3-1-8b`) with their
+subscriptions, auth policies and per-key usage; the MCP catalog entries; the GenAI Studio playground
+(model picker incl. Granite Guardian + MCP tools + guardrails toggles); the Guardrails Orchestrator
+and its detectors; and MLflow traces of the portal's chat (prompt, tool calls, tokens).
 
 Technology Preview as of OpenShift AI 3.5 / Connectivity Link 1.4 (Oct 2026): MCP gateway, MCP
 catalog + lifecycle operator, MaaS external-model egress, GenAI Studio guardrails. Manifests mark
@@ -299,10 +308,13 @@ field names to check against the installed CRDs with `VERIFY` comments (`oc expl
   the label `inference.llm-d.ai/ipp-managed=true`. `scripts/authorino-tls.sh` does the Authorino part
   (auto-revert). Enabling Authorino TLS and then forcing a Kuadrant reconcile can leave the Kuadrant
   EnvoyFilters in plaintext and break the MCP gateway — if that happens, revert and re-verify.
-* **The model resists prompt injection.** `llama-scout-17b` does not obey hidden instructions in a
-  document (0/10 with the white-text note). That is why scenario 2 is **data manipulation** (the wrong
-  amount) rather than instruction injection: the hidden note is what the detector catches, the amount
-  is what the Propose/Act gate catches.
+* **Which models obey the hidden note.** The prod/agent model `llama-scout-17b` does not obey hidden
+  instructions in a document (0/30 with the white-text note), so scenario 2 runs as **data manipulation**
+  (the wrong amount): the hidden note is what the detector catches, the amount is what the Propose/Act
+  gate catches. Other models in the MaaS catalogue *do* obey it — in a report-only replay `gpt-oss-120b`
+  and `qwen3-14b` each called `approve_payout(CLM-1004, 84000)` 6/6 — but the secured controls
+  (identity-bound tool authorization + Read-Propose-Act) stop the payout regardless of which model obeys,
+  so the story holds either way.
 * **Keycloak tools come back empty (`tools=[]`).** The portal must forward a token carrying
   `resource_access` roles for `claims-db`/`policy-docs`; a `parasol-portal`-scoped mapper must emit
   those roles into both the ID and the access token.
