@@ -72,7 +72,7 @@ What you should see: a night request with the user on the span.
 +
 What you should see: every model call from the secured side goes through a subscription with its own token limit. `parasol-policyholder` is the policyholder tier, separate from the staff tiers, which is why only tom.becker hit the limit while the claims staff kept working. *Gen AI studio*, *API keys* shows when each key was last used; the per-user token spend is on the operator dashboard.
 +
-image::s3-maas-subscriptions.png[MaaS governance: the policyholder, stage and guard subscriptions, each Ready with its own priority and token limit]
+image::s3-maas-subscriptions.png["MaaS governance: the policyholder, stage and guard subscriptions, each Ready with its own priority and token limit"]
 
 . Check it: in the *Terminal* tab, find the per-user 429 in the Limitador log:
 +
