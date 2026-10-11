@@ -321,7 +321,7 @@ spec:
         fi
         # The token travels as an HTTP header, never in a URL, so it cannot show up in clone/push output.
         AUTH="Authorization: Basic $(printf 'x-access-token:%s' "$(cat "$TOKEN_FILE")" | base64 -w0)"
-        MSG="chore: promote parasol-portal ${DIGEST} to secured overlay (prompt $(params.prompt-ref), model $(params.model-ref), run $(context.pipelineRun.name))"
+        MSG="chore: promote parasol-portal ${DIGEST} to secured overlay (prompt $(params.prompt-ref), model $(params.model-ref), taskrun $(context.taskRun.name))"
         # Fresh clone of main at push time (the build takes minutes and main moves); retry on a race.
         for i in 1 2 3; do
           rm -rf /tmp/promote
