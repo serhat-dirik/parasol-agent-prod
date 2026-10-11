@@ -59,9 +59,9 @@ Keycloak realm `parasol`. Passwords equal the usernames; these users exist only 
 |claims manager
 |Can approve a proposed payout (Keycloak role `tool:approve_payout`).
 
-|`tom.becker`
-|policyholder
-|The night-shift account: no claims tools and a low per-user token budget.
+|`nina.contractor`
+|night-shift contractor
+|Nina Patel, an outsourced contractor: read-only claim tools (no payout, no fraud check) and a low per-user token budget.
 
 |`dev`
 |developer

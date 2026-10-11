@@ -37,8 +37,8 @@ something you watch happen in a browser:
   tries to pay — but `approve_payout` is not in its tool list, so it can only *propose*; guardrails flag the
   hidden instruction and the Read-Propose-Act gate surfaces the 10× gap — no write happens. The controls,
   not model luck, stop the payout.
-* **Scenario 3 — the night shift.** A policyholder account loops long off-topic requests at 2 a.m.
-  to drain the token budget. *Unsecured:* the shared key burns all night. *Secured:* the topic guardrail
+* **Scenario 3 — the night shift.** An outsourced night-shift contractor's account (or its leaked token)
+  is scripted at 3 a.m. to loop long requests and drain the token budget. *Unsecured:* the shared key burns all night. *Secured:* the topic guardrail
   refuses the junk at no cost, a per-user budget returns HTTP 429 for that account while staff keep
   working, an alert fires naming the user, and the operator can disable the account or flip the kill
   switch — the pods keep running, the agent can reach nothing.
@@ -115,7 +115,8 @@ directly. Then open the portals in a browser — **this is the demo**:
 
 * `rebecca` — claims adjuster (read-only tools; can propose but not approve)
 * `marcus` — claims manager (may approve payouts)
-* `tom.becker` — policyholder, the night-shift account (no claims tools; a low per-user token budget)
+* `nina.contractor` — Nina Patel, night-shift contractor (read-only claim tools; no payout, no fraud check;
+  a low per-user token budget)
 * `dev` — developer
 
 </details>
@@ -155,7 +156,7 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
 3. **Scenario 2 — the customer's document** — driven in the browser. Headless equivalent:
    - `scripts/abuse-doc.sh both` — the unsecured portal pays AED 84,000; secured flags the hidden
      note and proposes without writing.
-4. **Scenario 3 — the night shift** — `scripts/night-shift.sh 40` logs in as `tom.becker` and loops
+4. **Scenario 3 — the night shift** — `scripts/night-shift.sh 40` logs in as `nina.contractor` and loops
    requests; run it against each portal as in Demo UI.
 5. **Scenario 4 — the evaluation gate** — `scripts/eval-goldenset.sh` runs the golden set (secured
    blocked vs unsecured allowed, PASS 3/3); the dashboard LMEval run is
@@ -194,7 +195,7 @@ of the stack is that a *different* layer catches each scenario:
   injection-obeying model (`qwen3-14b`), this is shown without relying on model behaviour: the model obeys
   the note and tries to pay, and the hidden `approve_payout` + guardrails flag + Read-Propose-Act gate stop
   the write anyway.
-* **Scenario 3 (the night shift)** → **model governance + observability.** MaaS gives the policyholder a
+* **Scenario 3 (the night shift)** → **model governance + observability.** MaaS gives the contractor a
   low per-tier token budget and returns 429 for that account alone (Layer 5); the topic guardrail refuses
   off-topic junk at zero cost (Layer 4); token metrics raise an alert naming the user, and the kill switch
   severs egress on a Git commit (Layer 7). Namespace isolation (Layer 1) bounds the blast radius throughout.

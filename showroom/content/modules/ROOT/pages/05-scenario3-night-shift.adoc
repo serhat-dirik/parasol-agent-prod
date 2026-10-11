@@ -5,9 +5,9 @@
 
 toc::[]
 
-A policyholder account loops long requests at 2 a.m. to drain the model budget. Unsecured, the shared key burns all night. Secured, the off-topic junk is refused for free, only that account is throttled, an alert names the user, and the operator has two one-click responses.
+An outsourced night-shift contractor's account (or its leaked token) is scripted at 3 a.m. to loop long requests and drain the model budget. Unsecured, the shared key burns all night. Secured, the off-topic junk is refused for free, only that account is throttled, an alert names the user, and the operator has two one-click responses.
 
-The script `scripts/night-shift.sh` plays the abusive customer. It logs in as `tom.becker`, sends two off-topic requests, then loops long on-topic requests, printing the HTTP status, the caller and the token spend of each. It stops at the first usage-limit response and has a hard ceiling, so a stray run cannot drain the model key.
+The script `scripts/night-shift.sh` plays the scripted account. It logs in as `nina.contractor` (Nina Patel, a contractor with read-only claim tools), sends two off-topic requests, then loops long on-topic requests, printing the HTTP status, the caller and the token spend of each. It stops at the first usage-limit response and has a hard ceiling, so a stray run cannot drain the model key.
 
 [NOTE]
 .Know: budgets and alerts with a name
@@ -34,7 +34,7 @@ The point: denial of wallet, and nobody was watching.
 
 == Show: secured
 
-. In the *Terminal* tab, give `tom.becker` a full token budget again:
+. In the *Terminal* tab, give `nina.contractor` a full token budget again:
 +
 [source,bash,role=execute]
 ----
@@ -56,13 +56,17 @@ What you should see:
 * the on-topic loop keeps hammering, and the per-user spend climbs;
 * after the per-user limit, the response reads "you have reached your usage limit (429)" and the script stops.
 
-. Meanwhile, select the *Portal secured* tab, log in as `rebecca`, open any claim and ask a question.
+. Select the *Portal secured* tab, sign in as `nina.contractor`, open any claim and ask a question.
 +
-What you should see: rebecca keeps working normally. Only `tom.becker` is throttled.
+What you should see: the chat answers with the usage-limit message "You have reached your usage limit (429). Please try again later." The account, not the portal, is out of budget.
+
+. In the same *Portal secured* tab, sign out, log in as `rebecca`, open any claim and ask a question.
++
+What you should see: rebecca keeps working normally. Only `nina.contractor` is throttled.
 
 . Select the *OpenShift Console* tab and open *Observe*, *Alerting*.
 +
-What you should see: `ParasolAssistantTokenSpendHigh` firing, naming the user `tom.becker` and the namespace.
+What you should see: `ParasolAssistantTokenSpendHigh` firing, naming the user `nina.contractor` and the namespace.
 
 . Select the *MLflow* tab (or *Observe*, *Traces* in the console).
 +
@@ -70,9 +74,9 @@ What you should see: a night request with the user on the span.
 
 . Select the *OpenShift AI* tab and open *Settings*, then *MaaS governance*.
 +
-What you should see: every model call from the secured side goes through a subscription with its own token limit. `parasol-policyholder` is the policyholder tier, separate from the staff tiers, which is why only tom.becker hit the limit while the claims staff kept working. *Gen AI studio*, *API keys* shows when each key was last used; the per-user token spend is on the operator dashboard.
+What you should see: every model call from the secured side goes through a subscription with its own token limit. `parasol-contractor` is the contractor tier, separate from the staff tiers, which is why only nina.contractor hit the limit while the claims staff kept working. *Gen AI studio*, *API keys* shows when each key was last used; the per-user token spend is on the operator dashboard.
 +
-image::s3-maas-subscriptions.png["MaaS governance: the policyholder, stage and guard subscriptions, each Ready with its own priority and token limit"]
+image::s3-maas-subscriptions.png["MaaS governance: the contractor, stage and guard subscriptions, each Ready with its own priority and token limit"]
 
 . Check it: in the *Terminal* tab, find the per-user 429 in the Limitador log:
 +
@@ -81,7 +85,7 @@ image::s3-maas-subscriptions.png["MaaS governance: the policyholder, stage and g
 oc logs -n kuadrant-system deploy/limitador-limitador --tail=50
 ----
 
-. Check it: in the *OpenShift Console* tab, *Observe*, *Dashboards* (project `openshift-operators`, *Parasol Assistant Token Spend*), the token-spend and per-user panels show `tom.becker` peaking, and the alert is firing.
+. Check it: in the *OpenShift Console* tab, *Observe*, *Dashboards* (project `openshift-operators`, *Parasol Assistant Token Spend*), the token-spend and per-user panels show `nina.contractor` peaking, and the alert is firing.
 
 == Show: the operator's response
 
@@ -89,7 +93,7 @@ Pick one. Reach for the precise control first.
 
 === Option A: disable the user
 
-. Select the *Keycloak* tab. In realm `parasol`, open *Users*, then `tom.becker`, and switch *Enabled* off. Save.
+. Select the *Keycloak* tab. In realm `parasol`, open *Users*, then `nina.contractor`, and switch *Enabled* off. Save.
 
 . In the *Terminal* tab, run the night shift once more:
 +
@@ -98,9 +102,9 @@ Pick one. Reach for the precise control first.
 scripts/night-shift.sh 3
 ----
 +
-What you should see: the script cannot log in as `tom.becker`. Everyone else keeps working.
+What you should see: the script cannot log in as `nina.contractor`. Everyone else keeps working.
 
-. Re-enable `tom.becker` in the *Keycloak* tab after the demo.
+. Re-enable `nina.contractor` in the *Keycloak* tab after the demo.
 
 === Option B: the kill switch
 

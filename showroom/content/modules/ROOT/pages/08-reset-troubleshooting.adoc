@@ -15,7 +15,7 @@ Reset between every run of the demo, and scan the troubleshooting table once bef
 
 == Reset between runs
 
-The scenarios change data: Scenario 1 approves CLM-1001, Scenario 2 pays CLM-1004 on the unsecured portal, and Scenario 3 spends `tom.becker`'s budget.
+The scenarios change data: Scenario 1 approves CLM-1001, Scenario 2 pays CLM-1004 on the unsecured portal, and Scenario 3 spends `nina.contractor`'s budget.
 
 . In the *Terminal* tab, reset both portals and the per-user token budgets:
 +
@@ -30,7 +30,7 @@ What you should see: CLM-1001 *UnderReview*, CLM-1004 *Denied*.
 
 . Repeat on the *Portal secured* tab.
 
-. If you used an operator response in Scenario 3, undo it: re-enable `tom.becker` in the *Keycloak* tab, or revert the kill-switch commit and refresh `env-secured` in the *Argo CD* tab.
+. If you used an operator response in Scenario 3, undo it: re-enable `nina.contractor` in the *Keycloak* tab, or revert the kill-switch commit and refresh `env-secured` in the *Argo CD* tab.
 
 == Headless equivalents
 
@@ -50,7 +50,7 @@ Each scenario has a script that drives the same beats without a browser. Use the
 |`scripts/abuse-doc.sh both`: the unsecured portal pays AED 84,000; secured flags the note and proposes without writing.
 
 |2, fraud check
-|`scripts/fraud-check-demo.sh`: rebecca and marcus get HIGH; `tom.becker` gets a 403.
+|`scripts/fraud-check-demo.sh`: rebecca and marcus get HIGH; `nina.contractor` gets a 403.
 
 |3
 |`scripts/night-shift.sh 40` (secured) or `scripts/night-shift.sh 40 portal-free.{domain}` (unsecured).
