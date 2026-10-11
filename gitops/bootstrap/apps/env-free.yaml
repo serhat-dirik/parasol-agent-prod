@@ -21,7 +21,7 @@ spec:
               value: ${MAAS_ENDPOINT}
             - op: replace
               path: /data/model
-              value: ${MAAS_MODEL}
+              value: qwen3-14b   # unsecured portal uses an injection-obeying model to show the risk live
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]
