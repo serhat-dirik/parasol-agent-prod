@@ -124,6 +124,10 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: portal
+  annotations:
+    # The secured chat now chains get_claim_documents -> fraud_check -> propose_payout on qwen3-14b;
+    # three sequential model turns exceed the router's default 30s, so allow the full flow to finish.
+    haproxy.router.openshift.io/timeout: 120s
 spec:
   # Explicit host so it matches the Keycloak redirect URI registered for the portal client.
   host: portal.apps.cluster-znh6n.dyn.redhatworkshops.io
