@@ -6,12 +6,19 @@ kind: Kustomization
 # and is deliberately not listed here. Operators (operators/), the admission webhook/policy
 # (admission/), the prompt registration (prompts/) and the TAS instance (gitops/platform/tas) are
 # cluster-scoped or live in other namespaces and are applied directly. eval/ holds gate data read by
-# the pipeline's git-clone, not k8s manifests.
-namespace: parasol-build
+# the pipeline's git-clone, not k8s manifests. promote-rbac.yaml lives in openshift-gitops, so the
+# namespace is only set where a resource has none (unsetOnly).
 resources:
   - tasks.yaml
   - keyless-sign-task.yaml
   - pipeline.yaml
+  - promote-rbac.yaml
+transformers:
+  - |-
+    apiVersion: builtin
+    kind: NamespaceTransformer
+    metadata: {name: parasol-build-namespace, namespace: parasol-build}
+    unsetOnly: true
 configMapGenerator:
   - name: ec-policy
     files:

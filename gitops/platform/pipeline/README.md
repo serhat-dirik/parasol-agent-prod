@@ -3,8 +3,9 @@
 A Tekton pipeline in namespace `parasol-build` that **builds the Parasol portal from source**,
 **scans** it, attaches a signed **SBOM**, runs the **agent evaluation gate**, **signs** it keyless
 (Trusted Artifact Signer) and with the cluster key, checks the **Conforma** contract, and
-**promotes** the signed digest by committing the pin into `gitops/envs/secured/kustomization.yaml`;
-Argo CD rolls the secured portal to it and admission verifies the signature. Task names and order
+**promotes** the signed digest by pinning it on the Argo CD Application `env-secured`
+(`spec.source.kustomize.images`; no Git write, the repo is read-only for releases); Argo CD rolls the
+secured portal to it and admission verifies the signature. Task names and order
 mirror the Red Hat `tssc-sample-pipelines` reference; ACS/Quay/GitLab are not on this cluster, so
 the scan is Trivy, the registry is the internal OpenShift registry and the SCM is GitHub.
 
@@ -16,7 +17,7 @@ are created by hand from `pipelinerun.yaml`, which is not part of the synced kus
 init → clone-repository → build-container ─┬→ scan-image (Trivy) ──────────────────────────┐
                                            ├→ generate-sbom (syft CycloneDX, cosign attest)  │
                                            ├→ agent-eval (gate) → register-model-version    ├→ promote
-                                           ├→ sign-images (cluster key) ─┐                  │  (commit pin)
+                                           ├→ sign-images (cluster key) ─┐                  │  (pin on Argo app)
                                            └→ keyless-sign (TAS) ────────┴→ verify-enterprise-contract
 finally: show-sbom, show-summary
 ```
@@ -25,12 +26,17 @@ finally: show-sbom, show-summary
 gpt-oss-120b on its own key in secret `maas-eval-key`); below 19/20 the gate is `failed` and
 `promote` is skipped. `verify-enterprise-contract` is the Conforma gate: the image must carry a valid
 signature AND a signed SLSA provenance attestation (Tekton Chains). The SBOM ships as a signed
-cosign attestation (`cosign verify-attestation --type cyclonedx`). `promote` needs a GitHub token in
-secret `gitops-auth-secret` (key `token`, contents:write on this repository; never in Git); without
-it the run prints the pin diff and pushes nothing.
+cosign attestation (`cosign verify-attestation --type cyclonedx`). `promote` merge-patches the
+Application `openshift-gitops/env-secured` (`kustomize.images` = the signed digest, `kustomize.replicas`
+portal=1; its other kustomize patches are untouched), records the prompt and model version as
+annotations, then waits until Argo CD reports Synced/Healthy on that digest. The pipeline SA may only
+get/patch that one Application (`promote-rbac.yaml`). The Git overlay holds a placeholder digest with
+the portal at 0 replicas, so nothing is pulled or admitted before the first promote.
 
 * `pipeline.yaml`, `tasks.yaml`, `keyless-sign-task.yaml` — Pipeline, Tasks, keyless signer SA
   (kustomize namespace `parasol-build`, synced by Argo CD).
+* `promote-rbac.yaml` — Role/RoleBinding in `openshift-gitops`: the `pipeline` SA may get/patch
+  the Application `env-secured` only.
 * `pipelinerun.yaml` — a release run (`candidate=v1`); with `candidate=v2` the gate blocks promote.
 * `eval/` — `ec-policy.rego` (the `ec-policy` ConfigMap) and the earlier 3-case golden set.
 * Operators (RHTAS, policy-controller, SPIRE) are in `gitops/bootstrap/operators/supply-chain.yaml`;
@@ -77,4 +83,4 @@ oc label namespace parasol-secured policy.rhtas.com/include=true --overwrite
 TrustRoot/ClusterImagePolicy rendered from this cluster's TUF root and cosign key
 (`gitops/platform/tas/clusterimagepolicy-keyless.yaml` is the template), and the
 `policy.rhtas.com/include=true` label on `parasol-secured`. `scripts/pipeline-runs.sh` starts the
-release runs (v1 promotes once `gitops-auth-secret` exists; v2 is blocked by the gate).
+release runs (v1 promotes; v2 is blocked by the gate); `bootstrap.sh` runs it and waits for v1.

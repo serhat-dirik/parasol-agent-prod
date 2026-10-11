@@ -1,8 +1,8 @@
 # Tasks for the Parasol secure supply-chain pipeline (layer 6), namespace parasol-build.
 # Task names and order mirror the Red Hat tssc-sample-pipelines reference
 # (init -> git-clone -> buildah -> ... -> show-sbom/summary). ACS/Quay/GitLab are not on this
-# cluster, so the ACS scan is replaced by Trivy and promotion is a commit to the prod overlay
-# in this GitOps repo. Tekton Chains signs the image the buildah task produces (IMAGE_URL/IMAGE_DIGEST
+# cluster, so the ACS scan is replaced by Trivy, and promotion pins the signed digest on the Argo CD
+# Application env-secured (no Git write: the GitOps repo is read-only for releases). Tekton Chains signs the image the buildah task produces (IMAGE_URL/IMAGE_DIGEST
 # results) out of band using the cosign key in openshift-pipelines/signing-secrets.
 ---
 apiVersion: tekton.dev/v1
@@ -270,84 +270,65 @@ apiVersion: tekton.dev/v1
 kind: Task
 metadata:
   name: promote
-  labels: {app.kubernetes.io/version: "0.1"}
+  labels: {app.kubernetes.io/version: "0.2"}
 spec:
-  description: "Promote by pinning the signed digest into the prod (secured) overlay in the GitOps repo; a commit is the promotion."
+  description: >-
+    Promote without Git: pin the signed, eval-passed digest on the Argo CD Application env-secured
+    (spec.source.kustomize.images, plus the portal replica count), then wait until Argo CD has synced
+    it and the secured portal is Healthy on that digest. The GitHub repo is read-only for releases.
   params:
     - {name: image, type: string}
     - {name: image-digest, type: string}
-    - {name: git-url, type: string, default: "https://github.com/serhat-dirik/parasol-agent-prod.git"}
-    - {name: overlay-file, type: string, default: "gitops/envs/secured/kustomization.yaml"}
-    - {name: gitops-auth-secret, type: string, default: gitops-auth-secret}
-    # The MLflow Prompt Registry entry the promoted image runs (name@version); the agent-eval gate
-    # evaluated this exact version. The promotion commit references it, so git history ties the
-    # promoted digest to the prompt the gate passed.
+    # Exactly the name the secured overlay's `images:` entry uses (gitops/envs/secured/kustomization.yaml).
+    - {name: image-name, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal"}
+    - {name: application, type: string, default: env-secured}
+    - {name: application-namespace, type: string, default: openshift-gitops}
+    # The MLflow Prompt Registry entry (name@version) and the RHOAI Model Registry ModelVersion the
+    # agent-eval gate evaluated. Recorded as annotations on the Application next to the pin, so Argo CD
+    # shows which prompt and model version the promoted digest was gated on.
     - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@1"}
-    # The RHOAI Model Registry ModelVersion (RegisteredModel:version) the agent-eval gate evaluated
-    # and this release promotes. The promotion commit references it, so git history ties the promoted
-    # digest to the registered, eval-scored model version.
     - {name: model-ref, type: string, default: "parasol-claims-assistant:v1"}
   results:
-    - {name: commit, description: the promotion commit on main (empty when not pushed)}
-  workspaces:
-    - {name: source}
+    - {name: digest, description: the digest pinned on the Application (empty when not promoted)}
   steps:
-    - name: pin-and-push
-      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
-      workingDir: $(workspaces.source.path)/source
+    - name: pin-and-sync
+      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
       script: |
         #!/usr/bin/env bash
         set -eu
-        microdnf install -y git >/dev/null 2>&1 || microdnf install -y git
-        FILE="$(params.overlay-file)"
-        DIGEST="$(params.image-digest)"
-        printf "" > "$(results.commit.path)"
-        # Replace only the digest line that follows the parasol-portal images entry; touch nothing else.
-        pin() {
-          awk -v d="$DIGEST" 'prev ~ /parasol-portal/ && $1=="digest:" {sub(/digest:.*/,"digest: " d)} {print; prev=$0}' \
-            "$FILE" > "$FILE.new" && mv "$FILE.new" "$FILE"
-          grep -A1 "parasol-portal" "$FILE" | sed -n '1,2p'
-        }
-        echo "Promoting $(params.image)@$DIGEST into $FILE"
-        TOKEN_FILE=/workspace/git-token/token
-        if [ ! -f "$TOKEN_FILE" ]; then
-          pin
-          echo "=================================================================="
-          echo "PROMOTION NOT PUSHED: secret gitops-auth-secret (key token) is missing."
-          echo "The secured pin is unchanged. Intended change:"
-          echo "=================================================================="
-          git --no-pager diff -- "$FILE" || true
-          exit 0
-        fi
-        # The token travels as an HTTP header, never in a URL, so it cannot show up in clone/push output.
-        AUTH="Authorization: Basic $(printf 'x-access-token:%s' "$(cat "$TOKEN_FILE")" | base64 -w0)"
-        MSG="chore: promote parasol-portal ${DIGEST} to secured overlay (prompt $(params.prompt-ref), model $(params.model-ref), taskrun $(context.taskRun.name))"
-        # Fresh clone of main at push time (the build takes minutes and main moves); retry on a race.
-        for i in 1 2 3; do
-          rm -rf /tmp/promote
-          git -c http.extraHeader="$AUTH" clone -q --depth 1 --branch main "$(params.git-url)" /tmp/promote
-          cd /tmp/promote
-          git config user.email "pipeline@parasol.local"
-          git config user.name "parasol-pipeline"
-          pin
-          git add "$FILE"
-          if git diff --cached --quiet; then echo "Already pinned to $DIGEST on main; nothing to promote."; exit 0; fi
-          git commit -q -m "$MSG"
-          if git -c http.extraHeader="$AUTH" push -q origin HEAD:main; then
-            git rev-parse HEAD | tr -d '\n' > "$(results.commit.path)"
-            echo "PROMOTED: $(git log --oneline -1)"
-            exit 0
-          fi
-          echo "push rejected (main moved), retrying ($i/3)"; cd /; sleep 5
+        APP="$(params.application)"; NS="$(params.application-namespace)"
+        NAME="$(params.image-name)"; DIGEST="$(params.image-digest)"
+        printf "" > "$(results.digest.path)"
+        echo "Promoting $NAME@$DIGEST: Application $NS/$APP"
+        # JSON merge patch: replaces only kustomize.images and kustomize.replicas (the Git overlay keeps the
+        # portal at 0 replicas until the first promote); the Application's kustomize patches stay as they are.
+        oc patch application "$APP" -n "$NS" --type merge -p "{
+          \"metadata\": {\"annotations\": {
+            \"argocd.argoproj.io/refresh\": \"hard\",
+            \"parasol.example/promoted-digest\": \"$DIGEST\",
+            \"parasol.example/promoted-by\": \"$(context.taskRun.name)\",
+            \"parasol.example/prompt-ref\": \"$(params.prompt-ref)\",
+            \"parasol.example/model-ref\": \"$(params.model-ref)\"}},
+          \"spec\": {\"source\": {\"kustomize\": {
+            \"images\": [\"$NAME=$NAME@$DIGEST\"],
+            \"replicas\": [{\"name\": \"portal\", \"count\": 1}]}}}}"
+        oc get application "$APP" -n "$NS" -o jsonpath='{.spec.source.kustomize.images}{"\n"}'
+        # Await Argo CD: the digest in the app's image summary, Synced and Healthy on two polls in a row
+        # (Healthy means the new ReplicaSet is available, i.e. admission admitted the signed digest).
+        # ponytail: two-poll debounce instead of tracking the sync operation; deadline 10 min.
+        ok=0
+        for i in $(seq 1 60); do
+          s=$(oc get application "$APP" -n "$NS" -o jsonpath='{.status.sync.status} {.status.health.status} {.status.summary.images}')
+          echo "$(date +%T) $APP: ${s%% \[*}"
+          case "$s" in
+            "Synced Healthy "*"$DIGEST"*) ok=$((ok+1)); [ $ok -ge 2 ] && break;;
+            *) ok=0;;
+          esac
+          sleep 10
         done
-        echo "PROMOTION FAILED: could not push the pin"; exit 1
-      volumeMounts:
-        - {name: git-token, mountPath: /workspace/git-token}
-  volumes:
-    - name: git-token
-      secret:
-        secretName: gitops-auth-secret
-        optional: true
+        [ $ok -ge 2 ] || { echo "PROMOTION NOT CONVERGED: $APP did not reach Synced/Healthy on $DIGEST in 10 min"; exit 1; }
+        printf "%s" "$DIGEST" > "$(results.digest.path)"
+        echo "PROMOTED: $APP runs $NAME@$DIGEST (prompt $(params.prompt-ref), model $(params.model-ref))"
 ---
 apiVersion: tekton.dev/v1
 kind: Task

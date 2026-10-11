@@ -1,8 +1,8 @@
 # Parasol secure supply-chain pipeline (layer 6), namespace parasol-build.
 # Reads like the Red Hat tssc reference: init -> clone-repository -> build-container (the portal,
 # from source) -> scan + SBOM, a lifecycle gate (agent-eval), keyless (Trusted Artifact Signer) and
-# keyed (cluster cosign key) signatures, the Conforma contract, then promote: a commit that pins the
-# signed digest into the secured overlay, which Argo CD rolls out and admission verifies.
+# keyed (cluster cosign key) signatures, the Conforma contract, then promote: the signed digest is pinned
+# on the Argo CD Application env-secured (no Git write), Argo CD rolls it out and admission verifies it.
 # Synced by the Argo CD Application platform-pipeline; PipelineRuns are created by hand (pipelinerun.yaml).
 apiVersion: tekton.dev/v1
 kind: Pipeline
@@ -20,7 +20,7 @@ spec:
     - {name: dockerfile, type: string, default: "Containerfile"}
     # Agent config version the gate evaluates (v1 = current prompt, passes; v2 = simplified, blocked).
     - {name: candidate, type: string, default: "v1"}
-    # MLflow Prompt Registry entry the gate evaluated and the promotion commit references.
+    # MLflow Prompt Registry entry the gate evaluated; promote records it on the Application.
     - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@1"}
   results:
     - {name: IMAGE_URL, value: "$(tasks.build-container.results.IMAGE_URL)"}
@@ -31,7 +31,7 @@ spec:
     - {name: REGISTERED_MODEL_VERSION, value: "$(tasks.register-model-version.results.version-ref)"}
     - {name: SIGNED_IMAGES, value: "$(tasks.sign-images.results.SIGNED)"}
     - {name: KEYLESS_SIGNED_IMAGES, value: "$(tasks.keyless-sign.results.SIGNED)"}
-    - {name: PROMOTION_COMMIT, value: "$(tasks.promote.results.commit)"}
+    - {name: PROMOTED_DIGEST, value: "$(tasks.promote.results.digest)"}
     - {name: SBOM_COMPONENTS, value: "$(tasks.generate-sbom.results.SBOM_COMPONENTS)"}
   workspaces:
     - {name: workspace}
@@ -122,8 +122,6 @@ spec:
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
         - {name: prompt-ref, value: "$(params.prompt-ref)"}
         - {name: model-ref, value: "parasol-claims-assistant:$(params.candidate)"}
-      workspaces:
-        - {name: source, workspace: workspace}
   finally:
     - name: show-sbom
       taskRef: {name: show-sbom}

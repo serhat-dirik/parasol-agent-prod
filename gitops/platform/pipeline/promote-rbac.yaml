@@ -1,0 +1,17 @@
+# Promote without Git: the release pipeline's promote task (ServiceAccount parasol-build/pipeline) pins
+# the signed digest on the Argo CD Application env-secured. It may read and patch that one Application,
+# nothing else in openshift-gitops.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: parasol-pipeline-promote, namespace: openshift-gitops}
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    resourceNames: [env-secured]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: parasol-pipeline-promote, namespace: openshift-gitops}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: parasol-pipeline-promote}
+subjects: [{kind: ServiceAccount, name: pipeline, namespace: parasol-build}]
