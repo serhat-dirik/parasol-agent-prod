@@ -312,7 +312,10 @@ spec:
         TOKEN_FILE=/workspace/git-token/token
         if [ ! -f "$TOKEN_FILE" ]; then
           pin
-          echo "No gitops-auth-secret mounted; promotion diff prepared but not pushed."
+          echo "=================================================================="
+          echo "PROMOTION NOT PUSHED: secret gitops-auth-secret (key token) is missing."
+          echo "The secured pin is unchanged. Intended change:"
+          echo "=================================================================="
           git --no-pager diff -- "$FILE" || true
           exit 0
         fi

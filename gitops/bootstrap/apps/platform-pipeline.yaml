@@ -5,6 +5,8 @@ metadata:
   namespace: openshift-gitops
   annotations:
     argocd.argoproj.io/sync-wave: "2"
+    # Tekton's webhook fills defaults (computeResources, taskRef kind); diff after admission.
+    argocd.argoproj.io/compare-options: ServerSideDiff=true
 spec:
   project: parasol
   destination: {server: https://kubernetes.default.svc, namespace: parasol-build}
