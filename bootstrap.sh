@@ -78,7 +78,7 @@ scripts/gen-trusted-keys.sh
 for ns in parasol-free parasol-secured; do   # parasol-secured's is replaced by a MaaS key in step 8
   oc -n $ns create secret generic maas-credentials --from-literal=GENAI_API_KEY="$AGENT_KEY" --dry-run=client -o yaml | oc apply -f - >/dev/null
 done
-oc -n parasol-secured create secret generic agent-service-identity --from-literal=username=dev --from-literal=password=dev --dry-run=client -o yaml | oc apply -f - >/dev/null
+oc -n parasol-secured delete secret agent-service-identity --ignore-not-found >/dev/null   # retired dev/dev service identity
 scripts/maas-ext-model-secrets.sh   # upstream keys: qwen3-14b <- AGENT_KEY, granite-guardian <- GUARD_KEY
 ns=redhat-ai-gateway-infra   # MaaS API database (gitops/platform/rhoai/maas-db.yaml): password generated once, never printed
 if ! oc get secret maas-postgres -n $ns >/dev/null 2>&1; then
@@ -123,7 +123,15 @@ log "7/12 Images (built from this checkout; the secured portal is built by the r
 if [ "${SKIP_BUILDS:-0}" = 1 ]; then echo "SKIP_BUILDS=1"
 else scripts/build-images.sh || warn "an image build failed" scripts/build-images.sh; fi
 
-log "8/12 MaaS: Authorino TLS, tiers, keys"
+log "8/12 Keycloak realm, portal login client, agent identities"
+for i in $(seq 1 60); do curl -skf "https://sso.apps.$CLUSTER_DOMAIN/realms/parasol" >/dev/null && break
+  echo "$(date +%T) waiting for realm parasol at https://sso.apps.$CLUSTER_DOMAIN ($i/60)"; sleep 15; done
+scripts/portal-oidc-client.sh || warn "portal OIDC client Secret missing; both portals cannot start" scripts/portal-oidc-client.sh
+scripts/portal-users.sh >/dev/null || warn "contractor group/user not ensured" scripts/portal-users.sh
+scripts/agent-clients.sh || warn "agent identities (parasol-claims-agent / parasol-fraud-agent) not ensured; secured tool calls fail" scripts/agent-clients.sh
+# before MaaS/Authorino: scripts/authorino-tls.sh checks the gateway with an agent's on-behalf-of token
+
+log "9/12 MaaS: Authorino TLS, tiers, keys"
 for i in $(seq 1 40); do oc rollout status deploy/guardrails-proxy -n parasol-secured --timeout=5s >/dev/null 2>&1 && break
   echo "$(date +%T) waiting for guardrails-proxy (Argo platform-guardrails) ($i/40)"; sleep 15; done
 scripts/kuadrant-ready.sh || warn "Kuadrant not Ready: no AuthPolicy is enforced (MaaS keys fail with 500)" scripts/kuadrant-ready.sh
@@ -134,12 +142,6 @@ kustomize build gitops/platform/maas-tiers | envsubst '$GUARD_HOST' | oc apply -
 scripts/maas-key.sh || warn "no MaaS key minted; parasol-secured keeps the upstream key" scripts/maas-key.sh
 scripts/maas-portal-keys.sh || warn "secured portal per-group MaaS keys (STAFF/CONTRACTOR) missing; the secured portal cannot start" scripts/maas-portal-keys.sh
 scripts/maas-model-keys.sh || warn "per-model Secrets not all created" scripts/maas-model-keys.sh
-
-log "9/12 Keycloak realm and portal login client"
-for i in $(seq 1 60); do curl -skf "https://sso.apps.$CLUSTER_DOMAIN/realms/parasol" >/dev/null && break
-  echo "$(date +%T) waiting for realm parasol at https://sso.apps.$CLUSTER_DOMAIN ($i/60)"; sleep 15; done
-scripts/portal-oidc-client.sh || warn "portal OIDC client Secret missing; both portals cannot start" scripts/portal-oidc-client.sh
-scripts/portal-users.sh >/dev/null || warn "contractor group/user not ensured" scripts/portal-users.sh
 
 log "10/12 Prompt-injection detector model"
 scripts/fetch-detector-model.sh || warn "detector model fetch failed (the regex detector still works)" scripts/fetch-detector-model.sh

@@ -1,6 +1,7 @@
 # Realm 'parasol' for the demo. Conventions follow the Kuadrant MCP gateway docs:
 # resource-server clients are named <namespace>/<MCPServerRegistration name>, roles are tool:<name>,
 # and the resource_access claim of a user's token is what the gateway AuthPolicy checks.
+# Agents: parasol-claims-agent, parasol-fraud-agent act ON BEHALF OF a user (token exchange).
 # Demo users: rebecca (adjuster), marcus (claims manager), dev, nina.contractor (night-shift contractor).
 # Passwords equal the username.
 apiVersion: k8s.keycloak.org/v2alpha1
@@ -18,32 +19,6 @@ spec:
     enabled: true
     accessTokenLifespan: 3600
     clients:
-    - clientId: mcp-gateway
-      publicClient: false
-      secret: parasol-gateway-secret
-      standardFlowEnabled: false
-      directAccessGrantsEnabled: true
-      attributes:
-        standard.token.exchange.enabled: 'true'
-      defaultClientScopes:
-      - roles
-      optionalClientScopes:
-      - groups
-      - profile
-    - clientId: parasol-agent
-      name: Parasol claims assistant
-      publicClient: true
-      standardFlowEnabled: false
-      directAccessGrantsEnabled: true
-      defaultClientScopes:
-      - roles
-      - profile
-      - email
-      optionalClientScopes:
-      - groups
-      protocol: openid-connect
-      enabled: true
-      fullScopeAllowed: true
     # Portal login (quarkus-oidc web-app, authorization-code flow). Confidential: on a fresh realm import
     # Keycloak generates the secret; scripts/portal-oidc-client.sh reads it into the parasol-portal-oidc
     # Secret in parasol-free and parasol-secured. The secret is never committed.
@@ -51,7 +26,8 @@ spec:
       name: Parasol claims portal (web-app)
       publicClient: false
       standardFlowEnabled: true
-      directAccessGrantsEnabled: false
+      # direct grants: the scripted persona logins (scripts/token.sh, needs the secret only the cluster holds)
+      directAccessGrantsEnabled: true
       serviceAccountsEnabled: false
       protocol: openid-connect
       enabled: true
@@ -76,7 +52,7 @@ spec:
       # Client-scoped mapper: emit resource_access.<client>.roles into BOTH the access and the ID token,
       # so a browser (authorization-code) login carries the tool:* roles the MCP gateway checks even if
       # the portal forwards the ID token. The shared realm "roles" scope only puts them in the access
-      # token; this covers the ID token too. Scoped to parasol-portal, so parasol-agent is unaffected.
+      # token; this covers the ID token too. Scoped to parasol-portal.
       protocolMappers:
       - name: portal-client-roles
         protocol: openid-connect
@@ -89,6 +65,60 @@ spec:
           access.token.claim: 'true'
           userinfo.token.claim: 'false'
           usermodel.clientRoleMapping.clientId: ''
+      # A login token may be exchanged by the claims agent (it must be in the subject token's audience).
+      - name: audience-parasol-claims-agent
+        protocol: openid-connect
+        protocolMapper: oidc-audience-mapper
+        config:
+          included.client.audience: parasol-claims-agent
+          access.token.claim: 'true'
+          id.token.claim: 'false'
+          introspection.token.claim: 'true'
+    # The agents' own identities (scripts/agent-clients.sh keeps them in sync). Confidential, but with NO
+    # secret: each authenticates with its pod's projected ServiceAccount token as a client assertion
+    # (federated-jwt via the 'openshift-sa' identity provider). Their only grant is standard token
+    # exchange: the user's token in, a token with sub = the user and azp = the agent out. fullScopeAllowed
+    # false + clientScopeMappings below = the agent CEILING (exchanged roles = user's AND the ceiling).
+    - clientId: parasol-claims-agent
+      name: Parasol claims assistant (agent identity)
+      publicClient: false
+      clientAuthenticatorType: federated-jwt
+      serviceAccountsEnabled: true
+      standardFlowEnabled: false
+      directAccessGrantsEnabled: false
+      fullScopeAllowed: false
+      protocol: openid-connect
+      enabled: true
+      attributes:
+        standard.token.exchange.enabled: 'true'
+        jwt.credential.issuer: openshift-sa
+        jwt.credential.sub: system:serviceaccount:parasol-secured:claims-agent
+      defaultClientScopes: [basic, roles, profile]
+      # its tokens may be exchanged again by the fraud agent (agent-to-agent)
+      protocolMappers:
+      - name: audience-parasol-fraud-agent
+        protocol: openid-connect
+        protocolMapper: oidc-audience-mapper
+        config:
+          included.client.audience: parasol-fraud-agent
+          access.token.claim: 'true'
+          id.token.claim: 'false'
+          introspection.token.claim: 'true'
+    - clientId: parasol-fraud-agent
+      name: Parasol fraud-check agent (agent identity)
+      publicClient: false
+      clientAuthenticatorType: federated-jwt
+      serviceAccountsEnabled: true
+      standardFlowEnabled: false
+      directAccessGrantsEnabled: false
+      fullScopeAllowed: false
+      protocol: openid-connect
+      enabled: true
+      attributes:
+        standard.token.exchange.enabled: 'true'
+        jwt.credential.issuer: openshift-sa
+        jwt.credential.sub: system:serviceaccount:parasol-secured:fraud-agent
+      defaultClientScopes: [basic, roles, profile]
     - clientId: parasol-secured/claims-db
       name: claims-db MCP server (resource server)
       publicClient: true
@@ -143,9 +173,37 @@ spec:
         parasol-secured/fraud-check:
         - name: tool:fraud_check
           clientRole: true
-        mcp-gateway:
-        - name: impersonator
-          clientRole: true
+    # The agent ceilings (what each agent may ever use on a user's behalf). Approve is inside the claims
+    # agent's ceiling but only reachable when the USER holds it too (claims-managers); the fraud agent is
+    # read-only and can never approve.
+    clientScopeMappings:
+      parasol-secured/claims-db:
+      - client: parasol-claims-agent
+        roles: [tool:get_claim, tool:list_claims_by_status, tool:get_claim_history, tool:get_claim_documents, tool:approve_payout]
+      - client: parasol-fraud-agent
+        roles: [tool:get_claim, tool:get_claim_history, tool:get_claim_documents]
+      parasol-secured/policy-docs:
+      - client: parasol-claims-agent
+        roles: [tool:search_policies, tool:get_policy, tool:list_policies]
+      parasol-secured/fraud-check:
+      - client: parasol-claims-agent
+        roles: [tool:fraud_check]
+    # This cluster's ServiceAccount tokens as client assertions (issuer: the cluster's service-account
+    # issuer; Keycloak runs in-cluster and reads the API server's JWKS).
+    identityProviders:
+    - alias: openshift-sa
+      displayName: OpenShift service accounts
+      providerId: kubernetes
+      enabled: true
+      hideOnLogin: true
+      config:
+        issuer: https://kubernetes.default.svc
+    # Keycloak > Events shows each token exchange with user + client.
+    eventsEnabled: true
+    eventsExpiration: 604800
+    eventsListeners: [jboss-logging]
+    enabledEventTypes: [TOKEN_EXCHANGE, TOKEN_EXCHANGE_ERROR, LOGIN, LOGIN_ERROR, CODE_TO_TOKEN, CODE_TO_TOKEN_ERROR, CLIENT_LOGIN, CLIENT_LOGIN_ERROR, LOGOUT]
+    adminEventsEnabled: false
     groups:
     - name: adjusters
       path: /adjusters
@@ -161,8 +219,6 @@ spec:
         - tool:list_policies
         parasol-secured/fraud-check: &id003
         - tool:fraud_check
-        mcp-gateway:
-        - impersonator
     - name: claims-managers
       path: /claims-managers
       clientRoles:
@@ -174,15 +230,11 @@ spec:
         - tool:approve_payout
         parasol-secured/policy-docs: *id001
         parasol-secured/fraud-check: *id003
-        mcp-gateway:
-        - impersonator
     - name: developers
       path: /developers
       clientRoles:
         parasol-secured/claims-db: *id002
         parasol-secured/policy-docs: *id001
-        mcp-gateway:
-        - impersonator
     # Contractors (outsourced night-shift staff). Read-only claim and policy tools, nothing that writes
     # or escalates: no approve_payout, no fraud_check (403 by least privilege). Night-shift user nina.contractor.
     - name: contractors
@@ -190,8 +242,6 @@ spec:
       clientRoles:
         parasol-secured/claims-db: *id002
         parasol-secured/policy-docs: *id001
-        mcp-gateway:
-        - impersonator
     users:
     - username: rebecca
       enabled: true

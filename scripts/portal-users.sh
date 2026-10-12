@@ -54,7 +54,6 @@ grant() {  # $1 = clientId, rest = role names
 }
 grant parasol-secured/claims-db tool:get_claim tool:list_claims_by_status tool:get_claim_history tool:get_claim_documents
 grant parasol-secured/policy-docs tool:search_policies tool:get_policy tool:list_policies
-grant mcp-gateway impersonator
 
 # --- user: nina.contractor ---
 UID_="$(user_id nina.contractor)"
