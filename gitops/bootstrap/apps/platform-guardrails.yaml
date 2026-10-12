@@ -40,6 +40,13 @@ spec:
                     cert_path: /etc/ssl/certs/ca-bundle.crt
                     client_ca_cert_path: /etc/ssl/certs/ca-bundle.crt
                 passthrough_headers: [authorization, content-type]
+  # Admission (policy-controller) resolves image tags to digests in parasol-secured; without this the
+  # Deployments would read OutOfSync after every sync (see env-secured.yaml).
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jqPathExpressions:
+        - '.spec.template.spec.containers[].image'
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]
