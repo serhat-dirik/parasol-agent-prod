@@ -16,7 +16,7 @@ spec:
     matchLabels: {authorino-resource: authorino, app.kubernetes.io/component: metrics}
   endpoints:
     - port: http
-      path: /metrics
+      path: /server-metrics   # auth_server_* (the authorization decisions); /metrics is the controller
       interval: 15s
 ---
 apiVersion: monitoring.coreos.com/v1
