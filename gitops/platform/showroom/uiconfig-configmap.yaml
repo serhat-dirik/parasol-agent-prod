@@ -32,8 +32,9 @@ data:
         - name: 05-scenario3-confidential-document
         - name: 06-scenario4-night-shift
         - name: 07-scenario5-eval-gate
-        - name: 08-supply-chain
-        - name: 09-reset-troubleshooting
+        - name: 08-scenario6-poisoned-tool
+        - name: 09-supply-chain
+        - name: 10-reset-troubleshooting
 
     # CLUSTER_DOMAIN is replaced at pod start (deployment.yaml, init container uiconfig) with the
     # domain in ConfigMap showroom-cluster, which the platform-showroom Argo Application sets.

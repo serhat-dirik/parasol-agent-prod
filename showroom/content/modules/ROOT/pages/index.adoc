@@ -17,24 +17,26 @@ The same portal image runs twice on one cluster, over separate, identically seed
 
 You demo the *same claim* with the *same request* on each portal. The only variable is the platform.
 
-== The five scenarios
+== The six scenarios
 
 . *The colleague.* A claims adjuster asks the assistant to approve a payout the adjuster has no authority to approve.
 . *The customer's document.* An uploaded repair estimate is inflated to AED 84,000 and carries a hidden note addressed to the assistant.
 . *The confidential document.* The assistant searches Parasol's knowledge base, where some documents are for everyone, some for claims staff and some for claims managers only, and an adjuster asks about plans affecting her own team.
 . *The night shift.* An outsourced night-shift contractor's account (or its leaked token) is scripted at 3 a.m. to drain the token budget.
 . *The evaluation gate.* A developer simplifies the system prompt; the platform evaluates it against a golden set and blocks the regression.
+. *The poisoned tool.* A handy third-party currency-conversion tool is plugged into the assistant; later its description changes, without a new version, and asks the assistant to approve payouts.
 
-Unsecured, the first four cause harm. Secured, a *different* layer stops each, and the platform consoles show why.
+Unsecured, all but the evaluation gate cause harm. Secured, a *different* layer stops each, and the platform consoles show why.
 
 [NOTE]
-.The five messages to land
+.The six messages to land
 ====
 . Identity on every tool call, and on the data the agent retrieves.
 . A document is data, not a command.
 . Read, propose, act: a person with the right role makes every write.
 . Budgets and alerts with a name.
 . The sandbox has a front door: identity-bound access, not a wall.
+. A tool is a supply chain too: only reviewed, pinned tools reach the agent.
 ====
 
 == How to use this guide

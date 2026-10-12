@@ -78,7 +78,7 @@ The link back from the gate to production: every live chat turn names the prompt
 
 . Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*. Open any recent chat trace (for example the CLM-1004 turn from Scenario 2), or search with `tags.agent = 'parasol-claims-agent'`.
 +
-What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt@production`, next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the alias the production release run was gated on (`prompt-ref` on the `env-secured` Application, xref:08-supply-chain.adoc[08. Supply chain]); the shortened candidate never appears here, because it was never promoted.
+What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt@production`, next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the alias the production release run was gated on (`prompt-ref` on the `env-secured` Application, xref:09-supply-chain.adoc[08. Supply chain]); the shortened candidate never appears here, because it was never promoted.
 +
 // SCREENSHOT: s5-mlflow-runtime-prompt.png — MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on tags.agent = 'parasol-claims-agent', one trace open showing the prompt / agent / model tags (OpenShift sign-in for MLflow)
 
@@ -86,4 +86,4 @@ What you should see: the trace tag `prompt` `parasol-claims-assistant-system-pro
 
 Nothing to reset: this scenario changes no data.
 
-Continue with xref:08-supply-chain.adoc[08. Supply chain: signing and admission].
+Continue with xref:08-scenario6-poisoned-tool.adoc[08. Scenario 6: The poisoned tool].

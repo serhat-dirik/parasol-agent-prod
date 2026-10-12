@@ -1,5 +1,5 @@
-= 09. Reset and troubleshooting
-:navtitle: 09. Reset and troubleshooting
+= 10. Reset and troubleshooting
+:navtitle: 10. Reset and troubleshooting
 :toc: macro
 :toclevels: 2
 
@@ -15,7 +15,7 @@ Reset between every run of the demo, and scan the troubleshooting table once bef
 
 == Reset between runs
 
-The scenarios change data: Scenario 1 approves CLM-1001, Scenario 2 pays CLM-1004 on the unsecured portal, and Scenario 4 spends `nina.contractor`'s budget. Scenario 3 only reads: the knowledge base is not changed by any scenario, and the reset leaves it as it is.
+The scenarios change data: Scenario 1 approves CLM-1001, Scenario 2 pays CLM-1004 on the unsecured portal, and Scenario 4 spends `nina.contractor`'s budget. Scenario 3 only reads: the knowledge base is not changed by any scenario, and the reset leaves it as it is. Scenario 6 plugs the vendor tool into the unsecured portal, poisons its description, may register it on the secured gateway, and pays CLM-1001 on the unsecured portal.
 
 . In the *Terminal* tab, reset both portals and the per-user token budgets:
 +
@@ -39,7 +39,7 @@ oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"
 
 === What a reset clears, and what it keeps
 
-`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every per-user token budget and zeroes Limitador's own 429 count. It does not clear the governance record, on purpose:
+`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every per-user token budget and zeroes Limitador's own 429 count. It also puts the Scenario 6 vendor tool back: clean description, unplugged from the unsecured portal (which restarts if it was plugged in), not registered on the secured gateway. It does not clear the governance record, on purpose:
 
 * the dashboard counters are cumulative since their process started: token spend, tool calls and per-user 429s live in the secured portal (cleared when the portal pod restarts, for example after a release), guardrail hits in the guardrails proxy, gateway refusals in Authorino. Between runs, read the *change* on a panel, not the absolute number;
 * MLflow traces, Keycloak events (kept 7 days) and the Authorino log stay, so a later run can still be traced back;
@@ -81,9 +81,13 @@ Every question the audience asks has one screen that answers it with the same na
 |*Terminal*: `oc exec -n parasol-secured deploy/knowledge-base-db -- psql -U postgres -d kb -c '\d+ chunks'`
 |`Policies: POLICY "chunks_by_group" FOR SELECT TO kb_app`, row-level security enabled; the server's role `kb_app` is neither owner nor superuser
 
+|Which MCP servers can the agent reach, and what do their tools tell the model?
+|`oc get mcpserverregistration -n parasol-secured`; dashboard row *Tool supply chain*; `oc logs -n mcp-system deploy/mcp-tool-scanner`
+|registered servers with their tool counts; each server's tools, version and drift against the pin `parasol.example/tools-sha256`; `tool-scan action=flag server=... tool=... rule=...` and `action=drift ... pinned=... current=...`; alerts `MCPToolDescriptionInjection`, `MCPToolDefinitionDrift`
+
 |What are the guardrail rules?
 |*OpenShift Console*, project `parasol-secured`, *ConfigMaps*, `guardrails-rules`
-|the phrases, topics, PII types and the confidential-document marker, and what each does (flag, block, mask)
+|the phrases, topics, PII types, the confidential-document marker and the tool-description rules, and what each does (flag, block, mask)
 
 |What did a guardrail catch, for whom?
 |Dashboard row *Guardrails*; `oc logs -n parasol-secured deploy/guardrails-proxy`
@@ -134,6 +138,9 @@ Each scenario has a script that drives the same beats without a browser. Use the
 
 |5
 |`scripts/eval-goldenset.sh` (workstation, needs the credentials file): secured blocked, unsecured allowed, PASS 3/3.
+
+|6
+|`scripts/tool-rugpull.sh plug`, then `on`, then `status`: the vendor tool in the unsecured portal, poisoned, flagged and drifted in the scanner log; `scripts/tool-rugpull.sh register` / `unregister` for the governed registration; `scripts/reset.sh` puts everything back.
 
 |Model check
 |`scripts/probe-maas.sh $MAAS_MODEL` (workstation, needs the credentials file): the agent model emits structured tool calls.

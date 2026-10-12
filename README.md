@@ -133,8 +133,8 @@ directly. Then open the portals in a browser — **this is the demo**:
 The demo runs from the **Showroom** at `https://showroom-parasol-showroom.apps.<cluster-domain>`: a
 step-by-step guide on the left, the live apps on the right — both portals, Keycloak, OpenShift AI,
 the OpenShift console, Argo CD, MLflow, and a Terminal with `oc` and this repo — so the whole demo
-happens in one browser window. It walks the five scenarios (the colleague, the customer's document,
-the confidential document, the night shift, the evaluation gate) and the supply chain, says which tab each step uses, where to
+happens in one browser window. It walks the six scenarios (the colleague, the customer's document,
+the confidential document, the night shift, the evaluation gate, the poisoned tool) and the supply chain, says which tab each step uses, where to
 look on the platform, which log commands confirm each beat, and how to reset and troubleshoot.
 
 Sign in with your OpenShift account when the Showroom opens; the framed consoles reuse that session.
@@ -171,7 +171,11 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
    blocked vs unsecured allowed, PASS 3/3); the dashboard LMEval run is
    `oc apply -f gitops/platform/eval/lmevaljob-agent-model.yaml` then `oc get lmevaljob -n parasol-eval -w`;
    the production prompt 20/20 / shortened candidate 17/20 compliance lives in MLflow `parasol-agent-eval`.
-7. **Layer 6 — supply chain** — `scripts/signing-demo.sh` shows admission refusing an unsigned image
+7. **Scenario 6 — the poisoned tool** — `scripts/tool-rugpull.sh plug|on|off|register|unregister|status`
+   plugs the vendor `currency-converter` (project `parasol-thirdparty`) into the unsecured portal, flips its
+   tool description (same version), and switches the governed registration on the secured gateway;
+   the tool scanner (`mcp-system/mcp-tool-scanner`) flags and pins descriptions. `scripts/reset.sh` undoes all of it.
+8. **Layer 6 — supply chain** — `scripts/signing-demo.sh` shows admission refusing an unsigned image
    and admitting the signed one.
 
 Other helpers:

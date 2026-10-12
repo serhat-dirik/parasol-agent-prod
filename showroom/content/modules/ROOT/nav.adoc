@@ -3,13 +3,14 @@
 * xref:01-architecture.adoc[01. Architecture]
 * xref:02-before-you-start.adoc[02. Before you start]
 
-.The five scenarios
+.The six scenarios
 * xref:03-scenario1-colleague.adoc[03. Scenario 1: The colleague]
 * xref:04-scenario2-document.adoc[04. Scenario 2: The customer's document]
 * xref:05-scenario3-confidential-document.adoc[05. Scenario 3: The confidential document]
 * xref:06-scenario4-night-shift.adoc[06. Scenario 4: The night shift]
 * xref:07-scenario5-eval-gate.adoc[07. Scenario 5: The evaluation gate]
+* xref:08-scenario6-poisoned-tool.adoc[08. Scenario 6: The poisoned tool]
 
 .From localhost to production
-* xref:08-supply-chain.adoc[08. Supply chain: signing and admission]
-* xref:09-reset-troubleshooting.adoc[09. Reset and troubleshooting]
+* xref:09-supply-chain.adoc[09. Supply chain: signing and admission]
+* xref:10-reset-troubleshooting.adoc[10. Reset and troubleshooting]
