@@ -268,7 +268,7 @@ def main():
     s, body = req("GET", f"/registered_models/{mid}/versions?pageSize=200")
     print("VERSIONS NOW:", ", ".join(
         f"{v['name']}(gate={v.get('customProperties',{}).get('eval_gate',{}).get('string_value','?')},"
-        f"pass={v.get('customProperties',{}).get('eval_passrate',{}).get('string_value','?')})"
+        f"score={v.get('customProperties',{}).get('eval_score',{}).get('string_value','?')},{v.get('state')})"
         for v in body.get("items", [])))
 
 
