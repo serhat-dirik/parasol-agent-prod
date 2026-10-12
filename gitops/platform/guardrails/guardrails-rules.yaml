@@ -22,6 +22,12 @@ data:
                     outside claims-managers: action=block, detector=confidential-marker. Defence in depth: the
                     knowledge base already does not return those documents to such a caller.
 
+    tool-descriptions.json  read by the MCP tool scanner (mcp-system/mcp-tool-scanner), not by the proxy: what a
+                    tool DESCRIPTION must not contain. The scanner applies detectors.json above plus these patterns
+                    (concealment, "before you answer, call ...") plus the names of other servers' tools to every
+                    registered and candidate MCP server: action=flag, alert MCPToolDescriptionInjection. It re-reads
+                    this ConfigMap on every scan (30 s); no restart.
+
     Every detection is one log line of deploy/guardrails-proxy:
       guardrail action=<flag|block|mask> detector=<id> score=<0..1> user=<user> agent=<agent> trace=<trace id> text=<match>
     and one count of parasol_guardrails_detections_total{detector,action,user,agent} (dashboard: Parasol
@@ -35,6 +41,10 @@ data:
       "(?i)assistant action required",
       "(?i)note to the claims assistant"
     ]}}
+  tool-descriptions.json: |
+    ["(?i)\\b(do not|don't|never)\\s+(mention|tell|reveal|disclose|inform)\\b",
+     "(?i)\\b(ignore|disregard)\\s+(all\\s+|any\\s+)?(previous|prior|other|above)\\s+instructions",
+     "(?i)\\bbefore\\s+(you\\s+)?(answer|respond|reply|use|using|call|calling|convert|converting)\\b[^.]{0,80}\\bcall\\b"]
   topic.json: |
     ["(?i)\\bessay\\b", "(?i)\\bpoem\\b", "(?i)\\bshort story\\b", "(?i)\\bhaiku\\b", "(?i)\\bnovel\\b",
      "(?i)write (me )?an? (story|song|poem|essay|haiku|novel|screenplay)"]

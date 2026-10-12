@@ -2,7 +2,7 @@
 # authorizes tools but does not look at what a tool's DESCRIPTION tells the model, and it has no way
 # to pin a server's tool definitions. This small service does both, next to the broker: see
 # tool-scanner/scan.py. It only reads (Kubernetes API: registrations, routes, candidate Services, the
-# guardrails rules) and only lists tools (no tools/call). Findings: one log line each
+# guardrails rules incl. tool-descriptions.json) and only lists tools (no tools/call). Findings: one log line each
 #   tool-scan action=flag server=<ns/name> registered=<true|false> tool=<tool> source=<rules> rule=<pattern> version=<v>
 #   tool-scan action=drift server=<ns/name> registered=<..> version=<v> pinned=<sha256> current=<sha256>
 # plus /metrics (parasol_mcp_tool_description_findings, parasol_mcp_tool_definition_drift,
@@ -80,7 +80,6 @@ spec:
           env:
             - {name: SCAN_INTERVAL, value: "30"}
             - {name: RULES_CONFIGMAP, value: parasol-secured/guardrails-rules}
-            - {name: EXTRA_RULES, value: /app/rules.json}
           ports:
             - {name: http, containerPort: 8080}
           readinessProbe:

@@ -179,10 +179,11 @@ rules:
   - apiGroups: [argoproj.io]
     resources: [applications]
     verbs: [get, list, watch]
-  # Guide 05/08 kill switch: add/remove the kill-switch component on env-secured (one `oc patch`).
+  # Kill switch: add/remove the kill-switch component on env-secured (one `oc patch`). Scenario 6
+  # (scripts/tool-rugpull.sh): plug-in-vendor-tool on env-free, register-currency-converter on env-secured.
   - apiGroups: [argoproj.io]
     resources: [applications]
-    resourceNames: [env-secured]
+    resourceNames: [env-secured, env-free]
     verbs: [patch]
 ---
 # reset.sh: restart Limitador to refill the per-user token budgets.
@@ -246,4 +247,12 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata: {name: showroom-terminal-sign-demo-pull, namespace: parasol-build}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-sign-demo-pull}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+# Scenario 6: the tool scanner's pre-registration check (oc exec ... scan.py --check). The vendor
+# namespace's own Terminal grants live with it (gitops/envs/thirdparty/terminal-rbac.yaml).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-exec, namespace: mcp-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter-exec}
 subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]

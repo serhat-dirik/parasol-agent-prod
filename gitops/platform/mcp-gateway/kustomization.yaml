@@ -15,4 +15,4 @@ resources:
 configMapGenerator:
   - name: mcp-tool-scanner
     namespace: mcp-system
-    files: [tool-scanner/scan.py, tool-scanner/rules.json]
+    files: [tool-scanner/scan.py]

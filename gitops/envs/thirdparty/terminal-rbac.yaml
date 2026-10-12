@@ -1,0 +1,24 @@
+# The Showroom Terminal (scripts/tool-rugpull.sh, reset.sh): read the vendor namespace, flip the vendor's description
+# (ConfigMap currency-converter-release) and restart its pod.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-view, namespace: parasol-thirdparty}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-vendor-tool, namespace: parasol-thirdparty}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    verbs: [create, patch, delete]
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-vendor-tool, namespace: parasol-thirdparty}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-vendor-tool}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]

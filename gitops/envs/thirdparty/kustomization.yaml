@@ -6,4 +6,5 @@ namespace: parasol-thirdparty
 resources:
   - namespace.yaml
   - referencegrant.yaml
+  - terminal-rbac.yaml
   - ../../../apps/mcp-servers/currency-converter
