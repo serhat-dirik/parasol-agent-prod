@@ -1,5 +1,5 @@
 # The "3am" alert: the assistant burning tokens far above the normal interactive rate, attributed to
-# the user driving it. Demo 3 beat 3: ParasolAssistantTokenSpendHigh fires with the user and namespace.
+# the user driving it and the agent acting for them. Scenario 3: fires naming user, agent and namespace.
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
 metadata:
@@ -16,13 +16,13 @@ spec:
           # its own. Threshold 5000 tokens/min is well above normal single-user interactive load
           # (an adjuster runs a few hundred to low-thousands/min) and below the measured night-shift rate
           # (~9000/min for nina.contractor). The portal tags the counter with the caller's username.
-          expr: sum by (namespace, user) (rate(parasol_agent_tokens_total[2m])) * 60 > 5000
+          expr: sum by (namespace, user, agent) (rate(parasol_agent_tokens_total[2m])) * 60 > 5000
           for: 1m
           labels:
             severity: warning
           annotations:
-            summary: "Assistant token spend high for user {{ $labels.user }} in {{ $labels.namespace }}"
-            description: "User {{ $labels.user }} is driving the assistant at {{ $value | humanize }} tokens/min, far above normal interactive load. Possible runaway loop or denial-of-wallet. Disable the user in Keycloak and/or revoke model access via GitOps (envs/secured/kill-switch), then inspect the trace in Observe > Traces / MLflow."
+            summary: "Assistant token spend high for user {{ $labels.user }} via agent {{ $labels.agent }} in {{ $labels.namespace }}"
+            description: "Agent {{ $labels.agent }} on behalf of user {{ $labels.user }} is spending {{ $value | humanize }} tokens/min, far above normal interactive load. Possible runaway loop or denial-of-wallet. Disable the user in Keycloak, or switch on the kill switch on the Argo CD Application env-secured; the traces are in MLflow (workspace parasol-secured, filter by user)."
         - alert: ParasolAssistantToolDenied
           expr: increase(http_server_requests_seconds_count{job=~"parasol.*", status="403"}[5m]) > 3
           for: 0m

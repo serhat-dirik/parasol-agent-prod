@@ -1,11 +1,10 @@
-# Perses dashboard for the Parasol assistant token metrics.
-# Rendered by the Cluster Observability Operator's console Perses backend
-# (UIPlugin "monitoring", spec.monitoring.perses.enabled) which lives in
-# openshift-operators; the perses-operator pushes each PersesDashboard to
-# perses.<its-namespace>.svc, so this CR must sit in openshift-operators to
-# land in the console-integrated Perses instance. Purely additive.
-# Queries omit a datasource and use the project default
-# (accelerators-thanos-querier-datasource -> thanos-querier, UWM-aware).
+# Perses dashboard "Parasol Assistant Token Spend": the governance evidence of the Showroom scenarios.
+# Every row is "agent X on behalf of user Y". Rendered by the Cluster Observability Operator's console
+# Perses backend (UIPlugin "monitoring"), which lives in openshift-operators: the perses-operator pushes
+# each PersesDashboard to perses.<its-namespace>.svc, so this CR must sit there. OpenShift console:
+# Observe > Dashboards, project openshift-operators. Queries use the project default datasource
+# (thanos-querier, UWM-aware). Counters are cumulative since their process started (portal, guardrails
+# proxy, Authorino, Limitador); see the guide's reset page for what resets them.
 apiVersion: perses.dev/v1alpha2
 kind: PersesDashboard
 metadata:
@@ -19,8 +18,8 @@ spec:
   config:
     display:
       name: Parasol Assistant Token Spend
-      description: Per-user token consumption of the Parasol claims assistant and the spend that drives the ParasolAssistantTokenSpendHigh alert
-    duration: 6h
+      description: 'Agent X on behalf of user Y: token spend, model calls, tool calls, gateway rejections, guardrail hits and the spend alert'
+    duration: 1h
     variables:
     - kind: ListVariable
       spec:
@@ -29,197 +28,110 @@ spec:
           name: User
         allowAllValue: true
         allowMultiple: true
-        defaultValue: ["$__all"]
+        defaultValue:
+        - $__all
         sort: alphabetical-asc
         plugin:
           kind: PrometheusLabelValuesVariable
           spec:
             labelName: user
             matchers:
-            - 'parasol_agent_tokens_total{user!=""}'
+            - parasol_agent_tokens_total{user!=""}
+    - kind: ListVariable
+      spec:
+        name: agent
+        display:
+          name: Agent
+        allowAllValue: true
+        allowMultiple: true
+        defaultValue:
+        - $__all
+        sort: alphabetical-asc
+        plugin:
+          kind: PrometheusLabelValuesVariable
+          spec:
+            labelName: agent
+            matchers:
+            - parasol_agent_tokens_total{agent!=""}
     panels:
       spendRate:
         kind: Panel
         spec:
           display:
-            name: Per-user token spend (tokens/min) — alert at 5000
-            description: sum by(user) rate(parasol_agent_tokens_total[2m]) * 60 — the exact ParasolAssistantTokenSpendHigh expression
+            name: Token spend per user and agent (tokens/min), alert at 5000
+            description: 'sum by (user, agent) (rate(parasol_agent_tokens_total[2m])) * 60: the ParasolAssistantTokenSpendHigh expression'
           plugin:
             kind: TimeSeriesChart
             spec:
               legend:
-                mode: list
-                position: bottom
+                mode: table
+                position: right
               visual:
                 display: line
                 lineWidth: 1.5
-                areaOpacity: 0.1
+                areaOpacity: 0.2
               yAxis:
                 format:
                   unit: decimal
               thresholds:
                 steps:
                 - value: 5000
-                  color: "#d9534f"
+                  color: '#d9534f'
           queries:
           - kind: TimeSeriesQuery
             spec:
               plugin:
                 kind: PrometheusTimeSeriesQuery
                 spec:
-                  query: 'sum by (user) (rate(parasol_agent_tokens_total{user=~"$user"}[2m])) * 60'
-                  seriesNameFormat: '{{user}}'
-      cumulativeByUser:
+                  query: sum by (user, agent) (rate(parasol_agent_tokens_total{user=~"$user", agent=~"$agent"}[2m])) * 60
+                  seriesNameFormat: '{{user}} via {{agent}}'
+      spendTable:
         kind: Panel
         spec:
           display:
-            name: Cumulative tokens by user
+            name: Tokens by user and agent (since the portal started)
+            description: 'sum by (user, agent, env) (parasol_agent_tokens_total): each row reads agent X on behalf of user Y'
           plugin:
-            kind: TimeSeriesChart
+            kind: Table
             spec:
-              legend:
-                mode: list
-                position: bottom
-              visual:
-                display: line
-                lineWidth: 1.5
-                areaOpacity: 0.15
-                stack: all
-              yAxis:
-                format:
-                  unit: decimal
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: user
+                header: user
+              - name: agent
+                header: agent
+              - name: env
+                header: env
+              - name: value
+                header: tokens
+                sort: desc
+                enableSorting: true
           queries:
           - kind: TimeSeriesQuery
             spec:
               plugin:
                 kind: PrometheusTimeSeriesQuery
                 spec:
-                  query: 'sum by (user) (parasol_agent_tokens_total{user=~"$user"})'
-                  seriesNameFormat: '{{user}}'
-      byType:
+                  query: sum by (user, agent, env) (parasol_agent_tokens_total{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: ''
+      modelCalls:
         kind: Panel
         spec:
           display:
-            name: Tokens by type (input / output)
+            name: Model calls per agent and user (calls/min)
+            description: sum by (agent, user) (rate(parasol_agent_model_calls_total[5m])) * 60
           plugin:
             kind: TimeSeriesChart
             spec:
               legend:
-                mode: list
-                position: bottom
-              visual:
-                display: line
-                lineWidth: 1.5
-                areaOpacity: 0.3
-                stack: all
-              yAxis:
-                format:
-                  unit: decimal
-          queries:
-          - kind: TimeSeriesQuery
-            spec:
-              plugin:
-                kind: PrometheusTimeSeriesQuery
-                spec:
-                  query: 'sum by (type) (parasol_agent_tokens_total{user!=""})'
-                  seriesNameFormat: '{{type}}'
-      byVersion:
-        kind: Panel
-        spec:
-          display:
-            name: Tokens by assistant version
-          plugin:
-            kind: TimeSeriesChart
-            spec:
-              legend:
-                mode: list
-                position: bottom
-              visual:
-                display: line
-                lineWidth: 1.5
-              yAxis:
-                format:
-                  unit: decimal
-          queries:
-          - kind: TimeSeriesQuery
-            spec:
-              plugin:
-                kind: PrometheusTimeSeriesQuery
-                spec:
-                  query: 'sum by (version) (parasol_agent_tokens_total{user!=""})'
-                  seriesNameFormat: '{{version}}'
-      # --- O2: tool calls, guardrails, latency and the alert state (Demo 3 morning report) ---
-      toolCallsByStatus:
-        kind: Panel
-        spec:
-          display:
-            name: Tool calls by status (200 / 403)
-            description: sum by(status) parasol_tool_calls_total — reads pass (200), unauthorised writes are refused (403)
-          plugin:
-            kind: TimeSeriesChart
-            spec:
-              legend:
-                mode: list
-                position: bottom
-              visual:
-                display: line
-                lineWidth: 1.5
-                areaOpacity: 0.3
-                stack: all
-              yAxis:
-                format:
-                  unit: decimal
-          queries:
-          - kind: TimeSeriesQuery
-            spec:
-              plugin:
-                kind: PrometheusTimeSeriesQuery
-                spec:
-                  query: 'sum by (status) (parasol_tool_calls_total)'
-                  seriesNameFormat: 'status {{status}}'
-      deniedPerTool:
-        kind: Panel
-        spec:
-          display:
-            name: 403s per tool (identity-bound authorization)
-            description: sum by(tool) parasol_tool_calls_total{status="403"} — which tool a caller was denied
-          plugin:
-            kind: TimeSeriesChart
-            spec:
-              legend:
-                mode: list
-                position: bottom
-              visual:
-                display: bar
-                areaOpacity: 0.6
-              yAxis:
-                format:
-                  unit: decimal
-          queries:
-          - kind: TimeSeriesQuery
-            spec:
-              plugin:
-                kind: PrometheusTimeSeriesQuery
-                spec:
-                  query: 'sum by (tool) (parasol_tool_calls_total{status="403"})'
-                  seriesNameFormat: '{{tool}}'
-      detectorHits:
-        kind: Panel
-        spec:
-          display:
-            name: Guardrail detector hits (detector / action)
-            description: sum by(detector,action) parasol_guardrail_detections_total — what the guardrails proxy caught and did
-          plugin:
-            kind: TimeSeriesChart
-            spec:
-              legend:
-                mode: list
-                position: bottom
+                mode: table
+                position: right
               visual:
                 display: line
                 lineWidth: 1.5
                 areaOpacity: 0.2
-                stack: all
               yAxis:
                 format:
                   unit: decimal
@@ -229,23 +141,24 @@ spec:
               plugin:
                 kind: PrometheusTimeSeriesQuery
                 spec:
-                  query: 'sum by (detector, action) (parasol_guardrail_detections_total)'
-                  seriesNameFormat: '{{detector}} ({{action}})'
+                  query: sum by (agent, user) (rate(parasol_agent_model_calls_total{user=~"$user", agent=~"$agent"}[5m])) * 60
+                  seriesNameFormat: '{{user}} via {{agent}}'
       latencyP95:
         kind: Panel
         spec:
           display:
-            name: Assistant turn latency P95 (seconds)
-            description: histogram_quantile(0.95, rate(parasol_agent_latency_seconds_bucket[5m])) by version
+            name: Assistant turn latency P95 per agent (seconds)
+            description: histogram_quantile(0.95, sum by (le, agent) (rate(parasol_agent_latency_seconds_bucket[5m])))
           plugin:
             kind: TimeSeriesChart
             spec:
               legend:
-                mode: list
-                position: bottom
+                mode: table
+                position: right
               visual:
                 display: line
                 lineWidth: 1.5
+                areaOpacity: 0.2
               yAxis:
                 format:
                   unit: seconds
@@ -255,92 +168,365 @@ spec:
               plugin:
                 kind: PrometheusTimeSeriesQuery
                 spec:
-                  query: 'histogram_quantile(0.95, sum by (le, version) (rate(parasol_agent_latency_seconds_bucket[5m])))'
-                  seriesNameFormat: 'P95 {{version}}'
-      alertState:
+                  query: histogram_quantile(0.95, sum by (le, agent) (rate(parasol_agent_latency_seconds_bucket{user=~"$user", agent=~"$agent"}[5m])))
+                  seriesNameFormat: P95 {{agent}}
+      toolTable:
         kind: Panel
         spec:
           display:
-            name: ParasolAssistantTokenSpendHigh — alert state
-            description: ALERTS{alertname="ParasolAssistantTokenSpendHigh"} — 1 while the 3am spend alert is firing, labelled by user/namespace
+            name: Tool calls by tool, user, agent and status
+            description: 'sum by (tool, user, agent, status) (parasol_tool_calls_total): 200 = reached the tool through the gateway, 403 = refused (Approve without the role)'
           plugin:
-            kind: TimeSeriesChart
+            kind: Table
             spec:
-              legend:
-                mode: list
-                position: bottom
-              visual:
-                display: line
-                lineWidth: 2
-                areaOpacity: 0.3
-              yAxis:
-                format:
-                  unit: decimal
-              thresholds:
-                steps:
-                - value: 1
-                  color: "#d9534f"
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: tool
+                header: tool
+              - name: user
+                header: user
+              - name: agent
+                header: agent
+              - name: status
+                header: status
+              - name: value
+                header: count
+                sort: desc
+                enableSorting: true
           queries:
           - kind: TimeSeriesQuery
             spec:
               plugin:
                 kind: PrometheusTimeSeriesQuery
                 spec:
-                  query: 'max by (alertstate, user, namespace) (ALERTS{alertname="ParasolAssistantTokenSpendHigh"})'
-                  seriesNameFormat: '{{alertstate}} {{user}}'
+                  query: sum by (tool, user, agent, status) (parasol_tool_calls_total{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: ''
+      toolStatus:
+        kind: Panel
+        spec:
+          display:
+            name: Tool calls by status (cumulative)
+            description: sum by (status) (parasol_tool_calls_total)
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: table
+                position: right
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.2
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: sum by (status) (parasol_tool_calls_total{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: status {{status}}
+      rejectTable:
+        kind: Panel
+        spec:
+          display:
+            name: Gateway rejections by reason
+            description: Authorino evaluator denials (approved-agent / tool-access-check rules), the portal's per-user 429s, and Limitador's 429s, cumulative
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: reason
+                header: reason
+              - name: user
+                header: user
+              - name: agent
+                header: agent
+              - name: value
+                header: count
+                sort: desc
+                enableSorting: true
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: label_replace(sum(auth_server_evaluator_denied{evaluator_name="approved-agent"}), "reason", "403 not via an approved agent (MCP gateway)", "", "") or label_replace(sum(auth_server_evaluator_denied{evaluator_name="tool-access-check"}),
+                    "reason", "403 role does not allow the tool (MCP gateway)", "", "") or label_replace(sum by (user, agent) (parasol_agent_rejections_total{reason="usage_limit"}), "reason", "429 usage
+                    limit (MaaS token budget)", "", "") or label_replace(sum(limited_calls), "reason", "429 all models, all users (Limitador)", "", "")
+                  seriesNameFormat: ''
+      rejectSeries:
+        kind: Panel
+        spec:
+          display:
+            name: Gateway rejections by reason (cumulative)
+            description: the same counters over time; a step is a refusal
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: table
+                position: right
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.2
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: label_replace(sum(auth_server_evaluator_denied{evaluator_name="approved-agent"}), "reason", "403 not via an approved agent (MCP gateway)", "", "") or label_replace(sum(auth_server_evaluator_denied{evaluator_name="tool-access-check"}),
+                    "reason", "403 role does not allow the tool (MCP gateway)", "", "") or label_replace(sum by (user, agent) (parasol_agent_rejections_total{reason="usage_limit"}), "reason", "429 usage
+                    limit (MaaS token budget)", "", "") or label_replace(sum(limited_calls), "reason", "429 all models, all users (Limitador)", "", "")
+                  seriesNameFormat: '{{reason}} {{user}}'
+      rejectNote:
+        kind: Panel
+        spec:
+          display:
+            name: Who was refused at the gateway
+          plugin:
+            kind: Markdown
+            spec:
+              text: 'The gateway counters say *why*; the Authorino log says *who*, one line per refusal:
+
+
+                `oc logs -n kuadrant-system deploy/authorino | grep -E ''approved agent|denied for''`
+
+
+                * `not via an approved agent: rebecca azp=parasol-demo-cli`: a login token presented without an agent
+
+                * `tool approve_payout denied for rebecca azp=parasol-claims-agent`: the agent asked, the person lacks the role
+
+
+                429s name the user here (portal counter, labels user and agent) and in the ParasolAssistantTokenSpendHigh alert.'
+      guardHits:
+        kind: Panel
+        spec:
+          display:
+            name: Guardrail hits by detector, action, user and agent
+            description: 'sum by (detector, action, user, agent) (parasol_guardrails_detections_total): flag = document instruction flagged, block = turn refused, mask = personal data redacted'
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: detector
+                header: detector
+              - name: action
+                header: action
+              - name: user
+                header: user
+              - name: agent
+                header: agent
+              - name: value
+                header: count
+                sort: desc
+                enableSorting: true
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: sum by (detector, action, user, agent) (parasol_guardrails_detections_total{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: ''
+      guardScore:
+        kind: Panel
+        spec:
+          display:
+            name: Guardrail last score by detector and action
+            description: 'max by (detector, action, user, agent) (parasol_guardrails_score): the score of the latest detection (regex and topic score 1.0)'
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: detector
+                header: detector
+              - name: action
+                header: action
+              - name: user
+                header: user
+              - name: agent
+                header: agent
+              - name: value
+                header: score
+                sort: desc
+                enableSorting: true
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: max by (detector, action, user, agent) (parasol_guardrails_score{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: ''
+      guardSeries:
+        kind: Panel
+        spec:
+          display:
+            name: Guardrail hits over time (cumulative)
+            description: sum by (detector, action) (parasol_guardrails_detections_total)
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: table
+                position: right
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.2
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: sum by (detector, action) (parasol_guardrails_detections_total{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: '{{detector}} {{action}}'
+      alertState:
+        kind: Panel
+        spec:
+          display:
+            name: 'ParasolAssistantTokenSpendHigh: alert state per user and agent'
+            description: 'ALERTS{alertname="ParasolAssistantTokenSpendHigh"}: 1 while pending or firing'
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: table
+                position: right
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.2
+              yAxis:
+                format:
+                  unit: decimal
+              thresholds:
+                steps:
+                - value: 1
+                  color: '#d9534f'
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: max by (alertstate, user, agent, namespace) (ALERTS{alertname="ParasolAssistantTokenSpendHigh"})
+                  seriesNameFormat: '{{alertstate}} {{user}} via {{agent}}'
     layouts:
     - kind: Grid
       spec:
         display:
-          title: Token spend
+          title: 'Token spend: who, through which agent (Scenario 3)'
         items:
-        - content: {$ref: '#/spec/panels/spendRate'}
+        - content:
+            $ref: '#/spec/panels/spendRate'
           x: 0
           y: 0
-          width: 24
+          width: 16
           height: 9
-        - content: {$ref: '#/spec/panels/cumulativeByUser'}
+        - content:
+            $ref: '#/spec/panels/spendTable'
+          x: 16
+          y: 0
+          width: 8
+          height: 9
+        - content:
+            $ref: '#/spec/panels/alertState'
           x: 0
           y: 9
+          width: 24
+          height: 6
+        - content:
+            $ref: '#/spec/panels/modelCalls'
+          x: 0
+          y: 15
           width: 12
           height: 8
-        - content: {$ref: '#/spec/panels/byType'}
+        - content:
+            $ref: '#/spec/panels/latencyP95'
           x: 12
-          y: 9
-          width: 12
-          height: 8
-        - content: {$ref: '#/spec/panels/byVersion'}
-          x: 0
-          y: 17
+          y: 15
           width: 12
           height: 8
     - kind: Grid
       spec:
         display:
-          title: Tool calls, guardrails and latency (Demo 3 morning report)
+          title: 'Gateway decisions: tools and rejections (Scenarios 1 and 3)'
         items:
-        - content: {$ref: '#/spec/panels/alertState'}
+        - content:
+            $ref: '#/spec/panels/rejectTable'
           x: 0
           y: 0
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/rejectNote'
+          x: 12
+          y: 0
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/rejectSeries'
+          x: 0
+          y: 8
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/toolTable'
+          x: 12
+          y: 8
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/toolStatus'
+          x: 0
+          y: 16
+          width: 24
+          height: 6
+    - kind: Grid
+      spec:
+        display:
+          title: Guardrails (Scenarios 2 and 3)
+        items:
+        - content:
+            $ref: '#/spec/panels/guardHits'
+          x: 0
+          y: 0
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/guardScore'
+          x: 12
+          y: 0
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/guardSeries'
+          x: 0
+          y: 8
           width: 24
           height: 7
-        - content: {$ref: '#/spec/panels/toolCallsByStatus'}
-          x: 0
-          y: 7
-          width: 12
-          height: 8
-        - content: {$ref: '#/spec/panels/deniedPerTool'}
-          x: 12
-          y: 7
-          width: 12
-          height: 8
-        - content: {$ref: '#/spec/panels/detectorHits'}
-          x: 0
-          y: 15
-          width: 12
-          height: 8
-        - content: {$ref: '#/spec/panels/latencyP95'}
-          x: 12
-          y: 15
-          width: 12
-          height: 8
