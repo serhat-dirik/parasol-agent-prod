@@ -556,6 +556,95 @@ spec:
                 spec:
                   query: sum by (classification) (parasol_rag_withheld_total{user=~"$user", agent=~"$agent"})
                   seriesNameFormat: '{{classification}}'
+      toolServers:
+        kind: Panel
+        spec:
+          display:
+            name: 'MCP servers seen by the tool scanner (tools, version, registered on the gateway)'
+            description: 'parasol_mcp_tool_scan_tools: registered=true is federated by the MCP gateway (MCPServerRegistration), false is a candidate nobody registered'
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: server
+                header: server
+              - name: registered
+                header: registered
+              - name: version
+                header: version
+              - name: value
+                header: tools
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: max by (server, registered, version) (parasol_mcp_tool_scan_tools)
+                  seriesNameFormat: ''
+      toolFindings:
+        kind: Panel
+        spec:
+          display:
+            name: Tool descriptions with instructions for the assistant
+            description: 'parasol_mcp_tool_description_findings: one row per tool and matching rule (guardrails-rules patterns, scanner rules, names of other servers tools). Log: oc logs -n mcp-system deploy/mcp-tool-scanner | grep action=flag'
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: server
+                header: server
+              - name: registered
+                header: registered
+              - name: tool
+                header: tool
+              - name: source
+                header: source
+              - name: rule
+                header: rule
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: max by (server, registered, tool, source, rule) (parasol_mcp_tool_description_findings) > 0
+                  seriesNameFormat: ''
+      toolDrift:
+        kind: Panel
+        spec:
+          display:
+            name: 'Tool definitions against the pin reviewed in Git (1 = drift, possible rug pull)'
+            description: 'parasol_mcp_tool_definition_drift: sha256 of name, description and schema vs annotation parasol.example/tools-sha256; pin=none means nothing was pinned. Alert MCPToolDefinitionDrift'
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: server
+                header: server
+              - name: registered
+                header: registered
+              - name: pin
+                header: pin
+              - name: value
+                header: drift
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: max by (server, registered, pin) (parasol_mcp_tool_definition_drift)
+                  seriesNameFormat: ''
     layouts:
     - kind: Grid
       spec:
@@ -678,4 +767,27 @@ spec:
           x: 12
           y: 8
           width: 12
+          height: 8
+    - kind: Grid
+      spec:
+        display:
+          title: 'Tool supply chain: what MCP servers tell the model (Scenario 6)'
+        items:
+        - content:
+            $ref: '#/spec/panels/toolServers'
+          x: 0
+          y: 0
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/toolDrift'
+          x: 12
+          y: 0
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/toolFindings'
+          x: 0
+          y: 8
+          width: 24
           height: 8
