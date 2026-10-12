@@ -45,16 +45,16 @@ else
 fi
 
 # --- agent clients ---
-agent() {  # $1 clientId  $2 service account  $3 display name
+agent() {  # $1 clientId  $2 service account  $3 display name  $4 default client scopes (JSON array)
   local json uuid
-  json="$(jq -nc --arg cid "$1" --arg name "$3" --arg sub "system:serviceaccount:$NS:$2" '{
+  json="$(jq -nc --arg cid "$1" --arg name "$3" --arg sub "system:serviceaccount:$NS:$2" --argjson scopes "$4" '{
     clientId:$cid, name:$name, enabled:true, protocol:"openid-connect", publicClient:false,
     clientAuthenticatorType:"federated-jwt", serviceAccountsEnabled:true,
     standardFlowEnabled:false, implicitFlowEnabled:false, directAccessGrantsEnabled:false,
     fullScopeAllowed:false,
     attributes:{"standard.token.exchange.enabled":"true",
       "jwt.credential.issuer":"openshift-sa", "jwt.credential.sub":$sub},
-    defaultClientScopes:["basic","roles","profile"], optionalClientScopes:[]}')"
+    defaultClientScopes:$scopes, optionalClientScopes:[]}')"
   uuid="$(cuuid "$1")"
   if [ -z "$uuid" ]; then
     kc -X POST "$API/clients" -d "$json" -o /dev/null -w "client $1 create http=%{http_code}\n"
@@ -62,8 +62,13 @@ agent() {  # $1 clientId  $2 service account  $3 display name
     kc -X PUT "$API/clients/$uuid" -d "$json" -o /dev/null -w "client $1 update http=%{http_code}\n"
   fi
 }
-agent parasol-claims-agent claims-agent "Parasol claims assistant (agent identity)"
-agent parasol-fraud-agent fraud-agent "Parasol fraud-check agent (agent identity)"
+# the claims agent's tokens carry the user's groups: the knowledge base decides which documents they may read
+agent parasol-claims-agent claims-agent "Parasol claims assistant (agent identity)" '["basic","roles","profile","groups"]'
+agent parasol-fraud-agent fraud-agent "Parasol fraud-check agent (agent identity)" '["basic","roles","profile"]'
+# an update (PUT) ignores defaultClientScopes: attach the groups scope explicitly (idempotent)
+GSID="$(kc "$API/client-scopes" | jq -r '.[] | select(.name=="groups") | .id')"
+[ -n "$GSID" ] || { echo "client scope groups not found"; exit 1; }
+kc -X PUT "$API/clients/$(cuuid parasol-claims-agent)/default-client-scopes/$GSID" -o /dev/null -w "parasol-claims-agent default scope groups http=%{http_code}\n"
 
 # --- headless persona logins for the scripts: public, password grant only, no browser flow ---
 DEMO_CLI="$(jq -nc '{clientId:"parasol-demo-cli", name:"Parasol demo scripts (headless persona login)",
@@ -95,9 +100,11 @@ ceiling parasol-claims-agent parasol-secured/claims-db \
   tool:get_claim tool:list_claims_by_status tool:get_claim_history tool:get_claim_documents tool:approve_payout
 ceiling parasol-claims-agent parasol-secured/policy-docs tool:search_policies tool:get_policy tool:list_policies
 ceiling parasol-claims-agent parasol-secured/fraud-check tool:fraud_check
+ceiling parasol-claims-agent parasol-secured/knowledge-base tool:search_knowledge
 ceiling parasol-fraud-agent parasol-secured/claims-db tool:get_claim tool:get_claim_history tool:get_claim_documents
 ceiling parasol-fraud-agent parasol-secured/policy-docs
 ceiling parasol-fraud-agent parasol-secured/fraud-check
+ceiling parasol-fraud-agent parasol-secured/knowledge-base
 
 # --- audience mappers: who may exchange whose token ---
 audience() {  # $1 client that issues/receives the token  $2 audience client added to it

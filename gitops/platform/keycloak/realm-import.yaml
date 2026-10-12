@@ -39,7 +39,8 @@ spec:
         standard.token.exchange.enabled: 'true'
         jwt.credential.issuer: openshift-sa
         jwt.credential.sub: system:serviceaccount:parasol-secured:claims-agent
-      defaultClientScopes: [basic, roles, profile]
+      # groups: the knowledge base decides which documents the user may read from this claim
+      defaultClientScopes: [basic, roles, profile, groups]
       # its tokens may be exchanged again by the fraud agent (agent-to-agent)
       protocolMappers:
       - name: audience-parasol-fraud-agent
@@ -151,6 +152,18 @@ spec:
       defaultClientScopes:
       - roles
       fullScopeAllowed: true
+    # The knowledge base is a resource server too; the gateway checks tool:search_knowledge here
+    # (scripts/knowledge-base-client.sh keeps it in sync on an existing realm).
+    - clientId: parasol-secured/knowledge-base
+      name: knowledge base (resource server)
+      publicClient: true
+      standardFlowEnabled: false
+      directAccessGrantsEnabled: false
+      protocol: openid-connect
+      enabled: true
+      defaultClientScopes:
+      - roles
+      fullScopeAllowed: true
     # Headless persona logins of the scripts (scripts/token.sh): public, password grant only, no browser
     # flow. Its tokens may be exchanged by the claims agent, like a portal login token.
     - clientId: parasol-demo-cli
@@ -196,6 +209,9 @@ spec:
         parasol-secured/fraud-check:
         - name: tool:fraud_check
           clientRole: true
+        parasol-secured/knowledge-base:
+        - name: tool:search_knowledge
+          clientRole: true
     # The agent ceilings (what each agent may ever use on a user's behalf). Approve is inside the claims
     # agent's ceiling but only reachable when the USER holds it too (claims-managers); the fraud agent is
     # read-only and can never approve.
@@ -211,6 +227,9 @@ spec:
       parasol-secured/fraud-check:
       - client: parasol-claims-agent
         roles: [tool:fraud_check]
+      parasol-secured/knowledge-base:
+      - client: parasol-claims-agent
+        roles: [tool:search_knowledge]
     # This cluster's ServiceAccount tokens as client assertions (issuer: the cluster's service-account
     # issuer; Keycloak runs in-cluster and reads the API server's JWKS).
     identityProviders:
@@ -242,6 +261,8 @@ spec:
         - tool:list_policies
         parasol-secured/fraud-check: &id003
         - tool:fraud_check
+        parasol-secured/knowledge-base: &id004
+        - tool:search_knowledge
     - name: claims-managers
       path: /claims-managers
       clientRoles:
@@ -253,11 +274,13 @@ spec:
         - tool:approve_payout
         parasol-secured/policy-docs: *id001
         parasol-secured/fraud-check: *id003
+        parasol-secured/knowledge-base: *id004
     - name: developers
       path: /developers
       clientRoles:
         parasol-secured/claims-db: *id002
         parasol-secured/policy-docs: *id001
+        parasol-secured/knowledge-base: *id004
     # Contractors (outsourced night-shift staff). Read-only claim and policy tools, nothing that writes
     # or escalates: no approve_payout, no fraud_check (403 by least privilege). Night-shift user nina.contractor.
     - name: contractors
@@ -265,6 +288,7 @@ spec:
       clientRoles:
         parasol-secured/claims-db: *id002
         parasol-secured/policy-docs: *id001
+        parasol-secured/knowledge-base: *id004
     users:
     - username: rebecca
       enabled: true
