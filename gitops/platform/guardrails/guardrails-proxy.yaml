@@ -253,9 +253,10 @@ data:
             oh = output_hits(answer, groups_of(self.headers))
             if oh:
                 record(ctx, "block", oh)
-                return self._send(200, block(req, oh,
-                    "That answer contained material marked for claims managers only, so it was withheld.",
-                    "confidential document withheld"))
+                out = block(req, oh, "That answer contained material marked for claims managers only, so it was withheld.",
+                            "confidential document withheld")
+                out["usage"] = r.get("usage") or out["usage"]   # the model call did happen: keep its token count
+                return self._send(200, out)
             if isinstance(r, dict) and (flag or masked):
                 try:
                     msg = r["choices"][0]["message"]
