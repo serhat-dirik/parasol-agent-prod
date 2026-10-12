@@ -13,6 +13,8 @@ import io.micrometer.core.instrument.Timer;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.api.baggage.Baggage;
+import io.opentelemetry.context.Scope;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -58,8 +60,9 @@ public class AgentService {
     @ConfigProperty(name = "agent.safety-rules")
     Optional<String> safetyRulesConfig;
 
-    @ConfigProperty(name = "agent.version", defaultValue = "dev")
-    String version;
+    /** Which environment this deployment is (secured / free): a label on metrics and traces, not a prompt version. */
+    @ConfigProperty(name = "agent.env", defaultValue = "dev")
+    String env;
 
     /** The MLflow Prompt Registry version this deployment runs (e.g. parasol-claims-assistant-system-prompt@production). */
     @ConfigProperty(name = "agent.prompt-version", defaultValue = "unset")
@@ -88,9 +91,22 @@ public class AgentService {
         // same pair on every tool span.
         root.setAttribute("enduser.id", who);
         root.setAttribute("gen_ai.agent.name", mcpAuth.agentId());
-        root.setAttribute("gen_ai.agent.id", mcpAuth.agentId() + "@" + version);
+        root.setAttribute("gen_ai.agent.id", mcpAuth.agentId());
         root.setAttribute("gen_ai.prompt.ref", promptVersion);
-        String traceId = root.getSpanContext().getTraceId();
+        root.setAttribute("gen_ai.request.model", modelName);
+        root.setAttribute("deployment.environment", env);
+        // MLflow turns root-span attributes "mlflow.traceTag.<key>" into trace tags, so the trace header
+        // reads "agent X on behalf of user Y" with the prompt and model next to it.
+        root.setAttribute("mlflow.traceTag.agent", mcpAuth.agentId());
+        root.setAttribute("mlflow.traceTag.prompt", promptVersion);
+        root.setAttribute("mlflow.traceTag.model", modelName);
+        root.setAttribute("mlflow.traceTag.env", env);
+        // No trace without an exporting SDK (free): no id to show.
+        String traceId = root.getSpanContext().isValid() ? root.getSpanContext().getTraceId() : null;
+        // W3C baggage rides along with traceparent on the model call, so the guardrails proxy can log
+        // and count each detection with the user and the agent it acted for.
+        Scope baggage = Baggage.current().toBuilder()
+                .put("enduser.id", who).put("gen_ai.agent.name", mcpAuth.agentId()).build().makeCurrent();
         try {
             Result<String> result = proposeEnabled
                     ? assistant.askWithPropose(conversationId, safetyRules(), question)
@@ -112,25 +128,29 @@ public class AgentService {
             // Trace semantics: name the observed steps so the MLflow/Tempo trace reads as the story
             // (guardrails.tool_result when a detector flagged a tool result, the propose step).
             emitStorySpans(guardrail, proposal);
-            LOG.infof("chat caller=%s agent=%s version=%s prompt=%s tools=%s guardrail=%s tokens=%s", caller.subject(), mcpAuth.agentId(), version,
+            LOG.infof("chat caller=%s agent=%s env=%s prompt=%s tools=%s guardrail=%s tokens=%s trace=%s", caller.subject(), mcpAuth.agentId(), env,
                     promptVersion,
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     guardrail == null ? "none" : guardrail.action(),
-                    result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount());
+                    result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount(), traceId);
             return new AgentAnswer(question, answer, toolCalls, modelName,
-                    usage(result.tokenUsage()), caller.subject(), version, null, false, guardrail, proposal, traceId);
+                    usage(result.tokenUsage()), caller.subject(), env, null, false, guardrail, proposal, traceId);
         } catch (Exception e) {
             String detail = redact(rootMessage(e));
             boolean auth = looksLikeAuthFailure(detail);
             LOG.warnf("assistant call failed (authFailure=%s): %s", auth, detail);
             String error = errorMessage(detail, auth);
+            // Rejections the platform answered for this user (usage limit 429, offline, key), by reason.
+            metrics.counter("parasol_agent_rejections_total", "reason", reason(error), "user", who,
+                    "agent", mcpAuth.agentId(), "env", env).increment();
             return new AgentAnswer(question, null, List.of(), modelName, null,
-                    caller.subject(), version, error, auth, null, null, traceId);
+                    caller.subject(), env, error, auth, null, null, traceId);
         } finally {
-            // P95 latency panel: a per-version/user histogram of the whole assistant turn.
+            baggage.close();
+            // P95 latency panel: a per-env/user/agent histogram of the whole assistant turn.
             latency.stop(Timer.builder("parasol_agent_latency_seconds")
                     .description("Assistant turn latency (model + MCP round-trips)")
-                    .tag("version", version).tag("user", caller.subject()).tag("agent", mcpAuth.agentId())
+                    .tag("env", env).tag("user", caller.subject()).tag("agent", mcpAuth.agentId())
                     .publishPercentileHistogram()
                     .register(metrics));
         }
@@ -167,6 +187,17 @@ public class AgentService {
         }
     }
 
+    /** The rejection reason label for {@link #errorMessage}'s message. */
+    static String reason(String error) {
+        if (error.contains("(429)")) {
+            return "usage_limit";
+        }
+        if (error.contains("offline")) {
+            return "offline";
+        }
+        return error.contains("authentication") ? "model_auth" : "other";
+    }
+
     /** Map an upstream failure to the message the chat shows (Demo 3 states: usage limit, offline). */
     static String errorMessage(String detail, boolean auth) {
         String d = detail == null ? "" : detail.toLowerCase();
@@ -194,16 +225,16 @@ public class AgentService {
         // offender (e.g. nina.contractor in the night-shift storm); "anonymous" on the free, no-token path.
         String user = caller.subject();
         if (t.inputTokenCount() != null) {
-            metrics.counter("parasol_agent_tokens_total", "type", "input", "version", version, "user", user,
+            metrics.counter("parasol_agent_tokens_total", "type", "input", "env", env, "user", user,
                     "agent", mcpAuth.agentId())
                     .increment(t.inputTokenCount());
         }
         if (t.outputTokenCount() != null) {
-            metrics.counter("parasol_agent_tokens_total", "type", "output", "version", version, "user", user,
+            metrics.counter("parasol_agent_tokens_total", "type", "output", "env", env, "user", user,
                     "agent", mcpAuth.agentId())
                     .increment(t.outputTokenCount());
         }
-        metrics.counter("parasol_agent_model_calls_total", "version", version, "user", user, "agent", mcpAuth.agentId())
+        metrics.counter("parasol_agent_model_calls_total", "env", env, "user", user, "agent", mcpAuth.agentId())
                 .increment();
     }
 
@@ -287,7 +318,7 @@ public class AgentService {
     }
 
     public record AgentAnswer(String question, String answer, List<ToolCall> toolCalls, String model,
-                              Usage tokenUsage, String caller, String version, String error,
+                              Usage tokenUsage, String caller, String env, String error,
                               boolean authFailure, Guardrail guardrail, Proposal proposal, String traceId) {
     }
 

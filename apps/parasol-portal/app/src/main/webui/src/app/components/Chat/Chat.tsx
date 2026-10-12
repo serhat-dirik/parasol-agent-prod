@@ -20,6 +20,13 @@ interface Turn {
 }
 
 // Render a tool's JSON args string compactly, e.g. {"claimNumber":"CLM-1004"} -> claimNumber=CLM-1004
+// The turn's trace in MLflow: the secured portal (portal.apps.<domain>) and the OpenShift AI dashboard
+// (rh-ai.apps.<domain>, MLflow under /mlflow) share the cluster domain; chat traces land in workspace
+// parasol-secured, experiment 1 (parasol-portal-chat). MLflow trace ids are "tr-" + the OTel trace id.
+const mlflowTraceUrl = (traceId: string): string =>
+    `https://${window.location.host.replace(/^[^.]+\./, 'rh-ai.')}/mlflow/#/experiments/1/traces` +
+    `?selectedEvaluationId=tr-${traceId}&workspace=parasol-secured`;
+
 const prettyArgs = (data: string): string => {
     if (!data) return '';
     try {
@@ -171,8 +178,9 @@ const Chat: React.FunctionComponent<{ claimNumber: string, onTurnComplete?: () =
                 );
             case 'trace':
                 return (
-                    <div key={key} className='trace-footer' title='Open this turn in MLflow / Tempo'>
-                        trace {frame.text}
+                    <div key={key} className='trace-footer'>
+                        <a href={mlflowTraceUrl(frame.text)} target='_blank' rel='noreferrer'
+                            title='Open this turn in MLflow (workspace parasol-secured)'>trace {frame.text}</a>
                     </div>
                 );
             default:
