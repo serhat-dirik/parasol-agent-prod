@@ -26,15 +26,21 @@ spec:
           issuerUrl: https://sso.apps.CLUSTER_DOMAIN/realms/parasol
     authorization:
       approved-agent:
+        # metrics: true -> auth_server_evaluator_denied{evaluator_name="approved-agent"} (dashboard: rejections
+        # "not via an approved agent"); priority 0 runs it first, so a refusal is counted under one reason only
+        metrics: true
+        priority: 0
         patternMatching:
           patterns:
             - predicate: "has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent']"
       allow-mcp-method:
+        priority: 1
         patternMatching:
           patterns:
             - predicate: |
                 !request.headers.exists(h, h == 'x-mcp-method') || (request.headers['x-mcp-method'] in ["tools/list","tools/call","initialize","notifications/initialized","ping"])
       authorized-capabilities:
+        priority: 1
         opa:
           rego: |
             allow = true

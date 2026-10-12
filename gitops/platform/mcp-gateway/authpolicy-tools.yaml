@@ -26,10 +26,16 @@ spec:
           issuerUrl: https://sso.apps.CLUSTER_DOMAIN/realms/parasol
     authorization:
       approved-agent:
+        # metrics: true -> auth_server_evaluator_denied{evaluator_name="approved-agent"} (dashboard: rejections
+        # "not via an approved agent"); priority 0 runs it first, so a refusal is counted under one reason only
+        metrics: true
+        priority: 0
         patternMatching:
           patterns:
             - predicate: "has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent']"
       tool-access-check:
+        metrics: true   # auth_server_evaluator_denied{evaluator_name="tool-access-check"}: the person lacks the tool role
+        priority: 1
         when:
           # only the tools/call itself: the router's own hairpin initialize (first call per server) carries the tool name too
           - predicate: "request.headers.exists(h, h == 'x-mcp-toolname') && request.headers.exists(h, h == 'x-mcp-method') && request.headers['x-mcp-method'] == 'tools/call'"

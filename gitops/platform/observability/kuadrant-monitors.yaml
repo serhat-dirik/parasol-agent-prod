@@ -1,0 +1,35 @@
+# Gateway rejections for the Parasol dashboard, scraped by user workload monitoring:
+#  - Authorino (MCP gateway AuthPolicies): auth_server_evaluator_denied{evaluator_name} counts each refusal
+#    by the rule that fired, "approved-agent" (not via an approved agent) or "tool-access-check" (the
+#    person lacks the tool role). The rules carry metrics: true in gitops/platform/mcp-gateway.
+#  - Limitador (MaaS token limits): limited_calls{limitador_namespace} counts the 429s per model.
+#    Per-user 429s come from the portal (parasol_agent_rejections_total{reason="usage_limit"}).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: authorino
+  namespace: kuadrant-system
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchLabels: {authorino-resource: authorino, app.kubernetes.io/component: metrics}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: limitador
+  namespace: kuadrant-system
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchLabels: {app: limitador, limitador-resource: limitador}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

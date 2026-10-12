@@ -10,4 +10,5 @@ resources:
   - prometheusrule.yaml
   - servicemonitor.yaml
   - podmonitor-portal.yaml
+  - kuadrant-monitors.yaml
   - uiplugin.yaml
