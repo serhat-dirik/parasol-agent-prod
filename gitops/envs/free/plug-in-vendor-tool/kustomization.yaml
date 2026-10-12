@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Scenario 6 only, off by default: "someone plugs a handy vendor tool into the assistant". Adding this
+# component to the Argo CD Application env-free (spec.source.kustomize.components: [plug-in-vendor-tool];
+# scripts/tool-rugpull.sh plug|unplug) points the image's spare MCP client slot ("fraud-check", unused
+# in free) at the vendor's currency-converter in parasol-thirdparty. No review, no registration. Its tool
+# list is re-read on every turn, so a changed description lands at once. scripts/reset.sh unplugs it.
+patches:
+  - target: {kind: Deployment, name: portal}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: FRAUD_CHECK_MCP_URL, value: "http://currency-converter.parasol-thirdparty.svc:8080/mcp"}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: QUARKUS_LANGCHAIN4J_MCP_FRAUD_CHECK_CACHE_TOOL_LIST, value: "false"}

@@ -18,7 +18,5 @@ configMapGenerator:
       - claimsDbApiUrl=http://claims-db:8080
       - env=free   # environment label on metrics and traces
       # no safetyRules: the prompt exactly as it was written on the laptop
-      # Scenario 6: someone plugged a vendor MCP server (currency conversion) into the assistant. No review, no registration.
-      - thirdPartyMcpUrl=http://currency-converter.parasol-thirdparty.svc:8080/mcp
 generatorOptions:
   disableNameSuffixHash: true
