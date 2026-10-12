@@ -19,7 +19,7 @@ What runs next to customer data must be the exact image the pipeline built, eval
 +
 What you should see: the release process is code too. Argo CD keeps the `parasol-portal-secure-build` Pipeline and its Tasks in the state Git describes (Synced, Healthy). A run is an event, not desired state, so runs are not part of the app.
 
-. Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-secure-build-v1`.
+. Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-release-production`.
 +
 What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Scenario 4 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom` and `register-model-version`.
 +
@@ -31,7 +31,7 @@ What you should see: `tlog entry created` and `VERIFIED (keyless)` for the porta
 
 . Open the `promote` task log.
 +
-What you should see: `PROMOTED: env-secured runs ...parasol-portal@sha256:...` with the prompt and model version the gate evaluated. Promotion writes nothing to Git: the repository stays read-only for releases. The task pins the signed digest on the Argo CD Application `env-secured` and waits until Argo CD reports it Synced and Healthy.
+What you should see: `PROMOTED: env-secured runs ...parasol-portal@sha256:...` with the prompt (`parasol-claims-assistant-system-prompt@production`) and model version (`parasol-claims-assistant:production`) the gate evaluated. Promotion writes nothing to Git: the repository stays read-only for releases. The task pins the signed digest on the Argo CD Application `env-secured` and waits until Argo CD reports it Synced and Healthy.
 
 . Select the *Argo CD* tab, open application `env-secured`, click *Details* and select the *Parameters* tab.
 +

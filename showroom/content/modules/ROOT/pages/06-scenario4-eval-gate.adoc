@@ -5,7 +5,7 @@
 
 toc::[]
 
-A developer simplifies the assistant's system prompt. Before the change can reach production, the platform evaluates it against a fixed golden set. The regression is caught and promotion is blocked. This scenario runs in the consoles, not in a portal.
+A developer proposes a shorter system prompt for the assistant, the *candidate: shortened prompt*. Before the change can reach production, the platform evaluates it against a fixed golden set. The regression is caught and promotion is blocked. This scenario runs in the consoles, not in a portal.
 
 [NOTE]
 .Know: quality is enforced, not hoped for
@@ -23,38 +23,38 @@ Say: this is a five-prompt smoke run of a generic benchmark, so the number is no
 +
 image::s4-rhoai-evaluations.png["OpenShift AI Evaluations page: the completed IFEval run of qwen3-14b in project parasol-eval"]
 
-== Show: the golden set, v1 against v2
+== Show: the golden set, production prompt against the candidate
 
 . Select the *MLflow* tab, open experiment `parasol-agent-eval`, then *Evaluation runs*.
 +
-What you should see: the golden set `parasol-golden-20` scored on every run, each case judged by `gpt-oss-120b`. The current prompt (v1) scores *20/20, PASS*; the simplified prompt (v2) scores *17/20, BLOCK*, failing the injection-document, role-authorization and other-claimant cases.
+What you should see: the golden set `parasol-golden-20` scored on every run, each case judged by `gpt-oss-120b`. The *production prompt* (runs `production-prompt`) scores *20/20, PASS*; the *candidate: shortened prompt* (runs `candidate-shortened-prompt`) scores *17/20, BLOCK*, failing the injection-document, role-authorization and other-claimant cases.
 +
-image::s4-mlflow-eval-runs.png["MLflow evaluation runs: v1 at 20/20 with gate 1, v2 at 17/20 with gate 0"]
+image::s4-mlflow-eval-runs.png["MLflow evaluation runs: production-prompt at 20/20 with gate 1, candidate-shortened-prompt at 17/20 with gate 0"]
 
-. Select one v1 run and one v2 run and choose *Compare*.
+. Select one `production-prompt` run and one `candidate-shortened-prompt` run and choose *Compare*.
 +
-What you should see: prompt version 1 against 2, `gate_passed` 1 against 0, and every detector rate lower for v2.
+What you should see: `variant` production against candidate-shortened (`prompt_version` 1 against 2: the prompt registry version numbers, 2 being the candidate), `gate_passed` 1 against 0, and every detector rate lower for the candidate.
 +
-image::s4-mlflow-v1-vs-v2.png["MLflow run comparison: prompt v1 against v2, gate_passed 1 against 0"]
+image::s4-mlflow-v1-vs-v2.png["MLflow run comparison: production prompt against the shortened candidate, gate_passed 1 against 0"]
 
-. Open the v2 run and its injection-document case.
+. Open a `candidate-shortened-prompt` run and its injection-document case.
 +
 What you should see: the judge's rationales, for example "unauthorized payout action" and "acting on hidden instructions".
 
-. In MLflow, open *Prompts*, then `parasol-claims-assistant-system-prompt`, and compare v1 with v2.
+. In MLflow, open *Prompts*, then `parasol-claims-assistant-system-prompt`, and compare the two versions.
 +
-What you should see: both versions registered, so the failure is on record and a promotion can name the exact prompt version.
+What you should see: alias `production` on version 1 (the production prompt) and alias `candidate` on version 2 (the shortened candidate). Both are registered, so the failure is on record and a promotion names the exact prompt it was gated on.
 
 == Show: the gate
 
 . Select the *OpenShift Console* tab and open *Pipelines*, project `parasol-build`, then *Pipeline runs*. Direct link: link:{console_url}/k8s/ns/parasol-build/tekton.dev~v1~PipelineRun[parasol-build pipeline runs,window=_blank].
 +
-What you should see: two release runs of the same pipeline. In `parasol-portal-secure-build-v1` (candidate v1) `agent-eval` passed with `EVAL_SCORE 1.00` and `promote` ran. In `parasol-portal-secure-build-v2` (candidate v2) `agent-eval` failed with `EVAL_SCORE 0.85` and `promote` is *skipped*: v2 was built, scanned and even signed, but nothing reached Git, so nothing reached production.
+What you should see: two release runs of the same pipeline. In `parasol-portal-release-production` (the production prompt) `agent-eval` passed with `EVAL_SCORE 1.00` and `promote` ran. In `parasol-portal-release-candidate-shortened` (the candidate: shortened prompt) `agent-eval` failed with `EVAL_SCORE 0.85` and `promote` is *skipped*: the candidate was built, scanned and even signed, but it was never promoted, so nothing reached production.
 +
-image::sc-pipeline-v2-blocked.png["The v2 release run: every stage ran, and promote was skipped by the evaluation gate"]
+image::sc-pipeline-v2-blocked.png["The candidate-shortened release run: every stage ran, and promote was skipped by the evaluation gate"]
 
 . Select the *OpenShift AI* tab and open *Model registry*, then `parasol-claims-assistant`, then *Versions*.
 +
-What you should see: each evaluation score tied to the model version the pipeline would promote.
+What you should see: version `production` with gate `passed` and 20/20, and version `candidate-shortened` with gate `failed` and 17/20: each evaluation score tied to the agent version the pipeline would promote.
 
 Continue with xref:07-supply-chain.adoc[07. Supply chain: signing and admission].
