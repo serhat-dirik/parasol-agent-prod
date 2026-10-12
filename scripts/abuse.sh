@@ -34,9 +34,12 @@ if [ "$env" = "secured" ]; then
   forced() {  # forced <label> <bearer token>
     local h sid
     h=(-H "Authorization: Bearer $2" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -H 'X-Mcp-Virtualserver: parasol-secured/claims-db')
-    sid=$(curl -sk -D - -o /dev/null "$GW" "${h[@]}" -d '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"abuse","version":"1"}}}' | awk -F': ' 'tolower($1)=="mcp-session-id"{print $2}' | tr -d '\r')
-    curl -sk -o /dev/null "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+    local init='{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"abuse","version":"1"}}}'
     printf '  forced at the MCP gateway, %s: ' "$1"
+    sid=$(curl -sk -D - -o /dev/null "$GW" "${h[@]}" -d "$init" | awk -F': ' 'tolower($1)=="mcp-session-id"{print $2}' | tr -d '\r')
+    # refused at the handshake already (not via an approved agent): show that refusal
+    [ -n "$sid" ] || { curl -sk -w ' (HTTP %{http_code})\n' "$GW" "${h[@]}" -d "$init" | tr -d '\n' | cut -c1-200; echo; return; }
+    curl -sk -o /dev/null "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
     curl -sk -w ' (HTTP %{http_code})\n' "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"approve_payout","arguments":{"claimNumber":"CLM-1001"}}}' | tr -d '\n' | cut -c1-200; echo
   }
   # 1) the user's own login token: refused before any role check (no approved agent in between)
