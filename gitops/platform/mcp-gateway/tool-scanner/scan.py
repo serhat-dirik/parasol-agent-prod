@@ -126,8 +126,8 @@ def metrics_text():
     out = ["# TYPE parasol_mcp_tool_scan_up gauge", "# TYPE parasol_mcp_tool_scan_tools gauge",
            "# TYPE parasol_mcp_tool_description_findings gauge", "# TYPE parasol_mcp_tool_definition_drift gauge"]
     with LOCK:
-        for server, s in sorted(STATE.items()):
-            lab = f'server="{esc(server)}",registered="{s["registered"]}"'
+        for _, s in sorted(STATE.items()):
+            lab = f'server="{esc(s["server"])}",registered="{s["registered"]}"'
             out.append(f"parasol_mcp_tool_scan_up{{{lab}}} {1 if s['up'] else 0}")
             if not s["up"]:
                 continue
@@ -235,6 +235,10 @@ if __name__ == "__main__":
     _f = findings(_t, _r, {"approve_payout", "get_claim"})
     assert ("convert_currency", "guardrails-rules", "(?i)note to the claims assistant") in _f, _f
     assert ("convert_currency", "tool-scan", "cross-tool:approve_payout") in _f and len(_f) == 2, _f
+    STATE["a/b|true"] = {"server": "a/b", "registered": "true", "up": True, "tools": 1, "version": "1", "pin": None,
+                         "drift": False, "findings": _f}
+    assert 'parasol_mcp_tool_scan_tools{server="a/b",registered="true",version="1"} 1' in metrics_text(), metrics_text()
+    STATE.clear()
     assert digest(_t) == digest(list(reversed(_t))) and digest(_t) != digest([dict(_t[0], description="x")])
     if len(sys.argv) == 3 and sys.argv[1] == "--check":
         sys.exit(check(sys.argv[2]))
