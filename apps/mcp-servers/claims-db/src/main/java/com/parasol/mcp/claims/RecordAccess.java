@@ -24,8 +24,13 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import io.micrometer.core.instrument.MeterRegistry;
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.propagation.TextMapGetter;
+import io.vertx.core.http.HttpServerRequest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -37,8 +42,9 @@ import jakarta.inject.Inject;
  * Off unless {@code claims.acl.enforce=true} (free keeps the unfiltered baseline).
  *
  * <p>Every refusal is one log line ({@code CLAIMS ACL denied ...}), one count of
- * {@code parasol_claims_access_denied_total{tool,user,agent}} and attributes on the current server span,
- * which joins the portal's chat trace in MLflow.
+ * {@code parasol_claims_access_denied_total{tool,user,agent}} and a span {@code claims-db.<tool>} that joins
+ * the portal's chat trace in MLflow (parent = the traceparent the gateway forwards; the MCP endpoint itself
+ * is not traced by the HTTP instrumentation).
  */
 @ApplicationScoped
 public class RecordAccess {
@@ -76,6 +82,29 @@ public class RecordAccess {
 
     @Inject
     MeterRegistry metrics;
+
+    @Inject
+    OpenTelemetry otel;
+
+    private static final TextMapGetter<HttpServerRequest> HEADERS = new TextMapGetter<>() {
+        @Override
+        public Iterable<String> keys(HttpServerRequest r) {
+            return r.headers().names();
+        }
+
+        @Override
+        public String get(HttpServerRequest r, String key) {
+            return r == null ? null : r.getHeader(key);
+        }
+    };
+
+    /** A span for one record decision, child of the caller's trace (W3C traceparent on the MCP call). */
+    public Span span(String tool, HttpServerRequest request) {
+        Context parent = request == null ? Context.current()
+                : otel.getPropagators().getTextMapPropagator().extract(Context.current(), request, HEADERS);
+        return otel.getTracer("claims-db").spanBuilder("claims-db." + tool).setParent(parent)
+                .setSpanKind(SpanKind.SERVER).startSpan();
+    }
 
     final Map<String, PublicKey> keys = new ConcurrentHashMap<>();   // kid -> key (package-private for the test)
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
@@ -161,12 +190,11 @@ public class RecordAccess {
     }
 
     /** Record and explain one refusal: log line, metric, and the attributes on the current server span. */
-    public String refuse(String tool, String claimNumber, Caller who, String reason) {
+    public String refuse(Span s, String tool, String claimNumber, Caller who, String reason) {
         String user = who == null ? "-" : who.user();
         String agent = who == null ? "-" : who.agent();
         LOG.infof("CLAIMS ACL denied tool=%s claim=%s user=%s via %s reason=%s", tool, claimNumber, user, agent, reason);
         metrics.counter("parasol_claims_access_denied_total", "tool", tool, "user", user, "agent", agent).increment();
-        Span s = Span.current();
         s.setAttribute("claims.access", "denied");
         s.setAttribute("claims.claim_number", String.valueOf(claimNumber));
         s.setAttribute("claims.access_reason", reason);
@@ -179,8 +207,7 @@ public class RecordAccess {
     }
 
     /** Mark the current server span as an allowed record read (the other half of the evidence). */
-    public void allowed(Caller who) {
-        Span s = Span.current();
+    public void allowed(Span s, Caller who) {
         s.setAttribute("claims.access", "allowed");
         s.setAttribute("enduser.id", String.valueOf(who.user()));
         s.setAttribute("gen_ai.agent.name", String.valueOf(who.agent()));

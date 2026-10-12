@@ -53,11 +53,8 @@ public class ClaimsTools {
      * only through the MCP gateway, which validated the token and the agent before routing here.
      */
     String authorization() {
-        try {
-            return request.get().getHeader("Authorization");
-        } catch (RuntimeException e) {   // no HTTP request (tests)
-            return null;
-        }
+        HttpServerRequest r = httpRequest();
+        return r == null ? null : r.getHeader("Authorization");
     }
 
     /**
@@ -68,18 +65,33 @@ public class ClaimsTools {
         if (!access.enforced()) {
             return null;
         }
-        RecordAccess.Caller who;
+        HttpServerRequest req = httpRequest();
+        io.opentelemetry.api.trace.Span span = access.span(tool, req);
         try {
-            who = access.verify(authorization());
-        } catch (RecordAccess.Denied d) {
-            return access.refuse(tool, ClaimsRepository.normalize(claimNumber), null, d.getMessage());
+            RecordAccess.Caller who;
+            try {
+                who = access.verify(authorization());
+            } catch (RecordAccess.Denied d) {
+                return access.refuse(span, tool, ClaimsRepository.normalize(claimNumber), null, d.getMessage());
+            }
+            span.setAttribute("claims.claim_number", String.valueOf(ClaimsRepository.normalize(claimNumber)));
+            Optional<ClaimView> c = repo.find(claimNumber);
+            if (c.isPresent() && !who.mayRead(c.get())) {
+                return access.refuse(span, tool, c.get().claimNumber(), who, "assigned to " + c.get().adjuster());
+            }
+            access.allowed(span, who);
+            return null;
+        } finally {
+            span.end();
         }
-        Optional<ClaimView> c = repo.find(claimNumber);
-        if (c.isPresent() && !who.mayRead(c.get())) {
-            return access.refuse(tool, c.get().claimNumber(), who, "assigned to " + c.get().adjuster());
+    }
+
+    private HttpServerRequest httpRequest() {
+        try {
+            return request.get();
+        } catch (RuntimeException e) {   // no HTTP request (tests)
+            return null;
         }
-        access.allowed(who);
-        return null;
     }
 
     String caller() {
@@ -155,17 +167,18 @@ public class ClaimsTools {
         if (!access.enforced()) {
             return all;
         }
+        io.opentelemetry.api.trace.Span span = access.span("list_claims_by_status", httpRequest());
         try {
             RecordAccess.Caller who = access.verify(authorization());
             List<ClaimView> mine = all.stream().filter(who::mayRead).toList();
-            access.allowed(who);
-            if (mine.size() < all.size()) {   // not a refusal: the list is the caller's records only
-                io.opentelemetry.api.trace.Span.current().setAttribute("claims.withheld_count", all.size() - mine.size());
-            }
+            access.allowed(span, who);
+            span.setAttribute("claims.withheld_count", all.size() - mine.size());   // the caller's records only
             return mine;
         } catch (RecordAccess.Denied d) {
-            access.refuse("list_claims_by_status", status, null, d.getMessage());
+            access.refuse(span, "list_claims_by_status", status, null, d.getMessage());
             return List.of();
+        } finally {
+            span.end();
         }
     }
 
