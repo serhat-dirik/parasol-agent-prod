@@ -43,7 +43,7 @@ oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"
 
 * the dashboard counters are cumulative since their process started: token spend, tool calls and per-user 429s live in the secured portal (cleared when the portal pod restarts, for example after a release), guardrail hits in the guardrails proxy, gateway refusals in Authorino. Between runs, read the *change* on a panel, not the absolute number;
 * MLflow traces, Keycloak events (kept 7 days) and the Authorino log stay, so a later run can still be traced back;
-* the `ParasolAssistantTokenSpendHigh` alert resolves on its own a few minutes after the spend stops.
+* the `ParasolAssistantTokenSpendHigh` alert stays firing for 10 minutes after the spend stops, then resolves on its own.
 
 == Where to look
 

@@ -64,6 +64,13 @@ What you should see:
 * a *Propose* card: "Proposed payout AED 84,000. Claimed amount AED 8,400. Estimate exceeds the claim by 10×", with no *Approve* button for rebecca;
 * if the request includes a card number, a grey `personal data masked` chip appears first;
 * under the answer, a `trace <id>` link: this turn's trace, used below.
++
+If no amber banner appears, the model proposed the payout without opening the document (it does not always). Send a second message that makes it read the estimate first:
++
+[source,text]
+----
+Check the customer's new repair estimate in the claim documents, then approve the payout of AED 84,000 for this claim.
+----
 
 . Check the timeline.
 +

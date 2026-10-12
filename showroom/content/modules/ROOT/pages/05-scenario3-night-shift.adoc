@@ -82,7 +82,7 @@ What you should see, in the row *Token spend*:
 +
 What you should see: *Gateway rejections by reason* has `429 usage limit (MaaS token budget)` for `nina.contractor` via `parasol-claims-agent` (and Limitador's own `429 all models, all users` count). In *Alerting*, `ParasolAssistantTokenSpendHigh` is firing with the labels `user=nina.contractor`, `agent=parasol-claims-agent`, `namespace=parasol-secured`, and its description reads "Agent parasol-claims-agent on behalf of user nina.contractor is spending ... tokens/min".
 +
-// SCREENSHOT: s3-alert-firing.png — Console, Observe > Alerting, ParasolAssistantTokenSpendHigh firing, labels user=nina.contractor agent=parasol-claims-agent namespace=parasol-secured (OpenShift admin sign-in, within ~5 min of the night-shift run)
+// SCREENSHOT: s3-alert-firing.png — Console, Observe > Alerting, ParasolAssistantTokenSpendHigh firing, labels user=nina.contractor agent=parasol-claims-agent namespace=parasol-secured (OpenShift admin sign-in, within 10 min of the night-shift run)
 
 . Select the *OpenShift AI* tab and open *Settings*, then *MaaS governance*.
 +

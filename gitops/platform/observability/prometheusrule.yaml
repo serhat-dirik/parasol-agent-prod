@@ -18,6 +18,9 @@ spec:
           # (~9000/min for nina.contractor). The portal tags the counter with the caller's username.
           expr: sum by (namespace, user, agent) (rate(parasol_agent_tokens_total[2m])) * 60 > 5000
           for: 1m
+          # the night-shift burst lasts ~2-3 min before the 429 stops it; keep the alert up long enough
+          # to be the morning report instead of resolving 30 s after the spend stops
+          keep_firing_for: 10m
           labels:
             severity: warning
           annotations:
