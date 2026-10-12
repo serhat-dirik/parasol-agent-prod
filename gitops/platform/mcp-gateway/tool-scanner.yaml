@@ -1,0 +1,136 @@
+# MCP tool-definition scanner (Scenario 6, "the poisoned tool"). The MCP gateway federates and
+# authorizes tools but does not look at what a tool's DESCRIPTION tells the model, and it has no way
+# to pin a server's tool definitions. This small service does both, next to the broker: see
+# tool-scanner/scan.py. It only reads (Kubernetes API: registrations, routes, candidate Services, the
+# guardrails rules) and only lists tools (no tools/call). Findings: one log line each
+#   tool-scan action=flag server=<ns/name> registered=<true|false> tool=<tool> source=<rules> rule=<pattern> version=<v>
+#   tool-scan action=drift server=<ns/name> registered=<..> version=<v> pinned=<sha256> current=<sha256>
+# plus /metrics (parasol_mcp_tool_description_findings, parasol_mcp_tool_definition_drift,
+# parasol_mcp_tool_scan_tools) and the alerts below. Pre-registration check of one server:
+#   oc exec -n mcp-system deploy/mcp-tool-scanner -- python3 /app/scan.py --check <url>
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-tool-scanner
+  namespace: mcp-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: parasol-mcp-tool-scanner
+rules:
+  - apiGroups: [mcp.kuadrant.io]
+    resources: [mcpserverregistrations]
+    verbs: [get, list]
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [httproutes]
+    verbs: [get]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: parasol-mcp-tool-scanner
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-mcp-tool-scanner}
+subjects:
+  - {kind: ServiceAccount, name: mcp-tool-scanner, namespace: mcp-system}
+---
+# The same prompt-injection patterns the guardrails apply to tool results, applied to tool descriptions.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: mcp-tool-scanner-read-rules
+  namespace: parasol-secured
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [guardrails-rules]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: mcp-tool-scanner-read-rules
+  namespace: parasol-secured
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: mcp-tool-scanner-read-rules}
+subjects:
+  - {kind: ServiceAccount, name: mcp-tool-scanner, namespace: mcp-system}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-tool-scanner
+  namespace: mcp-system
+  labels: {app: mcp-tool-scanner}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: mcp-tool-scanner}
+  template:
+    metadata:
+      labels: {app: mcp-tool-scanner}
+    spec:
+      serviceAccountName: mcp-tool-scanner
+      containers:
+        - name: scanner
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "-u", "/app/scan.py"]
+          env:
+            - {name: SCAN_INTERVAL, value: "30"}
+            - {name: RULES_CONFIGMAP, value: parasol-secured/guardrails-rules}
+            - {name: EXTRA_RULES, value: /app/rules.json}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /health, port: 8080}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 96Mi}
+          volumeMounts:
+            - {name: app, mountPath: /app}
+      volumes:
+        - name: app
+          configMap: {name: mcp-tool-scanner}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: mcp-tool-scanner
+  namespace: mcp-system
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchLabels: {app: mcp-tool-scanner}
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mcp-tool-scanner
+  namespace: mcp-system
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  groups:
+    - name: mcp-tool-supply-chain
+      rules:
+        - alert: MCPToolDescriptionInjection
+          expr: max by (server, registered, tool, rule) (parasol_mcp_tool_description_findings) > 0
+          labels:
+            severity: warning
+          annotations:
+            summary: "Tool {{ $labels.tool }} of MCP server {{ $labels.server }} carries instructions for the assistant"
+            description: "The description of {{ $labels.tool }} ({{ $labels.server }}, registered={{ $labels.registered }}) matches rule {{ $labels.rule }}. Do not register it; if registered, set spec.state: Disabled on its MCPServerRegistration in Git. Details: oc logs -n mcp-system deploy/mcp-tool-scanner | grep action=flag"
+        - alert: MCPToolDefinitionDrift
+          expr: max by (server, registered) (parasol_mcp_tool_definition_drift) > 0
+          labels:
+            severity: critical
+          annotations:
+            summary: "MCP server {{ $labels.server }} changed its tool definitions without a reviewed change (possible rug pull)"
+            description: "The sha256 of the tool definitions of {{ $labels.server }} (registered={{ $labels.registered }}) no longer matches the pin parasol.example/tools-sha256 reviewed in Git. Same server, new behaviour. Details: oc logs -n mcp-system deploy/mcp-tool-scanner | grep action=drift"

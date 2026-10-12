@@ -23,6 +23,8 @@ metadata:
   name: claims-db
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # sha256 of the reviewed tool definitions; a change without updating this pin raises MCPToolDefinitionDrift
+    parasol.example/tools-sha256: 314daf166fbee17be1c4f4073db99ef288b3b45ced1b72755e9254e39303f766
 spec:
   targetRef:
     group: gateway.networking.k8s.io
@@ -52,6 +54,8 @@ metadata:
   name: policy-docs
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # sha256 of the reviewed tool definitions; a change without updating this pin raises MCPToolDefinitionDrift
+    parasol.example/tools-sha256: 435e8efd0b1159001ac2e0b67d43a03f1afbe82ffe9291782d2e203ff5959d04
 spec:
   targetRef:
     group: gateway.networking.k8s.io

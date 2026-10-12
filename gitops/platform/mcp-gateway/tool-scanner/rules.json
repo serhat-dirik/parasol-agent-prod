@@ -1,0 +1,3 @@
+["(?i)\\b(do not|don't|never)\\s+(mention|tell|reveal|disclose|inform)\\b",
+ "(?i)\\b(ignore|disregard)\\s+(all\\s+|any\\s+)?(previous|prior|other|above)\\s+instructions",
+ "(?i)\\bbefore\\s+(you\\s+)?(answer|respond|reply|use|using|call|calling|convert|converting)\\b[^.]{0,80}\\bcall\\b"]

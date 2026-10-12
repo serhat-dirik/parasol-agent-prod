@@ -150,6 +150,8 @@ metadata:
   name: fraud-check
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # sha256 of the reviewed tool definitions; a change without updating this pin raises MCPToolDefinitionDrift
+    parasol.example/tools-sha256: bb2b69d5621c9e0480f1ff97989a2f995214c8755ac7fc2b848861869dbe67c4
 spec:
   targetRef:
     group: gateway.networking.k8s.io
