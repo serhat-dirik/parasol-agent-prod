@@ -34,7 +34,7 @@ run_env() {
     -d "{\"question\":$(printf '%s' "$REQ" | python3 -c 'import sys,json;print(json.dumps(sys.stdin.read()))')}" \
   | python3 -c 'import sys,json
 r=json.load(sys.stdin)
-print("  caller:", r.get("caller"), "| version:", r.get("version"))
+print("  caller:", r.get("caller"), "| env:", r.get("env"))
 tc=r.get("toolCalls") or []
 if not tc: print("  tool calls: (none - the agent did not write)")
 for t in tc: print("  tool ->", t["tool"], t.get("arguments"))

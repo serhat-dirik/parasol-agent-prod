@@ -17,8 +17,8 @@ ask() { curl -sk "$AGENT/agent/ask" ${auth[@]+"${auth[@]}"} -H 'content-type: ap
   | python3 -c 'import sys,json
 r=json.load(sys.stdin)
 if "error" in r: print("  ERROR:", r["error"], "|", (r.get("detail") or "")[:300]); sys.exit()
-print("  caller:", r.get("caller"), "| version:", r.get("version"), "| tokens:", (r.get("tokenUsage") or {}).get("totalTokens"))
-for t in r.get("toolCalls") or []: print("  tool ->", t["tool"], t["arguments"])
+print("  caller:", r.get("caller"), "| env:", r.get("env"), "| tokens:", (r.get("tokenUsage") or {}).get("totalTokens"))
+for t in r.get("toolCalls") or []: print("  model asked for tool ->", t["tool"], t["arguments"])
 print("  answer:", (r.get("answer") or "")[:400])'; }
 
 hdr(){ printf '\n\033[1;33m%s\033[0m\n' "$*"; }

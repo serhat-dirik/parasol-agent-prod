@@ -18,7 +18,7 @@ import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
  * laptop (no rules) and with the hardened prompt. The talk's point is that the prompt is the
  * weakest of the layers: it is advice to the model, not a control.
  */
-@RegisterAiService
+@RegisterAiService(toolHallucinationStrategy = ToolNotGranted.class)
 public interface ClaimsAssistant {
 
     @SystemMessage("""
