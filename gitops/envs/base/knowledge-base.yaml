@@ -31,7 +31,9 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: registry.redhat.io/rhel9/postgresql-16:latest   # ships the pgvector extension
+          # Red Hat PostgreSQL 16 (ships the pgvector extension), pinned by digest: admission in parasol-secured
+          # requires digests for images it does not resolve itself.
+          image: registry.redhat.io/rhel9/postgresql-16@sha256:07a8c2678bed9d811fe7c92d9bf97e4d541f56ed39354ec8d01f4447dbc8ad47
           env:
             - {name: POSTGRESQL_DATABASE, value: kb}
             - {name: POSTGRESQL_USER, value: kb_owner}
