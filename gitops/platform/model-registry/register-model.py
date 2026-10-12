@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Register the Parasol claims-assistant in the OpenShift AI (RHOAI) Model Registry as a
-RegisteredModel with ModelVersions v1 and v2, and carry the agent-eval result on each version.
+RegisteredModel with ModelVersions `production` (the production prompt, gate passed) and
+`candidate-shortened` (the shortened candidate prompt, gate failed), and carry the agent-eval result on each version.
 
 The served model is an EXTERNAL MaaS model (AGENT_MODEL, default qwen3-14b), so a "version" is the AGENT CONFIG
 (system-prompt version + prompt sha + tools-authpolicy sha + model id), not model weights. Each
@@ -10,11 +11,12 @@ prompt@version it was evaluated with, as customProperties the registry UI shows.
 Stdlib only (urllib) so it runs in any python image without pip/egress.
 
 Two modes:
-  register-model.py                       full: ensure the model + v1 + v2 with all metadata+eval
+  register-model.py                       full: ensure the model + both versions with all metadata+eval;
+                                          older versions (e.g. v1/v2) are archived
   register-model.py --patch-eval \
-      --version v2 --gate failed \
+      --version candidate-shortened --gate failed \
       --score 0.85 --run-id c7a36f43 \
-      [--prompt-ref ...@2]                 pipeline gate step: merge the eval fields onto one version
+      [--prompt-ref ...@candidate]                 pipeline gate step: merge the eval fields onto one version
 
 Config (env):
   MR_BASE_URL   model-registry REST base. Default in-cluster kube-rbac-proxy service.
@@ -33,7 +35,7 @@ API = BASE + "/api/model_registry/v1alpha3"
 MLFLOW_UI = os.environ.get("MLFLOW_UI_BASE", "").rstrip("/")  # https://rh-ai.apps.<domain>/mlflow
 
 MODEL = "parasol-claims-assistant"
-# MLflow experiment parasol-agent-eval and its v1/v2 golden-set runs on THIS cluster (scripts/eval-seed.sh
+# MLflow experiment parasol-agent-eval and its production-prompt / candidate-shortened-prompt golden-set runs on THIS cluster (scripts/eval-seed.sh
 # passes them in); the defaults are the reference runs the guide was written against.
 EXP_ID = os.environ.get("MLFLOW_EXPERIMENT_ID") or "2"
 
@@ -50,23 +52,25 @@ COMMON = {
     "tools_authpolicy_sha256": "02619907984be688d238cb2510610458018e427c56066b4e8335bc2b33a1310e",
 }
 VERSIONS = {
-    "v1": {
-        "prompt_version": "1", "variant": "v1-secured",
+    "production": {
+        "prompt_version": "1", "prompt_alias": "production", "variant": "production",
         "prompt_sha256": "301786aa1403c6433508b9e923d91d8c5a91c259aaf83f159d26ebd46f41be6e",
         "prompt_chars": "1667", "safety_rules_file": "gitops/envs/secured/safety-rules.txt",
         "prompt_file": "gitops/platform/pipeline/prompts/v1.txt",
         "eval_passrate": "20/20", "eval_score": "1.00", "eval_gate": "passed",
-        "mlflow_run_id": os.environ.get("RUN_ID_V1") or "b9971fab", "mlflow_experiment_id": EXP_ID,
-        "desc": "Current secured prompt (base + 3 safety rules). Agent-eval 20/20 PASS, promotion allowed.",
+        "mlflow_run_id": os.environ.get("RUN_ID_PRODUCTION") or "b9971fab", "mlflow_experiment_id": EXP_ID,
+        "desc": "Production prompt (base + 3 safety rules; prompt registry version 1, alias production). "
+                "Agent-eval 20/20, gate passed: promotion allowed.",
     },
-    "v2": {
-        "prompt_version": "2", "variant": "v2-simplified",
+    "candidate-shortened": {
+        "prompt_version": "2", "prompt_alias": "candidate", "variant": "candidate-shortened",
         "prompt_sha256": "aef58cbfa6850ee1009bd232caaef0367259c919a82d5f69c8a80b70b911a9f4",
         "prompt_chars": "1088", "safety_rules_file": "none",
         "prompt_file": "gitops/platform/pipeline/prompts/v2.txt",
         "eval_passrate": "17/20", "eval_score": "0.85", "eval_gate": "failed",
-        "mlflow_run_id": os.environ.get("RUN_ID_V2") or "c7a36f43", "mlflow_experiment_id": EXP_ID,
-        "desc": "Simplified prompt, safety-rules block removed. Agent-eval 17/20 BLOCK (<19/20 gate), promotion skipped.",
+        "mlflow_run_id": os.environ.get("RUN_ID_CANDIDATE") or "c7a36f43", "mlflow_experiment_id": EXP_ID,
+        "desc": "Candidate: shortened prompt, safety-rules block removed (prompt registry version 2, alias "
+                "candidate). Agent-eval 17/20, below the 19/20 gate: gate failed, promotion skipped.",
     },
 }
 
@@ -149,10 +153,11 @@ def find_version(model_id, name):
 def version_props(v):
     d = dict(COMMON)
     d.update({
-        "prompt_version": v["prompt_version"], "variant": v["variant"],
+        "prompt_version": v["prompt_version"], "prompt_alias": v["prompt_alias"], "variant": v["variant"],
         "prompt_sha256": v["prompt_sha256"], "prompt_chars": v["prompt_chars"],
         "safety_rules_file": v["safety_rules_file"], "prompt_file": v["prompt_file"],
-        "prompt_ref": f"{COMMON['prompt_name']}@{v['prompt_version']}",
+        "prompt_ref": f"{COMMON['prompt_name']}@{v['prompt_alias']}",
+        "gate": v["eval_gate"],
         "eval_dataset": "parasol-golden-20",
         "eval_passrate": v["eval_passrate"], "eval_score": v["eval_score"],
         "eval_gate": v["eval_gate"], "eval_threshold": "19/20",
@@ -204,6 +209,15 @@ def ensure_artifact(vid, name, v):
     print(f"  artifact {aname} -> {s}")
 
 
+def archive_others(model_id):
+    """Archive versions that are not in VERSIONS (the former v1/v2 names), so the UI lists only the roles."""
+    s, body = req("GET", f"/registered_models/{model_id}/versions?pageSize=200")
+    for v in body.get("items", []) if s == 200 else []:
+        if v.get("name") not in VERSIONS and v.get("state") != "ARCHIVED":
+            s2, _ = req("PATCH", f"/model_versions/{v['id']}", {"state": "ARCHIVED"})
+            print(f"archived old version {v['name']} id={v['id']} -> {s2}")
+
+
 def patch_eval(name, gate, score, run_id, prompt_ref):
     m = find_model()
     if not m:
@@ -213,7 +227,7 @@ def patch_eval(name, gate, score, run_id, prompt_ref):
         sys.exit(f"version {name} not found; run full registration first")
     passn = int(round(float(score) * 20)) if score else 0
     merged = {
-        "eval_gate": gate, "eval_score": f"{float(score):.2f}" if score else "",
+        "gate": gate, "eval_gate": gate, "eval_score": f"{float(score):.2f}" if score else "",
         "eval_passrate": f"{passn}/20", "eval_threshold": "19/20",
         "eval_dataset": "parasol-golden-20",
         "mlflow_run_id": run_id, "mlflow_run_url": f"{MLFLOW_UI}/#/experiments/{EXP_ID}/runs/{run_id}",
@@ -233,7 +247,7 @@ def patch_eval(name, gate, score, run_id, prompt_ref):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--patch-eval", action="store_true")
-    ap.add_argument("--version", default="v2")
+    ap.add_argument("--version", default="candidate-shortened")
     ap.add_argument("--gate", default="")
     ap.add_argument("--score", default="")
     ap.add_argument("--run-id", default="")
@@ -244,8 +258,9 @@ def main():
         patch_eval(a.version, a.gate, a.score, a.run_id, a.prompt_ref)
         return
     mid = ensure_model()
-    for name in ("v1", "v2"):
-        ensure_version(mid, name, VERSIONS[name])
+    for name, v in VERSIONS.items():
+        ensure_version(mid, name, v)
+    archive_others(mid)
     # read back
     s, body = req("GET", f"/registered_models/{mid}/versions?pageSize=200")
     print("VERSIONS NOW:", ", ".join(

@@ -27,8 +27,8 @@ spec:
             - {name: HOME, value: "/tmp"}
             # This cluster's golden-set runs (scripts/eval-seed.sh); empty = the reference ids.
             - {name: MLFLOW_EXPERIMENT_ID, value: "${MLFLOW_EXPERIMENT_ID}"}
-            - {name: RUN_ID_V1, value: "${RUN_ID_V1}"}
-            - {name: RUN_ID_V2, value: "${RUN_ID_V2}"}
+            - {name: RUN_ID_PRODUCTION, value: "${RUN_ID_PRODUCTION}"}
+            - {name: RUN_ID_CANDIDATE, value: "${RUN_ID_CANDIDATE}"}
           volumeMounts:
             - {name: scripts, mountPath: /scripts}
       volumes:

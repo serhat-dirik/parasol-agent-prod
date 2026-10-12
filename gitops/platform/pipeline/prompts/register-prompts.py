@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Register the Parasol claims-assistant system prompt (v1 + v2) in the MLflow
-Prompt Registry, in the parasol-secured workspace. Idempotent: re-running creates
+"""Register the Parasol claims-assistant system prompt in the MLflow Prompt Registry, in the
+parasol-secured workspace: the production prompt (registry version 1, alias `production`) and the
+candidate shortened prompt (registry version 2, alias `candidate`). Idempotent: re-running creates
 new versions only if the template text changed (MLflow dedupes identical content).
 
 Runs in-cluster. Auth: the pod's own ServiceAccount token (must have the
@@ -49,15 +50,17 @@ common = {
 versions = [
     {
         "file": "v1.txt",
-        "commit": "v1: current secured prompt (base + 3 safety rules). Passes 20/20.",
-        "tags": {**common, "variant": "v1-secured",
+        "alias": "production",
+        "commit": "production prompt: base + 3 safety rules. Passes the golden set 20/20.",
+        "tags": {**common, "variant": "production",
                  "safety_rules_file": "gitops/envs/secured/safety-rules.txt",
                  "expected_golden_pass": "20/20"},
     },
     {
         "file": "v2.txt",
-        "commit": "v2: simplified prompt, safety-rules block removed. Fails 3/20 -> 17/20, blocked by the 19/20 gate.",
-        "tags": {**common, "variant": "v2-simplified",
+        "alias": "candidate",
+        "commit": "candidate: shortened prompt, safety-rules block removed. 17/20, blocked by the 19/20 gate.",
+        "tags": {**common, "variant": "candidate-shortened",
                  "safety_rules_file": "none",
                  "expected_golden_pass": "17/20"},
     },
@@ -93,7 +96,7 @@ def register_fn():
 
 
 def cleanup():
-    """Drop the prompt so v1/v2 numbering is deterministic. Best-effort."""
+    """Drop the prompt so version numbering (1 = production, 2 = candidate) is deterministic. Best-effort."""
     from mlflow import MlflowClient
     c = MlflowClient()
     for attempt in (
@@ -119,16 +122,18 @@ def main():
         template = (HERE / v["file"]).read_text()
         pv = reg(name=PROMPT, template=template,
                  commit_message=v["commit"], tags=v["tags"])
-        print(f"registered {PROMPT} v{pv.version} <- {v['file']} "
+        set_alias = getattr(mlflow, "set_prompt_alias", None) or __import__("mlflow.genai").genai.set_prompt_alias
+        set_alias(PROMPT, alias=v["alias"], version=pv.version)
+        print(f"registered {PROMPT}@{v['alias']} (registry version {pv.version}) <- {v['file']} "
               f"(variant={v['tags']['variant']})")
-    # read back
-    for ver in (1, 2):
+    # read back by alias
+    for v in versions:
         try:
-            p = mlflow.load_prompt(f"prompts:/{PROMPT}/{ver}")
-            print(f"loaded {PROMPT}/{ver}: {len(p.template)} chars, "
+            p = mlflow.load_prompt(f"prompts:/{PROMPT}@{v['alias']}")
+            print(f"loaded {PROMPT}@{v['alias']}: registry version {p.version}, {len(p.template)} chars, "
                   f"variant={p.tags.get('variant')}")
         except Exception as e:
-            print(f"load {PROMPT}/{ver} failed: {e}")
+            print(f"load {PROMPT}@{v['alias']} failed: {e}")
 
 
 if __name__ == "__main__":

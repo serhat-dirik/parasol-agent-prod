@@ -145,7 +145,7 @@ spec:
     assessments to the run. The agent under test is qwen3-14b (AGENT_MODEL).
     The MLflow run id is written as a result so the pipeline stamps it onto the PipelineRun.
   params:
-    - {name: candidate, type: string, default: v2}
+    - {name: candidate, type: string, default: candidate-shortened}
     - {name: eval-path, type: string, default: source/gitops/platform/eval/mlflow-agent-eval}
     - {name: mlflow-uri, type: string, default: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
     - {name: mlflow-workspace, type: string, default: parasol-secured}
@@ -283,11 +283,11 @@ spec:
     - {name: image-name, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal"}
     - {name: application, type: string, default: env-secured}
     - {name: application-namespace, type: string, default: openshift-gitops}
-    # The MLflow Prompt Registry entry (name@version) and the RHOAI Model Registry ModelVersion the
+    # The MLflow Prompt Registry entry (name@alias) and the RHOAI Model Registry ModelVersion the
     # agent-eval gate evaluated. Recorded as annotations on the Application next to the pin, so Argo CD
     # shows which prompt and model version the promoted digest was gated on.
-    - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@1"}
-    - {name: model-ref, type: string, default: "parasol-claims-assistant:v1"}
+    - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@production"}
+    - {name: model-ref, type: string, default: "parasol-claims-assistant:production"}
   results:
     - {name: digest, description: the digest pinned on the Application (empty when not promoted)}
   steps:
@@ -491,7 +491,7 @@ spec:
     namespaces on 8443, so it is reached through the registry's public route (kube-rbac-proxy still
     TokenReviews the pipeline SA, which holds registry-user via gitops/platform/model-registry/rbac.yaml).
   params:
-    - {name: candidate, type: string, default: v2}
+    - {name: candidate, type: string, default: candidate-shortened}
     - {name: gate, type: string}
     - {name: score, type: string}
     - {name: mlflow-run-id, type: string}

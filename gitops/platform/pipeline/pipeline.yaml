@@ -18,10 +18,11 @@ spec:
     - {name: output-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:signed"}
     - {name: path-context, type: string, default: "source/apps/parasol-portal/app"}
     - {name: dockerfile, type: string, default: "Containerfile"}
-    # Agent config version the gate evaluates (v1 = current prompt, passes; v2 = simplified, blocked).
-    - {name: candidate, type: string, default: "v1"}
+    # Agent config the gate evaluates: production (the production prompt, passes) or
+    # candidate-shortened (the shortened candidate prompt, blocked). Also the Model Registry version name.
+    - {name: candidate, type: string, default: "production"}
     # MLflow Prompt Registry entry the gate evaluated; promote records it on the Application.
-    - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@1"}
+    - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@production"}
   results:
     - {name: IMAGE_URL, value: "$(tasks.build-container.results.IMAGE_URL)"}
     - {name: IMAGE_DIGEST, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}

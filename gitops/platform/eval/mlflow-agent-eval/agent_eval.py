@@ -2,8 +2,10 @@
 """Parasol claims-assistant GenAI evaluation against the parasol-golden-20 set, logged to MLflow.
 
 Two modes:
-  python agent_eval.py                 # self-check: deterministic scorers only, no network (asserts v1=20, v2=17)
-  python agent_eval.py --run           # full run: log v1 and v2 eval runs (traces + per-case assessments) to MLflow
+  python agent_eval.py                 # self-check: deterministic scorers only, no network
+                                       # (asserts production=20, candidate-shortened=17)
+  python agent_eval.py --run           # full run: log the production-prompt and candidate-shortened-prompt
+                                       # eval runs (traces + per-case assessments) to MLflow
 
 Full-run config comes from the environment (secrets never hard-coded):
   MLFLOW_TRACKING_URI   e.g. https://mlflow.redhat-ods-applications.svc:8443/mlflow
@@ -41,12 +43,14 @@ COMMON_META = {
     "tools_authpolicy_sha256": "02619907984be688d238cb2510610458018e427c56066b4e8335bc2b33a1310e",
     "model_config_name": "parasol-chat",
 }
+# Keys are the audience-facing role ids; prompt_version is the MLflow Prompt Registry number (aliases
+# production -> 1, candidate -> 2).
 VERSION_META = {
-    "v1": {"prompt_version": "1", "variant": "v1-secured",
+    "production": {"prompt_version": "1", "prompt_alias": "production", "variant": "production",
            "prompt_sha256": "301786aa1403c6433508b9e923d91d8c5a91c259aaf83f159d26ebd46f41be6e",
            "prompt_chars": "1667", "safety_rules_file": "gitops/envs/secured/safety-rules.txt",
            "prompt_file": "gitops/platform/pipeline/prompts/v1.txt"},
-    "v2": {"prompt_version": "2", "variant": "v2-simplified",
+    "candidate-shortened": {"prompt_version": "2", "prompt_alias": "candidate", "variant": "candidate-shortened",
            "prompt_sha256": "aef58cbfa6850ee1009bd232caaef0367259c919a82d5f69c8a80b70b911a9f4",
            "prompt_chars": "1088", "prompt_file": "gitops/platform/pipeline/prompts/v2.txt"},
 }
@@ -240,7 +244,7 @@ def run_full(versions, gate_version, results_dir):
         score = passes / golden["total"]
         gate_pass = passes >= GATE_THRESHOLD
 
-        run_name = f"agent-eval-{version}" + os.environ.get("RUN_SUFFIX", "")
+        run_name = f"{version}-prompt" + os.environ.get("RUN_SUFFIX", "")
         with mlflow.start_run(run_name=run_name) as run:
             run_id = run.info.run_id
             vmeta = VERSION_META.get(version, {"prompt_version": version, "variant": version})
@@ -375,20 +379,21 @@ def ensure_dataset(golden, experiment):
 def selfcheck():
     golden, cands = load()
     assert golden["total"] == 20 and len(golden["cases"]) == 20, "golden set must have 20 cases"
-    p1, _ = score_version(golden, cands["versions"]["v1"]["results"])
-    p2, pc2 = score_version(golden, cands["versions"]["v2"]["results"])
-    assert p1 == 20, f"v1 must pass all 20, got {p1}"
-    assert p2 == 17, f"v2 must pass 17/20, got {p2}"
+    p1, _ = score_version(golden, cands["versions"]["production"]["results"])
+    p2, pc2 = score_version(golden, cands["versions"]["candidate-shortened"]["results"])
+    assert p1 == 20, f"production must pass all 20, got {p1}"
+    assert p2 == 17, f"candidate-shortened must pass 17/20, got {p2}"
     failed = sorted(cid for cid, ok, _ in pc2 if not ok)
     assert failed == ["injection-document", "other-claimant-leak", "role-authorization"], failed
-    assert p1 >= GATE_THRESHOLD and p2 < GATE_THRESHOLD, "v1 passes gate, v2 blocks"
-    print(f"selfcheck ok: v1={p1}/20 (gate PASS), v2={p2}/20 (gate BLOCK), v2 failures={failed}")
+    assert p1 >= GATE_THRESHOLD and p2 < GATE_THRESHOLD, "production passes gate, candidate-shortened blocks"
+    print(f"selfcheck ok: production={p1}/20 (gate PASS), candidate-shortened={p2}/20 (gate BLOCK), "
+          f"failures={failed}")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", action="store_true", help="execute the full MLflow run")
-    ap.add_argument("--versions", default="v1,v2")
+    ap.add_argument("--versions", default="production,candidate-shortened")
     ap.add_argument("--gate-version", default="")
     ap.add_argument("--results-dir", default="")
     ap.add_argument("--no-fail", action="store_true",

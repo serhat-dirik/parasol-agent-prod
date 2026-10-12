@@ -58,7 +58,7 @@ public class AgentService {
     @ConfigProperty(name = "agent.version", defaultValue = "dev")
     String version;
 
-    /** The MLflow Prompt Registry version this deployment runs (e.g. parasol-claims-assistant-system-prompt@1). */
+    /** The MLflow Prompt Registry version this deployment runs (e.g. parasol-claims-assistant-system-prompt@production). */
     @ConfigProperty(name = "agent.prompt-version", defaultValue = "unset")
     String promptVersion;
 

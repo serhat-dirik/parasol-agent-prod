@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Register the Parasol claims-assistant (RegisteredModel + ModelVersions v1/v2 with the agent-eval
+# Register the Parasol claims-assistant (RegisteredModel + ModelVersions production / candidate-shortened with the agent-eval
 # result) in the RHOAI Model Registry parasol-model-registry. Idempotent (re-running refreshes
 # metadata). Run as cluster-admin (or any identity that can create the SA/Job).
 #
@@ -19,6 +19,6 @@ oc -n "$NS" create configmap parasol-model-registrar \
   --from-file=register-model.py="$DIR/register-model.py"
 oc -n "$NS" delete job parasol-model-registrar --ignore-not-found
 CLUSTER_DOMAIN="${CLUSTER_DOMAIN:-$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')}" \
-  envsubst '$AGENT_MODEL $AGENT_ENDPOINT $CLUSTER_DOMAIN $MLFLOW_EXPERIMENT_ID $RUN_ID_V1 $RUN_ID_V2' < "$DIR/register-job.yaml" | oc apply -f -
+  envsubst '$AGENT_MODEL $AGENT_ENDPOINT $CLUSTER_DOMAIN $MLFLOW_EXPERIMENT_ID $RUN_ID_PRODUCTION $RUN_ID_CANDIDATE' < "$DIR/register-job.yaml" | oc apply -f -
 oc -n "$NS" wait --for=condition=complete job/parasol-model-registrar --timeout=180s
 oc -n "$NS" logs job/parasol-model-registrar

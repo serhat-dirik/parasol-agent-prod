@@ -37,8 +37,9 @@ the portal at 0 replicas, so nothing is pulled or admitted before the first prom
   (kustomize namespace `parasol-build`, synced by Argo CD).
 * `promote-rbac.yaml` — Role/RoleBinding in `openshift-gitops`: the `pipeline` SA may get/patch
   the Application `env-secured` only.
-* `pipelinerun.yaml` — a release run (`candidate=v1`); with `candidate=v2` the gate blocks promote.
-* `eval/` — `ec-policy.rego` (the `ec-policy` ConfigMap) and the earlier 3-case golden set.
+* `pipelinerun.yaml` — a release run (`candidate=production`); with `candidate=candidate-shortened` (prompt
+  alias `candidate`) the gate blocks promote.
+* `eval/` — `ec-policy.rego` (the `ec-policy` ConfigMap).
 * Operators (RHTAS, policy-controller, SPIRE) are in `gitops/bootstrap/operators/supply-chain.yaml`;
   their operands, the cosign keypair and the admission policy are set up by `scripts/supply-chain.sh`.
 * `admission/` — the policy-controller webhook (`policycontroller.yaml`), the key-based
@@ -83,4 +84,5 @@ oc label namespace parasol-secured policy.rhtas.com/include=true --overwrite
 TrustRoot/ClusterImagePolicy rendered from this cluster's TUF root and cosign key
 (`gitops/platform/tas/clusterimagepolicy-keyless.yaml` is the template), and the
 `policy.rhtas.com/include=true` label on `parasol-secured`. `scripts/pipeline-runs.sh` starts the
-release runs (v1 promotes; v2 is blocked by the gate); `bootstrap.sh` runs it and waits for v1.
+release runs (`parasol-portal-release-production` promotes; `parasol-portal-release-candidate-shortened` is
+blocked by the gate); `bootstrap.sh` runs it and waits for the production run.

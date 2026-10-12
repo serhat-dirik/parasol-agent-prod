@@ -4,7 +4,7 @@
 # prerequisite is detected and installed only if missing). Idempotent: run it again after a failure or a WARN.
 # Expected total: 75-120 min on a bare cluster (operators 10-15, OpenShift AI components 15-40,
 # image builds 10, Trusted Artifact Signer 10-15, golden-set eval 10-20, first release run 20-30).
-# No manual step: the first release (v1) is promoted by the pipeline onto the Argo CD Application env-secured
+# No manual step: the first release (the production prompt) is promoted by the pipeline onto the Argo CD Application env-secured
 # (the Git repo is read-only for releases) and bootstrap waits for it.
 #
 # Each model may come from a DIFFERENT OpenAI-compatible endpoint (base URL ending in /v1) with its own key.
@@ -152,8 +152,8 @@ if [ "${SKIP_SEED:-0}" = 1 ]; then echo "SKIP_SEED=1"
 else scripts/seed-demo.sh || warn "demo data incomplete (the lines above name each step)" scripts/seed-demo.sh; fi
 scripts/showroom-framing.sh || warn "console framing headers not applied; Showroom console tabs stay blank" scripts/showroom-framing.sh
 scripts/console-plugins.sh || warn "console plugins not enabled; the PipelineRun graph will be missing" scripts/console-plugins.sh
-echo "first release: v1 is promoted onto env-secured, v2 is blocked by the gate (~20-30 min)"
-scripts/pipeline-runs.sh --wait || warn "release v1 not promoted; the secured portal stays at 0 replicas" "scripts/pipeline-runs.sh --wait"
+echo "first release: the production prompt is promoted onto env-secured, the shortened candidate is blocked by the gate (~20-30 min)"
+scripts/pipeline-runs.sh --wait || warn "production release not promoted; the secured portal stays at 0 replicas" "scripts/pipeline-runs.sh --wait"
 scripts/status.sh || true
 
 [ -n "$WARNS" ] && printf '\n\033[1;33mFinished with warnings (each line: what, then the command to re-run):\033[0m%b\n' "$WARNS"

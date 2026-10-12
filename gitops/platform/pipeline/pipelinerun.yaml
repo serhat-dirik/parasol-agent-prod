@@ -1,17 +1,20 @@
 # Release run of the Parasol secure supply-chain pipeline (not synced by Argo CD; a run is an event).
 #   oc create -n parasol-build -f gitops/platform/pipeline/pipelinerun.yaml
-# candidate v1 passes the agent-eval gate and promotes; to show the gate blocking a release:
-#   sed "s/value: v1$/value: v2/" gitops/platform/pipeline/pipelinerun.yaml | oc create -f -
+# candidate production (the production prompt) passes the agent-eval gate and promotes; the named runs the
+# guide shows are created by scripts/pipeline-runs.sh (parasol-portal-release-production and
+# parasol-portal-release-candidate-shortened, where the gate blocks the shortened candidate prompt).
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: parasol-portal-secure-build-
+  generateName: parasol-portal-release-
   namespace: parasol-build
 spec:
   pipelineRef: {name: parasol-portal-secure-build}
   params:
     - name: candidate
-      value: v1
+      value: production
+    - name: prompt-ref
+      value: parasol-claims-assistant-system-prompt@production
   timeouts: {pipeline: 1h30m0s}
   taskRunTemplate:
     serviceAccountName: pipeline
