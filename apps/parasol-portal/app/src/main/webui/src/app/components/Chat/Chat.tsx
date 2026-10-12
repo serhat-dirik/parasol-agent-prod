@@ -44,6 +44,7 @@ const Chat: React.FunctionComponent<{ claimNumber: string, onTurnComplete?: () =
     const [isBusy, setIsBusy] = React.useState(false);
     const [isManager, setIsManager] = React.useState(false);
     const [approvedKeys, setApprovedKeys] = React.useState<Record<number, string>>({});
+    const [approvals, setApprovals] = React.useState<Record<number, { approvedBy?: string, agent?: string, traceId?: string }>>({});
 
     React.useEffect(() => {
         fetch(config.backend_api_url + '/me')
@@ -61,6 +62,7 @@ const Chat: React.FunctionComponent<{ claimNumber: string, onTurnComplete?: () =
             .then(r => r.json().then(body => ({ ok: r.ok, body })))
             .then(({ ok, body }) => {
                 setApprovedKeys(prev => ({ ...prev, [key]: ok ? 'done' : (body.error || 'failed') }));
+                if (ok) { setApprovals(prev => ({ ...prev, [key]: body })); }
                 if (ok) { onTurnComplete && onTurnComplete(); }
             })
             .catch(() => setApprovedKeys(prev => ({ ...prev, [key]: 'failed' })));
@@ -163,7 +165,12 @@ const Chat: React.FunctionComponent<{ claimNumber: string, onTurnComplete?: () =
                         <div className='propose-row'>Proposed: <b>{formatAED(proposed)}</b></div>
                         {claimed != null && <div className='propose-row'>Claimed: {formatAED(claimed)}{multiplier && multiplier > 1 ? ` — exceeds by ${multiplier}x` : ''}</div>}
                         {state === 'done'
-                            ? <div className='propose-approved'>Approved by manager via assistant</div>
+                            ? <div className='propose-approved'>
+                                Approved by {approvals[key]?.approvedBy || 'manager'} via {approvals[key]?.agent || 'assistant'}
+                                {approvals[key]?.traceId && <div className='trace-footer'>
+                                    <a href={mlflowTraceUrl(approvals[key].traceId as string)} target='_blank' rel='noreferrer'>trace {approvals[key].traceId}</a>
+                                </div>}
+                              </div>
                             : isManager
                                 ? <Button variant="primary" size="sm" isDisabled={state === 'pending'}
                                     onClick={() => approve(key, proposed)}>Approve</Button>

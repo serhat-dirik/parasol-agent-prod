@@ -137,7 +137,16 @@ public class ClaimResource {
     @Path("/claims/{number}/approve")
     @Blocking
     public Response approve(@PathParam("number") String number, @QueryParam("amount") Double amount) {
-        String traceId = Span.current().getSpanContext().getTraceId();
+        Span root = Span.current();
+        String traceId = root.getSpanContext().getTraceId();
+        // The approval's trace reads like the chat's: who approved, through which agent (MLflow user + tags).
+        String who = identity.isAnonymous() ? "anonymous" : identity.getPrincipal().getName();
+        root.setAttribute("user.id", who);
+        root.setAttribute("enduser.id", who);
+        root.setAttribute("gen_ai.agent.name", mcpAuth.agentId());
+        root.setAttribute("claim.number", number);
+        root.setAttribute("mlflow.traceTag.agent", mcpAuth.agentId());
+        root.setAttribute("mlflow.traceTag.action", "approve_payout " + number);
         if (!groups().contains("claims-managers")) {
             // O2: this role-block runs BEFORE forwardToken()/CallerIdentity is populated, so
             // caller.subject() is still "anonymous" here. Attribute the denied call to the
@@ -165,7 +174,8 @@ public class ClaimResource {
             // traceId lets the timeline event link to the trace of this approval ("Approved by
             // <user> via assistant"). Persisting it on the claim record needs a claims-db field
             // (kept backward-compatible), so for now the portal surfaces it live on the response.
-            return Response.ok(Map.of("result", result, "traceId", traceId)).build();
+            return Response.ok(Map.of("result", result, "traceId", traceId, "approvedBy", who,
+                    "agent", mcpAuth.agentId())).build();
         } catch (RuntimeException e) {
             // A forced call by someone without the tool role is refused at the MCP gateway (403).
             String msg = String.valueOf(e.getMessage());
