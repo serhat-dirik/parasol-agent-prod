@@ -14,5 +14,11 @@ timeout 900 oc start-build fraud-check -n parasol-build --from-dir=apps/mcp-serv
 fail=0; for j in $(jobs -p); do wait "$j" || fail=1; done
 oc get istag parasol-portal:unsigned -n parasol-build >/dev/null 2>&1 || \
   oc tag parasol-build/parasol-portal:latest parasol-build/parasol-portal:unsigned || fail=1
-for ns in parasol-free parasol-secured; do oc rollout restart deploy -n $ns 2>/dev/null || true; done
+oc rollout restart deploy -n parasol-free 2>/dev/null || true
+# parasol-secured: admission resolved each :latest to a digest on the Deployment (Argo ignores that
+# field), so a restart would keep the OLD image; point each workload at the digest just built.
+for d in claims-db policy-docs parasol-agent fraud-check; do
+  ref=$(oc get istag "${d}:latest" -n parasol-build -o jsonpath='{.image.dockerImageReference}' 2>/dev/null) || continue
+  oc set image "deploy/$d" -n parasol-secured "$d=$ref" >/dev/null 2>&1 || true
+done
 [ $fail = 0 ] || { echo "a build failed: oc get builds -n parasol-build; re-run scripts/build-images.sh"; exit 1; }
