@@ -201,6 +201,23 @@ metadata: {name: showroom-terminal-limitador-restart, namespace: kuadrant-system
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-limitador-restart}
 subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
 ---
+# abuse.sh / agent-token.sh (Scenario 1 check): mint the agent's short-lived ServiceAccount token, as the
+# agent pod does, to show the token the claims agent gets on the user's behalf. Only these two SAs.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-agent-token, namespace: parasol-secured}
+rules:
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    resourceNames: [claims-agent, fraud-agent]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-agent-token, namespace: parasol-secured}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-agent-token}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
 # signing-demo.sh: run a signed and an unsigned test pod in the admission demo namespace.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
