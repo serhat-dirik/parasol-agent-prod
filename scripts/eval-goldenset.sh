@@ -40,7 +40,6 @@ SEC   = os.environ["SECURED_CHAT"]
 UNSEC = os.environ["UNSECURED_CHAT"]
 MODEL = os.environ.get("MODEL", "qwen3-14b")
 SSO   = os.environ["SSO"]; GW = os.environ["MCP_GW"]; FREE = os.environ["FREE_MCP"]
-RUSER = os.environ.get("REBECCA_USER", "rebecca"); RPASS = os.environ.get("REBECCA_PASS", "rebecca")
 CTX = ssl.create_default_context(); CTX.check_hostname = False; CTX.verify_mode = ssl.CERT_NONE
 def http(url, data=None, headers=None, method=None):
     h = {"content-type": "application/json"}
@@ -68,10 +67,7 @@ def parse_rpc(body):
             except ValueError: pass
     return {}
 def token():
-    data = "grant_type=password&client_id=parasol-agent&username=%s&password=%s&scope=openid" % (RUSER, RPASS)
-    _, _, body = http(SSO + "/realms/parasol/protocol/openid-connect/token", data=data.encode(),
-                      headers={"content-type": "application/x-www-form-urlencoded"})
-    return json.loads(body)["access_token"]
+    return os.environ["REBECCA_TOKEN"]   # minted outside by scripts/token.sh (the portal login token)
 def mcp(base, extra):
     h = {"accept": "application/json, text/event-stream"}; h.update(extra)
     init = {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"goldenset","version":"1"}}}
@@ -152,7 +148,7 @@ oc exec -i -n "$NS" deploy/eval-guardrails-proxy -- env \
   SECURED_CHAT="http://eval-guardrails-proxy.$NS.svc:8080/v1/chat/completions" \
   UNSECURED_CHAT="$AGENT_ENDPOINT/chat/completions" MODEL="$AGENT_MODEL" \
   SSO="https://sso.apps.$DOMAIN" \
-  MCP_GW="https://mcp.apps.$DOMAIN/mcp" \
+  MCP_GW="https://mcp.apps.$DOMAIN/mcp" REBECCA_TOKEN="$("$HERE/token.sh" rebecca)" \
   FREE_MCP="http://claims-db.parasol-free.svc:8080/mcp" \
   python3 - < "$HARNESS" | tee "$REPORT"
 echo "== report saved: $REPORT =="

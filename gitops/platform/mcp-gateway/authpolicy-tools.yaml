@@ -2,6 +2,9 @@
 # The router sets x-mcp-servername (namespaced MCPServerRegistration name, e.g. parasol-secured/claims-db)
 # and x-mcp-toolname; the token's resource_access[<server>].roles must contain "tool:<name>".
 # This is the 403 Rebecca gets on approve_payout, and the reason Marcus does not.
+# And: the call must come THROUGH AN APPROVED AGENT. The token's azp (the Keycloak client that obtained
+# it by exchanging the user's token on their behalf) must be on the allow-list below; a user's own login
+# token presented directly (azp=parasol-portal) is refused. The two refusals say which rule fired.
 apiVersion: kuadrant.io/v1
 kind: AuthPolicy
 metadata:
@@ -22,6 +25,10 @@ spec:
         jwt:
           issuerUrl: https://sso.apps.CLUSTER_DOMAIN/realms/parasol
     authorization:
+      approved-agent:
+        patternMatching:
+          patterns:
+            - predicate: "has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent']"
       tool-access-check:
         when:
           # only the tools/call itself: the router's own hairpin initialize (first call per server) carries the tool name too
@@ -36,11 +43,14 @@ spec:
         body:
           value: |
             {"error": "Unauthorized", "message": "Parasol MCP gateway: authentication required."}
-      # message lands in the Authorino log ("outgoing authorization response"), so the 403 names user and tool
+      # message lands in the Authorino log ("outgoing authorization response"), so the 403 names user, agent and tool
       unauthorized:
         code: 403
         message:
-          expression: "'tool ' + request.headers['x-mcp-toolname'] + ' denied for ' + auth.identity.preferred_username"
+          expression: |
+            (has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent'] ? 'tool ' + request.headers['x-mcp-toolname'] + ' denied for ' : 'not via an approved agent: ') + auth.identity.preferred_username + ' azp=' + (has(auth.identity.azp) ? auth.identity.azp : '-')
         body:
           expression: |
-            '{"error": "Forbidden", "message": "Parasol MCP gateway: ' + auth.identity.preferred_username + ' may not call ' + request.headers['x-mcp-toolname'] + '."}'
+            has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent']
+              ? '{"error": "Forbidden", "message": "Parasol MCP gateway: ' + auth.identity.preferred_username + ' may not call ' + request.headers['x-mcp-toolname'] + '."}'
+              : '{"error": "Forbidden", "message": "Parasol MCP gateway: calls must come through an approved agent (got azp=' + (has(auth.identity.azp) ? auth.identity.azp : '-') + ')."}'

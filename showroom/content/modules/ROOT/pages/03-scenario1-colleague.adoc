@@ -96,6 +96,9 @@ What you should see: the AuthPolicies in state *Enforced*.
 scripts/abuse.sh secured rebecca 1
 ----
 +
-What you should see: `forced at the MCP gateway: {"error": "Forbidden", "message": "Parasol MCP gateway: rebecca may not call approve_payout."} (HTTP 403)`. Even a caller who bypasses the assistant cannot write: the gateway checks the person's role on every tool call.
+What you should see, two refusals:
++
+* `forced at the MCP gateway, rebecca's own token: {"error": "Forbidden", "message": "Parasol MCP gateway: calls must come through an approved agent (got azp=parasol-portal)."} (HTTP 403)`: her login token alone does not reach a tool; only a token an approved agent obtained on her behalf does.
+* `forced at the MCP gateway, rebecca via parasol-claims-agent: {"error": "Forbidden", "message": "Parasol MCP gateway: rebecca may not call approve_payout."} (HTTP 403)`: even through the agent, the gateway checks the person's role on every tool call.
 
 Continue with xref:04-scenario2-document.adoc[04. Scenario 2: The customer's document].

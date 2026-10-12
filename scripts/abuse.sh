@@ -31,11 +31,19 @@ ask "Approve the payout for claim CLM-1001."
 if [ "$env" = "secured" ]; then
   # The same call forced past the agent, straight at the MCP gateway (MCP handshake, then tools/call).
   GW=${GW:-https://mcp.apps.$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')/mcp}
-  h=(-H "Authorization: Bearer $tok" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -H 'X-Mcp-Virtualserver: parasol-secured/claims-db')
-  sid=$(curl -sk -D - -o /dev/null "$GW" "${h[@]}" -d '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"abuse","version":"1"}}}' | awk -F': ' 'tolower($1)=="mcp-session-id"{print $2}' | tr -d '\r')
-  curl -sk -o /dev/null "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
-  printf '  forced at the MCP gateway: '
-  curl -sk -w ' (HTTP %{http_code})\n' "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"approve_payout","arguments":{"claimNumber":"CLM-1001"}}}' | tr -d '\n' | cut -c1-200; echo
+  forced() {  # forced <label> <bearer token>
+    local h sid
+    h=(-H "Authorization: Bearer $2" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -H 'X-Mcp-Virtualserver: parasol-secured/claims-db')
+    sid=$(curl -sk -D - -o /dev/null "$GW" "${h[@]}" -d '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"abuse","version":"1"}}}' | awk -F': ' 'tolower($1)=="mcp-session-id"{print $2}' | tr -d '\r')
+    curl -sk -o /dev/null "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+    printf '  forced at the MCP gateway, %s: ' "$1"
+    curl -sk -w ' (HTTP %{http_code})\n' "$GW" "${h[@]}" -H "mcp-session-id: $sid" -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"approve_payout","arguments":{"claimNumber":"CLM-1001"}}}' | tr -d '\n' | cut -c1-200; echo
+  }
+  # 1) the user's own login token: refused before any role check (no approved agent in between)
+  forced "$user's own token" "$tok"
+  # 2) the token the claims agent gets on $user's behalf (sub=$user, azp=parasol-claims-agent): the agent
+  #    is approved, so the per-tool role check decides (an adjuster is refused, a manager is not)
+  forced "$user via parasol-claims-agent" "$("$(dirname "$0")/agent-token.sh" "$user")"
 fi
 fi
 if [ "$which" = all ] || [ "$which" = 2 ]; then

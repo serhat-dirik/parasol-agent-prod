@@ -167,7 +167,8 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
    and admitting the signed one.
 
 Other helpers:
-- `scripts/token.sh <user>` — print a demo user's access token.
+- `scripts/token.sh <user>` — print a demo user's access token (the portal login token).
+- `scripts/agent-token.sh <user> [fraud-agent]` — the token an agent presents for that user at the MCP gateway.
 - Bootstrap helpers, called by `bootstrap.sh` (each idempotent, re-runnable alone): `ensure-operators.py`,
   `rhoai-enable.sh`, `build-images.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`,
   `maas-portal-keys.sh`, `portal-oidc-client.sh`, `portal-users.sh`, `fetch-detector-model.sh`,
@@ -187,8 +188,10 @@ Other helpers:
 The secured portal is a stack of layers, each a distinct Red Hat component declared in Git. The point
 of the stack is that a *different* layer catches each scenario:
 
-* **Scenario 1 (the colleague)** → **identity + tool authorization.** The portal forwards the Keycloak
-  user's token to every tool call (Layer 2); the MCP gateway filters `tools/list` per identity and
+* **Scenario 1 (the colleague)** → **identity + tool authorization.** The assistant acts on behalf of
+  the Keycloak user: every tool call carries a token the agent (`parasol-claims-agent`, authenticated by
+  its ServiceAccount token, no secret) exchanged for the user's, holding only the roles that are both the
+  user's and inside the agent's ceiling (Layer 2); the MCP gateway admits only approved agents' tokens, filters `tools/list` per identity and
   enforces a per-tool AuthPolicy, so rebecca never sees `approve_payout` and a forced `tools/call` is a
   403 (Layer 3). Even a permitted write happens only on a claims-manager's button click (Read-Propose-Act).
 * **Scenario 2 (the customer's document)** → **guardrails + the same gate.** The guardrails proxy scans
@@ -205,7 +208,7 @@ of the stack is that a *different* layer catches each scenario:
 | # | Layer | Defends | Component | In this repo |
 |---|---|---|---|---|
 | 1 | Isolation | blast radius of all three | Namespace, ResourceQuota, NetworkPolicy, restricted PSA, no SA token, (Kata via `runtimeClassName`) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch}.yaml` |
-| 2 | Identity | Scenario 1 | Keycloak user identity forwarded by the portal to every tool call; service identity for discovery | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak` |
+| 2 | Identity | Scenario 1 | Agent identities (`parasol-claims-agent`, `parasol-fraud-agent`: ServiceAccount token as client assertion) acting on behalf of the user via token exchange, with per-agent role ceilings | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak`, `scripts/agent-clients.sh` |
 | 3 | Tool authorization | Scenario 1 | MCP gateway (Connectivity Link, TP): federation, per-identity tool list, per-tool AuthPolicy | `gitops/platform/mcp-gateway`, `gitops/envs/secured/mcp-registrations.yaml` |
 | 4 | Guardrails | Scenarios 2 and 3 | Guardrails detection proxy (enforced): regex + prompt-injection detector, PII masking, topic refusal; flag-and-continue or block. Additive model-based detectors in the guard tier: Granite Guardian (`granite-guardian-3-1-8b`) and optional Llama-Guard (user message only), shown in GenAI Studio | `gitops/platform/guardrails`, `gitops/platform/guardrails-guardian` |
 | 5 | Model governance | Scenario 3 | OpenShift AI MaaS: **two external models** on their own tiers — `qwen3-14b` (prod, the agent both portals run) and `granite-guardian-3-1-8b` (guard, the detector) — each a MaaSSubscription + MaaSAuthPolicy with its own key and per-tier token budget enforced by Connectivity Link; the agent never holds the upstream key (TP for external models). The eval judge `gpt-oss-120b` is reached via its own key, off the tiers | `gitops/platform/rhoai/*`, `gitops/platform/maas-tiers`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh`, `scripts/maas-tier-keys.sh` |
@@ -276,8 +279,9 @@ topic refusal fire through it). Manifests mark field names to check against the 
   obedience is shown live: unsecured pays the inflated AED 84,000 on a denied claim; secured, the same
   obeying model can only *propose* (`approve_payout` is hidden), guardrails flag the note, and the gate
   catches the 10× amount — the secured controls stop the payout regardless of which model obeys.
-* **Keycloak tools come back empty (`tools=[]`).** The portal must forward a token carrying
-  `resource_access` roles for `claims-db`/`policy-docs`; a `parasol-portal`-scoped mapper must emit
-  those roles into both the ID and the access token.
+* **Keycloak tools come back empty (`tools=[]`) or every tool call is a 403.** The agent's exchanged
+  token must carry `resource_access` roles for `claims-db`/`policy-docs` and `azp=parasol-claims-agent`
+  (`scripts/agent-token.sh rebecca` shows what the gateway sees); re-run `scripts/agent-clients.sh`.
+  A `calls must come through an approved agent` 403 means a raw login token reached the gateway.
 
 </details>

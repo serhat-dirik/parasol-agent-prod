@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # V3 proof: the agent-to-agent call through the MCP gateway.
 # The claims assistant calls the fraud-check agent as a tool (fraud_check) through the ONE MCP gateway,
-# carrying the caller's own Keycloak token, so the same per-identity authz as every other tool applies.
+# with a token the claims agent obtained ON BEHALF OF the caller (scripts/agent-token.sh: sub = the user,
+# azp = parasol-claims-agent), so the same per-identity authz as every other tool applies. The fraud agent
+# then reads the claim through the gateway itself, re-exchanging that token as parasol-fraud-agent.
 #   rebecca (adjuster)        -> allowed -> HIGH-risk verdict flagging CLM-1004 AED 84,000 vs record 8,400
 #   marcus  (claims-manager)  -> allowed -> same verdict
 #   nina.contractor (contractor) -> 403 at the gateway (no tool:fraud_check role)
@@ -16,7 +18,7 @@ hdr(){ printf '\n\033[1;33m%s\033[0m\n' "$*"; }
 # One agent-to-agent fraud_check call through the gateway as $1. Prints HTTP status + verdict/refusal.
 call() {
   local user="$1" tok h sid
-  tok="$("$HERE/token.sh" "$user")" || { echo "  token mint failed for $user"; return; }
+  tok="$("$HERE/agent-token.sh" "$user")" || { echo "  token mint failed for $user"; return; }
   # Show the token actually carries (or lacks) the tool role the gateway checks.
   printf '  %s resource_access[%s]: ' "$user" "$VS"
   printf '%s' "$tok" | python3 -c 'import sys,json,base64
@@ -52,7 +54,7 @@ for l in txt.splitlines(): print("     "+l)'
 
 hdr "Gateway: $GW   virtual server: $VS   claim: $CLAIM"
 hdr "tools/list for rebecca (fraud_check federated behind the gateway):"
-rtok="$("$HERE/token.sh" rebecca)"
+rtok="$("$HERE/agent-token.sh" rebecca)"
 rh=(-H "Authorization: Bearer $rtok" -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' -H "X-Mcp-Virtualserver: $VS")
 rsid=$(curl -sk -D - -o /dev/null "$GW" "${rh[@]}" -d '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"fraud-check-demo","version":"1"}}}' | awk -F': ' 'tolower($1)=="mcp-session-id"{print $2}' | tr -d '\r')
 curl -sk -o /dev/null "$GW" "${rh[@]}" -H "mcp-session-id: $rsid" -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'

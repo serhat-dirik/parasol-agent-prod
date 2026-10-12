@@ -23,8 +23,8 @@ for e in json.load(sys.stdin)["items"]:
   if "authorino" in s: print("  %s/%s: %s" % (e["metadata"]["namespace"], e["metadata"]["name"], "tls" if ("transport_socket" in s or "UpstreamTlsContext" in s) else "plaintext"))'
 }
 
-gateway_ok() {  # MCP initialize as rebecca: 200 means the gateway's auth path works
-  local t; t=$(scripts/token.sh rebecca) || return 1
+gateway_ok() {  # MCP initialize as rebecca via the claims agent: 200 means the gateway's auth path works
+  local t; t=$(scripts/agent-token.sh rebecca) || return 1
   [ "$(curl -sk -o /dev/null -w '%{http_code}' "$GW_URL" -H "Authorization: Bearer $t" \
       -H 'content-type: application/json' -H 'accept: application/json, text/event-stream' \
       -H 'X-Mcp-Virtualserver: parasol-secured/claims-db' \

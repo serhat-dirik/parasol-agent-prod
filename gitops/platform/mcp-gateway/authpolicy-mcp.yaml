@@ -1,6 +1,8 @@
 # Listener "mcp" (client side): who are you? Validates the Keycloak JWT, lets the MCP handshake
 # through, and issues the signed x-mcp-authorized wristband listing the tools this identity may see,
 # so tools/list is filtered per user BEFORE the model ever sees a tool it must not call.
+# Only tokens obtained by an approved agent on the user's behalf (azp on the allow-list) get in; a user's
+# own login token presented directly is refused with "calls must come through an approved agent".
 apiVersion: kuadrant.io/v1
 kind: AuthPolicy
 metadata:
@@ -23,6 +25,10 @@ spec:
         jwt:
           issuerUrl: https://sso.apps.CLUSTER_DOMAIN/realms/parasol
     authorization:
+      approved-agent:
+        patternMatching:
+          patterns:
+            - predicate: "has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent']"
       allow-mcp-method:
         patternMatching:
           patterns:
@@ -65,6 +71,11 @@ spec:
             {"error": "Unauthorized", "message": "Parasol MCP gateway: authentication required."}
       unauthorized:
         code: 403
+        message:
+          expression: |
+            (has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent'] ? 'access denied for ' : 'not via an approved agent: ') + (has(auth.identity.preferred_username) ? auth.identity.preferred_username : '-') + ' azp=' + (has(auth.identity.azp) ? auth.identity.azp : '-')
         body:
-          value: |
-            {"error": "Forbidden", "message": "Parasol MCP gateway: access denied."}
+          expression: |
+            has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent']
+              ? '{"error": "Forbidden", "message": "Parasol MCP gateway: access denied."}'
+              : '{"error": "Forbidden", "message": "Parasol MCP gateway: calls must come through an approved agent (got azp=' + (has(auth.identity.azp) ? auth.identity.azp : '-') + ')."}'

@@ -82,7 +82,7 @@ The agent never holds the upstream model key. OpenShift AI MaaS lists the two ti
 == The secured request paths
 
 * *Model:* portal -> model-gateway -> guardrails-proxy -> OpenShift AI MaaS -> external endpoint. The guardrails proxy scans prompts and tool results; MaaS attributes token spend to the user and enforces the per-tier budget.
-* *Tools:* portal -> MCP gateway (`https://mcp.{domain}/mcp`, one virtual server per client) -> claims-db, policy-docs, fraud-check. The portal forwards the user's Keycloak token on every call; the gateway filters the tool list per identity and enforces a per-tool AuthPolicy.
+* *Tools:* portal -> MCP gateway (`https://mcp.{domain}/mcp`, one virtual server per client) -> claims-db, policy-docs, fraud-check. The assistant acts *on behalf of* the user: on every call it exchanges the user's Keycloak token for one issued to the agent's own identity (`parasol-claims-agent`; user = `sub`, agent = `azp`), carrying only the tool roles that are both the user's and inside the agent's ceiling. The agent authenticates to Keycloak with its pod's ServiceAccount token, so there is no client secret. The gateway accepts only tokens from approved agents, filters the tool list per identity and enforces a per-tool AuthPolicy. The fraud-check agent does the same again (`parasol-fraud-agent`, read-only) when it reads the claim.
 
 The unsecured portal skips all of it: a shared model key, and tools called with no authorization and no record.
 
@@ -98,11 +98,11 @@ The unsecured portal skips all of it: a shared model key, and tools called with 
 
 |1 Isolation
 |the blast radius of all scenarios
-|Namespace, ResourceQuota, NetworkPolicy, restricted pod security, no service-account token
+|Namespace, ResourceQuota, NetworkPolicy, restricted pod security, no Kubernetes API token
 
 |2 Identity
 |Scenario 1
-|Keycloak user identity forwarded by the portal to every tool call
+|Keycloak: the user's identity plus the agent's own (ServiceAccount, no secret), joined by token exchange on every tool call
 
 |3 Tool authorization
 |Scenario 1
