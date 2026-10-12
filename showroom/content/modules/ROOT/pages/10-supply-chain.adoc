@@ -32,13 +32,13 @@ What you should see: `tlog entry created` and `VERIFIED (keyless)` for the porta
 
 . Open the `promote` task log.
 +
-What you should see: `PROMOTED: env-secured runs ...parasol-portal@sha256:...` with the prompt (`parasol-claims-assistant-system-prompt@production`) and model version (`parasol-claims-assistant:production`) the gate evaluated. Promotion writes nothing to Git: the repository stays read-only for releases. The task pins the signed digest on the Argo CD Application `env-secured` and waits until Argo CD reports it Synced and Healthy.
+What you should see: first `Prompt check: runtime prompt == registered parasol-claims-assistant-system-prompt@production (sha256 ...)`, then `PROMOTED: env-secured runs ...parasol-portal@sha256:...` with the prompt and its sha256 and the model version (`parasol-claims-assistant:production`) the gate evaluated. Had the prompt the secured portal reads differed from the registered one, the task would have stopped with `NOT PROMOTED`. Promotion writes nothing to Git: the repository stays read-only for releases. The task pins the signed digest on the Argo CD Application `env-secured` and waits until Argo CD reports it Synced and Healthy.
 
 . Select the *Argo CD* tab, open application `env-secured`, click *Details* and select the *Parameters* tab.
 +
-What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref` and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-ref` here is the same `parasol-claims-assistant-system-prompt@production` every live chat trace carries as its `prompt` tag (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]): release record and runtime evidence agree.
+What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref`, `prompt-sha256` (the digest of the prompt text the release checked against the running one) and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-ref` here is the same `parasol-claims-assistant-system-prompt@production` every live chat trace carries as its `prompt` tag (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]): release record and runtime evidence agree.
 +
-// SCREENSHOT: sc-argo-env-secured-promote.png — Argo CD, application env-secured, Details > Summary: annotations parasol.example/promoted-digest, promoted-by, prompt-ref, model-ref; and Parameters > Images with the parasol-portal digest override (Argo CD sign-in)
+// SCREENSHOT: sc-argo-env-secured-promote.png — Argo CD, application env-secured, Details > Summary: annotations parasol.example/promoted-digest, promoted-by, prompt-ref, prompt-sha256, model-ref; and Parameters > Images with the parasol-portal digest override (Argo CD sign-in; recapture: prompt-sha256 is new)
 
 . Close the panel and open the `portal` Deployment.
 +
