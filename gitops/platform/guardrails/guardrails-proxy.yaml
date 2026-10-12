@@ -9,6 +9,12 @@
 #      unchanged. Not through the orchestrator's chat endpoint: that one turns structured tool calls
 #      into text, and it logs request headers (the agent's MaaS key) at INFO. Detection calls carry
 #      no Authorization header.
+# The rules (patterns, topics, PII types, what each one does) are in the ConfigMap guardrails-rules,
+# mounted at /rules: one screen in the console (ConfigMaps > guardrails-rules) shows the presenter the
+# whole policy. Each detection is logged with user, agent, detector, score, action and trace id (the
+# portal sends W3C traceparent + baggage enduser.id / gen_ai.agent.name on the model call) and counted
+# on /metrics as parasol_guardrails_detections_total{detector,action,user,agent} plus
+# parasol_guardrails_score{detector,action,user,agent} (last score), scraped by the PodMonitor below.
 # Labels app=guardrails + component=guardrails-proxy: the agent's existing egress rule to
 # app=guardrails covers it; guardrails-service selects component=guardrails, so it is not mixed in.
 apiVersion: v1
@@ -17,18 +23,59 @@ metadata:
   name: guardrails-proxy
 data:
   proxy.py: |
-    import json, os, re, ssl, sys, time, urllib.request, urllib.error
+    import json, os, re, ssl, sys, threading, time, urllib.parse, urllib.request, urllib.error
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    RULES = os.environ.get("RULES_DIR", "/rules")
+    def rules(name, default):
+        try:
+            with open(os.path.join(RULES, name)) as f:
+                return json.load(f)
+        except FileNotFoundError:
+            return default
 
     # A1 PII masking preset (input): applied to the user's message before it reaches the model.
     # The matched text is redacted in place and the portal shows a "personal data masked" chip.
-    PII = [("email", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")),
-           ("Emirates ID", re.compile(r"\b784-?\d{4}-?\d{7}-?\d\b")),
-           ("payment card", re.compile(r"\b\d{4}[ -]?\d{4}[ -]?\d{4}[ -]?\d{4}\b"))]
+    PII = [(label, re.compile(rx)) for label, rx in rules("pii.json", {}).items()]
 
     # Demo 3 topic guardrail: a non-insurance request (the night-shift essays) gets a polite refusal.
     # ponytail: deterministic keyword list for the scripted inputs; swap for a classifier if it misfires.
-    TOPIC = [re.compile(p) for p in json.loads(os.environ.get("TOPIC", "[]"))]
+    TOPIC = [re.compile(p) for p in rules("topic.json", [])]
+
+    # Per-detection counters for /metrics: (detector, action, user, agent) -> [count, last score].
+    HITS, HITS_LOCK = {}, threading.Lock()
+
+    def who(headers):
+        # user + agent from W3C baggage, trace id from traceparent (both set by the portal's OTel SDK)
+        bag = {}
+        for item in (headers.get("baggage") or "").split(","):
+            k, _, v = item.split(";")[0].partition("=")
+            if k.strip():
+                bag[k.strip()] = urllib.parse.unquote(v.strip())
+        tp = (headers.get("traceparent") or "").split("-")
+        return (bag.get("enduser.id", "-"), bag.get("gen_ai.agent.name", "-"),
+                tp[1] if len(tp) == 4 else "-")
+
+    def record(ctx, action, hits):
+        user, agent, trace = ctx
+        for h in hits:
+            det = h.get("detector_id") or h.get("detection_type") or "?"
+            score = h.get("score") if h.get("score") is not None else 1.0
+            print(f"guardrail action={action} detector={det} score={score:g} user={user} agent={agent} "
+                  f"trace={trace} text={str(h.get('text'))[:80]!r}", flush=True)
+            with HITS_LOCK:
+                c = HITS.setdefault((det, action, user, agent), [0, 0.0])
+                c[0] += 1; c[1] = score
+
+    def metrics_text():
+        out = ["# TYPE parasol_guardrails_detections_total counter",
+               "# TYPE parasol_guardrails_score gauge"]
+        esc = lambda v: str(v).replace("\\", "\\\\").replace('"', '\\"')
+        with HITS_LOCK:
+            for (det, action, user, agent), (n, score) in sorted(HITS.items()):
+                lab = f'detector="{esc(det)}",action="{action}",user="{esc(user)}",agent="{esc(agent)}"'
+                out += [f"parasol_guardrails_detections_total{{{lab}}} {n}", f"parasol_guardrails_score{{{lab}}} {score:g}"]
+        return "\n".join(out) + "\n"
 
     # The portal's OpenAI client drops unknown top-level fields, so the guardrails signal rides on the
     # FIRST LINE of the assistant message as a sentinel the portal strips and turns into a banner/chip.
@@ -45,7 +92,7 @@ data:
 
     ORCH = os.environ.get("ORCHESTRATOR_URL", "https://guardrails-service:8032")
     CA = os.environ.get("ORCHESTRATOR_CA", "/etc/service-ca/service-ca.crt")
-    DETECTORS = json.loads(os.environ["DETECTORS"])
+    DETECTORS = rules("detectors.json", {})
     MAAS = os.environ["MAAS_URL"].rstrip("/")
     CTX = ssl.create_default_context(cafile=CA)
     PUBLIC = ssl.create_default_context()
@@ -147,6 +194,13 @@ data:
             self.wfile.write(data)
 
         def do_GET(self):
+            if self.path == "/metrics":
+                data = metrics_text().encode()
+                self.send_response(200)
+                self.send_header("content-type", "text/plain; version=0.0.4")
+                self.send_header("content-length", str(len(data)))
+                self.end_headers()
+                return self.wfile.write(data)
             self._send(200, {"status": "ok"})
 
         def do_POST(self):
@@ -155,16 +209,17 @@ data:
             req = json.loads(self.rfile.read(int(self.headers.get("content-length", 0))) or b"{}")
             messages = req.get("messages", [])
             user = last_user(messages)
+            ctx = who(self.headers)
             # Hard BLOCK (turn stops): an injection phrase the USER typed, or an off-topic request.
             ui = detect_texts([user]) if user else []
             if ui:
-                print("blocked: injection in user message", flush=True)
+                record(ctx, "block", ui)
                 return self._send(200, block(req, ui,
                     "I can't act on instructions embedded in that request. No action was taken.",
                     "prompt injection in your message"))
             th = topic_hits(user)
             if th:
-                print("blocked: off-topic request (topic guardrail)", flush=True)
+                record(ctx, "block", th)
                 return self._send(200, block(req, th,
                     "I can only help with Parasol insurance claims and policies, so I can't help with that.",
                     "off-topic request refused"))
@@ -180,9 +235,7 @@ data:
                 except (KeyError, IndexError, TypeError):
                     msg, body = None, None
                 if flag:
-                    for h in flag:
-                        print(f"flag: detector={h.get('detector_id')} score={h.get('score')} "
-                              f"text={str(h.get('text'))[:80]!r}", flush=True)
+                    record(ctx, "flag", flag)
                     names, score = names_score(flag)
                     r["guardrails"] = {"action": "flag", "detectors": names, "score": score,
                                        "detections": flag, "masked": masked or None,
@@ -191,7 +244,7 @@ data:
                         msg["content"] = sentinel("flag", "document contains instructions addressed to the assistant",
                                                   names, score, masked) + "\n" + body
                 elif masked:
-                    print("masked PII: " + ", ".join(masked), flush=True)
+                    record(ctx, "mask", [{"detector_id": "pii", "score": 1.0, "text": ",".join(masked)}])
                     r["guardrails"] = {"action": "mask", "detectors": ["pii"], "masked": masked,
                                        "message": "personal data masked"}
                     if msg is not None:
@@ -202,6 +255,11 @@ data:
             print(fmt % args, file=sys.stderr, flush=True)
 
     if __name__ == "__main__":
+        assert who({"baggage": "enduser.id=rebecca,gen_ai.agent.name=parasol-claims-agent",
+                    "traceparent": "00-abc-def-01"}) == ("rebecca", "parasol-claims-agent", "abc")
+        record(("selftest", "selftest", "-"), "flag", [{"detector_id": "regex", "score": 1.0, "text": "start-up self-test"}])
+        assert 'parasol_guardrails_detections_total{detector="regex",action="flag",user="selftest",agent="selftest"} 1' in metrics_text()
+        HITS.clear()
         assert tool_texts([{"role": "user", "content": "q"}, {"role": "tool", "content": "doc"}]) == ["doc"]
         assert last_user([{"role": "user", "content": "a"}, {"role": "user", "content": "b"}]) == "b"
         _m = [{"role": "user", "content": "mail me at a@b.com, card 4111 1111 1111 1111, id 784-1990-1234567-1"}]
@@ -233,18 +291,8 @@ spec:
           env:
             - {name: ORCHESTRATOR_URL, value: "https://guardrails-service.parasol-secured.svc:8032"}
             - {name: MAAS_URL, value: "https://maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local/models-as-a-service/qwen3-14b/v1"}
-            # Regex only inline. The HF prompt-injection classifier stays deployed, but on 1 CPU it takes
-            # ~28 s per text and scores the POL-VENDOR-07 passage SAFE (0.0008): inline it only adds latency.
-            # Owner preset (10 Oct): the three phrases a document would use to address the assistant.
-            - name: DETECTORS
-              value: >-
-                {"regex": {"regex": ["(?i)automated processing note", "(?i)assistant action required", "(?i)note to the claims assistant"]}}
-            # Demo 3 topic guardrail (insurance-only). Off-topic requests get a polite refusal.
-            - name: TOPIC
-              value: >-
-                ["(?i)\\bessay\\b", "(?i)\\bpoem\\b", "(?i)\\bshort story\\b", "(?i)\\bhaiku\\b", "(?i)\\bnovel\\b", "(?i)write (me )?an? (story|song|poem|essay|haiku|novel|screenplay)"]
           ports:
-            - containerPort: 8080
+            - {name: http, containerPort: 8080}
           readinessProbe:
             httpGet: {path: /health, port: 8080}
           resources:
@@ -252,12 +300,30 @@ spec:
             limits: {cpu: 200m, memory: 128Mi}
           volumeMounts:
             - {name: app, mountPath: /app}
+            - {name: rules, mountPath: /rules}
             - {name: service-ca, mountPath: /etc/service-ca}
       volumes:
         - name: app
           configMap: {name: guardrails-proxy}
+        - name: rules
+          configMap: {name: guardrails-rules}
         - name: service-ca
           configMap: {name: openshift-service-ca.crt}
+---
+# /metrics (attributed detections) for the Parasol dashboard's guardrail panel.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: guardrails-proxy
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchLabels: {component: guardrails-proxy}
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
 ---
 apiVersion: v1
 kind: Service

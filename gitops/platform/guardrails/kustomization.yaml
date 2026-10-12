@@ -10,4 +10,5 @@ resources:
   - orchestrator-config.yaml
   - gateway-config.yaml
   - orchestrator.yaml
+  - guardrails-rules.yaml
   - guardrails-proxy.yaml

@@ -1,0 +1,40 @@
+# The guardrail policy the secured assistant runs under, in one place (OpenShift console: project
+# parasol-secured > ConfigMaps > guardrails-rules). The guardrails proxy reads it at start-up; after an
+# edit: oc rollout restart deploy/guardrails-proxy -n parasol-secured.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: guardrails-rules
+data:
+  README: |
+    What runs on every model call of the secured assistant, and what each rule does when it matches:
+
+    detectors.json  prompt-injection phrases (regex detector, via the TrustyAI Guardrails Orchestrator), score 1.0
+                    - in a TOOL RESULT (a customer document): action=flag. The turn continues, the chat shows an
+                      amber banner, the trace gets a guardrails.tool_result span. The payout itself is stopped by
+                      the gateway and the Read-Propose-Act gate, not by the model.
+                    - in the USER's message: action=block. The turn stops with a refusal; nothing reaches the model.
+    topic.json      off-topic requests (the night-shift essays): action=block, detector=topic, 0 model tokens.
+    pii.json        personal data in the user's message: action=mask, detector=pii. Redacted before the model
+                    sees it; the chat shows "personal data masked".
+
+    Every detection is one log line of deploy/guardrails-proxy:
+      guardrail action=<flag|block|mask> detector=<id> score=<0..1> user=<user> agent=<agent> trace=<trace id> text=<match>
+    and one count of parasol_guardrails_detections_total{detector,action,user,agent} (dashboard: Parasol
+    Assistant Token Spend, panel "Guardrail hits").
+
+    Not inline: the Hugging Face prompt-injection classifier (deployed, too slow on CPU) and Granite Guardian
+    (MaaS guard tier, used as a second opinion in the GenAI Studio playground).
+  detectors.json: |
+    {"regex": {"regex": [
+      "(?i)automated processing note",
+      "(?i)assistant action required",
+      "(?i)note to the claims assistant"
+    ]}}
+  topic.json: |
+    ["(?i)\\bessay\\b", "(?i)\\bpoem\\b", "(?i)\\bshort story\\b", "(?i)\\bhaiku\\b", "(?i)\\bnovel\\b",
+     "(?i)write (me )?an? (story|song|poem|essay|haiku|novel|screenplay)"]
+  pii.json: |
+    {"email": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
+     "Emirates ID": "\\b784-?\\d{4}-?\\d{7}-?\\d\\b",
+     "payment card": "\\b\\d{4}[ -]?\\d{4}[ -]?\\d{4}[ -]?\\d{4}\\b"}
