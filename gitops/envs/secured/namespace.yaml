@@ -5,3 +5,7 @@ metadata:
   labels:
     parasol.example/environment: secured
     pod-security.kubernetes.io/enforce: restricted
+  annotations:
+    # Every connection a NetworkPolicy drops in this namespace is logged by OVN on the pod's node
+    # (oc adm node-logs <node> --path=ovn/acl-audit-log.log: name="NP:parasol-secured:Egress", verdict=drop).
+    k8s.ovn.org/acl-logging: '{"deny": "alert"}'
