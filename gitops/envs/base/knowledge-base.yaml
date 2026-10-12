@@ -1,0 +1,116 @@
+# The knowledge base (RAG): a dedicated PostgreSQL 16 with pgvector per environment (never shared) and the
+# knowledge-base MCP server (tool search_knowledge). Credentials: Secret knowledge-base-db, generated at
+# install by scripts/knowledge-base-db.sh (never in Git). The documents are embedded and loaded by
+# scripts/knowledge-base-ingest.sh (a Job on the same image; idempotent, re-runnable).
+# Same manifests in both environments. What differs comes from agent-config: in parasol-secured
+# knowledgeBaseEnforce=true (verify the caller's token, filter by its groups, row-level security on);
+# parasol-free has no such key, so the server searches everything (the uncontrolled baseline).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: knowledge-base-db
+  labels: {app: knowledge-base-db}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: {storage: 1Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-base-db
+  labels: {app: knowledge-base-db, app.kubernetes.io/part-of: parasol-agent}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}   # RWO volume
+  selector:
+    matchLabels: {app: knowledge-base-db}
+  template:
+    metadata:
+      labels: {app: knowledge-base-db, app.kubernetes.io/part-of: parasol-agent}
+    spec:
+      containers:
+        - name: postgres
+          image: registry.redhat.io/rhel9/postgresql-16:latest   # ships the pgvector extension
+          env:
+            - {name: POSTGRESQL_DATABASE, value: kb}
+            - {name: POSTGRESQL_USER, value: kb_owner}
+            - name: POSTGRESQL_PASSWORD
+              valueFrom: {secretKeyRef: {name: knowledge-base-db, key: owner-password}}
+            - name: POSTGRESQL_ADMIN_PASSWORD
+              valueFrom: {secretKeyRef: {name: knowledge-base-db, key: admin-password}}
+          ports:
+            - {name: postgres, containerPort: 5432}
+          readinessProbe:
+            exec: {command: ["/usr/libexec/check-container"]}
+            periodSeconds: 10
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/pgsql/data}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: knowledge-base-db}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledge-base-db
+  labels: {app: knowledge-base-db}
+spec:
+  selector: {app: knowledge-base-db}
+  ports:
+    - {name: postgres, port: 5432, targetPort: postgres}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: knowledge-base
+  labels: {app: knowledge-base, app.kubernetes.io/part-of: parasol-agent}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: knowledge-base}
+  template:
+    metadata:
+      labels: {app: knowledge-base, app.kubernetes.io/part-of: parasol-agent}
+    spec:
+      containers:
+        - name: knowledge-base
+          image: knowledge-base
+          imagePullPolicy: Always
+          env:
+            - name: KB_APP_PASSWORD
+              valueFrom: {secretKeyRef: {name: knowledge-base-db, key: app-password}}
+            # the app role: not the table owner, not superuser, cannot bypass row-level security
+            - {name: KB_DSN, value: "host=knowledge-base-db dbname=kb user=kb_app password=$(KB_APP_PASSWORD)"}
+            - name: KB_ENFORCE
+              valueFrom: {configMapKeyRef: {name: agent-config, key: knowledgeBaseEnforce, optional: true}}
+            - name: KB_TOKEN_URL   # the realm the caller's token must come from (issuer = this URL without /protocol/...)
+              valueFrom: {configMapKeyRef: {name: agent-config, key: tokenUrl, optional: true}}
+            - name: KB_ENV
+              valueFrom: {configMapKeyRef: {name: agent-config, key: env}}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /health, port: 8080}
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /health, port: 8080}
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            requests: {cpu: 100m, memory: 768Mi}
+            limits: {cpu: "1", memory: 1536Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: knowledge-base
+  labels: {app: knowledge-base}
+spec:
+  selector: {app: knowledge-base}
+  ports:
+    - {name: http, port: 8080, targetPort: http}

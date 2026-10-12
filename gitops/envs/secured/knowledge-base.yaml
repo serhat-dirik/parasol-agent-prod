@@ -1,0 +1,131 @@
+# The knowledge base, secured: the same server and database as parasol-free (gitops/envs/base/knowledge-base.yaml),
+# with retrieval AS THE USER. The claims assistant reaches it only through the MCP gateway, which checks
+# tool:search_knowledge (client parasol-secured/knowledge-base) and forwards the agent's on-behalf-of token.
+# The server verifies that token against Keycloak, searches only the documents the user's groups may read,
+# and PostgreSQL row-level security refuses every other row (agent-config knowledgeBaseEnforce=true; the
+# ingestion job turns RLS on in this namespace).
+#
+# Layer 1: the server takes traffic only from the gateway (and monitoring); the database only from the
+# server and the ingestion job.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knowledge-base
+spec:
+  podSelector:
+    matchLabels: {app: knowledge-base}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: gateway-system}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: mcp-system}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
+    - from:
+        - namespaceSelector:
+            matchLabels: {network.openshift.io/policy-group: monitoring}
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: knowledge-base-db}
+      ports:
+        - {protocol: TCP, port: 5432}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+    - to:   # Keycloak's signing keys (JWKS) via the router; the ingress VIP is in portal-ingress-vip
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: keycloak}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knowledge-base-db
+spec:
+  podSelector:
+    matchLabels: {app: knowledge-base-db}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - {key: app, operator: In, values: [knowledge-base, knowledge-base-ingest]}
+      ports:
+        - {protocol: TCP, port: 5432}
+  egress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: knowledge-base-ingest
+spec:
+  podSelector:
+    matchLabels: {app: knowledge-base-ingest}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: knowledge-base-db}
+      ports:
+        - {protocol: TCP, port: 5432}
+---
+# Layer 3: reachable for agents only through the gateway. The registration NAME is the resource_access key
+# in Keycloak: parasol-secured/knowledge-base (role tool:search_knowledge).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: knowledge-base
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parentRefs:
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: mcp-gateway, namespace: gateway-system, sectionName: mcps}
+  hostnames: [knowledge-base.mcp.local]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - {group: "", kind: Service, name: knowledge-base, port: 8080, weight: 1}
+---
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPServerRegistration
+metadata:
+  name: knowledge-base
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: knowledge-base
+    namespace: parasol-secured
+---
+# The portal's knowledge-base MCP client sends X-Mcp-Virtualserver: parasol-secured/knowledge-base.
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPVirtualServer
+metadata:
+  name: knowledge-base
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  description: Knowledge base (retrieval as the user)
+  tools: [search_knowledge]
+---
+# parasol_rag_retrievals_total / parasol_rag_withheld_total for the dashboard's Knowledge base row.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: knowledge-base
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchLabels: {app: knowledge-base}
+  podMetricsEndpoints:
+    - port: http
+      path: /metrics
+      interval: 15s

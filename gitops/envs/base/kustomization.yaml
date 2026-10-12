@@ -5,6 +5,7 @@ resources:
   - claims-db.yaml
   - policy-docs.yaml
   - parasol-agent.yaml
+  - knowledge-base.yaml   # RAG: pgvector database + the knowledge-base MCP server
 images:
   - name: parasol-agent
     newName: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-agent
@@ -14,4 +15,7 @@ images:
     newTag: latest
   - name: policy-docs
     newName: image-registry.openshift-image-registry.svc:5000/parasol-build/policy-docs
+    newTag: latest
+  - name: knowledge-base
+    newName: image-registry.openshift-image-registry.svc:5000/parasol-build/knowledge-base
     newTag: latest

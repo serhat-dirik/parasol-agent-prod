@@ -59,7 +59,8 @@ spec:
 # The portal reaches Keycloak (OIDC) and the MCP gateway through their public *.apps routes, which
 # resolve to the ingress VIP (an IP, not a namespace), so a namespaceSelector cannot match it.
 # Mirror the agent's ingress-vip allow for app=portal (cluster-specific VIP). The fraud-check agent
-# uses the same two hosts for its own on-behalf-of tool calls, so it shares this allow.
+# uses the same two hosts for its own on-behalf-of tool calls, and the knowledge base fetches Keycloak's
+# signing keys from the realm, so they share this allow.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -67,7 +68,7 @@ metadata:
 spec:
   podSelector:
     matchExpressions:
-      - {key: app, operator: In, values: [portal, fraud-check]}
+      - {key: app, operator: In, values: [portal, fraud-check, knowledge-base]}
   policyTypes: [Egress]
   egress:
     - to:

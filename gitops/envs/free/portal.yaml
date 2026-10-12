@@ -30,6 +30,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbMcpUrl}}
             - name: POLICY_DOCS_MCP_URL
               valueFrom: {configMapKeyRef: {name: agent-config, key: policyDocsMcpUrl}}
+            - name: KNOWLEDGE_BASE_MCP_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: knowledgeBaseMcpUrl}}
             - name: CLAIMS_DB_API_URL
               valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbApiUrl}}
             - name: AGENT_ENV

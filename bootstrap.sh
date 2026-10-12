@@ -79,6 +79,7 @@ for ns in parasol-free parasol-secured; do   # parasol-secured's is replaced by 
   oc -n $ns create secret generic maas-credentials --from-literal=GENAI_API_KEY="$AGENT_KEY" --dry-run=client -o yaml | oc apply -f - >/dev/null
 done
 oc -n parasol-secured delete secret agent-service-identity --ignore-not-found >/dev/null   # retired dev/dev service identity
+scripts/knowledge-base-db.sh   # knowledge-base database credentials per environment (generated once, never printed)
 scripts/maas-ext-model-secrets.sh   # upstream keys: qwen3-14b <- AGENT_KEY, granite-guardian <- GUARD_KEY
 ns=redhat-ai-gateway-infra   # MaaS API database (gitops/platform/rhoai/maas-db.yaml): password generated once, never printed
 if ! oc get secret maas-postgres -n $ns >/dev/null 2>&1; then
@@ -128,6 +129,7 @@ for i in $(seq 1 60); do curl -skf "https://sso.apps.$CLUSTER_DOMAIN/realms/para
   echo "$(date +%T) waiting for realm parasol at https://sso.apps.$CLUSTER_DOMAIN ($i/60)"; sleep 15; done
 scripts/portal-oidc-client.sh || warn "portal OIDC client Secret missing; both portals cannot start" scripts/portal-oidc-client.sh
 scripts/portal-users.sh >/dev/null || warn "contractor group/user not ensured" scripts/portal-users.sh
+scripts/knowledge-base-client.sh || warn "knowledge-base client/role missing; search_knowledge is refused at the gateway" scripts/knowledge-base-client.sh
 scripts/agent-clients.sh || warn "agent identities (parasol-claims-agent / parasol-fraud-agent) not ensured; secured tool calls fail" scripts/agent-clients.sh
 # before MaaS/Authorino: scripts/authorino-tls.sh checks the gateway with an agent's on-behalf-of token
 
@@ -152,6 +154,7 @@ scripts/supply-chain.sh || warn "supply chain incomplete" scripts/supply-chain.s
 log "12/12 Demo data, consoles, status"
 if [ "${SKIP_SEED:-0}" = 1 ]; then echo "SKIP_SEED=1"
 else scripts/seed-demo.sh || warn "demo data incomplete (the lines above name each step)" scripts/seed-demo.sh; fi
+scripts/knowledge-base-ingest.sh || warn "knowledge base not loaded (search_knowledge returns nothing)" scripts/knowledge-base-ingest.sh
 scripts/showroom-framing.sh || warn "console framing headers not applied; Showroom console tabs stay blank" scripts/showroom-framing.sh
 scripts/console-plugins.sh || warn "console plugins not enabled; the PipelineRun graph will be missing" scripts/console-plugins.sh
 echo "first release: the production prompt is promoted onto env-secured, the shortened candidate is blocked by the gate (~20-30 min)"
