@@ -37,10 +37,14 @@ ISSUER = os.environ.get("KB_ISSUER") or os.environ.get("KB_TOKEN_URL", "").split
 AUDIENCE_CLIENT = os.environ.get("KB_AUDIENCE", "parasol-secured/knowledge-base")
 AGENTS = set(os.environ.get("KB_AGENTS", "parasol-claims-agent").split(","))
 TOP_K = int(os.environ.get("KB_TOP_K", "4"))
-MIN_SCORE = float(os.environ.get("KB_MIN_SCORE", "0.6"))   # cosine similarity a withheld match must reach to count
+# A withheld match counts only when it is a real competitor for the answer: similarity >= KB_MIN_SCORE and
+# within KB_WITHHELD_MARGIN of the best match overall (granite similarities sit high, ~0.7 for unrelated text).
+MIN_SCORE = float(os.environ.get("KB_MIN_SCORE", "0.75"))
+MARGIN = float(os.environ.get("KB_WITHHELD_MARGIN", "0.06"))
 
 RETRIEVALS = PCounter("parasol_rag_retrievals", "Knowledge-base searches", ["user", "agent", "env"])
 WITHHELD = PCounter("parasol_rag_withheld", "Passages withheld from a caller", ["classification", "user", "agent", "env"])
+RESTRICTED = PCounter("parasol_rag_restricted_access", "Restricted documents returned", ["doc_id", "user", "agent", "env"])
 tracer = trace.get_tracer("knowledge-base")
 _jwks = jwt.PyJWKClient(ISSUER + "/protocol/openid-connect/certs", cache_keys=True) if ENFORCE else None
 _lock = threading.Lock()   # ponytail: one embedding at a time on a CPU pod; a pool if queries ever overlap
@@ -77,8 +81,10 @@ def search(query: str, caller: Caller):
                 "SELECT doc_id, title, classification, content, 1 - (embedding <=> %s::vector) FROM chunks "
                 "WHERE audience && %s::text[] ORDER BY embedding <=> %s::vector LIMIT %s",
                 [q, caller.groups, q, TOP_K]).fetchall()
-            withheld = conn.execute("SELECT doc_id, classification FROM kb_withheld(%s::vector, %s::text[], %s, %s)",
-                                    [q, caller.groups, TOP_K, MIN_SCORE]).fetchall()
+            cand = conn.execute("SELECT doc_id, classification, score FROM kb_withheld(%s::vector, %s::text[], %s, %s)",
+                                [q, caller.groups, TOP_K, MIN_SCORE]).fetchall()
+            best = max([r[4] for r in rows] + [c[2] for c in cand], default=0)
+            withheld = [(d, c) for d, c, s in cand if s >= best - MARGIN]
         else:
             rows = conn.execute(
                 "SELECT doc_id, title, classification, content, 1 - (embedding <=> %s::vector) FROM chunks "
@@ -127,6 +133,7 @@ def search_knowledge(query: str, ctx: Context) -> str:
         })
     RETRIEVALS.labels(caller.user, caller.agent, ENV).inc()
     for doc in sorted({r[0] for r in rows if r[2] == "restricted"}):
+        RESTRICTED.labels(doc, caller.user, caller.agent, ENV).inc()
         log.info("RAG restricted doc=%s accessed by %s via %s", doc, caller.user, caller.agent)
     for (doc, cls), n in sorted(Counter(withheld).items()):
         WITHHELD.labels(cls, caller.user, caller.agent, ENV).inc(n)

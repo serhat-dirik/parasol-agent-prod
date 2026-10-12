@@ -31,10 +31,11 @@ ALTER TABLE chunks OWNER TO kb_owner;
 -- Counts what the caller may NOT read among the best matches: labels and doc ids for the server's audit
 -- log only (the server returns count + classification to the caller, never ids, titles or content).
 -- SECURITY DEFINER as the table owner, which RLS does not apply to (no FORCE).
-CREATE OR REPLACE FUNCTION kb_withheld(q vector, groups text[], k int, min_score float)
-RETURNS TABLE(doc_id text, classification text)
+DROP FUNCTION IF EXISTS kb_withheld(vector, text[], int, float);
+CREATE FUNCTION kb_withheld(q vector, groups text[], k int, min_score float)
+RETURNS TABLE(doc_id text, classification text, score float)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT c.doc_id, c.classification FROM (
+  SELECT c.doc_id, c.classification, 1 - c.d FROM (
     SELECT doc_id, classification, audience, embedding <=> q AS d FROM chunks ORDER BY embedding <=> q LIMIT k
   ) c WHERE NOT (c.audience && groups) AND 1 - c.d >= min_score
 $$;
