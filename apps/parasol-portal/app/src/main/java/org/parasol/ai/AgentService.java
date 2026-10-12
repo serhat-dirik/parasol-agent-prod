@@ -104,9 +104,12 @@ public class AgentService {
         // No trace without an exporting SDK (free): no id to show.
         String traceId = root.getSpanContext().isValid() ? root.getSpanContext().getTraceId() : null;
         // W3C baggage rides along with traceparent on the model call, so the guardrails proxy can log
-        // and count each detection with the user and the agent it acted for.
+        // and count each detection with the user and the agent it acted for, and apply its output rule
+        // (the confidential marker) to everyone outside claims-managers ("|"-separated group names).
+        String groups = String.join("|", JwtPeek.groups(caller.authorization()));
         Scope baggage = Baggage.current().toBuilder()
-                .put("enduser.id", who).put("gen_ai.agent.name", mcpAuth.agentId()).build().makeCurrent();
+                .put("enduser.id", who).put("gen_ai.agent.name", mcpAuth.agentId())
+                .put("enduser.groups", groups).build().makeCurrent();
         try {
             Result<String> result = proposeEnabled
                     ? assistant.askWithPropose(conversationId, safetyRules(), question)

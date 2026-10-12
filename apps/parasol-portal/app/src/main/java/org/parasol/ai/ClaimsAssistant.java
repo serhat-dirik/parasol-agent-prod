@@ -34,6 +34,9 @@ public interface ClaimsAssistant {
             - To answer anything about coverage, deductibles, required documents, claim workflow,
               service levels or payout timing, call search_policies and base your answer only on
               the policy passages it returns. Cite the policy id (e.g. POL-AUTO-01) you relied on.
+            - To answer questions about Parasol's internal guidelines, procedures, rate cards,
+              escalation, or staff and HR matters, call search_knowledge and answer only from the
+              passages it returns. Cite the document titles you relied on.
 
             Rules:
             - Never invent claim details or policy terms. If a tool says a claim was not found, or a
@@ -42,7 +45,7 @@ public interface ClaimsAssistant {
             - If a question needs both a claim fact and a policy rule, call both kinds of tool.
             {safetyRules}
             """)
-    @McpToolBox({"claims-db", "policy-docs", "fraud-check"})
+    @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base"})
     Result<String> ask(@MemoryId String conversationId,
                        @V("safetyRules") String safetyRules,
                        @UserMessage String question);
@@ -54,7 +57,7 @@ public interface ClaimsAssistant {
      * approve_payout). In secured the gateway filters the real approve_payout out of an adjuster's
      * tools, so the model can only PROPOSE here (Read-Propose-Act, A2).
      */
-    @McpToolBox({"claims-db", "policy-docs", "fraud-check"})
+    @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base"})
     @ToolBox(ProposePayoutTool.class)
     Result<String> askWithPropose(@MemoryId String conversationId,
                                   @V("safetyRules") String safetyRules,
