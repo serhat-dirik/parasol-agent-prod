@@ -97,6 +97,9 @@ metadata:
   name: knowledge-base
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # The reviewed tool definitions (mcp-system/mcp-tool-scanner): sha256 of name, description and schema.
+    # A changed search_knowledge description fires MCPToolDefinitionDrift until this pin is updated here.
+    parasol.example/tools-sha256: 149940e16bf23a65594221189ad939e0a72ae4f28a0cbb31d8de84fcac063fdc
 spec:
   targetRef:
     group: gateway.networking.k8s.io
