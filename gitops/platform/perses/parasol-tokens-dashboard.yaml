@@ -18,7 +18,7 @@ spec:
   config:
     display:
       name: Parasol Assistant Token Spend
-      description: 'Agent X on behalf of user Y: token spend, model calls, tool calls, gateway rejections, guardrail hits and the spend alert'
+      description: 'Agent X on behalf of user Y: token spend, model calls, tool calls, gateway rejections, guardrail hits, knowledge-base retrievals and the spend alert'
     duration: 1h
     variables:
     - kind: ListVariable
@@ -436,11 +436,131 @@ spec:
                 spec:
                   query: max by (alertstate, user, agent, namespace) (ALERTS{alertname="ParasolAssistantTokenSpendHigh"})
                   seriesNameFormat: '{{alertstate}} {{user}} via {{agent}}'
+      ragRetrievals:
+        kind: Panel
+        spec:
+          display:
+            name: Knowledge-base searches by user, agent and environment
+            description: 'sum by (user, agent, env) (parasol_rag_retrievals_total): one count per search_knowledge call, retrieval runs as the user'
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: user
+                header: user
+              - name: agent
+                header: agent
+              - name: env
+                header: env
+              - name: value
+                header: count
+                sort: desc
+                enableSorting: true
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: sum by (user, agent, env) (parasol_rag_retrievals_total{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: ''
+      ragWithheld:
+        kind: Panel
+        spec:
+          display:
+            name: Passages withheld by classification, user and agent
+            description: 'sum by (classification, user, agent) (parasol_rag_withheld_total): matching passages the user may not read (never returned, never in the model context)'
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: classification
+                header: classification
+              - name: user
+                header: user
+              - name: agent
+                header: agent
+              - name: value
+                header: count
+                sort: desc
+                enableSorting: true
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: sum by (classification, user, agent) (parasol_rag_withheld_total{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: ''
+      ragRestricted:
+        kind: Panel
+        spec:
+          display:
+            name: Restricted documents read, by document, user and agent
+            description: 'sum by (doc_id, user, agent) (parasol_rag_restricted_access_total): every restricted (claims managers only) document returned; the server log has one audit line per access'
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: doc_id
+                header: doc_id
+              - name: user
+                header: user
+              - name: agent
+                header: agent
+              - name: value
+                header: count
+                sort: desc
+                enableSorting: true
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: sum by (doc_id, user, agent) (parasol_rag_restricted_access_total{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: ''
+      ragWithheldSeries:
+        kind: Panel
+        spec:
+          display:
+            name: Passages withheld over time by classification (cumulative)
+            description: sum by (classification) (parasol_rag_withheld_total)
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              legend:
+                mode: table
+                position: right
+              visual:
+                display: line
+                lineWidth: 1.5
+                areaOpacity: 0.2
+              yAxis:
+                format:
+                  unit: decimal
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: sum by (classification) (parasol_rag_withheld_total{user=~"$user", agent=~"$agent"})
+                  seriesNameFormat: '{{classification}}'
     layouts:
     - kind: Grid
       spec:
         display:
-          title: 'Token spend: who, through which agent (Scenario 3)'
+          title: 'Token spend: who, through which agent (Scenario 4)'
         items:
         - content:
             $ref: '#/spec/panels/spendRate'
@@ -475,7 +595,7 @@ spec:
     - kind: Grid
       spec:
         display:
-          title: 'Gateway decisions: tools and rejections (Scenarios 1 and 3)'
+          title: 'Gateway decisions: tools and rejections (Scenarios 1 and 4)'
         items:
         - content:
             $ref: '#/spec/panels/rejectTable'
@@ -510,7 +630,7 @@ spec:
     - kind: Grid
       spec:
         display:
-          title: Guardrails (Scenarios 2 and 3)
+          title: Guardrails (Scenarios 2, 3 and 4)
         items:
         - content:
             $ref: '#/spec/panels/guardHits'
@@ -530,3 +650,32 @@ spec:
           y: 8
           width: 24
           height: 7
+    - kind: Grid
+      spec:
+        display:
+          title: 'Knowledge base: retrieval as the user (Scenario 3)'
+        items:
+        - content:
+            $ref: '#/spec/panels/ragRetrievals'
+          x: 0
+          y: 0
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/ragWithheld'
+          x: 12
+          y: 0
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/ragRestricted'
+          x: 0
+          y: 8
+          width: 12
+          height: 8
+        - content:
+            $ref: '#/spec/panels/ragWithheldSeries'
+          x: 12
+          y: 8
+          width: 12
+          height: 8
