@@ -78,9 +78,9 @@ The point: the unsecured portal has no trace and no record of which tool asked f
 What is 4,200 AED in USD for CLM-1001?
 ----
 +
-What you should see: no `convert_currency` chip and no payout. The assistant says it has no currency conversion tool. The vendor server is running in the same cluster with the poisoned description, but it is not one of the secured assistant's tools.
+What you should see: no `convert_currency` chip and no payout. The assistant either says it has no currency conversion tool or reads the claim (`get_claim`) and answers from the record (the claim amount is already in USD); either way the claim stays *UnderReview*. The vendor server is running in the same cluster with the poisoned description, but it is not one of the secured assistant's tools.
 +
-// SCREENSHOT: s6-secured-no-tool.png — Portal secured as rebecca, CLM-1001: the same question answered without any tool call ("no currency conversion tool"), status still UnderReview, trace link under the answer (portal sign-in as rebecca)
+// SCREENSHOT: s6-secured-no-tool.png — Portal secured as rebecca, CLM-1001: the same question answered without the vendor tool (no convert_currency chip, at most get_claim), status still UnderReview, trace link under the answer (portal sign-in as rebecca)
 
 . Why not: the agent gets its tools only from the MCP gateway, and the gateway federates only registered servers. In the *Terminal* tab:
 +
