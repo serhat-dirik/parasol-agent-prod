@@ -16,7 +16,8 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 oc apply -f "$DIR/rbac.yaml"
 oc -n "$NS" delete configmap parasol-model-registrar --ignore-not-found
 oc -n "$NS" create configmap parasol-model-registrar \
-  --from-file=register-model.py="$DIR/register-model.py"
+  --from-file=register-model.py="$DIR/register-model.py" \
+  --from-file="$DIR/../../envs/secured/system-prompt.txt" --from-file="$DIR/../pipeline/prompts/v2.txt"
 oc -n "$NS" delete job parasol-model-registrar --ignore-not-found
 CLUSTER_DOMAIN="${CLUSTER_DOMAIN:-$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')}" \
   envsubst '$AGENT_MODEL $AGENT_ENDPOINT $CLUSTER_DOMAIN $MLFLOW_EXPERIMENT_ID $RUN_ID_PRODUCTION $RUN_ID_CANDIDATE $SCORE_PRODUCTION $SCORE_CANDIDATE' < "$DIR/register-job.yaml" | oc apply -f -

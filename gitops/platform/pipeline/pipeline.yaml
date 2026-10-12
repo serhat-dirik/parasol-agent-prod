@@ -79,6 +79,7 @@ spec:
       taskRef: {name: agent-eval}
       params:
         - {name: candidate, value: "$(params.candidate)"}
+        - {name: prompt-ref, value: "$(params.prompt-ref)"}
       workspaces:
         - {name: source, workspace: workspace}
     # Governance: stamp the agent-eval result (gate, score, MLflow run id, prompt@version) onto the
@@ -122,6 +123,7 @@ spec:
         - {name: image, value: "$(params.output-image)"}
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
         - {name: prompt-ref, value: "$(params.prompt-ref)"}
+        - {name: prompt-sha256, value: "$(tasks.agent-eval.results.prompt-sha256)"}
         - {name: model-ref, value: "parasol-claims-assistant:$(params.candidate)"}
   finally:
     - name: show-sbom

@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Register the claims-assistant system prompt in the MLflow Prompt Registry, workspace parasol-secured:
-# the production prompt (v1.txt -> registry version 1, alias production) and the candidate shortened
-# prompt (v2.txt -> registry version 2, alias candidate). Idempotent: the Job runs with RESET=1 so the
+# the production prompt (gitops/envs/secured/system-prompt.txt, the very file the secured portal runs ->
+# registry version 1, alias production) and the candidate shortened prompt (v2.txt -> registry version 2,
+# alias candidate). Idempotent: the Job runs with RESET=1 so the
 # numbering is always deterministic. Run as cluster-admin (or any identity that can create the Job/SA).
 #
 #   gitops/platform/pipeline/prompts/register.sh
@@ -16,7 +17,7 @@ oc apply -f "$DIR/rbac.yaml"
 oc -n "$NS" delete configmap parasol-prompt-registrar --ignore-not-found
 oc -n "$NS" create configmap parasol-prompt-registrar \
   --from-file=register-prompts.py="$DIR/register-prompts.py" \
-  --from-file=v1.txt="$DIR/v1.txt" \
+  --from-file=system-prompt.txt="$DIR/../../../envs/secured/system-prompt.txt" \
   --from-file=v2.txt="$DIR/v2.txt"
 oc -n "$NS" delete job parasol-prompt-registrar --ignore-not-found
 oc apply -f "$DIR/register-job.yaml"

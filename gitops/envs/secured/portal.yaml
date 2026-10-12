@@ -2,7 +2,7 @@
 #  - login with Keycloak (quarkus-oidc web-app) from Secret parasol-portal-oidc
 #  - the model call goes to the rate-limited model-gateway -> guardrails-proxy -> MaaS (agent-config endpoint)
 #  - the MCP tools are reached ONLY through the MCP gateway, carrying the caller's token (per-tool AuthPolicy)
-#  - the hardened prompt (safety-rules.txt) is appended; traces go to the OTel collector
+#  - the system prompt is the registered production prompt (system-prompt.txt); traces go to the OTel collector
 # The pod spec references the image by NAME ONLY: the kustomize images digest pin (below, patched by the
 # secure pipeline) is what resolves it, so the signed digest is what admission verifies.
 apiVersion: apps/v1
@@ -85,8 +85,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: tokenUrl}}
             - {name: MCP_AUTH_AGENT_ID, value: parasol-claims-agent}
             - {name: MCP_AUTH_ASSERTION_FILE, value: /var/run/secrets/parasol/agent/token}
-            - name: AGENT_SAFETY_RULES
-              valueFrom: {configMapKeyRef: {name: agent-config, key: safetyRules, optional: true}}
+            - name: AGENT_SYSTEM_PROMPT
+              valueFrom: {configMapKeyRef: {name: agent-config, key: systemPrompt}}
             # A2 Read-Propose-Act: route writes through the local propose tool (secured only; free leaves this unset)
             - {name: PORTAL_PROPOSE_ENABLED, value: "true"}
             - name: AGENT_ENV

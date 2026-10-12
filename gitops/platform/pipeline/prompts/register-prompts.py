@@ -7,7 +7,7 @@ new versions only if the template text changed (MLflow dedupes identical content
 Runs in-cluster. Auth: the pod's own ServiceAccount token (must have the
 mlflow-operator-mlflow-edit ClusterRole bound in namespace parasol-secured).
 Workspace routing: the x-mlflow-workspace request header (= namespace)."""
-import os, sys, pathlib, mlflow
+import hashlib, os, sys, pathlib, mlflow
 from mlflow.tracking.request_header.abstract_request_header_provider import (
     RequestHeaderProvider,
 )
@@ -49,11 +49,11 @@ common = {
 }
 versions = [
     {
-        "file": "v1.txt",
+        "file": "system-prompt.txt",   # gitops/envs/secured/system-prompt.txt: what the secured portal runs
         "alias": "production",
         "commit": "production prompt: base + safety rules. Passes every golden-set case.",
         "tags": {**common, "variant": "production",
-                 "safety_rules_file": "gitops/envs/secured/safety-rules.txt",
+                 "prompt_file": "gitops/envs/secured/system-prompt.txt",
                  "expected_golden_pass": "all cases"},
     },
     {
@@ -61,7 +61,7 @@ versions = [
         "alias": "candidate",
         "commit": "candidate: shortened prompt, safety-rules block removed. Below the 0.95 gate: blocked.",
         "tags": {**common, "variant": "candidate-shortened",
-                 "safety_rules_file": "none",
+                 "prompt_file": "gitops/platform/pipeline/prompts/v2.txt",
                  "expected_golden_pass": "below gate"},
     },
 ]
@@ -120,12 +120,14 @@ def main():
     reg = register_fn()
     for v in versions:
         template = (HERE / v["file"]).read_text()
-        pv = reg(name=PROMPT, template=template,
-                 commit_message=v["commit"], tags=v["tags"])
+        # the runtime proof: the secured portal stamps sha256(prompt it runs) on every chat trace
+        sha = hashlib.sha256(template.encode()).hexdigest()
+        pv = reg(name=PROMPT, template=template, commit_message=v["commit"],
+                 tags={**v["tags"], "prompt_sha256": sha, "prompt_chars": str(len(template))})
         set_alias = getattr(mlflow, "set_prompt_alias", None) or __import__("mlflow.genai").genai.set_prompt_alias
         set_alias(PROMPT, alias=v["alias"], version=pv.version)
         print(f"registered {PROMPT}@{v['alias']} (registry version {pv.version}) <- {v['file']} "
-              f"(variant={v['tags']['variant']})")
+              f"(variant={v['tags']['variant']}, sha256 {sha})")
     # read back by alias
     for v in versions:
         try:

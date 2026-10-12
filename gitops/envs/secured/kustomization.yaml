@@ -12,6 +12,7 @@ namespace: parasol-secured
 resources:
   - namespace.yaml
   - quota.yaml
+  - release-rbac.yaml       # the release checks the runtime prompt against the registered one
   - networkpolicy.yaml
   - mcp-registrations.yaml
   - serviceaccounts.yaml   # the agents' workload identities (federated client auth at Keycloak, no secrets)
@@ -61,7 +62,10 @@ configMapGenerator:
       - promptVersion=parasol-claims-assistant-system-prompt@production   # G2: MLflow Prompt Registry alias (registry version 1) the secured portal runs
       - tokenUrl=https://sso.apps.CLUSTER_DOMAIN/realms/parasol/protocol/openid-connect/token
     files:
-      - safetyRules=safety-rules.txt
+      # the WHOLE system prompt of the secured portal: the same file the MLflow Prompt Registry version
+      # @production is registered from (gitops/platform/pipeline/prompts/register.sh); the release's promote
+      # refuses to pin a digest when this text differs from the registered @production
+      - systemPrompt=system-prompt.txt
       # the headless REST agent (scripts only) has neither propose_payout nor a fraud-check client, so it
       # gets the rules without those two tools; the gateway still decides approve_payout per user
       - restAgentSafetyRules=safety-rules-rest-agent.txt

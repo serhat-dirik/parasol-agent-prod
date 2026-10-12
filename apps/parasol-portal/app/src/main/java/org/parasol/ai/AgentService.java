@@ -1,7 +1,12 @@
 package org.parasol.ai;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
@@ -57,8 +62,9 @@ public class AgentService {
     @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
     boolean proposeEnabled;
 
-    @ConfigProperty(name = "agent.safety-rules")
-    Optional<String> safetyRulesConfig;
+    /** The whole system prompt (secured: the registered production prompt). Empty = the laptop prompt. */
+    @ConfigProperty(name = "agent.system-prompt")
+    Optional<String> systemPromptConfig;
 
     /** Which environment this deployment is (secured / free): a label on metrics and traces, not a prompt version. */
     @ConfigProperty(name = "agent.env", defaultValue = "dev")
@@ -71,8 +77,35 @@ public class AgentService {
     @ConfigProperty(name = "quarkus.langchain4j.openai.parasol-chat.chat-model.model-name", defaultValue = "parasol-chat")
     String modelName;
 
-    private String safetyRules() {
-        return safetyRulesConfig.orElse("");
+    private String systemPrompt() {
+        return systemPromptConfig.filter(p -> !p.isBlank()).orElse(ClaimsAssistant.LAPTOP_PROMPT);
+    }
+
+    /** sha256 of the prompt this pod runs: equals the registry version's prompt_sha256 when they are the same text. */
+    String promptSha256() {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(systemPrompt().getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * An answer that says a payout was proposed, submitted, approved or paid. In secured the model's only
+     * write is propose_payout, so such a sentence without a propose_payout call on the same turn is false.
+     * ponytail: phrase regex over the model's wording; a sentence it misses is not corrected.
+     */
+    static final Pattern CLAIMED_PAYOUT = Pattern.compile(
+            "(?i)\\b(i\\s*(have|'ve)\\s+(now\\s+|already\\s+)?(proposed|submitted|approved|paid|settled|issued)"
+                    + "|(payout|payment|proposal)(\\s+[\\w,.-]+){0,8}?\\s+(has|have)\\s+been\\s+(proposed|submitted|approved|paid|issued|settled|created))\\b");
+
+    static final String UNBACKED_NOTE = "Platform note: no payout was proposed or approved in this turn "
+            + "(propose_payout was not called), so nothing was submitted for a manager.";
+
+    /** The note to append when {@code answer} claims a payout action no tool performed, else null. */
+    static String unbackedClaimNote(String answer, boolean proposed) {
+        return !proposed && answer != null && CLAIMED_PAYOUT.matcher(answer).find() ? UNBACKED_NOTE : null;
     }
 
     /** Ask the assistant. {@code conversationId} ties a chat session's turns together (A5 memory). */
@@ -93,6 +126,9 @@ public class AgentService {
         root.setAttribute("gen_ai.agent.name", mcpAuth.agentId());
         root.setAttribute("gen_ai.agent.id", mcpAuth.agentId());
         root.setAttribute("gen_ai.prompt.ref", promptVersion);
+        String promptSha = promptSha256();
+        root.setAttribute("gen_ai.prompt.sha256", promptSha);
+        root.setAttribute("mlflow.traceTag.prompt_sha256", promptSha);
         root.setAttribute("gen_ai.request.model", modelName);
         root.setAttribute("deployment.environment", env);
         // MLflow turns root-span attributes "mlflow.traceTag.<key>" into trace tags, so the trace header
@@ -112,8 +148,8 @@ public class AgentService {
                 .put("enduser.groups", groups).build().makeCurrent();
         try {
             Result<String> result = proposeEnabled
-                    ? assistant.askWithPropose(conversationId, safetyRules(), question)
-                    : assistant.ask(conversationId, safetyRules(), question);
+                    ? assistant.askWithPropose(conversationId, systemPrompt(), question)
+                    : assistant.ask(conversationId, systemPrompt(), question);
             count(result.tokenUsage());
             List<ToolCall> toolCalls = toolCallCollector.calls();
             Proposal proposal = proposalHolder.has()
@@ -124,6 +160,19 @@ public class AgentService {
             // render the amber banner / mask chip; the remaining lines are the real answer.
             Guardrail guardrail = Guardrail.parse(result.content());
             String answer = guardrail == null ? result.content() : guardrail.strippedContent();
+            // Secured: the answer may only claim a payout action that a tool call on this turn performed.
+            String note = proposeEnabled ? unbackedClaimNote(answer, proposal != null) : null;
+            if (note != null) {
+                answer = answer + "\n\n" + note;
+                LOG.infof("guardrail action=correct detector=unbacked-action user=%s agent=%s trace=%s", who,
+                        mcpAuth.agentId(), traceId);
+                metrics.counter("parasol_guardrail_detections_total", "detector", "unbacked-action", "action", "correct")
+                        .increment();
+                Span cs = tracer.spanBuilder("guardrails.answer").startSpan();
+                cs.setAttribute("guardrail.action", "correct");
+                cs.setAttribute("guardrail.detectors", "unbacked-action");
+                cs.end();
+            }
             // Operator-dashboard metrics: the model-path tool calls returned a result, so they
             // passed the gateway (status 200); 403s are counted on the Approve path in ClaimResource.
             recordToolCalls(toolCalls);
@@ -131,8 +180,8 @@ public class AgentService {
             // Trace semantics: name the observed steps so the MLflow/Tempo trace reads as the story
             // (guardrails.tool_result when a detector flagged a tool result, the propose step).
             emitStorySpans(guardrail, proposal);
-            LOG.infof("chat caller=%s agent=%s env=%s prompt=%s tools=%s guardrail=%s tokens=%s trace=%s", caller.subject(), mcpAuth.agentId(), env,
-                    promptVersion,
+            LOG.infof("chat caller=%s agent=%s env=%s prompt=%s prompt_sha256=%.12s tools=%s guardrail=%s tokens=%s trace=%s", caller.subject(), mcpAuth.agentId(), env,
+                    promptVersion, promptSha,
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     guardrail == null ? "none" : guardrail.action(),
                     result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount(), traceId);

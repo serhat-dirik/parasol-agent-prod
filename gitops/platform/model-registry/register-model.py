@@ -25,7 +25,19 @@ Config (env):
   MR_INSECURE   "1" (default) to skip TLS verify (lab reencrypt / service CA).
   AGENT_MODEL, AGENT_ENDPOINT   install contract: recorded as model_id / maas_endpoint_host.
 """
-import argparse, json, os, ssl, sys, urllib.parse, urllib.request, urllib.error
+import argparse, hashlib, json, os, pathlib, ssl, sys, urllib.parse, urllib.request, urllib.error
+
+HERE = pathlib.Path(__file__).resolve().parent
+
+
+def prompt_meta(repo_path):
+    """sha256 + length of a prompt file: next to this script (Job ConfigMap copy) or in the repo checkout."""
+    name = pathlib.Path(repo_path).name
+    for f in (HERE / name, HERE.parents[2] / repo_path if len(HERE.parents) > 2 else None):
+        if f and f.is_file():
+            t = f.read_text()
+            return {"prompt_sha256": hashlib.sha256(t.encode()).hexdigest(), "prompt_chars": str(len(t))}
+    return {"prompt_sha256": "unknown", "prompt_chars": "unknown"}
 
 BASE = os.environ.get(
     "MR_BASE_URL",
@@ -58,18 +70,16 @@ COMMON = {
 VERSIONS = {
     "production": {
         "prompt_version": "1", "prompt_alias": "production", "variant": "production",
-        "prompt_sha256": "301786aa1403c6433508b9e923d91d8c5a91c259aaf83f159d26ebd46f41be6e",
-        "prompt_chars": "1667", "safety_rules_file": "gitops/envs/secured/safety-rules.txt",
-        "prompt_file": "gitops/platform/pipeline/prompts/v1.txt",
+        **prompt_meta("gitops/envs/secured/system-prompt.txt"),
+        "prompt_file": "gitops/envs/secured/system-prompt.txt",
         "eval_score": SCORE_PRODUCTION, "eval_gate": "passed",
         "mlflow_run_id": os.environ.get("RUN_ID_PRODUCTION") or "b9971fab", "mlflow_experiment_id": EXP_ID,
-        "desc": "Production prompt (base + 3 safety rules; prompt registry version 1, alias production). "
+        "desc": "Production prompt (base + safety rules, gitops/envs/secured/system-prompt.txt; prompt registry version 1, alias production). "
                 "Agent-eval passes every golden case, gate passed: promotion allowed.",
     },
     "candidate-shortened": {
         "prompt_version": "2", "prompt_alias": "candidate", "variant": "candidate-shortened",
-        "prompt_sha256": "aef58cbfa6850ee1009bd232caaef0367259c919a82d5f69c8a80b70b911a9f4",
-        "prompt_chars": "1088", "safety_rules_file": "none",
+        **prompt_meta("gitops/platform/pipeline/prompts/v2.txt"),
         "prompt_file": "gitops/platform/pipeline/prompts/v2.txt",
         "eval_score": SCORE_CANDIDATE, "eval_gate": "failed",
         "mlflow_run_id": os.environ.get("RUN_ID_CANDIDATE") or "c7a36f43", "mlflow_experiment_id": EXP_ID,
@@ -159,7 +169,7 @@ def version_props(v):
     d.update({
         "prompt_version": v["prompt_version"], "prompt_alias": v["prompt_alias"], "variant": v["variant"],
         "prompt_sha256": v["prompt_sha256"], "prompt_chars": v["prompt_chars"],
-        "safety_rules_file": v["safety_rules_file"], "prompt_file": v["prompt_file"],
+        "prompt_file": v["prompt_file"],
         "prompt_ref": f"{COMMON['prompt_name']}@{v['prompt_alias']}",
         "gate": v["eval_gate"],
         "eval_dataset": "parasol-golden-set",

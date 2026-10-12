@@ -12,17 +12,20 @@ import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
 /**
  * The Parasol claims assistant that powers the portal chat - the SAME tool-using LangChain4j
  * service the REST agent uses, now behind the portal's WebSocket. It is backed by the MaaS model
- * (named config {@code parasol-chat}) and the two Parasol MCP servers as its tools.
+ * (named config {@code parasol-chat}) and the Parasol MCP servers as its tools.
  *
- * <p>The {@code safetyRules} block is injected from configuration ({@code AGENT_SAFETY_RULES}) so
- * the SAME image runs with the laptop prompt (free, no rules) and the hardened prompt (secured).
- * {@code conversationId} ties a chat session's turns together so follow-up questions work (A5,
- * session memory). The talk's point is that the prompt is the weakest layer: advice, not a control.
+ * <p>The WHOLE system prompt comes from configuration ({@code AGENT_SYSTEM_PROMPT}): in secured that is
+ * the registered production prompt (gitops/envs/secured/system-prompt.txt, the same file the MLflow
+ * Prompt Registry version {@code @production} is registered from); free runs {@link #LAPTOP_PROMPT}, the
+ * prompt exactly as it was written on the laptop. {@code conversationId} ties a chat session's turns
+ * together so follow-up questions work (A5, session memory). The talk's point is that the prompt is the
+ * weakest layer: advice, not a control.
  */
 @RegisterAiService(modelName = "parasol-chat")
 public interface ClaimsAssistant {
 
-    @SystemMessage("""
+    /** The prompt as written on the laptop (free): no safety rules. */
+    String LAPTOP_PROMPT = """
             You are the Parasol Insurance claims assistant. You help staff answer questions about
             insurance claims and Parasol's policies, and you can act on claims with your tools.
 
@@ -43,11 +46,12 @@ public interface ClaimsAssistant {
               search returns nothing relevant, say so plainly rather than guessing.
             - Be concise: a few sentences. Give the specific figures the tools return.
             - If a question needs both a claim fact and a policy rule, call both kinds of tool.
-            {safetyRules}
-            """)
+            """;
+
+    @SystemMessage("{systemPrompt}")
     @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base"})
     Result<String> ask(@MemoryId String conversationId,
-                       @V("safetyRules") String safetyRules,
+                       @V("systemPrompt") String systemPrompt,
                        @UserMessage String question);
 
     /**
@@ -60,6 +64,6 @@ public interface ClaimsAssistant {
     @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base"})
     @ToolBox(ProposePayoutTool.class)
     Result<String> askWithPropose(@MemoryId String conversationId,
-                                  @V("safetyRules") String safetyRules,
+                                  @V("systemPrompt") String systemPrompt,
                                   @UserMessage String question);
 }

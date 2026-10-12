@@ -146,6 +146,7 @@ spec:
     The MLflow run id is written as a result so the pipeline stamps it onto the PipelineRun.
   params:
     - {name: candidate, type: string, default: candidate-shortened}
+    - {name: prompt-ref, type: string, default: ""}
     - {name: eval-path, type: string, default: source/gitops/platform/eval/mlflow-agent-eval}
     - {name: mlflow-uri, type: string, default: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
     - {name: mlflow-workspace, type: string, default: parasol-secured}
@@ -154,6 +155,7 @@ spec:
     - {name: gate, description: passed or failed}
     - {name: score, description: pass-rate}
     - {name: mlflow-run-id, description: the MLflow eval run id for this gate execution}
+    - {name: prompt-sha256, description: sha256 of the registered prompt (prompt-ref) the gate evaluated}
   workspaces:
     - {name: source}
   volumes:
@@ -171,6 +173,7 @@ spec:
         - {name: MLFLOW_EXPERIMENT, value: "$(params.experiment)"}
         - {name: MLFLOW_TRACKING_INSECURE_TLS, value: "true"}
         - {name: TOKEN_FILE, value: /var/run/secrets/kubernetes.io/serviceaccount/token}
+        - {name: PROMPT_REF, value: "$(params.prompt-ref)"}
       script: |
         #!/usr/bin/env bash
         set -eu
@@ -190,7 +193,8 @@ spec:
         cp /tmp/res/gate    "$(results.gate.path)"
         cp /tmp/res/score   "$(results.score.path)"
         cp /tmp/res/run-id  "$(results.mlflow-run-id.path)"
-        echo "gate=$(cat /tmp/res/gate) score=$(cat /tmp/res/score) mlflow-run-id=$(cat /tmp/res/run-id)"
+        cat /tmp/res/prompt-sha256 > "$(results.prompt-sha256.path)" 2>/dev/null || printf "" > "$(results.prompt-sha256.path)"
+        echo "gate=$(cat /tmp/res/gate) score=$(cat /tmp/res/score) mlflow-run-id=$(cat /tmp/res/run-id) prompt=${PROMPT_REF:-none} sha256=$(cat /tmp/res/prompt-sha256 2>/dev/null)"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -288,6 +292,11 @@ spec:
     # shows which prompt and model version the promoted digest was gated on.
     - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@production"}
     - {name: model-ref, type: string, default: "parasol-claims-assistant:production"}
+    # sha256 of the registered prompt-ref (from agent-eval). The release refuses to promote when the prompt the
+    # secured portal runs (ConfigMap agent-config, key systemPrompt) is a different text: what the traces call
+    # prompt-ref must be literally the prompt that runs.
+    - {name: prompt-sha256, type: string, default: ""}
+    - {name: runtime-namespace, type: string, default: parasol-secured}
   results:
     - {name: digest, description: the digest pinned on the Application (empty when not promoted)}
   steps:
@@ -299,6 +308,14 @@ spec:
         APP="$(params.application)"; NS="$(params.application-namespace)"
         NAME="$(params.image-name)"; DIGEST="$(params.image-digest)"
         printf "" > "$(results.digest.path)"
+        WANT="$(params.prompt-sha256)"
+        HAVE=$(oc get configmap agent-config -n "$(params.runtime-namespace)" -o go-template='{{index .data "systemPrompt"}}' | sha256sum | cut -d' ' -f1)
+        if [ -z "$WANT" ] || [ "$WANT" != "$HAVE" ]; then
+          echo "NOT PROMOTED: the runtime prompt (agent-config systemPrompt, sha256 $HAVE) is not the registered $(params.prompt-ref) (sha256 ${WANT:-unknown})."
+          echo "Register the prompt from gitops/envs/secured/system-prompt.txt (gitops/platform/pipeline/prompts/register.sh) and re-run."
+          exit 1
+        fi
+        echo "Prompt check: runtime prompt == registered $(params.prompt-ref) (sha256 $HAVE)"
         echo "Promoting $NAME@$DIGEST: Application $NS/$APP"
         # JSON merge patch: replaces only kustomize.images and kustomize.replicas (the Git overlay keeps the
         # portal at 0 replicas until the first promote); the Application's kustomize patches stay as they are.
@@ -308,6 +325,7 @@ spec:
             \"parasol.example/promoted-digest\": \"$DIGEST\",
             \"parasol.example/promoted-by\": \"$(context.taskRun.name)\",
             \"parasol.example/prompt-ref\": \"$(params.prompt-ref)\",
+            \"parasol.example/prompt-sha256\": \"$HAVE\",
             \"parasol.example/model-ref\": \"$(params.model-ref)\"}},
           \"spec\": {\"source\": {\"kustomize\": {
             \"images\": [\"$NAME=$NAME@$DIGEST\"],
@@ -328,7 +346,7 @@ spec:
         done
         [ $ok -ge 2 ] || { echo "PROMOTION NOT CONVERGED: $APP did not reach Synced/Healthy on $DIGEST in 10 min"; exit 1; }
         printf "%s" "$DIGEST" > "$(results.digest.path)"
-        echo "PROMOTED: $APP runs $NAME@$DIGEST (prompt $(params.prompt-ref), model $(params.model-ref))"
+        echo "PROMOTED: $APP runs $NAME@$DIGEST (prompt $(params.prompt-ref) sha256 $HAVE, model $(params.model-ref))"
 ---
 apiVersion: tekton.dev/v1
 kind: Task

@@ -14,7 +14,8 @@ oc apply -f "$SRC/rbac.yaml" >/dev/null   # pipeline SA: mlflow edit/view in par
 if [ "$(oc get job $JOB -n $NS -o jsonpath='{.status.succeeded}' 2>/dev/null)" != 1 ]; then
   oc delete job $JOB -n $NS --ignore-not-found >/dev/null
   oc -n $NS create configmap parasol-eval-seed --from-file="$SRC/agent_eval.py" \
-    --from-file="$SRC/golden-set.json" --from-file="$SRC/candidates.json" --dry-run=client -o yaml | oc apply -f - >/dev/null
+    --from-file="$SRC/golden-set.json" --from-file="$SRC/candidates.json" \
+    --from-file=gitops/envs/secured/system-prompt.txt --from-file=gitops/platform/pipeline/prompts/v2.txt --dry-run=client -o yaml | oc apply -f - >/dev/null
   oc apply -f - >/dev/null <<'YAML'
 apiVersion: batch/v1
 kind: Job
