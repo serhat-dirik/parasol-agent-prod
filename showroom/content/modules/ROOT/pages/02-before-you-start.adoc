@@ -48,9 +48,9 @@ Every secured beat is visible on the platform, not only in the portal chat.
 
 * *Argo CD* tab: every component Synced and Healthy. `scripts/status.sh` summarizes it.
 * *OpenShift AI* tab: Models-as-a-Service (the two tiered models, `qwen3-14b` and `granite-guardian-3-1-8b`, with per-key usage), the GenAI Studio playground, and Model evaluation runs (TrustyAI LMEval).
-* *MLflow* tab: chat traces, and the `parasol-agent-eval` golden-set runs.
+* *MLflow* tab: chat traces (workspace `parasol-secured`, experiment `parasol-portal-chat`; each secured chat turn links to its own trace), and the `parasol-agent-eval` golden-set runs.
 * *OpenShift Console* tab:
-** Observe, Dashboards, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*: tool calls by status, guardrail hits, token spend per user, P95 latency, and the alert;
+** Observe, Dashboards, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*: token spend per user and agent, the spend alert, tool calls, gateway rejections by reason and guardrail hits, filterable by user and agent;
 ** Observe, Alerting: the alert `ParasolAssistantTokenSpendHigh`;
 ** Observe, Metrics: `parasol_tool_calls_total` and token spend;
 ** Observe, Traces: the Tempo trace of each chat turn;
@@ -63,12 +63,11 @@ Every secured beat is visible on the platform, not only in the portal chat.
 ----
 oc logs -n parasol-secured deploy/guardrails-proxy --tail=50
 ----
-** tool-authorization 403, in the MCP gateway and in the portal:
+** gateway refusals, naming the person and the agent (`not via an approved agent: <user> azp=<client>`, `tool <tool> denied for <user> azp=<agent>`):
 +
 [source,bash,role=execute]
 ----
-oc logs -n mcp-system deploy/mcp-gateway --tail=50
-oc logs -n parasol-secured deploy/portal --tail=50
+oc logs -n kuadrant-system deploy/authorino --tail=500 | grep -E 'approved agent|denied for'
 ----
 ** per-user 429:
 +

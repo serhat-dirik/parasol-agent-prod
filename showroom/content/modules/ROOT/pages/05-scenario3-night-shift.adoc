@@ -64,28 +64,31 @@ What you should see: the chat answers with the usage-limit message "You have rea
 +
 What you should see: rebecca keeps working normally. Only `nina.contractor` is throttled.
 
-. Select the *OpenShift Console* tab and open *Observe*, *Alerting*.
-+
-What you should see: `ParasolAssistantTokenSpendHigh` firing, naming the user `nina.contractor` and the namespace.
+== Show: on the platform
 
-. Select the *MLflow* tab (or *Observe*, *Traces* in the console).
+The governance beat for the night: who spent the budget, through which agent, what stopped them, and who was told. Three screens, then the operator acts.
+
+. Select the *OpenShift Console* tab, *Observe*, *Dashboards*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*. Set *User* to `nina.contractor` if the other personas crowd the view.
 +
-What you should see: a night request with the user on the span.
+What you should see, in the row *Token spend*:
++
+* *Token spend per user and agent* climbing as `nina.contractor via parasol-claims-agent` past the red 5000 tokens/min line, while `rebecca via parasol-claims-agent` stays low;
+* *Tokens by user and agent* with `nina.contractor`, `parasol-claims-agent`, `secured` on top;
+* *ParasolAssistantTokenSpendHigh: alert state* stepping to `firing nina.contractor via parasol-claims-agent`.
++
+// SCREENSHOT: s3-dashboard-spend.png — Console, Parasol Assistant Token Spend, row "Token spend" right after night-shift.sh 40: nina.contractor via parasol-claims-agent above the 5000 line, the tokens table, the alert-state panel firing (OpenShift admin sign-in)
+
+. Scroll to the row *Gateway decisions*, then open *Observe*, *Alerting*.
++
+What you should see: *Gateway rejections by reason* has `429 usage limit (MaaS token budget)` for `nina.contractor` via `parasol-claims-agent` (and Limitador's own `429 all models, all users` count). In *Alerting*, `ParasolAssistantTokenSpendHigh` is firing with the labels `user=nina.contractor`, `agent=parasol-claims-agent`, `namespace=parasol-secured`, and its description reads "Agent parasol-claims-agent on behalf of user nina.contractor is spending ... tokens/min".
++
+// SCREENSHOT: s3-alert-firing.png — Console, Observe > Alerting, ParasolAssistantTokenSpendHigh firing, labels user=nina.contractor agent=parasol-claims-agent namespace=parasol-secured (OpenShift admin sign-in, within ~5 min of the night-shift run)
 
 . Select the *OpenShift AI* tab and open *Settings*, then *MaaS governance*.
 +
-What you should see: every model call from the secured side goes through a subscription with its own token limit. `parasol-contractor` is the contractor tier, separate from the staff tiers, which is why only nina.contractor hit the limit while the claims staff kept working. *Gen AI studio*, *API keys* shows when each key was last used; the per-user token spend is on the operator dashboard.
+What you should see: every model call from the secured side goes through a subscription with its own token limit. `parasol-contractor` is the contractor tier, separate from the staff tiers, which is why only nina.contractor hit the limit while the claims staff kept working. *Gen AI studio*, *API keys* shows when each tier's key was last used. The platform enforced the budget; the dashboard and the alert name who spent it and through which agent.
 +
 image::s3-maas-subscriptions.png["MaaS governance: the contractor, stage and guard subscriptions, each Ready with its own priority and token limit"]
-
-. Check it: in the *Terminal* tab, find the per-user 429 in the Limitador log:
-+
-[source,bash,role=execute]
-----
-oc logs -n kuadrant-system deploy/limitador-limitador --tail=50
-----
-
-. Check it: in the *OpenShift Console* tab, *Observe*, *Dashboards* (project `openshift-operators`, *Parasol Assistant Token Spend*), the token-spend and per-user panels show `nina.contractor` peaking, and the alert is firing.
 
 == Show: the operator's response
 

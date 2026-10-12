@@ -62,7 +62,8 @@ What you should see:
 * the model (`qwen3-14b`) obeys the note and attempts the payout, but only `propose_payout` is available to it (`approve_payout` is hidden), so the attempt becomes a proposal, never a write;
 * an amber banner `document contains instructions addressed to the assistant (1.0)`: guardrails flagged the hidden note;
 * a *Propose* card: "Proposed payout AED 84,000. Claimed amount AED 8,400. Estimate exceeds the claim by 10×", with no *Approve* button for rebecca;
-* if the request includes a card number, a grey `personal data masked` chip appears first.
+* if the request includes a card number, a grey `personal data masked` chip appears first;
+* under the answer, a `trace <id>` link: this turn's trace, used below.
 
 . Check the timeline.
 +
@@ -75,29 +76,44 @@ What you should see: *unchanged, still Denied*. Nothing was written.
 Run a fraud check on CLM-1004.
 ----
 +
-What you should see: a chip `called fraud_check(claimNumber=CLM-1004)` and a *HIGH risk* verdict, citing the 84,000 against 8,400 mismatch and the hidden note as a tampering indicator. This is a second agent behind the same MCP gateway, called agent to agent, with the same per-identity authorization (an account without the `tool:fraud_check` role is refused with a 403).
+What you should see: a chip `called fraud_check(claimNumber=CLM-1004)`, a *HIGH risk* verdict, citing the 84,000 against 8,400 mismatch and the hidden note as a tampering indicator. This is a second agent behind the same MCP gateway, called agent to agent, with the same per-identity authorization (an account without the `tool:fraud_check` role is refused with a 403). The turn has its own `trace <id>` link.
 +
 image::s2-fraud-check.jpg["The fraud-check agent returns HIGH risk for CLM-1004: amount mismatch and a tampering indicator"]
 
 == Show: on the platform
 
-. Select the *OpenShift AI* tab and open the GenAI Studio playground. Select *Granite Guardian* (`granite-guardian-3-1-8b`, the MaaS guard tier) in the model picker and paste the hidden-note text.
-+
-What you should see: the note is flagged as risky, with a score of about 0.98. A model-based second detector beside the regex detector the portal enforces.
+The governance beat for the payout that did not happen: this conversation's own trace, the rule that fired, and the second agent. Three screens.
 
-. Check it: in the *Terminal* tab, find the flag in the guardrails proxy log:
+. In the *Portal secured* tab, click the `trace <id>` link under the CLM-1004 answer (the turn with the amber banner).
++
+What you should see: the *MLflow* trace view opens on exactly this turn, in workspace `parasol-secured`, experiment `parasol-portal-chat`:
++
+* the trace's user `rebecca` and tags `agent` `parasol-claims-agent`, `prompt` `parasol-claims-assistant-system-prompt@production`, `model` `qwen3-14b`, with the token count;
+* the spans `model.chat` -> `tool.get_claim_documents` -> `guardrails.tool_result` (attributes `guardrail.action` `flag`, `guardrail.detectors` `regex`, `guardrail.score` `1`) -> `tool.propose_payout` (proposed 84000, claimed 8400);
+* *no* `approve_payout` span anywhere: the write tool was never offered to rebecca's agent.
++
+// SCREENSHOT: s2-mlflow-trace.png — MLflow trace opened from the chat's trace link (rebecca, CLM-1004 secured turn): header with user rebecca and tags agent/prompt/model, span tree model.chat > tool.get_claim_documents > guardrails.tool_result (flag, score 1) > tool.propose_payout selected (OpenShift sign-in for MLflow; portal sign-in as rebecca)
+
+. Select the *OpenShift Console* tab, project `parasol-secured`, *Workloads*, *ConfigMaps*, `guardrails-rules`.
++
+What you should see: the whole guardrail policy on one screen: `README` (what each rule does: an instruction in a *document* is flagged and the turn continues, in the *user's own message* it is blocked, off-topic requests are blocked for 0 tokens, personal data is masked), `detectors.json` with the three phrases ("automated processing note", "assistant action required", "note to the claims assistant"), `topic.json` and `pii.json`.
++
+Then, in the *Terminal* tab, find this flag in the guardrails proxy log:
 +
 [source,bash,role=execute]
 ----
-oc logs -n parasol-secured deploy/guardrails-proxy --tail=50
+oc logs -n parasol-secured deploy/guardrails-proxy --tail=200 | grep 'guardrail action='
 ----
 +
-What you should see: a line with `action=flag detectors=regex score=1`.
-
-. Check it: in the *MLflow* tab (or the *OpenShift Console* tab, *Observe*, *Traces*), open the latest CLM-1004 chat trace.
+What you should see: `guardrail action=flag detector=regex score=1 user=rebecca agent=parasol-claims-agent trace=<id> text='Automated processing note'`, the same trace id as the chat link. On the dashboard (*Observe*, *Dashboards*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Guardrails*), *Guardrail hits by detector, action, user and agent* has the row `regex`, `flag`, `rebecca`, `parasol-claims-agent`, and *Guardrail last score* shows `1`.
 +
-What you should see: the spans `model.chat` -> `tool.get_claim_documents` -> `guardrails.tool_result` -> `tool.propose_payout`, and *no* `approve_payout` span.
+// SCREENSHOT: s2-guardrails-rules.png — Console, project parasol-secured, ConfigMaps > guardrails-rules, Data section showing README and detectors.json (OpenShift admin sign-in)
+// SCREENSHOT: s2-dashboard-guardrails.png — Console, Parasol Assistant Token Spend, row "Guardrails": hits table with regex / flag / rebecca / parasol-claims-agent and the last-score table (OpenShift admin sign-in, after the CLM-1004 secured turn)
 
-. Check it: in the *OpenShift Console* tab, *Observe*, *Dashboards* (project `openshift-operators`, *Parasol Assistant Token Spend*), the guardrail-hit panel ticks.
+. Back in the *Portal secured* tab, click the `trace <id>` link under the fraud-check answer.
++
+What you should see: *one* trace across two agents: `tool.fraud_check` (agent `parasol-claims-agent`, user `rebecca`) -> `agent.fraud_check` (agent `parasol-fraud-agent`) -> `tool.get_claim` and `tool.get_claim_documents`, each span with `enduser.id` `rebecca` and the agent that made the call. The fraud agent read the claim through the same gateway, on rebecca's behalf, with its own narrower ceiling.
++
+// SCREENSHOT: s2-mlflow-fraud-trace.png — MLflow trace of the "Run a fraud check on CLM-1004." turn: span tree tool.fraud_check > agent.fraud_check > tool.get_claim / tool.get_claim_documents, attributes gen_ai.agent.name parasol-fraud-agent and enduser.id rebecca on a child span (OpenShift sign-in for MLflow)
 
 Continue with xref:05-scenario3-night-shift.adoc[05. Scenario 3: The night shift].

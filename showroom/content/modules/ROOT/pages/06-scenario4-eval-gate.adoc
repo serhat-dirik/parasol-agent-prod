@@ -29,12 +29,14 @@ image::s4-rhoai-evaluations.png["OpenShift AI Evaluations page: the completed IF
 +
 What you should see: the golden set `parasol-golden-20` scored on every run, each case judged by `gpt-oss-120b`. The *production prompt* (runs `production-prompt`) scores *20/20, PASS*; the *candidate: shortened prompt* (runs `candidate-shortened-prompt`) scores *17/20, BLOCK*, failing the injection-document, role-authorization and other-claimant cases.
 +
+// SCREENSHOT: s4-mlflow-eval-runs.png — MLflow, workspace parasol-secured, experiment parasol-agent-eval, Evaluation runs: production-prompt 20/20 PASS and candidate-shortened-prompt 17/20 BLOCK (recapture: the old image shows the pre-rename v1/v2 run names)
 image::s4-mlflow-eval-runs.png["MLflow evaluation runs: production-prompt at 20/20 with gate 1, candidate-shortened-prompt at 17/20 with gate 0"]
 
 . Select one `production-prompt` run and one `candidate-shortened-prompt` run and choose *Compare*.
 +
 What you should see: `variant` production against candidate-shortened (`prompt_version` 1 against 2: the prompt registry version numbers, 2 being the candidate), `gate_passed` 1 against 0, and every detector rate lower for the candidate.
 +
+// SCREENSHOT: s4-mlflow-v1-vs-v2.png — MLflow Compare of one production-prompt and one candidate-shortened-prompt run: variant, prompt_version 1 vs 2, gate_passed 1 vs 0 (recapture under the same file name: old run names)
 image::s4-mlflow-v1-vs-v2.png["MLflow run comparison: production prompt against the shortened candidate, gate_passed 1 against 0"]
 
 . Open a `candidate-shortened-prompt` run and its injection-document case.
@@ -51,10 +53,21 @@ What you should see: alias `production` on version 1 (the production prompt) and
 +
 What you should see: two release runs of the same pipeline. In `parasol-portal-release-production` (the production prompt) `agent-eval` passed with `EVAL_SCORE 1.00` and `promote` ran. In `parasol-portal-release-candidate-shortened` (the candidate: shortened prompt) `agent-eval` failed with `EVAL_SCORE 0.85` and `promote` is *skipped*: the candidate was built, scanned and even signed, but it was never promoted, so nothing reached production.
 +
+// SCREENSHOT: sc-pipeline-v2-blocked.png — Console, Pipelines, parasol-build, run parasol-portal-release-candidate-shortened: agent-eval failed (EVAL_SCORE 0.85), promote skipped (recapture: old run name)
 image::sc-pipeline-v2-blocked.png["The candidate-shortened release run: every stage ran, and promote was skipped by the evaluation gate"]
 
 . Select the *OpenShift AI* tab and open *Model registry*, then `parasol-claims-assistant`, then *Versions*.
 +
 What you should see: version `production` with gate `passed` and 20/20, and version `candidate-shortened` with gate `failed` and 17/20: each evaluation score tied to the agent version the pipeline would promote.
+
+== Show: the gated prompt at runtime
+
+The link back from the gate to production: every live chat turn names the prompt it ran with.
+
+. Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*. Open any recent chat trace (for example the CLM-1004 turn from Scenario 2), or search with `tags.prompt = 'parasol-claims-assistant-system-prompt@production'`.
++
+What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt@production`, next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the alias the production release run was gated on (`prompt-ref` on the `env-secured` Application, xref:07-supply-chain.adoc[07. Supply chain]); the shortened candidate never appears here, because it was never promoted.
++
+// SCREENSHOT: s4-mlflow-runtime-prompt.png — MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on tags.prompt = 'parasol-claims-assistant-system-prompt@production', one trace open showing the prompt / agent / model tags (OpenShift sign-in for MLflow)
 
 Continue with xref:07-supply-chain.adoc[07. Supply chain: signing and admission].

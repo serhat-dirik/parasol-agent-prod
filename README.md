@@ -202,7 +202,7 @@ of the stack is that a *different* layer catches each scenario:
   the write anyway.
 * **Scenario 3 (the night shift)** → **model governance + observability.** MaaS gives the contractor a
   low per-tier token budget and returns 429 for that account alone (Layer 5); the topic guardrail refuses
-  off-topic junk at zero cost (Layer 4); token metrics raise an alert naming the user, and the kill switch
+  off-topic junk at zero cost (Layer 4); token metrics raise an alert naming the user and the agent, and the kill switch
   severs egress with one change on the Argo CD Application (Layer 7). Namespace isolation (Layer 1) bounds the blast radius throughout.
 
 | # | Layer | Defends | Component | In this repo |
@@ -210,10 +210,10 @@ of the stack is that a *different* layer catches each scenario:
 | 1 | Isolation | blast radius of all three | Namespace, ResourceQuota, NetworkPolicy, restricted PSA, no SA token, (Kata via `runtimeClassName`) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch}.yaml` |
 | 2 | Identity | Scenario 1 | Agent identities (`parasol-claims-agent`, `parasol-fraud-agent`: ServiceAccount token as client assertion) acting on behalf of the user via token exchange, with per-agent role ceilings | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak`, `scripts/agent-clients.sh` |
 | 3 | Tool authorization | Scenario 1 | MCP gateway (Connectivity Link, TP): federation, per-identity tool list, per-tool AuthPolicy | `gitops/platform/mcp-gateway`, `gitops/envs/secured/mcp-registrations.yaml` |
-| 4 | Guardrails | Scenarios 2 and 3 | Guardrails detection proxy (enforced): regex + prompt-injection detector, PII masking, topic refusal; flag-and-continue or block. Additive model-based detectors in the guard tier: Granite Guardian (`granite-guardian-3-1-8b`) and optional Llama-Guard (user message only), shown in GenAI Studio | `gitops/platform/guardrails`, `gitops/platform/guardrails-guardian` |
+| 4 | Guardrails | Scenarios 2 and 3 | Guardrails detection proxy (enforced): regex injection phrases, PII masking, topic refusal (rules in ConfigMap `guardrails-rules`); flag-and-continue or block, each detection logged and counted with user, agent and trace id. The HF prompt-injection detector is deployed but not inline. Additive model-based detectors in the guard tier: Granite Guardian (`granite-guardian-3-1-8b`) and optional Llama-Guard (user message only), shown in GenAI Studio | `gitops/platform/guardrails`, `gitops/platform/guardrails-guardian` |
 | 5 | Model governance | Scenario 3 | OpenShift AI MaaS: **two external models** on their own tiers — `qwen3-14b` (prod, the agent both portals run) and `granite-guardian-3-1-8b` (guard, the detector) — each a MaaSSubscription + MaaSAuthPolicy with its own key and per-tier token budget enforced by Connectivity Link; the agent never holds the upstream key (TP for external models). The eval judge `gpt-oss-120b` is reached via its own key, off the tiers | `gitops/platform/rhoai/*`, `gitops/platform/maas-tiers`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh`, `scripts/maas-tier-keys.sh` |
 | 6 | Lifecycle gate | regressions, unsigned images (cross-cutting) | Tekton pipeline (build → scan → eval gate → cosign sign → promote); Sigstore admission `ClusterImagePolicy` | `gitops/platform/pipeline`, `scripts/signing-demo.sh` |
-| 7 | Observability and control | Scenario 3; knowing and stopping | OTel → Tempo and MLflow, token metrics + PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
+| 7 | Observability and control | Scenario 3; knowing and stopping | OTel → Tempo and MLflow (each chat turn links to its trace; tags agent/prompt/model), Perses dashboard *Parasol Assistant Token Spend* (spend, tool calls, gateway rejections, guardrail hits by user and agent), PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
 
 **Request paths (secured).** Model: portal → model-gateway → guardrails-proxy → OpenShift AI MaaS
 → LiteLLM; the MaaS serves the model named in `agent-config` — **`qwen3-14b`** on both portals so the

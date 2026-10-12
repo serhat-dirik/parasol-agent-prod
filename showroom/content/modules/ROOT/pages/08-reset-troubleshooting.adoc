@@ -37,6 +37,67 @@ What you should see: CLM-1001 *UnderReview*, CLM-1004 *Denied*.
 oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"kustomize":{"components":null}}}}'
 ----
 
+=== What a reset clears, and what it keeps
+
+`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every per-user token budget and zeroes Limitador's own 429 count. It does not clear the governance record, on purpose:
+
+* the dashboard counters are cumulative since their process started: token spend, tool calls and per-user 429s live in the secured portal (cleared when the portal pod restarts, for example after a release), guardrail hits in the guardrails proxy, gateway refusals in Authorino. Between runs, read the *change* on a panel, not the absolute number;
+* MLflow traces, Keycloak events (kept 7 days) and the Authorino log stay, so a later run can still be traced back;
+* the `ParasolAssistantTokenSpendHigh` alert resolves on its own a few minutes after the spend stops.
+
+== Where to look
+
+Every question the audience asks has one screen that answers it with the same names: the user, the agent, the trace id.
+
+[cols="2,2,3",options="header"]
+|===
+|Question |Screen |What you see
+
+|Which agent acted for which person?
+|*Keycloak*, realm `parasol`, *Events*, *User events*, type `TOKEN_EXCHANGE`
+|client `parasol-claims-agent` (or `parasol-fraud-agent`), `username`, `subject_token_client_id`, `client_assertion_sub` (the agent's ServiceAccount)
+
+|What may an agent ever do?
+|*Keycloak*, *Clients*, `parasol-claims-agent`, *Client scopes*, `parasol-claims-agent-dedicated`, *Scope*
+|*Full scope allowed* off and the agent's `tool:*` ceiling
+
+|What did this chat turn do?
+|The `trace <id>` link under the answer, in the *Portal secured* tab (opens *MLflow*, workspace `parasol-secured`)
+|user, tags `agent`, `prompt`, `model`, token count; spans `model.chat`, `tool.*`, `guardrails.tool_result`, `tool.propose_payout`
+
+|Who approved a payout?
+|Claim *Timeline* tab; the approved card's `trace <id>` link
+|"Approved by marcus via parasol-claims-agent"; the MLflow trace with user `marcus`, tag `action` `approve_payout <claim>`
+
+|Who was refused at the gateway, and why?
+|*OpenShift Console*, *Observe*, *Dashboards*, `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*; Authorino log
+|rejections by reason (not via an approved agent, role, usage limit); `not via an approved agent: <user> azp=<client>`, `tool <tool> denied for <user> azp=<agent>`
+
+|What are the guardrail rules?
+|*OpenShift Console*, project `parasol-secured`, *ConfigMaps*, `guardrails-rules`
+|the phrases, topics and PII types, and what each does (flag, block, mask)
+
+|What did a guardrail catch, for whom?
+|Dashboard row *Guardrails*; `oc logs -n parasol-secured deploy/guardrails-proxy`
+|hits by detector, action, user and agent with the score; `guardrail action=flag detector=regex score=1 user=... agent=... trace=...`
+
+|Who is spending the model budget?
+|Dashboard row *Token spend*; *Observe*, *Alerting*
+|tokens per user and agent against the 5000/min line; `ParasolAssistantTokenSpendHigh` with `user` and `agent`
+
+|Which budget applies to whom?
+|*OpenShift AI*, *Settings*, *MaaS governance*; *Gen AI studio*, *API keys*
+|the contractor, stage and guard subscriptions with their token limits; when each key was last used
+
+|Which prompt runs in production, and was it gated?
+|*MLflow*, experiment `parasol-agent-eval`; *Argo CD*, `env-secured`, *Details*, *Summary*
+|production 20/20 PASS, candidate 17/20 BLOCK; `prompt-ref` `...@production`, the same value as every chat trace's `prompt` tag
+
+|Is what runs the image the pipeline signed?
+|*Argo CD*, `env-secured`, *Parameters*; *OpenShift Console*, *Pipelines*, `parasol-build`
+|the pinned digest; the release run with signing, Conforma, the gate and promote
+|===
+
 == Headless equivalents
 
 Each scenario has a script that drives the same beats without a browser. Use them to check the platform before a session, not as the demo. Run them in the *Terminal* tab, except where the table says they need the lab credentials file: those run from a workstation shell with a checkout of the repository, `oc` signed in as an administrator, and `source scripts/load-credentials.sh`.
@@ -49,7 +110,7 @@ Each scenario has a script that drives the same beats without a browser. Use the
 |`scripts/abuse.sh free`: rebecca approves.
 
 |1, secured
-|`scripts/abuse.sh secured rebecca`: filtered tool list and a 403. `scripts/abuse.sh secured marcus 1`: the manager succeeds.
+|`scripts/abuse.sh secured rebecca 1`: filtered tool list, the agent declines, and the two 403s (not via an approved agent; role). `scripts/abuse.sh secured marcus 1`: the manager succeeds.
 
 |2
 |`scripts/abuse-doc.sh both`: the unsecured portal pays AED 84,000; secured flags the note and proposes without writing.

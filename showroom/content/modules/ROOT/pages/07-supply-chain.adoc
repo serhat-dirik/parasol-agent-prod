@@ -23,6 +23,7 @@ What you should see: the release process is code too. Argo CD keeps the `parasol
 +
 What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Scenario 4 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom` and `register-model-version`.
 +
+// SCREENSHOT: sc-pipeline-v1-promoted.png — Console, Pipelines, parasol-build, run parasol-portal-release-production: full graph with promote succeeded (recapture: old run name, and the run was re-executed on 12 Oct)
 image::sc-pipeline-v1-promoted.png["The release run: build, scan, keyed and keyless signing, Conforma, the evaluation gate, then promote"]
 
 . Open the `keyless-sign` task log.
@@ -35,7 +36,9 @@ What you should see: `PROMOTED: env-secured runs ...parasol-portal@sha256:...` w
 
 . Select the *Argo CD* tab, open application `env-secured`, click *Details* and select the *Parameters* tab.
 +
-What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref` and `model-ref`. *History and rollback* lists the sync that rolled it out.
+What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref` and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-ref` here is the same `parasol-claims-assistant-system-prompt@production` every live chat trace carries as its `prompt` tag (xref:06-scenario4-eval-gate.adoc[06. Scenario 4]): release record and runtime evidence agree.
++
+// SCREENSHOT: sc-argo-env-secured-promote.png — Argo CD, application env-secured, Details > Summary: annotations parasol.example/promoted-digest, promoted-by, prompt-ref, model-ref; and Parameters > Images with the parasol-portal digest override (Argo CD sign-in)
 
 . Close the panel and open the `portal` Deployment.
 +
@@ -61,6 +64,10 @@ What you should see:
 * the *unsigned* image is refused by the admission webhook, with a message naming the missing signature;
 * the *signed* image is admitted and its pod is created;
 * the script removes its test pods at the end.
++
+Signatures, the admission decision and the promote history on `env-secured` together answer "what runs in production, and who let it in".
++
+// SCREENSHOT: sc-admission-refused.png — Terminal output of scripts/signing-demo.sh: the unsigned image refused by the admission webhook naming parasol-portal-must-be-signed, the signed one admitted (Showroom terminal)
 
 == Conclusion
 
