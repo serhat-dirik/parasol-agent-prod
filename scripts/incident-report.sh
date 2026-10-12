@@ -35,11 +35,11 @@ oc logs -n $NS deploy/claims-db --tail=2000 2>/dev/null | grep "PAYOUT claim=$cl
 hdr "2. The conversation and the approval (MLflow, workspace $NS, experiment parasol-portal-chat)"
 mlf() { curl -sk -m 20 -H "Authorization: Bearer $TOK" -H "x-mlflow-workspace: $NS" "https://rh-ai.apps.$D/mlflow/$1"; }
 if [ -n "$TOK" ] && mlf "api/2.0/mlflow/traces?experiment_ids=1&max_results=1" | grep -q '"traces"'; then
-  MLF_TOKEN=$TOK MLF_BASE="https://rh-ai.apps.$D/mlflow" CLAIM=$claim python3 - <<'PY'
+  MLF_TOKEN=$TOK MLF_BASE="https://rh-ai.apps.$D/mlflow" CLAIM=$claim WHO="$who" python3 - <<'PY'
 import json, os, ssl, urllib.parse, urllib.request
 ctx = ssl._create_unverified_context()
 H = {"Authorization": "Bearer " + os.environ["MLF_TOKEN"], "x-mlflow-workspace": "parasol-secured"}
-base, claim = os.environ["MLF_BASE"], os.environ["CLAIM"]
+base, claim, who = os.environ["MLF_BASE"], os.environ["CLAIM"], os.environ.get("WHO") or None
 def get(path):
     return json.load(urllib.request.urlopen(urllib.request.Request(base + "/" + path, headers=H), timeout=30, context=ctx))
 def tags(t):
@@ -65,6 +65,8 @@ for tr in get(q.replace("max_results=5", "max_results=60") + "&filter=" + urllib
     if not any(s.get("name") == "tool.propose_payout" and str(attrs(s).get("claim.number")) == claim for s in sp):
         continue
     root = attrs(next((s for s in sp if not s.get("parent_span_id")), sp[0]))
+    if who and root.get("enduser.id") != who:   # the approver's own chat turn, not someone else's proposal
+        continue
     print(f"  proposal   {tr['request_id']}  user={root.get('enduser.id')} agent={t.get('agent')} model={t.get('model')}")
     print(f"             prompt={t.get('prompt')} prompt_sha256={t.get('prompt_sha256', 'n/a')}")
     names = [s["name"] for s in sp if s["name"].startswith(("tool.", "guardrails.", "agent."))]
@@ -77,7 +79,7 @@ for tr in get(q.replace("max_results=5", "max_results=60") + "&filter=" + urllib
     print(f"             open: {base}/#/experiments/1/traces?selectedEvaluationId={tr['request_id']}&workspace=parasol-secured")
     break
 else:
-    print("  proposal   not among the last 60 claims-agent chat traces")
+    print(f"  proposal   no chat turn by {who or 'anyone'} proposing {claim} among the last 60 claims-agent traces")
 PY
 else na "MLflow API not readable with this identity (open the MLflow tab, Traces, filter tags.action = 'approve_payout $claim')"; fi
 
