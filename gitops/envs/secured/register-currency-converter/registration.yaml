@@ -1,0 +1,30 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: currency-converter
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parentRefs:
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: mcp-gateway, namespace: gateway-system, sectionName: mcps}
+  hostnames: [currency-converter.mcp.local]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:   # the vendor's Service; parasol-thirdparty grants this with a ReferenceGrant
+        - {group: "", kind: Service, name: currency-converter, namespace: parasol-thirdparty, port: 8080, weight: 1}
+---
+apiVersion: mcp.kuadrant.io/v1alpha1
+kind: MCPServerRegistration
+metadata:
+  name: currency-converter
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # the reviewed tool definitions (clean description, version 1.4.2); see the tool scanner
+    parasol.example/tools-sha256: d2912bb84f6eb39d89ca2d5652fe2e60cab893ce4663d754487dc0fcd7903b77
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: currency-converter
+    namespace: parasol-secured

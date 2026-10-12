@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+# Scenario 6, the governed path: what registering the vendor's currency-converter on the MCP gateway
+# takes. Not part of the secured overlay; switched on by adding the component to the Argo CD
+# Application env-secured (spec.source.kustomize.components: [register-currency-converter], no Git
+# write; scripts/tool-rugpull.sh register|unregister). In a real change this is a reviewed pull request.
+#
+# What registration gives, and what it does not:
+#  * The broker federates the server (MCPServerRegistration READY, TOOLS 1) and the tool scanner checks it
+#    against the pin below (the sha256 of the definitions that were reviewed, from scan.py --check).
+#  * Nobody can see or call convert_currency yet: there is no Keycloak resource client
+#    parasol-secured/currency-converter and no tool:convert_currency role, so the gateway's tools/list
+#    filter drops it for every identity, and it is in no agent's MCPVirtualServer.
+#  * To actually give it to the claims assistant, the same reviewed change would also add: the Keycloak
+#    client + role (realm-import.yaml), the role to a group, the role to the agent's ceiling
+#    (scripts/agent-clients.sh), the tool to a virtual server, and a client in the portal.
+#  * None of that reaches approve_payout: it stays out of every virtual server, rebecca has no
+#    tool:approve_payout role (403), whatever a description asks for.
+resources:
+  - registration.yaml
