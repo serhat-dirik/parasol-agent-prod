@@ -51,7 +51,8 @@ public class ProposePayoutTool {
         } catch (RuntimeException lookupFailed) {
             // proceed without the claimed figure; the card simply omits the comparison
         }
-        double proposed = amount != null ? amount : (claimed != null ? claimed : 0);
+        // a model that "omits" the amount sometimes sends 0: treat it as not given (the claimed amount)
+        double proposed = amount != null && amount > 0 ? amount : (claimed != null ? claimed : 0);
         holder.record(claimNumber, proposed, claimed);
         String claimedStr = claimed == null ? "the claimed amount" : fmt(claimed);
         return "Proposal submitted: pay " + fmt(proposed) + " on claim " + claimNumber

@@ -83,7 +83,7 @@ VERSIONS = {
         "prompt_file": "gitops/platform/pipeline/prompts/v2.txt",
         "eval_score": SCORE_CANDIDATE, "eval_gate": "failed",
         "mlflow_run_id": os.environ.get("RUN_ID_CANDIDATE") or "c7a36f43", "mlflow_experiment_id": EXP_ID,
-        "desc": "Candidate: shortened prompt, safety-rules block removed (prompt registry version 2, alias "
+        "desc": "Candidate: the shortened prompt, the base as written on the laptop without the production rules (prompt registry version 2, alias "
                 "candidate). Agent-eval below the 0.95 gate: gate failed, promotion skipped.",
     },
 }

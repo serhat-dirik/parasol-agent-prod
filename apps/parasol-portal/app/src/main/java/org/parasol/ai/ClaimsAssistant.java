@@ -14,8 +14,8 @@ import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
  * service the REST agent uses, now behind the portal's WebSocket. It is backed by the MaaS model
  * (named config {@code parasol-chat}) and the Parasol MCP servers as its tools.
  *
- * <p>The WHOLE system prompt comes from configuration ({@code AGENT_SYSTEM_PROMPT}): in secured that is
- * the registered production prompt (gitops/envs/secured/system-prompt.txt, the same file the MLflow
+ * <p>The WHOLE system prompt comes from configuration ({@code AGENT_SYSTEM_PROMPT_FILE}, read on every
+ * turn): in secured that is the registered production prompt (gitops/envs/secured/system-prompt.txt, the same file the MLflow
  * Prompt Registry version {@code @production} is registered from); free runs {@link #LAPTOP_PROMPT}, the
  * prompt exactly as it was written on the laptop. {@code conversationId} ties a chat session's turns
  * together so follow-up questions work (A5, session memory). The talk's point is that the prompt is the
@@ -61,6 +61,7 @@ public interface ClaimsAssistant {
      * approve_payout). In secured the gateway filters the real approve_payout out of an adjuster's
      * tools, so the model can only PROPOSE here (Read-Propose-Act, A2).
      */
+    @SystemMessage("{systemPrompt}")
     @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base"})
     @ToolBox(ProposePayoutTool.class)
     Result<String> askWithPropose(@MemoryId String conversationId,

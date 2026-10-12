@@ -59,7 +59,7 @@ versions = [
     {
         "file": "v2.txt",
         "alias": "candidate",
-        "commit": "candidate: shortened prompt, safety-rules block removed. Below the 0.95 gate: blocked.",
+        "commit": "candidate: the shortened prompt (the base as written on the laptop, without the production rules). Below the 0.95 gate: blocked.",
         "tags": {**common, "variant": "candidate-shortened",
                  "prompt_file": "gitops/platform/pipeline/prompts/v2.txt",
                  "expected_golden_pass": "below gate"},

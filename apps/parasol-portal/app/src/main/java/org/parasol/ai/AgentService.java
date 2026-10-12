@@ -1,6 +1,9 @@
 package org.parasol.ai;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
@@ -62,9 +65,13 @@ public class AgentService {
     @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
     boolean proposeEnabled;
 
-    /** The whole system prompt (secured: the registered production prompt). Empty = the laptop prompt. */
-    @ConfigProperty(name = "agent.system-prompt")
-    Optional<String> systemPromptConfig;
+    /**
+     * File holding the whole system prompt (secured: the registered production prompt, mounted from the
+     * ConfigMap agent-config). Read on every turn, so the prompt that runs is always the one the ConfigMap
+     * holds (the kubelet refreshes the mount within about a minute). Unset = the laptop prompt.
+     */
+    @ConfigProperty(name = "agent.system-prompt-file")
+    Optional<String> systemPromptFile;
 
     /** Which environment this deployment is (secured / free): a label on metrics and traces, not a prompt version. */
     @ConfigProperty(name = "agent.env", defaultValue = "dev")
@@ -78,14 +85,21 @@ public class AgentService {
     String modelName;
 
     private String systemPrompt() {
-        return systemPromptConfig.filter(p -> !p.isBlank()).orElse(ClaimsAssistant.LAPTOP_PROMPT);
+        if (systemPromptFile.isEmpty()) {
+            return ClaimsAssistant.LAPTOP_PROMPT;
+        }
+        try {
+            return Files.readString(Path.of(systemPromptFile.get()));
+        } catch (IOException e) {   // never fall back silently to a weaker prompt
+            throw new IllegalStateException("system prompt file unreadable: " + systemPromptFile.get(), e);
+        }
     }
 
-    /** sha256 of the prompt this pod runs: equals the registry version's prompt_sha256 when they are the same text. */
-    String promptSha256() {
+    /** sha256 of a prompt text: equals the registry version's prompt_sha256 when they are the same text. */
+    static String sha256(String text) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(systemPrompt().getBytes(StandardCharsets.UTF_8)));
+                    .digest(text.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
@@ -126,7 +140,8 @@ public class AgentService {
         root.setAttribute("gen_ai.agent.name", mcpAuth.agentId());
         root.setAttribute("gen_ai.agent.id", mcpAuth.agentId());
         root.setAttribute("gen_ai.prompt.ref", promptVersion);
-        String promptSha = promptSha256();
+        String prompt = systemPrompt();
+        String promptSha = sha256(prompt);
         root.setAttribute("gen_ai.prompt.sha256", promptSha);
         root.setAttribute("mlflow.traceTag.prompt_sha256", promptSha);
         root.setAttribute("gen_ai.request.model", modelName);
@@ -148,8 +163,8 @@ public class AgentService {
                 .put("enduser.groups", groups).build().makeCurrent();
         try {
             Result<String> result = proposeEnabled
-                    ? assistant.askWithPropose(conversationId, systemPrompt(), question)
-                    : assistant.ask(conversationId, systemPrompt(), question);
+                    ? assistant.askWithPropose(conversationId, prompt, question)
+                    : assistant.ask(conversationId, prompt, question);
             count(result.tokenUsage());
             List<ToolCall> toolCalls = toolCallCollector.calls();
             Proposal proposal = proposalHolder.has()
