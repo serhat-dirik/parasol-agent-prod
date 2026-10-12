@@ -235,7 +235,7 @@ spec:
         spec:
           display:
             name: Gateway rejections by reason
-            description: Authorino evaluator denials (approved-agent / tool-access-check rules), the portal's per-user 429s, and Limitador's 429s, cumulative
+            description: Authorino evaluator denials (approved-agent / tool-access-check rules), the portal's per-user 429s, Limitador's 429s and claims-db record refusals (parasol_claims_access_denied_total), cumulative
           plugin:
             kind: Table
             spec:
@@ -261,7 +261,7 @@ spec:
                 spec:
                   query: label_replace(sum(auth_server_evaluator_denied{evaluator_name="approved-agent"}), "reason", "403 not via an approved agent (MCP gateway)", "", "") or label_replace(sum(auth_server_evaluator_denied{evaluator_name="tool-access-check"}),
                     "reason", "403 role does not allow the tool (MCP gateway)", "", "") or label_replace(sum by (user, agent) (parasol_agent_rejections_total{reason="usage_limit"}), "reason", "429 usage
-                    limit (MaaS token budget)", "", "") or label_replace(sum(limited_calls), "reason", "429 all models, all users (Limitador)", "", "")
+                    limit (MaaS token budget)", "", "") or label_replace(sum(limited_calls), "reason", "429 all models, all users (Limitador)", "", "") or label_replace(sum by (user, agent) (parasol_claims_access_denied_total), "reason", "denied, claim not assigned to the user (claims-db record access)", "", "")
                   seriesNameFormat: ''
       rejectSeries:
         kind: Panel
@@ -311,13 +311,16 @@ spec:
                 * `tool approve_payout denied for rebecca azp=parasol-claims-agent`: the agent asked, the person lacks the role
 
 
+                Record refusals (the tool was allowed, the claim is not assigned to the user): `oc logs -n parasol-secured deploy/claims-db | grep ''CLAIMS ACL denied''`
+
+
                 429s name the user here (portal counter, labels user and agent) and in the ParasolAssistantTokenSpendHigh alert.'
       guardHits:
         kind: Panel
         spec:
           display:
             name: Guardrail hits by detector, action, user and agent
-            description: 'sum by (detector, action, user, agent) (parasol_guardrails_detections_total): flag = document instruction flagged, block = turn refused, mask = personal data redacted'
+            description: 'sum by (detector, action, user, agent) (parasol_guardrails_detections_total): flag = document instruction flagged, block = turn refused, mask = personal data redacted, redact = external link removed from an answer'
           plugin:
             kind: Table
             spec:
