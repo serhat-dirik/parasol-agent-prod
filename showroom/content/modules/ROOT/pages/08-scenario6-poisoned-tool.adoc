@@ -168,4 +168,4 @@ scripts/reset.sh
 
 What you should see: the claims restored in both portals, then `vendor tool: clean description`, `free assistant: vendor tool unplugged` (the unsecured portal restarts) and `secured gateway: currency-converter not registered`. CLM-1001 is back to *UnderReview*. The two alerts resolve within a minute of the clean description; the scanner logs `action=cleared`.
 
-Continue with xref:09-supply-chain.adoc[09. Supply chain: signing and admission].
+Continue with xref:09-incident-forensics.adoc[09. The incident: one payout, reconstructed].

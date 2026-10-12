@@ -1,5 +1,5 @@
-= 10. Reset and troubleshooting
-:navtitle: 10. Reset and troubleshooting
+= 11. Reset and troubleshooting
+:navtitle: 11. Reset and troubleshooting
 :toc: macro
 :toclevels: 2
 

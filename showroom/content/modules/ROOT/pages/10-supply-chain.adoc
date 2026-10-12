@@ -1,5 +1,5 @@
-= 09. Supply chain: signing and admission
-:navtitle: 09. Supply chain
+= 10. Supply chain: signing and admission
+:navtitle: 10. Supply chain
 :toc: macro
 :toclevels: 2
 
@@ -36,7 +36,7 @@ What you should see: `PROMOTED: env-secured runs ...parasol-portal@sha256:...` w
 
 . Select the *Argo CD* tab, open application `env-secured`, click *Details* and select the *Parameters* tab.
 +
-What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref` and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-ref` here is the same `parasol-claims-assistant-system-prompt@production` every live chat trace carries as its `prompt` tag (xref:07-scenario5-eval-gate.adoc[06. Scenario 4]): release record and runtime evidence agree.
+What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref` and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-ref` here is the same `parasol-claims-assistant-system-prompt@production` every live chat trace carries as its `prompt` tag (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]): release record and runtime evidence agree.
 +
 // SCREENSHOT: sc-argo-env-secured-promote.png — Argo CD, application env-secured, Details > Summary: annotations parasol.example/promoted-digest, promoted-by, prompt-ref, model-ref; and Parameters > Images with the parasol-portal digest override (Argo CD sign-in)
 
@@ -81,4 +81,4 @@ The six scenarios made one argument. The unsecured and the secured portal are th
 * A tool is a supply chain too: the MCP gateway federates only reviewed registrations, and the tool scanner pins and reads every tool description.
 * The sandbox has a front door: access is identity-bound, and the kill switch is one change on the Argo CD Application.
 
-Continue with xref:10-reset-troubleshooting.adoc[10. Reset and troubleshooting].
+Continue with xref:11-reset-troubleshooting.adoc[11. Reset and troubleshooting].

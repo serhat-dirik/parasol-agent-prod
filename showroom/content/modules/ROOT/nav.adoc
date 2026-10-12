@@ -12,5 +12,6 @@
 * xref:08-scenario6-poisoned-tool.adoc[08. Scenario 6: The poisoned tool]
 
 .From localhost to production
-* xref:09-supply-chain.adoc[09. Supply chain: signing and admission]
-* xref:10-reset-troubleshooting.adoc[10. Reset and troubleshooting]
+* xref:09-incident-forensics.adoc[09. The incident: one payout, reconstructed]
+* xref:10-supply-chain.adoc[10. Supply chain: signing and admission]
+* xref:11-reset-troubleshooting.adoc[11. Reset and troubleshooting]

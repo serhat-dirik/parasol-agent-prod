@@ -24,8 +24,9 @@ antora:
     - name: 06-scenario4-night-shift
     - name: 07-scenario5-eval-gate
     - name: 08-scenario6-poisoned-tool
-    - name: 09-supply-chain
-    - name: 10-reset-troubleshooting
+    - name: 09-incident-forensics
+    - name: 10-supply-chain
+    - name: 11-reset-troubleshooting
 
 # CLUSTER_DOMAIN is replaced per cluster in the deployed copy (gitops/platform/showroom).
 tabs:

@@ -1,0 +1,100 @@
+= 09. The incident: one payout, reconstructed
+:navtitle: 09. The incident: one payout, reconstructed
+:toc: macro
+:toclevels: 2
+
+toc::[]
+
+Monday morning. Finance sees a payout on CLM-1001 and asks four questions: who paid it, through what, under which rules, and was the software that did it the software that was approved? On the secured platform every answer is already on record, and each record names the next one: the claim names the person and the agent, the trace names the prompt and the model, the release names the digest, the registry names the evaluation. No one greps a laptop.
+
+[NOTE]
+.Know: an audit trail is a chain, not a log file
+====
+Each control writes its own record with the same keys: the user, the agent, the trace id, the prompt digest, the image digest. Follow the keys from the payout back to the release and you have reconstructed the incident from evidence the platform produced while it happened, not from what anyone remembers.
+====
+
+== Before you start
+
+This page runs on its own, in any order with the others. It needs one payout on the secured portal, made the way production makes them: a claims manager approves a proposal.
+
+* Personas: `marcus` (claims manager, password `marcus`); an OpenShift administrator for the consoles, and the Keycloak administrator for its events.
+* Create the payout: select the *Portal secured* tab, log in as `marcus`, open *CLM-1001* and send:
++
+[source,text]
+----
+Approve the payout for this claim.
+----
++
+Click *Approve* on the proposal card. What you should see: the card reads "Approved by marcus via parasol-claims-agent", with a `trace <id>` link. (This is the last beat of xref:03-scenario1-colleague.adoc[03. Scenario 1]; if you just ran it, the payout already exists.)
+* Headless alternative, if no browser is at hand: `scripts/abuse.sh secured marcus 1` approves CLM-1001 through the agent's token at the gateway. The claim, Keycloak, Argo CD, registry and signature steps below then work the same; the two MLflow traces of step 2 exist only for the browser path.
+
+== Show: the chain, from the payout back to the release
+
+. *The claim.* In the *Portal secured* tab, open *CLM-1001*, tab *Timeline*.
++
+What you should see: *Approved* "Approved by marcus via parasol-claims-agent", then *PaymentIssued*, with their times. The note was written by claims-db from the token on the call (the user and the agent), not from anything the chat said. In the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+oc logs -n parasol-secured deploy/claims-db | grep 'PAYOUT claim=CLM-1001'
+----
++
+What you should see: `PAYOUT claim=CLM-1001 amount=4200.00 previousStatus=UnderReview actor=marcus via parasol-claims-agent`.
+
+. *The conversation and the click.* Click the `trace <id>` link under the approved card (or, in the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, search `tags.action = 'approve_payout CLM-1001'`).
++
+What you should see: the approval trace: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, a `gateway.authz` span with status OK. Then open the chat turn just before it (search `tags.agent = 'parasol-claims-agent'`, newest marcus trace): tags `prompt` `parasol-claims-assistant-system-prompt@production`, `prompt_sha256` (the digest of the exact prompt text that ran), `model` `qwen3-14b`, and the spans `model.chat` -> `tool.propose_payout` (proposed 4200, claimed 4200), plus any `guardrails.*` decision of that turn. The model proposed; the person approved.
++
+// SCREENSHOT: s9-mlflow-proposal-trace.png — MLflow, workspace parasol-secured, the marcus chat turn that proposed CLM-1001: tags agent / prompt @production / prompt_sha256 / model, span tool.propose_payout selected with payout.proposed and payout.claimed (OpenShift sign-in for MLflow)
+
+. *Who acted for whom.* Select the *Keycloak* tab, realm `parasol`, *Events*, *User events*, type `TOKEN_EXCHANGE`, user `marcus`.
++
+What you should see: client `parasol-claims-agent`, `username` `marcus`, `subject_token_client_id` `parasol-portal` (the browser login it acted on), `client_assertion_sub` `system:serviceaccount:parasol-secured:claims-agent` (the agent's workload identity), at the time of the approval.
++
+// SCREENSHOT: s9-keycloak-exchange-marcus.png — Keycloak admin, realm parasol, Events > User events, TOKEN_EXCHANGE filtered on user marcus, one row expanded at the approval time (Keycloak admin sign-in)
+
+. *What the gateway decided.* Select the *OpenShift Console* tab, *Observe*, *Dashboards*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
++
+What you should see: *Tool calls by tool, user, agent and status* with `approve_payout`, `marcus`, `parasol-claims-agent`, `200`, and in *Gateway rejections by reason* the refusals of the same period (for example rebecca's `403 role does not allow the tool`). Authorino logs each refusal with the person (`oc logs -n kuadrant-system deploy/authorino | grep 'denied for'`); an allowed call is attributed by the token itself, in the claims-db line and the timeline above.
+
+. *What was live.* Select the *Argo CD* tab, application `env-secured`, *Details*, *Summary*, then *History and rollback*.
++
+What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-sha256` and `model-ref` `parasol-claims-assistant:production`. The `prompt-sha256` is the same value as the trace's `prompt_sha256` tag: the release refuses to promote when the prompt the portal runs is not the registered one, so the trace's `@production` is literally the gated text. *History and rollback* shows the sync that rolled that digest out, before the approval time.
++
+// SCREENSHOT: s9-argo-promote-annotations.png — Argo CD, env-secured, Details > Summary: promoted-digest, promoted-by, prompt-ref, prompt-sha256, model-ref (Argo CD sign-in)
+
+. *Which evaluated version.* Select the *OpenShift AI* tab, *Models*, *Model registry*, `parasol-claims-assistant`, version `production`.
++
+What you should see: `gate` `passed`, `eval_score` `1.00` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]).
++
+// SCREENSHOT: s9-model-registry-production.png — OpenShift AI, Model registry, parasol-claims-assistant > production > Details: gate passed, eval_score 1.00, mlflow_run_id, prompt_sha256 (OpenShift sign-in)
+
+. *Was it the signed image?* In the *OpenShift Console* tab, *Pipelines*, project `parasol-build`, run `parasol-portal-release-production`, tab *Details* (results).
++
+What you should see: `PROMOTED_DIGEST` equal to Argo CD's `promoted-digest`, `EVAL_GATE` `passed`, `SIGNED_IMAGES` and `KEYLESS_SIGNED_IMAGES` listing `parasol-portal`; then *Workloads*, project `parasol-secured`, the `portal` pod runs exactly that digest. Admission (`ClusterImagePolicy` `parasol-portal-must-be-signed`) admitted it because the signature verified; an unsigned image is refused (xref:10-supply-chain.adoc[10. Supply chain]).
+
+. *All of it at once.* In the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+scripts/incident-report.sh CLM-1001
+----
++
+What you should see: the same chain in seven read-only sections: the timeline and the PAYOUT line, the gateway refusals, the release annotations on `env-secured`, the release run's results and the running digest. The MLflow, Keycloak and Model Registry sections print `n/a` here (the Terminal's identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too.
++
+// SCREENSHOT: s9-terminal-incident-report.png — Terminal: scripts/incident-report.sh CLM-1001 (Showroom terminal)
+
+The point: one payout, seven independent records, joined by the same names. None of them depends on the model telling the truth.
+
+== Reset after this scenario
+
+The secured portal approved CLM-1001. Put it back to *UnderReview*:
+
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
+
+The records stay, on purpose: traces, Keycloak events and logs are the audit trail, and a later reconstruction can still find this payout.
+
+Continue with xref:10-supply-chain.adoc[10. Supply chain: signing and admission].
