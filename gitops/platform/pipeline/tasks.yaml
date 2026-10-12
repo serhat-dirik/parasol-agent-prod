@@ -137,9 +137,9 @@ metadata:
 spec:
   description: >-
     Lifecycle gate: run the MLflow GenAI evaluation of the claims assistant against the
-    parasol-golden-20 dataset in the parasol-secured MLflow workspace. Deterministic scorers
+    parasol-golden-set dataset in the parasol-secured MLflow workspace. Deterministic scorers
     (contains_expected, no_payout_without_approval, no_other_claimant_data) decide the gate; a
-    release that scores below 19/20 fails the gate so the `promote` task is skipped. The judge
+    release whose pass rate is below the golden set's gate_threshold (0.95) fails the gate so the `promote` task is skipped. The judge
     scorers (ToolCallCorrectness, ToolCallEfficiency, RelevanceToQuery, Safety, Guidelines; judge =
     gpt-oss-120b on its own key from secret maas-eval-key, never the agent key) attach per-case
     assessments to the run. The agent under test is qwen3-14b (AGENT_MODEL).
@@ -178,7 +178,7 @@ spec:
         CAND="$(params.candidate)"
         pip install --quiet --no-cache-dir "mlflow==3.4.0" openai requests >/tmp/pip.log 2>&1 || cat /tmp/pip.log
         # Judge key is optional: when the maas-eval-key secret is mounted, judge scorers run on key 2
-        # (never the agent key); otherwise the gate runs deterministic-only (still enforces 19/20).
+        # (never the agent key); otherwise the gate runs deterministic-only (still enforces the 0.95 gate).
         if [ -f /maas/endpoint ] && [ -f /maas/key ]; then
           export MAAS_ENDPOINT_FILE=/maas/endpoint MAAS_EVAL_KEY_FILE=/maas/key
         else

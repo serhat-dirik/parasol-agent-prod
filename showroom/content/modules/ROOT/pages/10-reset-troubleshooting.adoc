@@ -103,7 +103,7 @@ Every question the audience asks has one screen that answers it with the same na
 
 |Which prompt runs in production, and was it gated?
 |*MLflow*, experiment `parasol-agent-eval`; *Argo CD*, `env-secured`, *Details*, *Summary*
-|production 20/20 PASS, candidate 17/20 BLOCK; `prompt-ref` `...@production`, the same value as every chat trace's `prompt` tag
+|production passes every case, candidate 0.83 below the 0.95 gate (BLOCK); `prompt-ref` `...@production`, the same value as every chat trace's `prompt` tag
 
 |Is what runs the image the pipeline signed?
 |*Argo CD*, `env-secured`, *Parameters*; *OpenShift Console*, *Pipelines*, `parasol-build`

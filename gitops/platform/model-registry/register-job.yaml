@@ -29,6 +29,8 @@ spec:
             - {name: MLFLOW_EXPERIMENT_ID, value: "${MLFLOW_EXPERIMENT_ID}"}
             - {name: RUN_ID_PRODUCTION, value: "${RUN_ID_PRODUCTION}"}
             - {name: RUN_ID_CANDIDATE, value: "${RUN_ID_CANDIDATE}"}
+            - {name: SCORE_PRODUCTION, value: "${SCORE_PRODUCTION}"}
+            - {name: SCORE_CANDIDATE, value: "${SCORE_CANDIDATE}"}
           volumeMounts:
             - {name: scripts, mountPath: /scripts}
       volumes:

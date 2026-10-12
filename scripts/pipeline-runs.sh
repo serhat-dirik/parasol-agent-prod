@@ -4,7 +4,7 @@
 #                                               passes; promote pins the signed digest on the Argo CD
 #                                               Application env-secured (no Git write) and Argo rolls it out
 #   parasol-portal-release-candidate-shortened  the shortened candidate prompt (prompt alias candidate):
-#                                               gate fails at 17/20, promote is skipped
+#                                               gate fails (below 0.95), promote is skipped
 # Idempotent: an existing run is kept, except a production run that finished without promoting (re-run).
 # Usage: scripts/pipeline-runs.sh [--wait]     (~20-30 min per run; both run in parallel)
 #   --wait  waits for both runs and exits non-zero unless the production run promoted.

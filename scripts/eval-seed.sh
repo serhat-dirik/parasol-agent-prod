@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Scenario 4 data: the golden-set evaluation of the production prompt (run production-prompt, 20/20 PASS)
-# and the shortened candidate (run candidate-shortened-prompt, 17/20 BLOCK) in MLflow
+# Scenario 5 data: the golden-set evaluation of the production prompt (run production-prompt, every case PASS)
+# and the shortened candidate (run candidate-shortened-prompt, below the gate: BLOCK) in MLflow
 # experiment parasol-agent-eval (workspace parasol-secured), each case judged by the JUDGE model.
 # Runs gitops/platform/eval/mlflow-agent-eval/agent_eval.py once as a Job in parasol-build (SA pipeline,
 # the identity the Tekton agent-eval gate uses; judge endpoint + key from Secret maas-eval-key).
 # Idempotent: a completed Job is reused, never re-run (delete job/parasol-eval-seed to force a fresh run).
-# Prints "MLFLOW_EXPERIMENT_ID=.. RUN_ID_PRODUCTION=.. RUN_ID_CANDIDATE=.." for the Model Registry registration.
+# Prints "MLFLOW_EXPERIMENT_ID=.. RUN_ID_PRODUCTION=.. RUN_ID_CANDIDATE=.. SCORE_PRODUCTION=.. SCORE_CANDIDATE=.." for the Model Registry registration.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 NS=parasol-build JOB=parasol-eval-seed SRC=gitops/platform/eval/mlflow-agent-eval
@@ -14,7 +14,7 @@ oc apply -f "$SRC/rbac.yaml" >/dev/null   # pipeline SA: mlflow edit/view in par
 if [ "$(oc get job $JOB -n $NS -o jsonpath='{.status.succeeded}' 2>/dev/null)" != 1 ]; then
   oc delete job $JOB -n $NS --ignore-not-found >/dev/null
   oc -n $NS create configmap parasol-eval-seed --from-file="$SRC/agent_eval.py" \
-    --from-file="$SRC/golden-set-20.json" --from-file="$SRC/candidates.json" --dry-run=client -o yaml | oc apply -f - >/dev/null
+    --from-file="$SRC/golden-set.json" --from-file="$SRC/candidates.json" --dry-run=client -o yaml | oc apply -f - >/dev/null
   oc apply -f - >/dev/null <<'YAML'
 apiVersion: batch/v1
 kind: Job
@@ -53,7 +53,7 @@ spec:
         - {name: src, configMap: {name: parasol-eval-seed}}
         - {name: maas, secret: {secretName: maas-eval-key, optional: true}}
 YAML
-  echo "eval seed job started (pip install + 40 judged cases, ~10-20 min)"
+  echo "eval seed job started (pip install + 2 runs of judged golden cases, ~10-20 min)"
   for i in $(seq 1 60); do   # deadline 30 min
     [ "$(oc get job $JOB -n $NS -o jsonpath='{.status.succeeded}')" = 1 ] && break
     [ "$(oc get job $JOB -n $NS -o jsonpath='{.status.failed}')" = 2 ] && { oc logs job/$JOB -n $NS --tail=30; exit 1; }
@@ -68,5 +68,5 @@ import json, re, sys
 s = json.load(sys.stdin)
 p, c = s["production"], s["candidate-shortened"]
 exp = re.search(r"/experiments/([^/]+)/", p["run_url"]).group(1)
-print("MLFLOW_EXPERIMENT_ID=%s RUN_ID_PRODUCTION=%s RUN_ID_CANDIDATE=%s" % (exp, p["run_id"], c["run_id"]))
-print("# production %d/20 gate=%s, candidate-shortened %d/20 gate=%s" % (p["passes"], p["gate_pass"], c["passes"], c["gate_pass"]), file=sys.stderr)'
+print("MLFLOW_EXPERIMENT_ID=%s RUN_ID_PRODUCTION=%s RUN_ID_CANDIDATE=%s SCORE_PRODUCTION=%.2f SCORE_CANDIDATE=%.2f" % (exp, p["run_id"], c["run_id"], p["score"], c["score"]))
+print("# production %d passes (%.2f) gate=%s, candidate-shortened %d passes (%.2f) gate=%s" % (p["passes"], p["score"], p["gate_pass"], c["passes"], c["score"], c["gate_pass"]), file=sys.stderr)'

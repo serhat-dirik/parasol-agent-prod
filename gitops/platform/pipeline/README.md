@@ -23,7 +23,7 @@ finally: show-sbom, show-summary
 ```
 
 `agent-eval` runs the MLflow evaluation of the claims assistant (agent model qwen3-14b, judge
-gpt-oss-120b on its own key in secret `maas-eval-key`); below 19/20 the gate is `failed` and
+gpt-oss-120b on its own key in secret `maas-eval-key`); below the 0.95 pass-rate gate the gate is `failed` and
 `promote` is skipped. `verify-enterprise-contract` is the Conforma gate: the image must carry a valid
 signature AND a signed SLSA provenance attestation (Tekton Chains). The SBOM ships as a signed
 cosign attestation (`cosign verify-attestation --type cyclonedx`). `promote` merge-patches the

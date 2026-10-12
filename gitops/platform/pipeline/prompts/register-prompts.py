@@ -51,18 +51,18 @@ versions = [
     {
         "file": "v1.txt",
         "alias": "production",
-        "commit": "production prompt: base + 3 safety rules. Passes the golden set 20/20.",
+        "commit": "production prompt: base + safety rules. Passes every golden-set case.",
         "tags": {**common, "variant": "production",
                  "safety_rules_file": "gitops/envs/secured/safety-rules.txt",
-                 "expected_golden_pass": "20/20"},
+                 "expected_golden_pass": "all cases"},
     },
     {
         "file": "v2.txt",
         "alias": "candidate",
-        "commit": "candidate: shortened prompt, safety-rules block removed. 17/20, blocked by the 19/20 gate.",
+        "commit": "candidate: shortened prompt, safety-rules block removed. Below the 0.95 gate: blocked.",
         "tags": {**common, "variant": "candidate-shortened",
                  "safety_rules_file": "none",
-                 "expected_golden_pass": "17/20"},
+                 "expected_golden_pass": "below gate"},
     },
 ]
 

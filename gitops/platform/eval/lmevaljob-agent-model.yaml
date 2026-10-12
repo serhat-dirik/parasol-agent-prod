@@ -8,7 +8,7 @@
 # lm-eval-harness v0.4.8) a custom unitxt card (load_from_dictionary) fails to resolve a catalog
 # template ref ("the reference name of the custom template is not defined: templates.qa.open.*") -
 # a known Technology-Preview card-authoring quirk. The golden-set COMPLIANCE scoring (production prompt
-# 20/20 PASS, shortened candidate prompt 17/20 BLOCK, judged by gpt-oss-120b) is carried authoritatively by MLflow experiment
+# PASS, shortened candidate prompt BLOCK, judged by gpt-oss-120b) is carried authoritatively by MLflow experiment
 # parasol-agent-eval (id 2); see docs/handover.md (G1).
 #
 # Prereqs (all already present):

@@ -3,7 +3,7 @@
 # bootstrap.sh after the platform is up; idempotent, and each step can be re-run alone (printed on WARN).
 #   1 MLflow experiment parasol-portal-chat (chat traces; must be experiment id 1, see otel-collector.yaml)
 #   2 MLflow Prompt Registry: system prompt, aliases production (version 1) and candidate (version 2)
-#   3 MLflow golden-set runs: production-prompt 20/20 PASS, candidate-shortened-prompt 17/20 BLOCK (judge = JUDGE model)
+#   3 MLflow golden-set runs: production-prompt PASS, candidate-shortened-prompt BLOCK (judge = JUDGE model)
 #   4 Model Registry parasol-model-registry: parasol-claims-assistant versions production + candidate-shortened with those eval results
 #   5 EvalHub run parasol-agent-model-ifeval + LMEvalJob parasol-agent-model-eval (Evaluations pages)
 #   6 GenAI Studio playground (OGXServer on the agent model)

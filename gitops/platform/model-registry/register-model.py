@@ -15,7 +15,7 @@ Two modes:
                                           older versions (e.g. v1/v2) are archived
   register-model.py --patch-eval \
       --version candidate-shortened --gate failed \
-      --score 0.85 --run-id c7a36f43 \
+      --score 0.83 --run-id c7a36f43 \
       [--prompt-ref ...@candidate]                 pipeline gate step: merge the eval fields onto one version
 
 Config (env):
@@ -38,6 +38,10 @@ MODEL = "parasol-claims-assistant"
 # MLflow experiment parasol-agent-eval and its production-prompt / candidate-shortened-prompt golden-set runs on THIS cluster (scripts/eval-seed.sh
 # passes them in); the defaults are the reference runs the guide was written against.
 EXP_ID = os.environ.get("MLFLOW_EXPERIMENT_ID") or "2"
+# Pass rate of each run (scripts/eval-seed.sh); the gate is a share of the golden set's cases.
+GATE_THRESHOLD = "0.95"
+SCORE_PRODUCTION = os.environ.get("SCORE_PRODUCTION") or "1.00"
+SCORE_CANDIDATE = os.environ.get("SCORE_CANDIDATE") or "0.83"
 
 # Fixed agent-config metadata (mirrors G1 agent_eval VERSION_META and G2 prompt registry).
 COMMON = {
@@ -57,20 +61,20 @@ VERSIONS = {
         "prompt_sha256": "301786aa1403c6433508b9e923d91d8c5a91c259aaf83f159d26ebd46f41be6e",
         "prompt_chars": "1667", "safety_rules_file": "gitops/envs/secured/safety-rules.txt",
         "prompt_file": "gitops/platform/pipeline/prompts/v1.txt",
-        "eval_passrate": "20/20", "eval_score": "1.00", "eval_gate": "passed",
+        "eval_score": SCORE_PRODUCTION, "eval_gate": "passed",
         "mlflow_run_id": os.environ.get("RUN_ID_PRODUCTION") or "b9971fab", "mlflow_experiment_id": EXP_ID,
         "desc": "Production prompt (base + 3 safety rules; prompt registry version 1, alias production). "
-                "Agent-eval 20/20, gate passed: promotion allowed.",
+                "Agent-eval passes every golden case, gate passed: promotion allowed.",
     },
     "candidate-shortened": {
         "prompt_version": "2", "prompt_alias": "candidate", "variant": "candidate-shortened",
         "prompt_sha256": "aef58cbfa6850ee1009bd232caaef0367259c919a82d5f69c8a80b70b911a9f4",
         "prompt_chars": "1088", "safety_rules_file": "none",
         "prompt_file": "gitops/platform/pipeline/prompts/v2.txt",
-        "eval_passrate": "17/20", "eval_score": "0.85", "eval_gate": "failed",
+        "eval_score": SCORE_CANDIDATE, "eval_gate": "failed",
         "mlflow_run_id": os.environ.get("RUN_ID_CANDIDATE") or "c7a36f43", "mlflow_experiment_id": EXP_ID,
         "desc": "Candidate: shortened prompt, safety-rules block removed (prompt registry version 2, alias "
-                "candidate). Agent-eval 17/20, below the 19/20 gate: gate failed, promotion skipped.",
+                "candidate). Agent-eval below the 0.95 gate: gate failed, promotion skipped.",
     },
 }
 
@@ -158,9 +162,9 @@ def version_props(v):
         "safety_rules_file": v["safety_rules_file"], "prompt_file": v["prompt_file"],
         "prompt_ref": f"{COMMON['prompt_name']}@{v['prompt_alias']}",
         "gate": v["eval_gate"],
-        "eval_dataset": "parasol-golden-20",
-        "eval_passrate": v["eval_passrate"], "eval_score": v["eval_score"],
-        "eval_gate": v["eval_gate"], "eval_threshold": "19/20",
+        "eval_dataset": "parasol-golden-set",
+        "eval_score": v["eval_score"],
+        "eval_gate": v["eval_gate"], "eval_threshold": GATE_THRESHOLD,
         "eval_judge_model": "gpt-oss-120b",
         "mlflow_run_id": v["mlflow_run_id"], "mlflow_experiment_id": v["mlflow_experiment_id"],
         "mlflow_run_url": f"{MLFLOW_UI}/#/experiments/{v['mlflow_experiment_id']}/runs/{v['mlflow_run_id']}",
@@ -175,7 +179,7 @@ def ensure_version(model_id, name, v):
         req("PATCH", f"/model_versions/{existing['id']}",
             {"description": v["desc"], "customProperties": props})
         vid = existing["id"]
-        print(f"version {name} exists id={vid} (eval + metadata refreshed: {v['eval_passrate']} {v['eval_gate']})")
+        print(f"version {name} exists id={vid} (eval + metadata refreshed: {v['eval_score']} {v['eval_gate']})")
     else:
         s, body = req("POST", f"/registered_models/{model_id}/versions", {
             "name": name, "state": "LIVE", "author": "parasol-pipeline",
@@ -184,7 +188,7 @@ def ensure_version(model_id, name, v):
         if s not in (200, 201):
             sys.exit(f"create version {name} failed {s}: {body}")
         vid = body["id"]
-        print(f"created version {name} id={vid} ({v['eval_passrate']} {v['eval_gate']})")
+        print(f"created version {name} id={vid} ({v['eval_score']} {v['eval_gate']})")
     ensure_artifact(vid, name, v)
     return vid
 
@@ -225,11 +229,10 @@ def patch_eval(name, gate, score, run_id, prompt_ref):
     ver = find_version(m["id"], name)
     if not ver:
         sys.exit(f"version {name} not found; run full registration first")
-    passn = int(round(float(score) * 20)) if score else 0
     merged = {
         "gate": gate, "eval_gate": gate, "eval_score": f"{float(score):.2f}" if score else "",
-        "eval_passrate": f"{passn}/20", "eval_threshold": "19/20",
-        "eval_dataset": "parasol-golden-20",
+        "eval_threshold": GATE_THRESHOLD,
+        "eval_dataset": "parasol-golden-set",
         "mlflow_run_id": run_id, "mlflow_run_url": f"{MLFLOW_UI}/#/experiments/{EXP_ID}/runs/{run_id}",
     }
     if prompt_ref:

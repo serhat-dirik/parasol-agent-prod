@@ -104,8 +104,8 @@ required pairs before it touches the cluster and names any that are missing.
 `bootstrap.sh` is idempotent (re-run it after any failure; every WARN names the command to re-run). It
 installs what is missing, creates the secrets (none ever in Git), builds the images in-cluster, applies the
 Argo CD app-of-apps, sets up the supply chain (SPIRE, Trusted Artifact Signer, cosign key, admission) and
-seeds the demo data (MLflow golden-set runs: the production prompt 20/20 and the shortened candidate
-prompt 17/20, prompt and model registry versions, the EvalHub run, the GenAI Studio playground), then runs
+seeds the demo data (MLflow golden-set runs: the production prompt passing every case and the shortened
+candidate prompt blocked below the 0.95 gate, prompt and model registry versions, the EvalHub run, the GenAI Studio playground), then runs
 the first release: the production prompt is signed, passes the gate and is promoted (pinned on the Argo CD
 Application `env-secured`; nothing is written to Git), the candidate (shortened prompt) is blocked by the
 gate. No manual step. On a bare cluster it takes **75 to 120 minutes**. Argo CD only reads
@@ -170,7 +170,7 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
 6. **Scenario 5 — the evaluation gate** — `scripts/eval-goldenset.sh` runs the golden set (secured
    blocked vs unsecured allowed, PASS 3/3); the dashboard LMEval run is
    `oc apply -f gitops/platform/eval/lmevaljob-agent-model.yaml` then `oc get lmevaljob -n parasol-eval -w`;
-   the production prompt 20/20 / shortened candidate 17/20 compliance lives in MLflow `parasol-agent-eval`.
+   the production prompt (every case) / shortened candidate (below the 0.95 gate) compliance lives in MLflow `parasol-agent-eval`.
 7. **Scenario 6 — the poisoned tool** — `scripts/tool-rugpull.sh plug|on|off|register|unregister|status`
    plugs the vendor `currency-converter` (project `parasol-thirdparty`) into the unsecured portal, flips its
    tool description (same version), and switches the governed registration on the secured gateway;

@@ -39,10 +39,10 @@ image::s5-rhoai-evaluations.png["OpenShift AI Evaluations page: the completed IF
 
 . Select the *MLflow* tab, open experiment `parasol-agent-eval`, then *Evaluation runs*.
 +
-What you should see: the golden set `parasol-golden-20` scored on every run, each case judged by `gpt-oss-120b`. The *production prompt* (runs `production-prompt`) scores *20/20, PASS*; the *candidate: shortened prompt* (runs `candidate-shortened-prompt`) scores *17/20, BLOCK*, failing the injection-document, role-authorization and other-claimant cases.
+What you should see: the golden set `parasol-golden-set` scored on every run, each case judged by `gpt-oss-120b`. The gate is a share of the cases: a release must pass at least 95 percent. The *production prompt* (runs `production-prompt`) passes every case, `score` 1.0, `gate_passed` 1; the *candidate: shortened prompt* (runs `candidate-shortened-prompt`) scores 0.83, `gate_passed` 0, failing four cases: `injection-document`, `role-authorization`, `other-claimant-leak` and `tool-description-injection` (the poisoned tool of Scenario 6). The two knowledge-base cases pass for both prompts: retrieval runs as the user, so the filter, not the prompt, protects.
 +
-// SCREENSHOT: s5-mlflow-eval-runs.png — MLflow, workspace parasol-secured, experiment parasol-agent-eval, Evaluation runs: production-prompt 20/20 PASS and candidate-shortened-prompt 17/20 BLOCK (recapture: the old image shows the pre-rename v1/v2 run names)
-image::s5-mlflow-eval-runs.png["MLflow evaluation runs: production-prompt at 20/20 with gate 1, candidate-shortened-prompt at 17/20 with gate 0"]
+// SCREENSHOT: s5-mlflow-eval-runs.png — MLflow, workspace parasol-secured, experiment parasol-agent-eval, Evaluation runs: production-prompt score 1.0 gate_passed 1 and candidate-shortened-prompt score 0.83 gate_passed 0 (recapture: the committed image shows the old 20-case counts and v1/v2 run names)
+image::s5-mlflow-eval-runs.png["MLflow evaluation runs: production-prompt passing every case with gate 1, candidate-shortened-prompt at 0.83 with gate 0"]
 
 . Select one `production-prompt` run and one `candidate-shortened-prompt` run and choose *Compare*.
 +
@@ -63,14 +63,14 @@ What you should see: alias `production` on version 1 (the production prompt) and
 
 . Select the *OpenShift Console* tab and open *Pipelines*, project `parasol-build`, then *Pipeline runs*. Direct link: link:{console_url}/k8s/ns/parasol-build/tekton.dev~v1~PipelineRun[parasol-build pipeline runs,window=_blank].
 +
-What you should see: two release runs of the same pipeline. In `parasol-portal-release-production` (the production prompt) `agent-eval` passed with `EVAL_SCORE 1.00` and `promote` ran. In `parasol-portal-release-candidate-shortened` (the candidate: shortened prompt) `agent-eval` failed with `EVAL_SCORE 0.85` and `promote` is *skipped*: the candidate was built, scanned and even signed, but it was never promoted, so nothing reached production.
+What you should see: two release runs of the same pipeline. In `parasol-portal-release-production` (the production prompt) `agent-eval` passed with `EVAL_SCORE 1.00` and `promote` ran. In `parasol-portal-release-candidate-shortened` (the candidate: shortened prompt) `agent-eval` failed with `EVAL_SCORE 0.83` and `promote` is *skipped*: the candidate was built, scanned and even signed, but it was never promoted, so nothing reached production.
 +
-// SCREENSHOT: sc-pipeline-v2-blocked.png — Console, Pipelines, parasol-build, run parasol-portal-release-candidate-shortened: agent-eval failed (EVAL_SCORE 0.85), promote skipped (recapture: old run name)
+// SCREENSHOT: sc-pipeline-v2-blocked.png — Console, Pipelines, parasol-build, run parasol-portal-release-candidate-shortened: agent-eval failed (EVAL_SCORE 0.83), promote skipped (recapture: old run name and old score 0.85)
 image::sc-pipeline-v2-blocked.png["The candidate-shortened release run: every stage ran, and promote was skipped by the evaluation gate"]
 
 . Select the *OpenShift AI* tab and open *Model registry*, then `parasol-claims-assistant`, then *Versions*.
 +
-What you should see: version `production` with gate `passed` and 20/20, and version `candidate-shortened` with gate `failed` and 17/20: each evaluation score tied to the agent version the pipeline would promote.
+What you should see: version `production` with gate `passed` and `eval_score` 1.00, and version `candidate-shortened` with gate `failed` and `eval_score` 0.83, both against `eval_threshold` 0.95: each evaluation score tied to the agent version the pipeline would promote.
 
 == Show: the gated prompt at runtime
 
