@@ -42,6 +42,23 @@ data:
     # ponytail: deterministic keyword list for the scripted inputs; swap for a classifier if it misfires.
     TOPIC = [re.compile(p) for p in rules("topic.json", [])]
 
+    # Output rules (defence in depth for the knowledge base): a marker that must never reach a caller outside
+    # the named group. Checked on the assistant's final answer; group names come from the portal's baggage.
+    OUTPUT = {name: (re.compile(r["pattern"]), r["allow_group"]) for name, r in rules("output.json", {}).items()}
+
+    def groups_of(headers):
+        for item in (headers.get("baggage") or "").split(","):
+            k, _, v = item.split(";")[0].partition("=")
+            if k.strip() == "enduser.groups":
+                return {g for g in urllib.parse.unquote(v.strip()).split("|") if g}
+        return set()
+
+    def output_hits(text, groups):
+        if not isinstance(text, str):
+            return []
+        return [{"detector_id": name, "detection_type": "output", "score": 1.0, "text": m.group(0)}
+                for name, (rx, allow) in OUTPUT.items() if allow not in groups for m in [rx.search(text)] if m]
+
     # Per-detection counters for /metrics: (detector, action, user, agent) -> [count, last score].
     HITS, HITS_LOCK = {}, threading.Lock()
 
@@ -228,6 +245,17 @@ data:
             flag = detect_texts(tool_texts(messages))
             masked = mask_pii(messages)   # PII in the user message is redacted in place -> forwarded masked
             code, r = post(MAAS + "/chat/completions", req, self.headers.get("authorization"), MAAS_CTX)
+            # Output rule: a confidential marker in the answer to a caller outside the allowed group -> withheld.
+            try:
+                answer = r["choices"][0]["message"].get("content")
+            except (KeyError, IndexError, TypeError, AttributeError):
+                answer = None
+            oh = output_hits(answer, groups_of(self.headers))
+            if oh:
+                record(ctx, "block", oh)
+                return self._send(200, block(req, oh,
+                    "That answer contained material marked for claims managers only, so it was withheld.",
+                    "confidential document withheld"))
             if isinstance(r, dict) and (flag or masked):
                 try:
                     msg = r["choices"][0]["message"]
@@ -267,6 +295,13 @@ data:
         assert "redacted" in _m[0]["content"] and "4111" not in _m[0]["content"]
         s = sentinel("flag", "doc note", ["regex"], 1.0)
         assert s.startswith("❦GUARDRAILS ") and s.endswith("❧") and "action=flag" in s and "score=1" in s
+        OUTPUT["selftest-marker"] = (re.compile(r"(?i)confidential\W+claims\W+managers?\W+only"), "claims-managers")
+        g = groups_of({"baggage": "enduser.id=rebecca,enduser.groups=adjusters%7Cdevelopers"})
+        assert g == {"adjusters", "developers"}, g
+        assert output_hits("Plan: CONFIDENTIAL \u2014 Claims managers only. Team B...", g)
+        assert not output_hits("Plan: CONFIDENTIAL \u2014 Claims managers only.", {"claims-managers"})
+        assert not output_hits("Nothing I can share.", g)
+        del OUTPUT["selftest-marker"]
         TOPIC.append(re.compile(r"(?i)\bessay\b"))
         assert topic_hits("write me a 2000-word essay") and not topic_hits("approve the payout")
         ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()

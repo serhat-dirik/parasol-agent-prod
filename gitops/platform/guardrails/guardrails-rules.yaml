@@ -18,6 +18,10 @@ data:
     pii.json        personal data in the user's message: action=mask, detector=pii. Redacted before the model
                     sees it; the chat shows "personal data masked".
 
+    output.json     the confidential marker of the knowledge base's restricted documents in an ANSWER to a caller
+                    outside claims-managers: action=block, detector=confidential-marker. Defence in depth: the
+                    knowledge base already does not return those documents to such a caller.
+
     Every detection is one log line of deploy/guardrails-proxy:
       guardrail action=<flag|block|mask> detector=<id> score=<0..1> user=<user> agent=<agent> trace=<trace id> text=<match>
     and one count of parasol_guardrails_detections_total{detector,action,user,agent} (dashboard: Parasol
@@ -34,6 +38,9 @@ data:
   topic.json: |
     ["(?i)\\bessay\\b", "(?i)\\bpoem\\b", "(?i)\\bshort story\\b", "(?i)\\bhaiku\\b", "(?i)\\bnovel\\b",
      "(?i)write (me )?an? (story|song|poem|essay|haiku|novel|screenplay)"]
+  output.json: |
+    {"confidential-marker": {"pattern": "(?i)confidential\\s*[-:\u2010-\u2015]+\\s*claims[\\s-]+managers?\\s+only",
+                             "allow_group": "claims-managers"}}
   pii.json: |
     {"email": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
      "Emirates ID": "\\b784-?\\d{4}-?\\d{7}-?\\d\\b",
