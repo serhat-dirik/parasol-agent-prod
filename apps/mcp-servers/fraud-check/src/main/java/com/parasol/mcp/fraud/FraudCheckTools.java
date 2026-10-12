@@ -13,6 +13,7 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
 import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.context.Scope;
 import io.vertx.core.http.HttpServerRequest;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
@@ -81,13 +82,22 @@ public class FraudCheckTools {
      * user (claims agent -> fraud agent -> tools), never with a token of its own and never directly.
      */
     private String viaGateway(String claimNumber) {
-        String auth = request.get().getHeader("Authorization");
+        HttpServerRequest req = request.get();
+        String auth = req.getHeader("Authorization");
         if (auth == null || !auth.startsWith("Bearer ")) {
             return "FRAUD RISK: UNKNOWN. No caller identity on this request; nothing assessed.";
         }
         String subject = auth.substring(7).trim();
-        Span.current().setAttribute("enduser.id", GatewayTools.user(subject));
-        Span.current().setAttribute("gen_ai.agent.name", gateway.agentId());
+        // one span per agent-to-agent call, joined to the calling agent's trace (traceparent via the gateway)
+        Span span = gateway.agentSpan("agent.fraud_check", req, subject);
+        try (Scope ignored = span.makeCurrent()) {
+            return assessViaGateway(claimNumber, subject);
+        } finally {
+            span.end();
+        }
+    }
+
+    private String assessViaGateway(String claimNumber, String subject) {
         String token = gateway.onBehalfOf(subject);
         if (token == null) {
             return "FRAUD RISK: UNKNOWN. The fraud-check agent could not act on behalf of "

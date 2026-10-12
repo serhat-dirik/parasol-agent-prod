@@ -102,6 +102,26 @@ public class GatewayTools {
         }
     }
 
+    /** A span for this agent's work, child of the caller's trace context carried on the incoming request. */
+    public Span agentSpan(String name, io.vertx.core.http.HttpServerRequest req, String subjectToken) {
+        Context parent = otel.getPropagators().getTextMapPropagator().extract(Context.current(), req,
+                new io.opentelemetry.context.propagation.TextMapGetter<io.vertx.core.http.HttpServerRequest>() {
+                    @Override
+                    public Iterable<String> keys(io.vertx.core.http.HttpServerRequest r) {
+                        return r.headers().names();
+                    }
+
+                    @Override
+                    public String get(io.vertx.core.http.HttpServerRequest r, String key) {
+                        return r == null ? null : r.getHeader(key);
+                    }
+                });
+        return tracer.spanBuilder(name).setParent(parent)
+                .setAttribute("gen_ai.agent.name", agentId)
+                .setAttribute("enduser.id", user(subjectToken))
+                .startSpan();
+    }
+
     /** Exchange the caller's token as this agent (cached per incoming token), or null on failure. */
     public String onBehalfOf(String subjectToken) {
         Cached c = exchanged.get(subjectToken);
