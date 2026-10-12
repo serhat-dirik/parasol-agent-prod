@@ -20,10 +20,11 @@ antora:
     - name: 02-before-you-start
     - name: 03-scenario1-colleague
     - name: 04-scenario2-document
-    - name: 05-scenario3-night-shift
-    - name: 06-scenario4-eval-gate
-    - name: 07-supply-chain
-    - name: 08-reset-troubleshooting
+    - name: 05-scenario3-confidential-document
+    - name: 06-scenario4-night-shift
+    - name: 07-scenario5-eval-gate
+    - name: 08-supply-chain
+    - name: 09-reset-troubleshooting
 
 # CLUSTER_DOMAIN is replaced per cluster in the deployed copy (gitops/platform/showroom).
 tabs:

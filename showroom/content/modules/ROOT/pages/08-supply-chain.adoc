@@ -1,5 +1,5 @@
-= 07. Supply chain: signing and admission
-:navtitle: 07. Supply chain
+= 08. Supply chain: signing and admission
+:navtitle: 08. Supply chain
 :toc: macro
 :toclevels: 2
 
@@ -36,7 +36,7 @@ What you should see: `PROMOTED: env-secured runs ...parasol-portal@sha256:...` w
 
 . Select the *Argo CD* tab, open application `env-secured`, click *Details* and select the *Parameters* tab.
 +
-What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref` and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-ref` here is the same `parasol-claims-assistant-system-prompt@production` every live chat trace carries as its `prompt` tag (xref:06-scenario4-eval-gate.adoc[06. Scenario 4]): release record and runtime evidence agree.
+What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref` and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-ref` here is the same `parasol-claims-assistant-system-prompt@production` every live chat trace carries as its `prompt` tag (xref:07-scenario5-eval-gate.adoc[06. Scenario 4]): release record and runtime evidence agree.
 +
 // SCREENSHOT: sc-argo-env-secured-promote.png — Argo CD, application env-secured, Details > Summary: annotations parasol.example/promoted-digest, promoted-by, prompt-ref, model-ref; and Parameters > Images with the parasol-portal digest override (Argo CD sign-in)
 
@@ -71,12 +71,13 @@ Signatures, the admission decision and the promote history on `env-secured` toge
 
 == Conclusion
 
-The four scenarios made one argument. The unsecured and the secured portal are the same image running the same model. The difference is the platform around it, and every piece of that platform is a product an operator already knows:
+The five scenarios made one argument. The unsecured and the secured portal are the same image running the same model. The difference is the platform around it, and every piece of that platform is a product an operator already knows:
 
 * Identity on every tool call: Keycloak and the MCP gateway.
+* Identity on data: retrieval runs as the user, down to row-level security in the database.
 * A document is data, not a command: guardrails and the Read-Propose-Act gate.
 * Budgets and alerts with a name: OpenShift AI Models-as-a-Service, Connectivity Link, and the OpenShift console.
 * Quality and provenance enforced: the evaluation gate, signing and admission.
 * The sandbox has a front door: access is identity-bound, and the kill switch is one change on the Argo CD Application.
 
-Continue with xref:08-reset-troubleshooting.adoc[08. Reset and troubleshooting].
+Continue with xref:09-reset-troubleshooting.adoc[09. Reset and troubleshooting].

@@ -13,14 +13,19 @@ An adjuster has no authority to approve a payout. Unsecured, the agent does it a
 The agent acts *as the person*, and the gateway checks the person's rights before any tool runs. Unsecured, nobody asks who is asking: a chat window becomes a payout button for anyone who can log in.
 ====
 
-== Show: unsecured
+== Before you start
 
-. Make sure the demo data is fresh. If you did not just reset it in xref:02-before-you-start.adoc[02. Before you start], run in the *Terminal* tab:
+This scenario runs on its own, in any order with the others.
+
+* Personas: `rebecca` (claims adjuster) and `marcus` (claims manager); passwords equal the user names.
+* Data: claim *CLM-1001* is *UnderReview* on both portals. If another scenario or an earlier run approved it, reset in the *Terminal* tab:
 +
 [source,bash,role=execute]
 ----
 scripts/reset.sh
 ----
+
+== Show: unsecured
 
 . Select the *Portal unsecured* tab and log in as `rebecca` (password `rebecca`).
 +
@@ -119,5 +124,14 @@ What you should see: in *Gateway rejections by reason*, `403 not via an approved
 What you should see: the *MLflow* trace of the approval, in workspace `parasol-secured`: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, and a `gateway.authz` span with status OK. Together with the timeline line "Approved by marcus via parasol-claims-agent", the payout is on record as *agent X on behalf of user Y*, in the identity provider, at the gateway and in the trace.
 +
 // SCREENSHOT: s1-mlflow-approval-trace.png — MLflow (workspace parasol-secured, experiment parasol-portal-chat), the approval trace opened from the card's link: user marcus, tags agent=parasol-claims-agent and action=approve_payout CLM-1001, span gateway.authz (OpenShift sign-in for MLflow)
+
+== Reset after this scenario
+
+Both portals approved CLM-1001 (unsecured by the assistant, secured by marcus's click). Put it back to *UnderReview*:
+
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
 
 Continue with xref:04-scenario2-document.adoc[04. Scenario 2: The customer's document].

@@ -23,7 +23,7 @@ policy documents and to approve payouts. The *same* portal image runs twice on o
   guardrails, model-as-a-service governance with per-tier token budgets, OpenTelemetry tracing and
   token metrics, a GitOps kill switch on the Argo CD Application, and a signed-image supply chain with admission control.
 
-Three scenarios — things a real user might do — are run against both portals, and every step is
+Four scenarios — things a real user might do — are run against both portals, and every step is
 something you watch happen in a browser:
 
 * **Scenario 1 — a colleague.** Rebecca, a claims adjuster, asks the assistant to approve a payout
@@ -37,13 +37,18 @@ something you watch happen in a browser:
   tries to pay — but `approve_payout` is not in its tool list, so it can only *propose*; guardrails flag the
   hidden instruction and the Read-Propose-Act gate surfaces the 10× gap — no write happens. The controls,
   not model luck, stop the payout.
-* **Scenario 3 — the night shift.** An outsourced night-shift contractor's account (or its leaked token)
+* **Scenario 3 — the confidential document.** The assistant searches Parasol's knowledge base, where some
+  documents are for everyone, some for staff and some (HR) for claims managers only. An adjuster asks about
+  plans for adjuster roles. *Unsecured:* the restricted restructuring plan is retrieved and shared.
+  *Secured:* retrieval runs as the user (her token's groups, then PostgreSQL row-level security), so the
+  restricted documents never reach the model; "I'm a claims manager" in the chat changes nothing.
+* **Scenario 4 — the night shift.** An outsourced night-shift contractor's account (or its leaked token)
   is scripted at 3 a.m. to loop long requests and drain the token budget. *Unsecured:* the shared key burns all night. *Secured:* the topic guardrail
   refuses the junk at no cost, a per-user budget returns HTTP 429 for that account while staff keep
   working, an alert fires naming the user, and the operator can disable the account or flip the kill
   switch — the pods keep running, the agent can reach nothing.
 
-In `portal-free` all three cause harm. In `portal` a different layer stops each, and the platform
+In `portal-free` all four cause harm. In `portal` a different layer stops each, and the platform
 consoles (Keycloak, the OpenShift AI dashboard, the OpenShift console, Argo CD) show *why*. The
 scripts in this repo are only for setting the demo up, playing the abusive customer, and resetting
 between runs — the demo itself is the browser.
@@ -81,7 +86,7 @@ provider**, so each has its own endpoint (a base URL ending in `/v1`) and its ow
 |---|---|---|---|---|
 | Agent, both portals | `qwen3-14b` (set another with `AGENT_MODEL`) | `AGENT_ENDPOINT` | `AGENT_KEY` | structured tool calls, and obeying an instruction hidden in a document (that is what makes Scenario 2 live) |
 | Guard detector | `granite-guardian-3-1-8b` | `GUARD_ENDPOINT` | `GUARD_KEY` | chat completions with `logprobs` (the risk score is read from them) |
-| Evaluation judge | `gpt-oss-120b` | `JUDGE_ENDPOINT` | `JUDGE_KEY` | strong instruction following (Scenario 4) |
+| Evaluation judge | `gpt-oss-120b` | `JUDGE_ENDPOINT` | `JUDGE_KEY` | strong instruction following (Scenario 5) |
 | Third detector (optional) | `Llama-Guard-3-1B` | `LLAMAGUARD_ENDPOINT` | `LLAMAGUARD_KEY` | chat completions with `logprobs` |
 
 ```bash
@@ -128,8 +133,8 @@ directly. Then open the portals in a browser — **this is the demo**:
 The demo runs from the **Showroom** at `https://showroom-parasol-showroom.apps.<cluster-domain>`: a
 step-by-step guide on the left, the live apps on the right — both portals, Keycloak, OpenShift AI,
 the OpenShift console, Argo CD, MLflow, and a Terminal with `oc` and this repo — so the whole demo
-happens in one browser window. It walks the four scenarios (the colleague, the customer's document,
-the night shift, the evaluation gate) and the supply chain, says which tab each step uses, where to
+happens in one browser window. It walks the five scenarios (the colleague, the customer's document,
+the confidential document, the night shift, the evaluation gate) and the supply chain, says which tab each step uses, where to
 look on the platform, which log commands confirm each beat, and how to reset and troubleshoot.
 
 Sign in with your OpenShift account when the Showroom opens; the framed consoles reuse that session.
@@ -149,7 +154,7 @@ Before the demo:
 
 The scripts behind each scenario (the browser steps are in **Demo UI**):
 1. **Reset** — `scripts/reset.sh` re-seeds both portals' claims and refills the per-user token budget.
-   It runs as the first step of Scenario 1, and again before Scenario 3's secured run.
+   It runs as the first step of Scenario 1, and again before Scenario 4's secured run.
 2. **Scenario 1 — the colleague** — driven in the browser. Headless equivalent:
    - `scripts/abuse.sh free` — rebecca approves;
    - `scripts/abuse.sh secured rebecca` — filtered tool list + 403;
@@ -157,13 +162,16 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
 3. **Scenario 2 — the customer's document** — driven in the browser. Headless equivalent:
    - `scripts/abuse-doc.sh both` — the unsecured portal pays AED 84,000; secured flags the hidden
      note and proposes without writing.
-4. **Scenario 3 — the night shift** — `scripts/night-shift.sh 40` logs in as `nina.contractor` and loops
+4. **Scenario 3 — the confidential document** — `scripts/knowledge-base-demo.sh` asks the scenario's
+   questions on both portals as rebecca, marcus and nina.contractor; `scripts/knowledge-base-ingest.sh`
+   (re)loads the knowledge base (idempotent).
+5. **Scenario 4 — the night shift** — `scripts/night-shift.sh 40` logs in as `nina.contractor` and loops
    requests; run it against each portal as in Demo UI.
-5. **Scenario 4 — the evaluation gate** — `scripts/eval-goldenset.sh` runs the golden set (secured
+6. **Scenario 5 — the evaluation gate** — `scripts/eval-goldenset.sh` runs the golden set (secured
    blocked vs unsecured allowed, PASS 3/3); the dashboard LMEval run is
    `oc apply -f gitops/platform/eval/lmevaljob-agent-model.yaml` then `oc get lmevaljob -n parasol-eval -w`;
    the production prompt 20/20 / shortened candidate 17/20 compliance lives in MLflow `parasol-agent-eval`.
-6. **Layer 6 — supply chain** — `scripts/signing-demo.sh` shows admission refusing an unsigned image
+7. **Layer 6 — supply chain** — `scripts/signing-demo.sh` shows admission refusing an unsigned image
    and admitting the signed one.
 
 Other helpers:
@@ -200,20 +208,24 @@ of the stack is that a *different* layer catches each scenario:
   injection-obeying model (`qwen3-14b`), this is shown without relying on model behaviour: the model obeys
   the note and tries to pay, and the hidden `approve_payout` + guardrails flag + Read-Propose-Act gate stop
   the write anyway.
-* **Scenario 3 (the night shift)** → **model governance + observability.** MaaS gives the contractor a
+* **Scenario 3 (the confidential document)** → **identity on data.** The knowledge-base server verifies the
+  agent's on-behalf-of token and searches only the documents the user's groups may read; PostgreSQL
+  row-level security refuses every other row to its role (Layer 2); a guardrails output rule withholds an
+  answer carrying the restricted-document marker for anyone outside claims-managers (Layer 4).
+* **Scenario 4 (the night shift)** → **model governance + observability.** MaaS gives the contractor a
   low per-tier token budget and returns 429 for that account alone (Layer 5); the topic guardrail refuses
   off-topic junk at zero cost (Layer 4); token metrics raise an alert naming the user and the agent, and the kill switch
   severs egress with one change on the Argo CD Application (Layer 7). Namespace isolation (Layer 1) bounds the blast radius throughout.
 
 | # | Layer | Defends | Component | In this repo |
 |---|---|---|---|---|
-| 1 | Isolation | blast radius of all three | Namespace, ResourceQuota, NetworkPolicy, restricted PSA, no SA token, (Kata via `runtimeClassName`) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch}.yaml` |
-| 2 | Identity | Scenario 1 | Agent identities (`parasol-claims-agent`, `parasol-fraud-agent`: ServiceAccount token as client assertion) acting on behalf of the user via token exchange, with per-agent role ceilings | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak`, `scripts/agent-clients.sh` |
+| 1 | Isolation | blast radius of all scenarios | Namespace, ResourceQuota, NetworkPolicy, restricted PSA, no SA token, (Kata via `runtimeClassName`) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch}.yaml` |
+| 2 | Identity | Scenarios 1 and 3 | Agent identities (`parasol-claims-agent`, `parasol-fraud-agent`: ServiceAccount token as client assertion) acting on behalf of the user via token exchange, with per-agent role ceilings | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak`, `scripts/agent-clients.sh`, `apps/mcp-servers/knowledge-base`, `gitops/envs/secured/knowledge-base.yaml` |
 | 3 | Tool authorization | Scenario 1 | MCP gateway (Connectivity Link, TP): federation, per-identity tool list, per-tool AuthPolicy | `gitops/platform/mcp-gateway`, `gitops/envs/secured/mcp-registrations.yaml` |
-| 4 | Guardrails | Scenarios 2 and 3 | Guardrails detection proxy (enforced): regex injection phrases, PII masking, topic refusal (rules in ConfigMap `guardrails-rules`); flag-and-continue or block, each detection logged and counted with user, agent and trace id. The HF prompt-injection detector is deployed but not inline. Additive model-based detectors in the guard tier: Granite Guardian (`granite-guardian-3-1-8b`) and optional Llama-Guard (user message only), shown in GenAI Studio | `gitops/platform/guardrails`, `gitops/platform/guardrails-guardian` |
-| 5 | Model governance | Scenario 3 | OpenShift AI MaaS: **two external models** on their own tiers — `qwen3-14b` (prod, the agent both portals run) and `granite-guardian-3-1-8b` (guard, the detector) — each a MaaSSubscription + MaaSAuthPolicy with its own key and per-tier token budget enforced by Connectivity Link; the agent never holds the upstream key (TP for external models). The eval judge `gpt-oss-120b` is reached via its own key, off the tiers | `gitops/platform/rhoai/*`, `gitops/platform/maas-tiers`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh`, `scripts/maas-tier-keys.sh` |
+| 4 | Guardrails | Scenarios 2, 3 and 4 | Guardrails detection proxy (enforced): regex injection phrases, PII masking, topic refusal (rules in ConfigMap `guardrails-rules`); flag-and-continue or block, each detection logged and counted with user, agent and trace id. The HF prompt-injection detector is deployed but not inline. Additive model-based detectors in the guard tier: Granite Guardian (`granite-guardian-3-1-8b`) and optional Llama-Guard (user message only), shown in GenAI Studio | `gitops/platform/guardrails`, `gitops/platform/guardrails-guardian` |
+| 5 | Model governance | Scenario 4 | OpenShift AI MaaS: **two external models** on their own tiers — `qwen3-14b` (prod, the agent both portals run) and `granite-guardian-3-1-8b` (guard, the detector) — each a MaaSSubscription + MaaSAuthPolicy with its own key and per-tier token budget enforced by Connectivity Link; the agent never holds the upstream key (TP for external models). The eval judge `gpt-oss-120b` is reached via its own key, off the tiers | `gitops/platform/rhoai/*`, `gitops/platform/maas-tiers`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh`, `scripts/maas-tier-keys.sh` |
 | 6 | Lifecycle gate | regressions, unsigned images (cross-cutting) | Tekton pipeline (build → scan → eval gate → cosign sign → promote); Sigstore admission `ClusterImagePolicy` | `gitops/platform/pipeline`, `scripts/signing-demo.sh` |
-| 7 | Observability and control | Scenario 3; knowing and stopping | OTel → Tempo and MLflow (each chat turn links to its trace; tags agent/prompt/model), Perses dashboard *Parasol Assistant Token Spend* (spend, tool calls, gateway rejections, guardrail hits by user and agent), PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
+| 7 | Observability and control | Scenarios 3 and 4; knowing and stopping | OTel → Tempo and MLflow (each chat turn links to its trace; tags agent/prompt/model), Perses dashboard *Parasol Assistant Token Spend* (spend, tool calls, gateway rejections, guardrail hits by user and agent), PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
 
 **Request paths (secured).** Model: portal → model-gateway → guardrails-proxy → OpenShift AI MaaS
 → LiteLLM; the MaaS serves the model named in `agent-config` — **`qwen3-14b`** on both portals so the
@@ -244,7 +256,7 @@ catalog + lifecycle operator, MaaS external-model egress, GenAI Studio guardrail
 guardrails** (`mcpGuardrailsMode` on the DataScienceCluster) are the blueprint-aligned target but remain a
 TP gap on 3.5.1 — flipping the flag only re-reconciles the guardrails orchestrator and wires no guardrails
 onto the production MCP gateway ext-proc (the 3.5.1 sidecar cannot relay tool-calling turns), so the
-**guardrails-proxy is the enforced path** (both Scenario 2's hidden-note flag and Scenario 3's 0-token
+**guardrails-proxy is the enforced path** (both Scenario 2's hidden-note flag and Scenario 4's 0-token
 topic refusal fire through it). Manifests mark field names to check against the installed CRDs with
 `VERIFY` comments (`oc explain`).
 

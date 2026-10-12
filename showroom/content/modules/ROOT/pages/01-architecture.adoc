@@ -74,7 +74,7 @@ The demo uses a lean model set on an external Models-as-a-Service endpoint, reac
 
 * `qwen3-14b`: the agent model. *Both* portals run it. It emits structured tool calls and it obeys an instruction hidden in a document, which is what makes Scenario 2 live.
 * `granite-guardian-3-1-8b`: the guard-tier detector, a model-based second opinion beside the regex detector.
-* `gpt-oss-120b`: the evaluation judge in Scenario 4. It is reached with its own key, off the MaaS tiers.
+* `gpt-oss-120b`: the evaluation judge in Scenario 5. It is reached with its own key, off the MaaS tiers.
 * `Llama-Guard-3-1B`: an optional third detector, skipped when absent.
 
 The agent never holds the upstream model key. OpenShift AI MaaS lists the two tiered models (`qwen3-14b` on the prod tier, `granite-guardian-3-1-8b` on the guard tier), each with its own subscription, auth policy, key and token budget.
@@ -82,7 +82,9 @@ The agent never holds the upstream model key. OpenShift AI MaaS lists the two ti
 == The secured request paths
 
 * *Model:* portal -> model-gateway -> guardrails-proxy -> OpenShift AI MaaS -> external endpoint. The guardrails proxy scans prompts and tool results; MaaS attributes token spend to the user and enforces the per-tier budget.
-* *Tools:* portal -> MCP gateway (`https://mcp.{domain}/mcp`, one virtual server per client) -> claims-db, policy-docs, fraud-check. The assistant acts *on behalf of* the user: on every call it exchanges the user's Keycloak token for one issued to the agent's own identity (`parasol-claims-agent`; user = `sub`, agent = `azp`), carrying only the tool roles that are both the user's and inside the agent's ceiling. The agent authenticates to Keycloak with its pod's ServiceAccount token, so there is no client secret. The gateway accepts only tokens from approved agents, filters the tool list per identity and enforces a per-tool AuthPolicy. The fraud-check agent does the same again (`parasol-fraud-agent`, read-only) when it reads the claim.
+* *Tools:* portal -> MCP gateway (`https://mcp.{domain}/mcp`, one virtual server per client) -> claims-db, policy-docs, fraud-check, knowledge-base. The assistant acts *on behalf of* the user: on every call it exchanges the user's Keycloak token for one issued to the agent's own identity (`parasol-claims-agent`; user = `sub`, agent = `azp`), carrying only the tool roles that are both the user's and inside the agent's ceiling. The agent authenticates to Keycloak with its pod's ServiceAccount token, so there is no client secret. The gateway accepts only tokens from approved agents, filters the tool list per identity and enforces a per-tool AuthPolicy. The fraud-check agent does the same again (`parasol-fraud-agent`, read-only) when it reads the claim.
+
+* *Knowledge:* the knowledge-base server checks the same on-behalf-of token itself (signature, issuer, audience) and searches only the documents the user's Keycloak groups may read; PostgreSQL row-level security on the documents table enforces the same rule a second time, below the application.
 
 The unsecured portal skips all of it: a shared model key, and tools called with no authorization and no record.
 
@@ -101,19 +103,19 @@ The unsecured portal skips all of it: a shared model key, and tools called with 
 |Namespace, ResourceQuota, NetworkPolicy, restricted pod security, no Kubernetes API token
 
 |2 Identity
-|Scenario 1
-|Keycloak: the user's identity plus the agent's own (ServiceAccount, no secret), joined by token exchange on every tool call
+|Scenarios 1 and 3
+|Keycloak: the user's identity plus the agent's own (ServiceAccount, no secret), joined by token exchange on every tool call; the user's groups decide which documents retrieval may search, down to PostgreSQL row-level security
 
 |3 Tool authorization
 |Scenario 1
 |MCP gateway (Connectivity Link): per-identity tool list, per-tool AuthPolicy
 
 |4 Guardrails
-|Scenarios 2 and 3
-|Guardrails proxy (enforced): regex and prompt-injection detection, PII masking, topic refusal; Granite Guardian as a model-based detector in the guard tier
+|Scenarios 2, 3 and 4
+|Guardrails proxy (enforced): regex and prompt-injection detection, PII masking, topic refusal, the confidential-document marker on answers; Granite Guardian as a model-based detector in the guard tier
 
 |5 Model governance
-|Scenario 3
+|Scenario 4
 |OpenShift AI MaaS: per-tier subscriptions, auth policies, keys and token budgets enforced by Connectivity Link
 
 |6 Lifecycle gate
@@ -121,14 +123,14 @@ The unsecured portal skips all of it: a shared model key, and tools called with 
 |Tekton pipeline (build, scan, evaluation gate, sign, verify, promote) and Sigstore admission policy
 
 |7 Observability and control
-|Scenario 3, knowing and stopping
+|Scenarios 3 and 4, knowing and stopping
 |OpenTelemetry to Tempo and MLflow, token metrics and an alert, the kill-switch component
 |===
 
 [NOTE]
 .Technology Preview status
 ====
-As of OpenShift AI 3.5 and Connectivity Link 1.4, the MCP gateway, the MCP catalog, MaaS external-model egress and GenAI Studio guardrails are Technology Preview. Gateway-native MCP guardrails are the target design but do not yet relay tool-calling turns in this release, so the guardrails proxy is the enforced path for both Scenario 2's flag and Scenario 3's topic refusal.
+As of OpenShift AI 3.5 and Connectivity Link 1.4, the MCP gateway, the MCP catalog, MaaS external-model egress and GenAI Studio guardrails are Technology Preview. Gateway-native MCP guardrails are the target design but do not yet relay tool-calling turns in this release, so the guardrails proxy is the enforced path for both Scenario 2's flag and Scenario 4's topic refusal.
 ====
 
 Continue with xref:02-before-you-start.adoc[02. Before you start].

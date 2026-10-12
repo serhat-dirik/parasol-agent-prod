@@ -1,5 +1,5 @@
-= 08. Reset and troubleshooting
-:navtitle: 08. Reset and troubleshooting
+= 09. Reset and troubleshooting
+:navtitle: 09. Reset and troubleshooting
 :toc: macro
 :toclevels: 2
 
@@ -15,7 +15,7 @@ Reset between every run of the demo, and scan the troubleshooting table once bef
 
 == Reset between runs
 
-The scenarios change data: Scenario 1 approves CLM-1001, Scenario 2 pays CLM-1004 on the unsecured portal, and Scenario 3 spends `nina.contractor`'s budget.
+The scenarios change data: Scenario 1 approves CLM-1001, Scenario 2 pays CLM-1004 on the unsecured portal, and Scenario 4 spends `nina.contractor`'s budget. Scenario 3 only reads: the knowledge base is not changed by any scenario, and the reset leaves it as it is.
 
 . In the *Terminal* tab, reset both portals and the per-user token budgets:
 +
@@ -30,7 +30,7 @@ What you should see: CLM-1001 *UnderReview*, CLM-1004 *Denied*.
 
 . Repeat on the *Portal secured* tab.
 
-. If you used an operator response in Scenario 3, undo it: re-enable `nina.contractor` in the *Keycloak* tab, or switch the kill switch off: in the *Argo CD* tab open `env-secured`, *Details* > *Manifest* > *Edit*, delete the `components` line and *Save*. From the *Terminal* tab:
+. If you used an operator response in Scenario 4, undo it: re-enable `nina.contractor` in the *Keycloak* tab, or switch the kill switch off: in the *Argo CD* tab open `env-secured`, *Details* > *Manifest* > *Edit*, delete the `components` line and *Save*. From the *Terminal* tab:
 +
 [source,bash,role=execute]
 ----
@@ -73,9 +73,17 @@ Every question the audience asks has one screen that answers it with the same na
 |*OpenShift Console*, *Observe*, *Dashboards*, `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*; Authorino log
 |rejections by reason (not via an approved agent, role, usage limit); `not via an approved agent: <user> azp=<client>`, `tool <tool> denied for <user> azp=<agent>`
 
+|Which documents may a person read, and what was kept from them?
+|The chat turn's `trace <id>` link (span `tool.search_knowledge`); dashboard row *Knowledge base*; `oc logs -n parasol-secured deploy/knowledge-base`
+|`rag.returned_doc_ids`, `rag.withheld_count`, `rag.withheld_classifications` with `enduser.id` and `gen_ai.agent.name`; withheld passages by classification, user and agent; `RAG restricted doc=<id> accessed by <user> via <agent>`
+
+|What stops the database from returning a restricted document?
+|*Terminal*: `oc exec -n parasol-secured deploy/knowledge-base-db -- psql -U postgres -d kb -c '\d+ chunks'`
+|`Policies: POLICY "chunks_by_group" FOR SELECT TO kb_app`, row-level security enabled; the server's role `kb_app` is neither owner nor superuser
+
 |What are the guardrail rules?
 |*OpenShift Console*, project `parasol-secured`, *ConfigMaps*, `guardrails-rules`
-|the phrases, topics and PII types, and what each does (flag, block, mask)
+|the phrases, topics, PII types and the confidential-document marker, and what each does (flag, block, mask)
 
 |What did a guardrail catch, for whom?
 |Dashboard row *Guardrails*; `oc logs -n parasol-secured deploy/guardrails-proxy`
@@ -119,9 +127,12 @@ Each scenario has a script that drives the same beats without a browser. Use the
 |`scripts/fraud-check-demo.sh`: rebecca and marcus get HIGH; `nina.contractor` gets a 403.
 
 |3
-|`scripts/night-shift.sh 40` (secured) or `scripts/night-shift.sh 40 portal-free.{domain}` (unsecured).
+|`scripts/knowledge-base-demo.sh`: the restructuring plan leaks to rebecca unsecured; secured, rebecca and nina.contractor get only what they may read (withheld counts), marcus gets the cited plan.
 
 |4
+|`scripts/night-shift.sh 40` (secured) or `scripts/night-shift.sh 40 portal-free.{domain}` (unsecured).
+
+|5
 |`scripts/eval-goldenset.sh` (workstation, needs the credentials file): secured blocked, unsecured allowed, PASS 3/3.
 
 |Model check
@@ -177,5 +188,5 @@ Each scenario has a script that drives the same beats without a browser. Use the
 [NOTE]
 .Model budget
 ====
-The model keys have a limited budget. Run the night-shift loop only when you present Scenario 3.
+The model keys have a limited budget. Run the night-shift loop only when you present Scenario 4.
 ====

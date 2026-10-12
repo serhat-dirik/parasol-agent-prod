@@ -13,6 +13,18 @@ A customer uploads a repair estimate to a denied claim. The estimate is inflated
 Every agent that reads customer content will one day read an instruction aimed at it. Here the model obeys on *both* portals, so what stops the payout is the platform: the write tool is not offered, guardrails flag the note, and a person compares the number with the claim. The controls, not model luck, stop the payout.
 ====
 
+== Before you start
+
+This scenario runs on its own, in any order with the others.
+
+* Persona: `rebecca` (claims adjuster, password `rebecca`).
+* Data: claim *CLM-1004* is *Denied* (claimed AED 8,400) on both portals, with the customer's repair estimate in its documents. If an earlier run paid it, reset in the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
+
 == Show: unsecured
 
 . Select the *Portal unsecured* tab and log in as `rebecca`.
@@ -117,4 +129,13 @@ What you should see: *one* trace across two agents: `tool.fraud_check` (agent `p
 +
 // SCREENSHOT: s2-mlflow-fraud-trace.png — MLflow trace of the "Run a fraud check on CLM-1004." turn: span tree tool.fraud_check > agent.fraud_check > tool.get_claim / tool.get_claim_documents, attributes gen_ai.agent.name parasol-fraud-agent and enduser.id rebecca on a child span (OpenShift sign-in for MLflow)
 
-Continue with xref:05-scenario3-night-shift.adoc[05. Scenario 3: The night shift].
+== Reset after this scenario
+
+The unsecured portal paid CLM-1004 (AED 84,000). Put it back to *Denied*; the secured portal wrote nothing:
+
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
+
+Continue with xref:05-scenario3-confidential-document.adoc[05. Scenario 3: The confidential document].

@@ -1,5 +1,5 @@
-= 05. Scenario 3: The night shift
-:navtitle: 05. Scenario 3: The night shift
+= 06. Scenario 4: The night shift
+:navtitle: 06. Scenario 4: The night shift
 :toc: macro
 :toclevels: 2
 
@@ -14,6 +14,13 @@ The script `scripts/night-shift.sh` plays the scripted account. It logs in as `n
 ====
 An agent on a shared key is an open invoice: anyone who can reach the chat can spend the budget, and nobody can say who did. On the platform, spend is attributed to a user, so the right account is throttled, everyone else keeps working, and the alert says who.
 ====
+
+== Before you start
+
+This scenario runs on its own, in any order with the others.
+
+* Personas: `nina.contractor` (the night-shift contractor, played by the script) and `rebecca`; passwords equal the user names.
+* State: `nina.contractor` is enabled in Keycloak, the kill switch is off, and her token budget is full. If an earlier run used any of them, undo it as in *Reset after this scenario* below.
 
 == Show: unsecured
 
@@ -76,19 +83,19 @@ What you should see, in the row *Token spend*:
 * *Tokens by user and agent* with `nina.contractor`, `parasol-claims-agent`, `secured` on top;
 * *ParasolAssistantTokenSpendHigh: alert state* stepping to `firing nina.contractor via parasol-claims-agent`.
 +
-// SCREENSHOT: s3-dashboard-spend.png — Console, Parasol Assistant Token Spend, row "Token spend" right after night-shift.sh 40: nina.contractor via parasol-claims-agent above the 5000 line, the tokens table, the alert-state panel firing (OpenShift admin sign-in)
+// SCREENSHOT: s4-dashboard-spend.png — Console, Parasol Assistant Token Spend, row "Token spend" right after night-shift.sh 40: nina.contractor via parasol-claims-agent above the 5000 line, the tokens table, the alert-state panel firing (OpenShift admin sign-in)
 
 . Scroll to the row *Gateway decisions*, then open *Observe*, *Alerting*.
 +
 What you should see: *Gateway rejections by reason* has `429 usage limit (MaaS token budget)` for `nina.contractor` via `parasol-claims-agent` (and Limitador's own `429 all models, all users` count). In *Alerting*, `ParasolAssistantTokenSpendHigh` is firing with the labels `user=nina.contractor`, `agent=parasol-claims-agent`, `namespace=parasol-secured`, and its description reads "Agent parasol-claims-agent on behalf of user nina.contractor is spending ... tokens/min".
 +
-// SCREENSHOT: s3-alert-firing.png — Console, Observe > Alerting, ParasolAssistantTokenSpendHigh firing, labels user=nina.contractor agent=parasol-claims-agent namespace=parasol-secured (OpenShift admin sign-in, within 10 min of the night-shift run)
+// SCREENSHOT: s4-alert-firing.png — Console, Observe > Alerting, ParasolAssistantTokenSpendHigh firing, labels user=nina.contractor agent=parasol-claims-agent namespace=parasol-secured (OpenShift admin sign-in, within 10 min of the night-shift run)
 
 . Select the *OpenShift AI* tab and open *Settings*, then *MaaS governance*.
 +
 What you should see: every model call from the secured side goes through a subscription with its own token limit. `parasol-contractor` is the contractor tier, separate from the staff tiers, which is why only nina.contractor hit the limit while the claims staff kept working. *Gen AI studio*, *API keys* shows when each tier's key was last used. The platform enforced the budget; the dashboard and the alert name who spent it and through which agent.
 +
-image::s3-maas-subscriptions.png["MaaS governance: the contractor, stage and guard subscriptions, each Ready with its own priority and token limit"]
+image::s4-maas-subscriptions.png["MaaS governance: the contractor, stage and guard subscriptions, each Ready with its own priority and token limit"]
 
 == Show: the operator's response
 
@@ -144,4 +151,22 @@ oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"
 
 The morning report is two screens you already have open: the alert and the dashboard.
 
-Continue with xref:06-scenario4-eval-gate.adoc[06. Scenario 4: The evaluation gate].
+== Reset after this scenario
+
+. Refill the per-user token budgets (and put the claims back):
++
+[source,bash,role=execute]
+----
+scripts/reset.sh
+----
+
+. If you used Option A, re-enable `nina.contractor` in the *Keycloak* tab. If you used Option B, switch the kill switch off:
++
+[source,bash,role=execute]
+----
+oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"kustomize":{"components":null}}}}'
+----
+
+The `ParasolAssistantTokenSpendHigh` alert resolves on its own 10 minutes after the spend stops.
+
+Continue with xref:07-scenario5-eval-gate.adoc[07. Scenario 5: The evaluation gate].

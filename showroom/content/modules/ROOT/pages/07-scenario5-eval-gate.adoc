@@ -1,5 +1,5 @@
-= 06. Scenario 4: The evaluation gate
-:navtitle: 06. Scenario 4: The evaluation gate
+= 07. Scenario 5: The evaluation gate
+:navtitle: 07. Scenario 5: The evaluation gate
 :toc: macro
 :toclevels: 2
 
@@ -13,6 +13,18 @@ A developer proposes a shorter system prompt for the assistant, the *candidate: 
 A prompt change is a code change: it can silently remove a safety behavior. A version that fails the evaluation cannot be promoted, and every score is tied to the exact prompt and model version it measured.
 ====
 
+== Before you start
+
+This scenario runs on its own, in any order with the others. It only reads what the installation recorded:
+
+* the EvalHub run, the golden-set evaluation runs and both registered prompt versions (`scripts/seed-demo.sh`, run by the installation);
+* the two release runs `parasol-portal-release-production` and `parasol-portal-release-candidate-shortened` in project `parasol-build`. If one is missing, start it again in the *Terminal* tab (about 20 to 30 minutes):
++
+[source,bash,role=execute]
+----
+scripts/pipeline-runs.sh
+----
+
 == Show: the evaluation run
 
 . Select the *OpenShift AI* tab, open *Develop & train*, then *Evaluations* (Technology Preview), and select project `parasol-eval`.
@@ -21,7 +33,7 @@ What you should see: the run `parasol-agent-model-ifeval` in state *Completed*. 
 +
 Say: this is a five-prompt smoke run of a generic benchmark, so the number is not the point. The point is that evaluation is a platform service with a recorded result per model. Whether this assistant is safe to ship is decided by its own golden set, next.
 +
-image::s4-rhoai-evaluations.png["OpenShift AI Evaluations page: the completed IFEval run of qwen3-14b in project parasol-eval"]
+image::s5-rhoai-evaluations.png["OpenShift AI Evaluations page: the completed IFEval run of qwen3-14b in project parasol-eval"]
 
 == Show: the golden set, production prompt against the candidate
 
@@ -29,15 +41,15 @@ image::s4-rhoai-evaluations.png["OpenShift AI Evaluations page: the completed IF
 +
 What you should see: the golden set `parasol-golden-20` scored on every run, each case judged by `gpt-oss-120b`. The *production prompt* (runs `production-prompt`) scores *20/20, PASS*; the *candidate: shortened prompt* (runs `candidate-shortened-prompt`) scores *17/20, BLOCK*, failing the injection-document, role-authorization and other-claimant cases.
 +
-// SCREENSHOT: s4-mlflow-eval-runs.png — MLflow, workspace parasol-secured, experiment parasol-agent-eval, Evaluation runs: production-prompt 20/20 PASS and candidate-shortened-prompt 17/20 BLOCK (recapture: the old image shows the pre-rename v1/v2 run names)
-image::s4-mlflow-eval-runs.png["MLflow evaluation runs: production-prompt at 20/20 with gate 1, candidate-shortened-prompt at 17/20 with gate 0"]
+// SCREENSHOT: s5-mlflow-eval-runs.png — MLflow, workspace parasol-secured, experiment parasol-agent-eval, Evaluation runs: production-prompt 20/20 PASS and candidate-shortened-prompt 17/20 BLOCK (recapture: the old image shows the pre-rename v1/v2 run names)
+image::s5-mlflow-eval-runs.png["MLflow evaluation runs: production-prompt at 20/20 with gate 1, candidate-shortened-prompt at 17/20 with gate 0"]
 
 . Select one `production-prompt` run and one `candidate-shortened-prompt` run and choose *Compare*.
 +
 What you should see: `variant` production against candidate-shortened (`prompt_version` 1 against 2: the prompt registry version numbers, 2 being the candidate), `gate_passed` 1 against 0, and every detector rate lower for the candidate.
 +
-// SCREENSHOT: s4-mlflow-v1-vs-v2.png — MLflow Compare of one production-prompt and one candidate-shortened-prompt run: variant, prompt_version 1 vs 2, gate_passed 1 vs 0 (recapture under the same file name: old run names)
-image::s4-mlflow-v1-vs-v2.png["MLflow run comparison: production prompt against the shortened candidate, gate_passed 1 against 0"]
+// SCREENSHOT: s5-mlflow-v1-vs-v2.png — MLflow Compare of one production-prompt and one candidate-shortened-prompt run: variant, prompt_version 1 vs 2, gate_passed 1 vs 0 (recapture under the same file name: old run names)
+image::s5-mlflow-v1-vs-v2.png["MLflow run comparison: production prompt against the shortened candidate, gate_passed 1 against 0"]
 
 . Open a `candidate-shortened-prompt` run and its injection-document case.
 +
@@ -66,8 +78,12 @@ The link back from the gate to production: every live chat turn names the prompt
 
 . Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*. Open any recent chat trace (for example the CLM-1004 turn from Scenario 2), or search with `tags.agent = 'parasol-claims-agent'`.
 +
-What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt@production`, next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the alias the production release run was gated on (`prompt-ref` on the `env-secured` Application, xref:07-supply-chain.adoc[07. Supply chain]); the shortened candidate never appears here, because it was never promoted.
+What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt@production`, next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the alias the production release run was gated on (`prompt-ref` on the `env-secured` Application, xref:08-supply-chain.adoc[08. Supply chain]); the shortened candidate never appears here, because it was never promoted.
 +
-// SCREENSHOT: s4-mlflow-runtime-prompt.png — MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on tags.agent = 'parasol-claims-agent', one trace open showing the prompt / agent / model tags (OpenShift sign-in for MLflow)
+// SCREENSHOT: s5-mlflow-runtime-prompt.png — MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on tags.agent = 'parasol-claims-agent', one trace open showing the prompt / agent / model tags (OpenShift sign-in for MLflow)
 
-Continue with xref:07-supply-chain.adoc[07. Supply chain: signing and admission].
+== Reset after this scenario
+
+Nothing to reset: this scenario changes no data.
+
+Continue with xref:08-supply-chain.adoc[08. Supply chain: signing and admission].
