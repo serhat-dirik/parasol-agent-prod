@@ -71,7 +71,10 @@ public class GatewayTools {
     @Inject
     OpenTelemetry otel;
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    // HTTP/1.1 like the agents' MCP clients: over h2 the gateway intermittently answered the first
+    // tools/call on a fresh connection with "request body is not valid json"
+    private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(5)).build();
 
     private record Cached(String token, Instant until) {
     }
