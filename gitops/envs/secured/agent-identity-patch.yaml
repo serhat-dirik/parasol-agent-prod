@@ -17,6 +17,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: tokenUrl}}
             - {name: MCP_AUTH_AGENT_ID, value: parasol-claims-agent}
             - {name: MCP_AUTH_ASSERTION_FILE, value: /var/run/secrets/parasol/agent/token}
+            - name: AGENT_SAFETY_RULES
+              valueFrom: {configMapKeyRef: {name: agent-config, key: restAgentSafetyRules}}
             # Both MCP clients point at the one gateway URL; each selects its MCPVirtualServer so the model
             # sees every tool once (otherwise: "Duplicated definition for tool"). The tool list is not cached:
             # the gateway filters it per caller token, so the first caller must not fix it for all.

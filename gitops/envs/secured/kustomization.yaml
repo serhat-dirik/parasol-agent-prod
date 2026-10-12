@@ -54,5 +54,8 @@ configMapGenerator:
       - tokenUrl=https://sso.apps.CLUSTER_DOMAIN/realms/parasol/protocol/openid-connect/token
     files:
       - safetyRules=safety-rules.txt
+      # the headless REST agent (scripts only) has neither propose_payout nor a fraud-check client, so it
+      # gets the rules without those two tools; the gateway still decides approve_payout per user
+      - restAgentSafetyRules=safety-rules-rest-agent.txt
 generatorOptions:
   disableNameSuffixHash: true
