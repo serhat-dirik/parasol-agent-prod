@@ -19,6 +19,52 @@ spec:
     enabled: true
     accessTokenLifespan: 3600
     clients:
+    # (Listed before parasol-portal: the platform-keycloak Application patches clients/2 = parasol-portal.)
+    # The agents' own identities (scripts/agent-clients.sh keeps them in sync). Confidential, but with NO
+    # secret: each authenticates with its pod's projected ServiceAccount token as a client assertion
+    # (federated-jwt via the 'openshift-sa' identity provider). Their only grant is standard token
+    # exchange: the user's token in, a token with sub = the user and azp = the agent out. fullScopeAllowed
+    # false + clientScopeMappings below = the agent CEILING (exchanged roles = user's AND the ceiling).
+    - clientId: parasol-claims-agent
+      name: Parasol claims assistant (agent identity)
+      publicClient: false
+      clientAuthenticatorType: federated-jwt
+      serviceAccountsEnabled: true
+      standardFlowEnabled: false
+      directAccessGrantsEnabled: false
+      fullScopeAllowed: false
+      protocol: openid-connect
+      enabled: true
+      attributes:
+        standard.token.exchange.enabled: 'true'
+        jwt.credential.issuer: openshift-sa
+        jwt.credential.sub: system:serviceaccount:parasol-secured:claims-agent
+      defaultClientScopes: [basic, roles, profile]
+      # its tokens may be exchanged again by the fraud agent (agent-to-agent)
+      protocolMappers:
+      - name: audience-parasol-fraud-agent
+        protocol: openid-connect
+        protocolMapper: oidc-audience-mapper
+        config:
+          included.client.audience: parasol-fraud-agent
+          access.token.claim: 'true'
+          id.token.claim: 'false'
+          introspection.token.claim: 'true'
+    - clientId: parasol-fraud-agent
+      name: Parasol fraud-check agent (agent identity)
+      publicClient: false
+      clientAuthenticatorType: federated-jwt
+      serviceAccountsEnabled: true
+      standardFlowEnabled: false
+      directAccessGrantsEnabled: false
+      fullScopeAllowed: false
+      protocol: openid-connect
+      enabled: true
+      attributes:
+        standard.token.exchange.enabled: 'true'
+        jwt.credential.issuer: openshift-sa
+        jwt.credential.sub: system:serviceaccount:parasol-secured:fraud-agent
+      defaultClientScopes: [basic, roles, profile]
     # Portal login (quarkus-oidc web-app, authorization-code flow). Confidential: on a fresh realm import
     # Keycloak generates the secret; scripts/portal-oidc-client.sh reads it into the parasol-portal-oidc
     # Secret in parasol-free and parasol-secured. The secret is never committed.
@@ -74,51 +120,6 @@ spec:
           access.token.claim: 'true'
           id.token.claim: 'false'
           introspection.token.claim: 'true'
-    # The agents' own identities (scripts/agent-clients.sh keeps them in sync). Confidential, but with NO
-    # secret: each authenticates with its pod's projected ServiceAccount token as a client assertion
-    # (federated-jwt via the 'openshift-sa' identity provider). Their only grant is standard token
-    # exchange: the user's token in, a token with sub = the user and azp = the agent out. fullScopeAllowed
-    # false + clientScopeMappings below = the agent CEILING (exchanged roles = user's AND the ceiling).
-    - clientId: parasol-claims-agent
-      name: Parasol claims assistant (agent identity)
-      publicClient: false
-      clientAuthenticatorType: federated-jwt
-      serviceAccountsEnabled: true
-      standardFlowEnabled: false
-      directAccessGrantsEnabled: false
-      fullScopeAllowed: false
-      protocol: openid-connect
-      enabled: true
-      attributes:
-        standard.token.exchange.enabled: 'true'
-        jwt.credential.issuer: openshift-sa
-        jwt.credential.sub: system:serviceaccount:parasol-secured:claims-agent
-      defaultClientScopes: [basic, roles, profile]
-      # its tokens may be exchanged again by the fraud agent (agent-to-agent)
-      protocolMappers:
-      - name: audience-parasol-fraud-agent
-        protocol: openid-connect
-        protocolMapper: oidc-audience-mapper
-        config:
-          included.client.audience: parasol-fraud-agent
-          access.token.claim: 'true'
-          id.token.claim: 'false'
-          introspection.token.claim: 'true'
-    - clientId: parasol-fraud-agent
-      name: Parasol fraud-check agent (agent identity)
-      publicClient: false
-      clientAuthenticatorType: federated-jwt
-      serviceAccountsEnabled: true
-      standardFlowEnabled: false
-      directAccessGrantsEnabled: false
-      fullScopeAllowed: false
-      protocol: openid-connect
-      enabled: true
-      attributes:
-        standard.token.exchange.enabled: 'true'
-        jwt.credential.issuer: openshift-sa
-        jwt.credential.sub: system:serviceaccount:parasol-secured:fraud-agent
-      defaultClientScopes: [basic, roles, profile]
     - clientId: parasol-secured/claims-db
       name: claims-db MCP server (resource server)
       publicClient: true
