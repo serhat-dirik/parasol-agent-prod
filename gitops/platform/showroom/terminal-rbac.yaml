@@ -96,7 +96,7 @@ rules:
   - apiGroups: [kuadrant.io]
     resources: [authpolicies, ratelimitpolicies, tokenratelimitpolicies]
     verbs: [get, list, watch]
-  - apiGroups: [mcp.kagenti.com, mcp.kuadrant.io]
+  - apiGroups: [mcp.kuadrant.io]
     resources: [mcpgatewayextensions, mcpserverregistrations, mcpvirtualservers]
     verbs: [get, list, watch]
   - apiGroups: [policy.sigstore.dev]
