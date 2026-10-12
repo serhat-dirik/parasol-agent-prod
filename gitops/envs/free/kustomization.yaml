@@ -15,7 +15,7 @@ configMapGenerator:
       - claimsDbMcpUrl=http://claims-db:8080/mcp
       - policyDocsMcpUrl=http://policy-docs:8080/mcp
       - claimsDbApiUrl=http://claims-db:8080
-      - version=v1-free
+      - env=free   # environment label on metrics and traces
       # no safetyRules: the prompt exactly as it was written on the laptop
 generatorOptions:
   disableNameSuffixHash: true

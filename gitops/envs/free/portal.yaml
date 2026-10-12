@@ -32,8 +32,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: policyDocsMcpUrl}}
             - name: CLAIMS_DB_API_URL
               valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbApiUrl}}
-            - name: AGENT_VERSION
-              valueFrom: {configMapKeyRef: {name: agent-config, key: version}}
+            - name: AGENT_ENV
+              valueFrom: {configMapKeyRef: {name: agent-config, key: env}}
             # login still happens (beat 1), but the free app does nothing with the identity
             - name: QUARKUS_OIDC_AUTH_SERVER_URL
               valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: auth-server-url}}

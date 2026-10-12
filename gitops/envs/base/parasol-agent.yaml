@@ -28,8 +28,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbMcpUrl}}
             - name: POLICY_DOCS_MCP_URL
               valueFrom: {configMapKeyRef: {name: agent-config, key: policyDocsMcpUrl}}
-            - name: AGENT_VERSION
-              valueFrom: {configMapKeyRef: {name: agent-config, key: version}}
+            - name: AGENT_ENV
+              valueFrom: {configMapKeyRef: {name: agent-config, key: env}}
             - name: AGENT_SAFETY_RULES
               valueFrom: {configMapKeyRef: {name: agent-config, key: safetyRules, optional: true}}
             - name: AGENT_RETRY_MAX

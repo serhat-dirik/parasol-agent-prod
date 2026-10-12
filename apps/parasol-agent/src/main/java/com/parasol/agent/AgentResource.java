@@ -68,9 +68,9 @@ public class AgentResource {
         return safetyRulesConfig.orElse("");
     }
 
-    /** Version label shown in /agent/info and responses (AGENT_VERSION). */
-    @ConfigProperty(name = "agent.version", defaultValue = "dev")
-    String version;
+    /** Environment label (secured / free) shown in /agent/info and responses and on metrics (AGENT_ENV). */
+    @ConfigProperty(name = "agent.env", defaultValue = "dev")
+    String env;
 
     /**
      * The "v3 bug": how many times to re-ask the model when the answer does not look complete.
@@ -137,7 +137,7 @@ public class AgentResource {
                         .map(AgentResource::toToolCall)
                         .toList();
             }
-            LOG.infof("ask caller=%s agent=%s version=%s tools=%s tokens=%s", caller.subject(), mcpAuth.agentId(), version,
+            LOG.infof("ask caller=%s agent=%s env=%s tools=%s tokens=%s", caller.subject(), mcpAuth.agentId(), env,
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount());
             return Response.ok(new AskResponse(
@@ -147,7 +147,7 @@ public class AgentResource {
                     modelName,
                     usage(result.tokenUsage()),
                     caller.subject(),
-                    version)).build();
+                    env)).build();
         } catch (Exception e) {
             String detail = redactCredentials(rootMessage(e));
             boolean auth = looksLikeAuthFailure(detail);
@@ -169,7 +169,7 @@ public class AgentResource {
     @GET
     @Path("/info")
     public Response info() {
-        return Response.ok(new AgentInfo(modelName, claimsDbUrl, policyDocsUrl, version,
+        return Response.ok(new AgentInfo(modelName, claimsDbUrl, policyDocsUrl, env,
                 mcpAuth.describe(), !safetyRules().isBlank(), retryMax)).build();
     }
 
@@ -203,14 +203,15 @@ public class AgentResource {
             return;
         }
         if (t.inputTokenCount() != null) {
-            metrics.counter("parasol_agent_tokens_total", "type", "input", "version", version)
+            metrics.counter("parasol_agent_tokens_total", "type", "input", "env", env, "user", caller.subject(), "agent", mcpAuth.agentId())
                     .increment(t.inputTokenCount());
         }
         if (t.outputTokenCount() != null) {
-            metrics.counter("parasol_agent_tokens_total", "type", "output", "version", version)
+            metrics.counter("parasol_agent_tokens_total", "type", "output", "env", env, "user", caller.subject(), "agent", mcpAuth.agentId())
                     .increment(t.outputTokenCount());
         }
-        metrics.counter("parasol_agent_model_calls_total", "version", version).increment();
+        metrics.counter("parasol_agent_model_calls_total", "env", env, "user", caller.subject(),
+                "agent", mcpAuth.agentId()).increment();
     }
 
     private static ToolCall toToolCall(ToolExecution execution) {
@@ -319,7 +320,7 @@ public class AgentResource {
 
     /** Success body for {@code POST /agent/ask}. */
     public record AskResponse(String question, String answer, List<ToolCall> toolCalls,
-                              String model, Usage tokenUsage, String caller, String version) {
+                              String model, Usage tokenUsage, String caller, String env) {
     }
 
     /** Error body for {@code POST /agent/ask} (bad input or an upstream model failure). */
@@ -328,6 +329,6 @@ public class AgentResource {
 
     /** Body for {@code GET /agent/info}. */
     public record AgentInfo(String model, String claimsDbMcpUrl, String policyDocsMcpUrl,
-                            String version, String toolIdentity, boolean safetyRules, int retryMax) {
+                            String env, String toolIdentity, boolean safetyRules, int retryMax) {
     }
 }
