@@ -46,6 +46,36 @@ data:
     # the named group. Checked on the assistant's final answer; group names come from the portal's baggage.
     OUTPUT = {name: (re.compile(r["pattern"]), r["allow_group"]) for name, r in rules("output.json", {}).items()}
 
+    # Outbound links (defence in depth): a URL or image in an ANSWER whose host is not on the allow-list is
+    # removed before the chat renders it, so an answer can never carry data out in a link or an image URL.
+    LINKS = rules("links.json", {})
+    MD = re.compile(r"(!?)\[([^\]]*)\]\(\s*([^)\s]+)[^)]*\)")       # [text](url) and ![alt](url)
+    BARE = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>()\[\]\"'`]+")
+
+    def link_allowed(url, allow):
+        host = (urllib.parse.urlparse(url if "://" in url else "http://" + url).hostname or "").lower()
+        return any(host == d or host.endswith("." + d) for d in allow)
+
+    def strip_links(text):
+        """(text without off-list links/images, hits). Markdown links keep their text, images go entirely."""
+        hits = []
+        if not isinstance(text, str):
+            return text, hits
+        for name, r in LINKS.items():
+            allow = [d.lower() for d in r.get("allow_domains", [])]
+            def md(m):
+                if link_allowed(m.group(3), allow):
+                    return m.group(0)
+                hits.append({"detector_id": name, "detection_type": "output", "score": 1.0, "text": m.group(3)})
+                return "[external image removed]" if m.group(1) else m.group(2) + " [external link removed]"
+            def bare(m):
+                if link_allowed(m.group(0), allow):
+                    return m.group(0)
+                hits.append({"detector_id": name, "detection_type": "output", "score": 1.0, "text": m.group(0)})
+                return "[external link removed]"
+            text = BARE.sub(bare, MD.sub(md, text))
+        return text, hits
+
     def groups_of(headers):
         for item in (headers.get("baggage") or "").split(","):
             k, _, v = item.split(";")[0].partition("=")
@@ -257,7 +287,14 @@ data:
                             "confidential document withheld")
                 out["usage"] = r.get("usage") or out["usage"]   # the model call did happen: keep its token count
                 return self._send(200, out)
-            if isinstance(r, dict) and (flag or masked):
+            # Output rule: links and images to hosts outside the allow-list are removed from the answer.
+            links = []
+            if isinstance(answer, str):
+                cleaned, links = strip_links(answer)
+                if links:
+                    record(ctx, "redact", links)
+                    r["choices"][0]["message"]["content"] = cleaned
+            if isinstance(r, dict) and (flag or masked or links):
                 try:
                     msg = r["choices"][0]["message"]
                     body = msg.get("content") or ""
@@ -278,6 +315,12 @@ data:
                                        "message": "personal data masked"}
                     if msg is not None:
                         msg["content"] = sentinel("mask", "personal data masked", masked=masked) + "\n" + body
+                elif links:
+                    names, score = names_score(links)
+                    r["guardrails"] = {"action": "redact", "detectors": names, "score": score, "detections": links,
+                                       "message": "external link removed from the answer"}
+                    if msg is not None:
+                        msg["content"] = sentinel("redact", "external link removed from the answer", names, score) + "\n" + body
             self._send(code, r)
 
         def log_message(self, fmt, *args):  # request line only; never headers (the MaaS key)
@@ -303,6 +346,13 @@ data:
         assert not output_hits("Plan: CONFIDENTIAL \u2014 Claims managers only.", {"claims-managers"})
         assert not output_hits("Nothing I can share.", g)
         del OUTPUT["selftest-marker"]
+        LINKS["selftest-links"] = {"allow_domains": ["parasol.example"]}
+        t, h = strip_links("See https://evil.example/c?d=CLM-1004 and [portal](https://portal.parasol.example/x) "
+                           "![x](https://img.evil.example/p.png?q=1) or www.evil.example/a.")
+        assert "evil" not in t and "portal.parasol.example" in t and len(h) == 3, (t, h)
+        assert "[external image removed]" in t and "portal [" not in t, t
+        assert strip_links("No links here, AED 8,400.")[1] == []
+        del LINKS["selftest-links"]
         TOPIC.append(re.compile(r"(?i)\bessay\b"))
         assert topic_hits("write me a 2000-word essay") and not topic_hits("approve the payout")
         ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
@@ -319,6 +369,9 @@ spec:
   template:
     metadata:
       labels: {app: guardrails, component: guardrails-proxy}
+      annotations:
+        # the proxy reads proxy.py and guardrails-rules at start: bump this with a rule change so Argo CD rolls it
+        parasol.example/rules-revision: "external-link-1"
     spec:
       containers:
         - name: proxy

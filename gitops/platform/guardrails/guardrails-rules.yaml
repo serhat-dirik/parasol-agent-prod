@@ -22,6 +22,12 @@ data:
                     outside claims-managers: action=block, detector=confidential-marker. Defence in depth: the
                     knowledge base already does not return those documents to such a caller.
 
+    links.json      links and images in an ANSWER whose host is not on the allow-list (Parasol's own domains):
+                    action=redact, detector=external-link. A link keeps its text and loses its URL, an image is
+                    removed, a bare URL becomes "[external link removed]"; the chat shows an amber banner
+                    "external link removed from the answer". An answer can never carry data out in a link the
+                    reader clicks or an image the browser loads.
+
     tool-descriptions.json  read by the MCP tool scanner (mcp-system/mcp-tool-scanner), not by the proxy: what a
                     tool DESCRIPTION must not contain. The scanner applies detectors.json above plus these patterns
                     (concealment, "before you answer, call ...") plus the names of other servers' tools to every
@@ -29,7 +35,7 @@ data:
                     this ConfigMap on every scan (30 s); no restart.
 
     Every detection is one log line of deploy/guardrails-proxy:
-      guardrail action=<flag|block|mask> detector=<id> score=<0..1> user=<user> agent=<agent> trace=<trace id> text=<match>
+      guardrail action=<flag|block|mask|redact> detector=<id> score=<0..1> user=<user> agent=<agent> trace=<trace id> text=<match>
     and one count of parasol_guardrails_detections_total{detector,action,user,agent} (dashboard: Parasol
     Assistant Token Spend, panel "Guardrail hits").
 
@@ -51,6 +57,8 @@ data:
   output.json: |
     {"confidential-marker": {"pattern": "(?i)confidential\\s*[-:\u2010-\u2015]+\\s*claims[\\s-]+managers?\\s+only",
                              "allow_group": "claims-managers"}}
+  links.json: |
+    {"external-link": {"allow_domains": ["parasol.example"]}}
   pii.json: |
     {"email": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
      "Emirates ID": "\\b784-?\\d{4}-?\\d{7}-?\\d\\b",

@@ -83,7 +83,9 @@ spec:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: observability}
 ---
-# Guardrails orchestrator: from the agent, to the detector, to MaaS (external) and OTel.
+# Guardrails (orchestrator + proxy): from the agent, to the detectors in this namespace, to the platform's
+# MaaS gateway (openshift-ingress, which alone holds the upstream provider keys) and OTel. No egress to the
+# internet: a guardrails pod cannot call a model the platform has not registered either.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -100,7 +102,14 @@ spec:
         - namespaceSelector:
             matchLabels: {network.openshift.io/policy-group: monitoring}
   egress:
-    - {}   # external MaaS over HTTPS; tighten with an EgressFirewall to the MaaS host (see docs/layers.md)
+    - to:   # orchestrator <-> regex / prompt-injection detectors
+        - podSelector: {}
+    - to:   # the in-cluster MaaS gateway (maas-default-gateway in openshift-ingress)
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
 ---
 # The detector: only the orchestrator talks to it.
 apiVersion: networking.k8s.io/v1
