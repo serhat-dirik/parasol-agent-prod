@@ -10,6 +10,8 @@
 #    only the tool roles that are BOTH the user's AND inside the agent's scope
 #  - audience mappers so a portal login token can be exchanged by the claims agent, and the claims
 #    agent's token by the fraud agent (agent-to-agent)
+#  - public client parasol-demo-cli: the headless persona logins of the scripts (scripts/token.sh), direct
+#    grants only (no browser flow), so the portal client parasol-portal stays browser-only
 #  - realm events on (TOKEN_EXCHANGE etc.), so Keycloak > Events shows user + client per exchange
 #  - removes the retired 'parasol-agent' (password-grant service identity) and unused 'mcp-gateway' clients
 # Mirrored into gitops/platform/keycloak/realm-import.yaml. Nothing secret is created or printed.
@@ -63,6 +65,19 @@ agent() {  # $1 clientId  $2 service account  $3 display name
 agent parasol-claims-agent claims-agent "Parasol claims assistant (agent identity)"
 agent parasol-fraud-agent fraud-agent "Parasol fraud-check agent (agent identity)"
 
+# --- headless persona logins for the scripts: public, password grant only, no browser flow ---
+DEMO_CLI="$(jq -nc '{clientId:"parasol-demo-cli", name:"Parasol demo scripts (headless persona login)",
+  enabled:true, protocol:"openid-connect", publicClient:true,
+  standardFlowEnabled:false, implicitFlowEnabled:false, directAccessGrantsEnabled:true,
+  serviceAccountsEnabled:false, fullScopeAllowed:true,
+  defaultClientScopes:["basic","roles","profile","email"], optionalClientScopes:["groups"]}')"
+u="$(cuuid parasol-demo-cli)"
+if [ -z "$u" ]; then
+  kc -X POST "$API/clients" -d "$DEMO_CLI" -o /dev/null -w "client parasol-demo-cli create http=%{http_code}\n"
+else
+  kc -X PUT "$API/clients/$u" -d "$DEMO_CLI" -o /dev/null -w "client parasol-demo-cli update http=%{http_code}\n"
+fi
+
 # --- ceilings: exactly these tool roles, nothing else (extra mappings are removed) ---
 ceiling() {  # $1 agent clientId  $2 tool clientId  rest = role names
   local agent="$1" tool="$2"; shift 2
@@ -98,6 +113,7 @@ audience() {  # $1 client that issues/receives the token  $2 audience client add
     -o /dev/null -w "mapper $1/$name http=%{http_code}\n"
 }
 audience parasol-portal parasol-claims-agent
+audience parasol-demo-cli parasol-claims-agent
 audience parasol-claims-agent parasol-fraud-agent
 
 # --- realm events: token exchanges (and logins) with user + client on Keycloak > Events ---

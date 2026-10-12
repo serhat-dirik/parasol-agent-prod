@@ -167,7 +167,7 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
    and admitting the signed one.
 
 Other helpers:
-- `scripts/token.sh <user>` — print a demo user's access token (the portal login token).
+- `scripts/token.sh <user>` — print a demo user's access token (headless login through the public client `parasol-demo-cli`; the portal client is browser-only).
 - `scripts/agent-token.sh <user> [fraud-agent]` — the token an agent presents for that user at the MCP gateway.
 - Bootstrap helpers, called by `bootstrap.sh` (each idempotent, re-runnable alone): `ensure-operators.py`,
   `rhoai-enable.sh`, `build-images.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`,

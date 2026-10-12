@@ -72,8 +72,8 @@ spec:
       name: Parasol claims portal (web-app)
       publicClient: false
       standardFlowEnabled: true
-      # direct grants: the scripted persona logins (scripts/token.sh, needs the secret only the cluster holds)
-      directAccessGrantsEnabled: true
+      # browser-only: the scripts log personas in through parasol-demo-cli below
+      directAccessGrantsEnabled: false
       serviceAccountsEnabled: false
       protocol: openid-connect
       enabled: true
@@ -151,6 +151,28 @@ spec:
       defaultClientScopes:
       - roles
       fullScopeAllowed: true
+    # Headless persona logins of the scripts (scripts/token.sh): public, password grant only, no browser
+    # flow. Its tokens may be exchanged by the claims agent, like a portal login token.
+    - clientId: parasol-demo-cli
+      name: Parasol demo scripts (headless persona login)
+      publicClient: true
+      standardFlowEnabled: false
+      directAccessGrantsEnabled: true
+      serviceAccountsEnabled: false
+      protocol: openid-connect
+      enabled: true
+      fullScopeAllowed: true
+      defaultClientScopes: [basic, roles, profile, email]
+      optionalClientScopes: [groups]
+      protocolMappers:
+      - name: audience-parasol-claims-agent
+        protocol: openid-connect
+        protocolMapper: oidc-audience-mapper
+        config:
+          included.client.audience: parasol-claims-agent
+          access.token.claim: 'true'
+          id.token.claim: 'false'
+          introspection.token.claim: 'true'
     roles:
       client:
         parasol-secured/claims-db:

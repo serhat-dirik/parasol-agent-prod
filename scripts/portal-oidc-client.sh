@@ -2,8 +2,8 @@
 # Idempotent: create/update the 'parasol-portal' confidential OIDC client in realm 'parasol'
 # (quarkus-oidc web-app for the portal login), and mirror its secret into a k8s Secret in
 # parasol-free and parasol-secured. The client secret is NEVER printed or committed.
-# Direct grants are on for the scripted persona logins (scripts/token.sh): same token shape as a browser
-# login, and the client is confidential, so it needs the secret that only the cluster holds.
+# Browser login only (authorization code). The scripts log personas in through the public client
+# parasol-demo-cli (scripts/agent-clients.sh), so direct grants stay off here.
 # Usage: scripts/portal-oidc-client.sh   (oc login as admin; Keycloak admin login via scripts/keycloak-admin.sh)
 set -euo pipefail
 
@@ -39,7 +39,7 @@ CLIENT_JSON="$(jq -nc \
   --argjson origins "$ORIGINS" \
   '{clientId:$cid, name:"Parasol claims portal (web-app)", enabled:true,
     protocol:"openid-connect", publicClient:false, standardFlowEnabled:true,
-    directAccessGrantsEnabled:true, serviceAccountsEnabled:false,
+    directAccessGrantsEnabled:false, serviceAccountsEnabled:false,
     redirectUris:$redirects, webOrigins:$origins, fullScopeAllowed:true,
     attributes:{"post.logout.redirect.uris":"+"},
     defaultClientScopes:["roles","profile","email"],
