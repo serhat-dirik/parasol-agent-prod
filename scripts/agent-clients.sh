@@ -62,13 +62,16 @@ agent() {  # $1 clientId  $2 service account  $3 display name  $4 default client
     kc -X PUT "$API/clients/$uuid" -d "$json" -o /dev/null -w "client $1 update http=%{http_code}\n"
   fi
 }
-# the claims agent's tokens carry the user's groups: the knowledge base decides which documents they may read
+# both agents' tokens carry the user's groups: the knowledge base decides which documents they may read,
+# claims-db which claim records (claims-managers: all; everyone else: the claims assigned to them)
 agent parasol-claims-agent claims-agent "Parasol claims assistant (agent identity)" '["basic","roles","profile","groups"]'
-agent parasol-fraud-agent fraud-agent "Parasol fraud-check agent (agent identity)" '["basic","roles","profile"]'
+agent parasol-fraud-agent fraud-agent "Parasol fraud-check agent (agent identity)" '["basic","roles","profile","groups"]'
 # an update (PUT) ignores defaultClientScopes: attach the groups scope explicitly (idempotent)
 GSID="$(kc "$API/client-scopes" | jq -r '.[] | select(.name=="groups") | .id')"
 [ -n "$GSID" ] || { echo "client scope groups not found"; exit 1; }
-kc -X PUT "$API/clients/$(cuuid parasol-claims-agent)/default-client-scopes/$GSID" -o /dev/null -w "parasol-claims-agent default scope groups http=%{http_code}\n"
+for c in parasol-claims-agent parasol-fraud-agent; do
+  kc -X PUT "$API/clients/$(cuuid $c)/default-client-scopes/$GSID" -o /dev/null -w "$c default scope groups http=%{http_code}\n"
+done
 
 # --- headless persona logins for the scripts: public, password grant only, no browser flow ---
 DEMO_CLI="$(jq -nc '{clientId:"parasol-demo-cli", name:"Parasol demo scripts (headless persona login)",

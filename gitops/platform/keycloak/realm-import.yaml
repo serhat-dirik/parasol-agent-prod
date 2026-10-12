@@ -65,7 +65,8 @@ spec:
         standard.token.exchange.enabled: 'true'
         jwt.credential.issuer: openshift-sa
         jwt.credential.sub: system:serviceaccount:parasol-secured:fraud-agent
-      defaultClientScopes: [basic, roles, profile]
+      # groups: claims-db decides which claim records the user may read through this agent
+      defaultClientScopes: [basic, roles, profile, groups]
     # Portal login (quarkus-oidc web-app, authorization-code flow). Confidential: on a fresh realm import
     # Keycloak generates the secret; scripts/portal-oidc-client.sh reads it into the parasol-portal-oidc
     # Secret in parasol-free and parasol-secured. The secret is never committed.

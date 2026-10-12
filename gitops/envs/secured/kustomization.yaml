@@ -17,6 +17,7 @@ resources:
   - mcp-registrations.yaml
   - serviceaccounts.yaml   # the agents' workload identities (federated client auth at Keycloak, no secrets)
   - fraud-check.yaml       # V3: the fraud-check agent (2nd MCP server behind the gateway, agent-to-agent)
+  - claims-db-records.yaml # record-level access: adjusters read only the claims assigned to them
   - knowledge-base.yaml    # RAG: the knowledge base behind the gateway, retrieval as the user (groups + row-level security)
   - portal.yaml            # Stream P: the secured claims portal (login, gated writes, guardrails)
   - portal-networkpolicy.yaml  # Stream P: the portal's layer-1 egress (kill switch patches this)
@@ -42,6 +43,14 @@ patches:
     target: {kind: Deployment, name: parasol-agent}
   - path: sandbox-patch.yaml
     target: {kind: Deployment}
+  - target: {kind: Deployment, name: claims-db}   # record-level access from the verified caller token
+    patch: |-
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: CLAIMS_ACL_ENFORCE, value: "true"}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: CLAIMS_ACL_TOKEN_URL, valueFrom: {configMapKeyRef: {name: agent-config, key: tokenUrl}}}
   - target: {kind: Deployment, name: knowledge-base}   # retrieval spans join the portal's trace
     patch: |-
       - op: add

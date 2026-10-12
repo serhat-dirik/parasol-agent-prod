@@ -41,6 +41,9 @@ public class ClaimsTools {
     @Inject
     Instance<HttpServerRequest> request;
 
+    @Inject
+    RecordAccess access;
+
     private static final Pattern USER = Pattern.compile("\"preferred_username\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern AZP = Pattern.compile("\"azp\"\\s*:\\s*\"([^\"]+)\"");
 
@@ -49,9 +52,39 @@ public class ClaimsTools {
      * this call, or null without one (free). Read, not validated: in secured this server is reachable
      * only through the MCP gateway, which validated the token and the agent before routing here.
      */
+    String authorization() {
+        try {
+            return request.get().getHeader("Authorization");
+        } catch (RuntimeException e) {   // no HTTP request (tests)
+            return null;
+        }
+    }
+
+    /**
+     * Record-level access (secured): null when the caller may read this claim, or record access is off
+     * (free), or the claim does not exist; otherwise the refusal the tool returns instead of the record.
+     */
+    String guard(String tool, String claimNumber) {
+        if (!access.enforced()) {
+            return null;
+        }
+        RecordAccess.Caller who;
+        try {
+            who = access.verify(authorization());
+        } catch (RecordAccess.Denied d) {
+            return access.refuse(tool, ClaimsRepository.normalize(claimNumber), null, d.getMessage());
+        }
+        Optional<ClaimView> c = repo.find(claimNumber);
+        if (c.isPresent() && !who.mayRead(c.get())) {
+            return access.refuse(tool, c.get().claimNumber(), who, "assigned to " + c.get().adjuster());
+        }
+        access.allowed(who);
+        return null;
+    }
+
     String caller() {
         try {
-            String auth = request.get().getHeader("Authorization");
+            String auth = authorization();
             if (auth == null || !auth.startsWith("Bearer ")) {
                 return null;
             }
@@ -72,6 +105,10 @@ public class ClaimsTools {
                     + "Use this to answer questions about the status or details of a specific claim.")
     public String getClaim(
             @ToolArg(description = "The claim number, e.g. CLM-1001") String claimNumber) {
+        String denied = guard("get_claim", claimNumber);
+        if (denied != null) {
+            return denied;
+        }
         Optional<ClaimView> claim = repo.find(claimNumber);
         if (claim.isEmpty()) {
             return "No claim found with number " + ClaimsRepository.normalize(claimNumber) + ".";
@@ -95,6 +132,10 @@ public class ClaimsTools {
                     required = false) Double amount,
             @ToolArg(description = "The user who authorized this approval; omit when the assistant "
                     + "approves autonomously", required = false) String actor) {
+        String denied = guard("approve_payout", claimNumber);
+        if (denied != null) {
+            return denied;
+        }
         BigDecimal value = amount == null ? null : BigDecimal.valueOf(amount).setScale(2, RoundingMode.HALF_UP);
         // The token's identity wins over the actor argument: "Approved by marcus via parasol-claims-agent".
         String who = caller();
@@ -110,7 +151,22 @@ public class ClaimsTools {
                     + "Returns each matching claim with its number, claimant, type, amount and adjuster.")
     public List<ClaimView> listClaimsByStatus(
             @ToolArg(description = "One of: Submitted, UnderReview, Approved, Denied") String status) {
-        return repo.byStatus(status);
+        List<ClaimView> all = repo.byStatus(status);
+        if (!access.enforced()) {
+            return all;
+        }
+        try {
+            RecordAccess.Caller who = access.verify(authorization());
+            List<ClaimView> mine = all.stream().filter(who::mayRead).toList();
+            access.allowed(who);
+            if (mine.size() < all.size()) {   // not a refusal: the list is the caller's records only
+                io.opentelemetry.api.trace.Span.current().setAttribute("claims.withheld_count", all.size() - mine.size());
+            }
+            return mine;
+        } catch (RecordAccess.Denied d) {
+            access.refuse("list_claims_by_status", status, null, d.getMessage());
+            return List.of();
+        }
     }
 
     @Tool(name = "get_claim_documents",
@@ -119,6 +175,10 @@ public class ClaimsTools {
                     + "check the documents, uploads or attachments on a claim.")
     public String getClaimDocuments(
             @ToolArg(description = "The claim number, e.g. CLM-1004") String claimNumber) {
+        String denied = guard("get_claim_documents", claimNumber);
+        if (denied != null) {
+            return denied;
+        }
         List<ClaimDocuments.ClaimDocument> docs = documents.forClaim(claimNumber);
         if (docs.isEmpty()) {
             return "No documents have been uploaded to claim "
@@ -135,6 +195,10 @@ public class ClaimsTools {
                     + "oldest event first. Use this when asked what has happened to a claim over time.")
     public String getClaimHistory(
             @ToolArg(description = "The claim number, e.g. CLM-1001") String claimNumber) {
+        String denied = guard("get_claim_history", claimNumber);
+        if (denied != null) {
+            return denied;
+        }
         if (!repo.exists(claimNumber)) {
             return "No claim found with number " + ClaimsRepository.normalize(claimNumber) + ".";
         }

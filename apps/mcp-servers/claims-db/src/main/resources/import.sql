@@ -11,7 +11,7 @@
 INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1001', 'Alice Nguyen', 'auto', 'UnderReview', 4200.00, '2026-05-14', 'Rebecca Torres');
 INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1002', 'Marcus Feld', 'home', 'Approved', 12850.00, '2026-05-09', 'Marcus Johnson');
 INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1003', 'Priya Raman', 'auto', 'Submitted', 1975.50, '2026-06-01', 'Unassigned');
-INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1004', 'Tom Becker', 'home', 'Denied', 8400.00, '2026-04-22', 'Angela Davis');
+INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1004', 'Tom Becker', 'home', 'Denied', 8400.00, '2026-04-22', 'Rebecca Torres');
 INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1005', 'Sofia Alvarez', 'life', 'Approved', 25000.00, '2026-03-30', 'David Okonkwo');
 INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1006', 'Michael Turner', 'auto', 'UnderReview', 11800.00, '2026-01-20', 'Rebecca Torres');
 INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1007', 'Karen Foster', 'home', 'Approved', 28000.00, '2025-08-14', 'Angela Davis');
@@ -56,7 +56,7 @@ INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES 
 INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (10, 'CLM-1002', 'PaymentIssued', 'Payment issued to policyholder', '2026-05-14 10:00:00');
 INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (11, 'CLM-1003', 'Submitted', 'Claim submitted via portal', '2026-06-01 12:30:00');
 INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (12, 'CLM-1004', 'Submitted', 'Claim submitted via portal', '2026-04-22 07:45:00');
-INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (13, 'CLM-1004', 'AdjusterAssigned', 'Assigned to Angela Davis', '2026-04-22 13:00:00');
+INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (13, 'CLM-1004', 'AdjusterAssigned', 'Assigned to Rebecca Torres', '2026-04-22 13:00:00');
 INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (14, 'CLM-1004', 'UnderReview', 'Adjuster review in progress', '2026-04-24 10:30:00');
 INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (15, 'CLM-1004', 'Denied', 'Denied - outside policy coverage', '2026-04-28 16:00:00');
 INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (16, 'CLM-1005', 'Submitted', 'Claim submitted via portal', '2026-03-30 09:00:00');

@@ -1,0 +1,33 @@
+# Record-level access on claims-db (Scenario 3, "Records, not just documents"): the server verifies the
+# on-behalf-of token the gateway forwards and returns only the claims assigned to the user (claims-managers:
+# all). It fetches Keycloak's signing keys (JWKS) from the realm, through the router: the ingress VIP is
+# allowed in portal-ingress-vip, the namespaces here.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: claims-db-jwks
+spec:
+  podSelector:
+    matchLabels: {app: claims-db}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: keycloak}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
+---
+# parasol_claims_access_denied_total{tool,user,agent} for the dashboard's Gateway decisions row.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: claims-db
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  selector:
+    matchLabels: {app: claims-db}
+  podMetricsEndpoints:
+    - port: http
+      path: /q/metrics
+      interval: 30s
