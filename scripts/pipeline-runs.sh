@@ -19,9 +19,10 @@ run() {  # run <candidate> <prompt alias>
        [ -z "$(oc get pipelinerun "$name" -n $NS -o jsonpath='{.status.results[?(@.name=="PROMOTED_DIGEST")].value}')" ]; then
       echo "$name finished ($st) without promoting: re-running"
       oc delete pipelinerun "$name" -n $NS --wait=true >/dev/null
-      # the re-run gets the SAME workspace PVC name: wait until the old one is gone, or the garbage
-      # collector deletes it under the new run (a later task then stays Pending: PVC not found)
+      # the re-run gets the SAME TaskRun and workspace PVC names: wait until the old ones are gone, or the
+      # new run adopts stale TaskRuns ("completed without ancestors") / loses its PVC to the GC
       for i in $(seq 1 24); do
+        [ -z "$(oc get taskrun -n $NS -l tekton.dev/pipelineRun="$name" -o name)" ] || { sleep 5; continue; }
         oc get pvc -n $NS -o json | python3 -c 'import json,sys; n=sys.argv[1]
 sys.exit(any(o.get("name")==n for p in json.load(sys.stdin)["items"] for o in p["metadata"].get("ownerReferences",[])))' "$name" && break
         sleep 5
