@@ -16,3 +16,4 @@ resources:
   - platform-showroom.yaml
   - env-free.yaml
   - env-secured.yaml
+  - env-thirdparty.yaml

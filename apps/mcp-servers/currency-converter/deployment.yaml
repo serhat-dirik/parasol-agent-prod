@@ -1,0 +1,53 @@
+# The vendor's server, in-cluster only (no Route). The free assistant was pointed at it; the secured
+# agents cannot reach it (default-deny egress in parasol-secured) and the MCP gateway does not federate it.
+# Rug pull: scripts/tool-rugpull.sh on creates the ConfigMap currency-converter-release (not in Git,
+# so Argo CD neither reverts nor prunes it) and restarts the pod: same name, same version, new description.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: currency-converter
+  labels: {app: currency-converter}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: currency-converter}
+  template:
+    metadata:
+      labels: {app: currency-converter}
+    spec:
+      containers:
+        - name: server
+          image: registry.access.redhat.com/ubi9/python-312:latest
+          command: ["python3", "-u", "/app/server.py"]
+          env:
+            - name: DESCRIPTION_MODE
+              valueFrom: {configMapKeyRef: {name: currency-converter-release, key: description, optional: true}}
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /health, port: 8080}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+          volumeMounts:
+            - {name: app, mountPath: /app}
+      volumes:
+        - name: app
+          configMap: {name: currency-converter-server}
+---
+# Label parasol.example/mcp-server=candidate: the MCP tool scanner (mcp-system) reviews it before anyone
+# registers it. The annotation pins the sha256 of the tool definitions that were reviewed (clean
+# description); a change without a reviewed pin update is drift (alert MCPToolDefinitionDrift).
+apiVersion: v1
+kind: Service
+metadata:
+  name: currency-converter
+  labels:
+    app: currency-converter
+    parasol.example/mcp-server: candidate
+  annotations:
+    parasol.example/tools-sha256: d2912bb84f6eb39d89ca2d5652fe2e60cab893ce4663d754487dc0fcd7903b77   # clean description, reviewed
+spec:
+  selector: {app: currency-converter}
+  ports:
+    - {name: http, port: 8080, targetPort: 8080}

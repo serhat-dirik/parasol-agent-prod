@@ -1,0 +1,12 @@
+# The vendor side of a registration: HTTPRoutes in parasol-secured may send traffic to this Service.
+# Inert on its own; nothing routes here unless the governed registration (secured component
+# register-currency-converter) is switched on.
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-parasol-secured-routes
+spec:
+  from:
+    - {group: gateway.networking.k8s.io, kind: HTTPRoute, namespace: parasol-secured}
+  to:
+    - {group: "", kind: Service, name: currency-converter}
