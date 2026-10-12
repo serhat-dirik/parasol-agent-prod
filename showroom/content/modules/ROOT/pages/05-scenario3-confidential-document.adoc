@@ -46,6 +46,7 @@ for ns in parasol-free parasol-secured; do echo -n "$ns: "; oc exec -n $ns deplo
 +
 What you should see: `parasol-free: 18` and `parasol-secured: 18`. If a count is missing or 0, an administrator reloads it from a workstation with `scripts/knowledge-base-ingest.sh` (idempotent; the Terminal identity may not create Jobs).
 * `nina.contractor` needs token budget left. If you ran Scenario 4 just before, run `scripts/reset.sh` first.
+* For the last part, *Records, not just documents*: claim *CLM-1029* (Amara Okafor, home, UnderReview, 19,250) is assigned to the adjuster Angela Davis, not to rebecca; CLM-1001, CLM-1004 and the other claims the earlier scenarios use are assigned to Rebecca Torres. Nothing to prepare.
 
 == Show: unsecured
 
@@ -163,8 +164,47 @@ What you should see: `(0 rows)`. Even a bug in the server's own filter could not
 +
 What you should see: the rule `confidential-marker`: if an answer to anyone outside `claims-managers` contains "CONFIDENTIAL — Claims managers only" (any dash, any case), the guardrails proxy withholds the answer (`action=block`, detector `confidential-marker`), logged with user and agent and counted in the *Guardrails* row. It does not fire in this scenario, because the knowledge base never returned the document to rebecca or nina.contractor; it is there for the day a document is misclassified.
 
+== Records, not just documents
+
+The same rule holds for the claims themselves. An adjuster works the claims assigned to her; a claims manager sees every claim. Unsecured, the assistant reads any claim for anyone who asks. Secured, claims-db decides from the person in the agent's on-behalf-of token, so the assistant can only read rebecca's own claims for her.
+
+. *Unsecured.* In the *Portal unsecured* tab as `rebecca`, open *CLM-1001* and send:
++
+[source,text]
+----
+Show me claim CLM-1029 and its history.
+----
++
+What you should see: chips `called get_claim(claimNumber=CLM-1029)` and `called get_claim_history(claimNumber=CLM-1029)`, and the record: Amara Okafor, home, UnderReview, 19,250, adjuster Angela Davis (its history has no events yet). Rebecca just read a colleague's customer.
+
+. *Secured.* In the *Portal secured* tab as `rebecca`, open *CLM-1001* and send the same message.
++
+What you should see: the same chips, and an answer that she has no access to CLM-1029 because adjusters can only read the claims assigned to them (the tool returned "Access denied: Rebecca Torres (rebecca) may not read claim CLM-1029. Adjusters can read only the claims assigned to them; a claims manager can read every claim."). No claimant, amount or adjuster reaches the model. Her own claims still answer normally: try `What is the status of CLM-1004?`.
++
+// SCREENSHOT: s3-secured-record-denied.png — Portal secured as rebecca: "Show me claim CLM-1029 and its history." answered with the access-denied message, get_claim chip visible (portal sign-in as rebecca)
+
+. Log out, log in as `marcus` and send the same message.
++
+What you should see: the full record. Marcus is a claims manager; the rule is the person's, not the assistant's.
+
+. *On the platform.* Click the `trace <id>` link under rebecca's refused answer.
++
+What you should see: in *MLflow*, the agent's span `tool.get_claim` (`enduser.id` `rebecca`, `gen_ai.agent.name` `parasol-claims-agent`) and with it claims-db's own span `claims-db.get_claim`: `claims.access` `denied`, `claims.claim_number` `CLM-1029`, `claims.access_reason` `assigned to Angela Davis`, `enduser.id` `rebecca`, status ERROR (the same for `claims-db.get_claim_history`). Then the audit line, in the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+oc logs -n parasol-secured deploy/claims-db --tail=200 | grep 'CLAIMS ACL denied'
+----
++
+What you should see: `CLAIMS ACL denied tool=get_claim claim=CLM-1029 user=rebecca via parasol-claims-agent reason=assigned to Angela Davis`, one line per refused tool call. On the dashboard (*Parasol Assistant Token Spend*, row *Gateway decisions*), *Gateway rejections by reason* has `denied, claim not assigned to the user (claims-db record access)` for `rebecca` via `parasol-claims-agent`.
++
+// SCREENSHOT: s3-mlflow-record-denied.png — MLflow trace of rebecca's CLM-1029 turn: span claims-db.get_claim selected with claims.access denied, claims.claim_number CLM-1029, enduser.id rebecca (OpenShift sign-in for MLflow)
+// SCREENSHOT: s3-dashboard-record-denied.png — Console, Parasol Assistant Token Spend, row "Gateway decisions": the rejections table with "denied, claim not assigned to the user (claims-db record access)" for rebecca (OpenShift admin sign-in)
++
+How it decides: claims-db verifies the token the gateway forwards (Keycloak's signature, issuer, expiry, audience `parasol-secured/claims-db`) and compares the token's `name` with the claim's adjuster, or finds `claims-managers` in its `groups`. Free runs the same server with the check off (`CLAIMS_ACL_ENFORCE` is set only in `parasol-secured`). The portal's own claim pages read claims-db directly for the screen; this beat is about what the assistant may read on a person's behalf.
+
 == Reset after this scenario
 
-Nothing to reset: the scenario only reads. `scripts/reset.sh` does not touch the knowledge base; an administrator can reload it at any time with `scripts/knowledge-base-ingest.sh`.
+Nothing to reset: the scenario only reads (the knowledge base and the claims). `scripts/reset.sh` does not touch the knowledge base; an administrator can reload it at any time with `scripts/knowledge-base-ingest.sh`.
 
 Continue with xref:06-scenario4-night-shift.adoc[06. Scenario 4: The night shift].

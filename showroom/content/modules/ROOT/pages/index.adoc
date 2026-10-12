@@ -28,6 +28,8 @@ You demo the *same claim* with the *same request* on each portal. The only varia
 
 Unsecured, all but the evaluation gate cause harm. Secured, a *different* layer stops each, and the platform consoles show why.
 
+Then *the incident*: one payout reconstructed from the platform's own records, from the claim back to the signed release. The supply-chain page closes with *only approved models*: what a secured workload can and cannot reach.
+
 [NOTE]
 .The six messages to land
 ====

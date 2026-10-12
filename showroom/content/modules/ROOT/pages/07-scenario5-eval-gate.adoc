@@ -80,7 +80,9 @@ The link back from the gate to production: every live chat turn names the prompt
 +
 What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt@production`, next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the alias the production release run was gated on (`prompt-ref` on the `env-secured` Application, xref:10-supply-chain.adoc[10. Supply chain]); the shortened candidate never appears here, because it was never promoted.
 +
-// SCREENSHOT: s5-mlflow-runtime-prompt.png — MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on tags.agent = 'parasol-claims-agent', one trace open showing the prompt / agent / model tags (OpenShift sign-in for MLflow)
+The tag `prompt_sha256` is the digest of the prompt text this turn actually ran. It equals the `prompt_sha256` of prompt registry version 1 (alias `production`), of the Model Registry version `production`, and the `parasol.example/prompt-sha256` annotation on `env-secured`: the secured portal reads its whole system prompt from `gitops/envs/secured/system-prompt.txt` (ConfigMap `agent-config`), the very file the production version is registered from, and the release's `promote` step refuses to pin a digest when the two differ ("NOT PROMOTED: the runtime prompt ... is not the registered ..."). `@production` is literally the gated text.
++
+// SCREENSHOT: s5-mlflow-runtime-prompt.png — MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on tags.agent = 'parasol-claims-agent', one trace open showing the prompt / prompt_sha256 / agent / model tags (OpenShift sign-in for MLflow; recapture: the prompt_sha256 tag is new)
 
 == Reset after this scenario
 
