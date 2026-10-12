@@ -110,7 +110,7 @@ Each scenario has a script that drives the same beats without a browser. Use the
 |`scripts/abuse.sh free`: rebecca approves.
 
 |1, secured
-|`scripts/abuse.sh secured rebecca 1`: filtered tool list, the agent declines, and the two 403s (not via an approved agent; role). `scripts/abuse.sh secured marcus 1`: the manager succeeds.
+|`scripts/abuse.sh secured rebecca 1`: filtered tool list, the agent declines, and the two 403s (not via an approved agent; role). `scripts/abuse.sh secured marcus 1`: the agent still declines (`approve_payout` is in nobody's tool list), and the same call forced through the agent succeeds for the manager (approves CLM-1001: reset afterwards).
 
 |2
 |`scripts/abuse-doc.sh both`: the unsecured portal pays AED 84,000; secured flags the note and proposes without writing.

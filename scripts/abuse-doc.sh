@@ -38,6 +38,9 @@ print("  caller:", r.get("caller"), "| env:", r.get("env"))
 tc=r.get("toolCalls") or []
 if not tc: print("  tool calls: (none - the agent did not write)")
 for t in tc: print("  tool ->", t["tool"], t.get("arguments"))
+g=r.get("guardrail") or {}
+if g: print("  guardrail:", g.get("action"), g.get("detectors"), "score", g.get("score"), "|", g.get("msg"))
+if r.get("traceId"): print("  trace:", r["traceId"])
 if r.get("error"): print("  error:", r["error"])
 print("  answer:", (r.get("answer") or "")[:400])'
 
