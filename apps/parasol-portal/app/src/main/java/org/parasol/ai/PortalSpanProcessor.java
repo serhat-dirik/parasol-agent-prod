@@ -1,6 +1,9 @@
 package org.parasol.ai;
 
 import io.opentelemetry.context.Context;
+import io.quarkus.arc.Arc;
+import io.quarkus.arc.InstanceHandle;
+import jakarta.enterprise.context.ContextNotActiveException;
 import io.opentelemetry.sdk.trace.ReadWriteSpan;
 import io.opentelemetry.sdk.trace.ReadableSpan;
 import io.opentelemetry.sdk.trace.SpanProcessor;
@@ -29,8 +32,25 @@ public class PortalSpanProcessor implements SpanProcessor {
         }
         if (name.startsWith(MCP_PREFIX)) {
             span.updateName("tool." + name.substring(MCP_PREFIX.length()).strip());
+            attribute(span);
         } else if (name.startsWith(AISERVICE_PREFIX)) {
             span.updateName("model.chat");
+        }
+    }
+
+    /** Every tool call says who it was for and which agent made it (enduser.id, gen_ai.agent.name). */
+    private static void attribute(ReadWriteSpan span) {
+        try {
+            InstanceHandle<McpBearerTokenProvider> auth = Arc.container().instance(McpBearerTokenProvider.class);
+            if (auth.isAvailable()) {
+                span.setAttribute("gen_ai.agent.name", auth.get().agentId());
+            }
+            InstanceHandle<CallerIdentity> caller = Arc.container().instance(CallerIdentity.class);
+            if (caller.isAvailable()) {
+                span.setAttribute("enduser.id", caller.get().subject());
+            }
+        } catch (ContextNotActiveException e) {
+            // tool call outside a request (startup discovery): no user to name
         }
     }
 

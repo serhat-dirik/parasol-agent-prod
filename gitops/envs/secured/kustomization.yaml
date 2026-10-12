@@ -2,7 +2,7 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 # The layered sandbox. Same images, same code. What changes is around the agent:
 #  1 isolation      namespace + ResourceQuota + NetworkPolicy (agent reaches only the gateway, guardrails, DNS)
-#  2 identity       the agent carries the caller's Keycloak token to the MCP gateway (and has its own service identity)
+#  2 identity       each agent has its own identity (ServiceAccount -> Keycloak client) and acts ON BEHALF OF the caller (token exchange)
 #  3 tool authz     MCP servers are reachable ONLY through the MCP gateway; per-tool AuthPolicy; filtered tool list
 #  4 guardrails     the model endpoint is the Guardrails Orchestrator gateway (prompt-injection + regex), then MaaS
 #  5 model governance  MaaS subscription + auth policy (see platform/rhoai/maas.yaml), stage quota
@@ -14,6 +14,7 @@ resources:
   - quota.yaml
   - networkpolicy.yaml
   - mcp-registrations.yaml
+  - serviceaccounts.yaml   # the agents' workload identities (federated client auth at Keycloak, no secrets)
   - fraud-check.yaml       # V3: the fraud-check agent (2nd MCP server behind the gateway, agent-to-agent)
   - portal.yaml            # Stream P: the secured claims portal (login, gated writes, guardrails)
   - portal-networkpolicy.yaml  # Stream P: the portal's layer-1 egress (kill switch patches this)

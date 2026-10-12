@@ -31,6 +31,13 @@ spec:
             - op: replace
               path: /data/fraudCheckMcpUrl
               value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
+        # The agents' projected ServiceAccount tokens are client assertions for the parasol realm: their
+        # audience must be the realm issuer.
+        - target: {kind: Deployment, name: "^(portal|parasol-agent|fraud-check)$"}
+          patch: |-
+            - op: replace
+              path: /spec/template/spec/volumes/0/projected/sources/0/serviceAccountToken/audience
+              value: https://sso.apps.${CLUSTER_DOMAIN}/realms/parasol
         - target: {kind: Route, name: portal}
           patch: |-
             - op: replace

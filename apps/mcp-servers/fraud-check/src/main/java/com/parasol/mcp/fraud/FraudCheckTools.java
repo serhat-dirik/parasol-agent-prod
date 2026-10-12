@@ -12,7 +12,10 @@ import org.eclipse.microprofile.rest.client.inject.RestClient;
 
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
+import io.opentelemetry.api.trace.Span;
+import io.vertx.core.http.HttpServerRequest;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.WebApplicationException;
 
@@ -38,6 +41,12 @@ public class FraudCheckTools {
     @ConfigProperty(name = "fraud.inflation-threshold", defaultValue = "1.5")
     double inflationThreshold;
 
+    @Inject
+    GatewayTools gateway;
+
+    @Inject
+    Instance<HttpServerRequest> request;
+
     @Tool(name = "fraud_check",
             description = "Assess the fraud risk of a Parasol Insurance claim before any payout. "
                     + "Looks up the claim record and the documents the customer uploaded, then "
@@ -49,6 +58,9 @@ public class FraudCheckTools {
                     + "The claim number looks like CLM-1004.")
     public String fraudCheck(
             @ToolArg(description = "The claim number to assess, e.g. CLM-1004") String claimNumber) {
+        if (gateway.enabled()) {
+            return viaGateway(claimNumber);
+        }
         ClaimsDbClient.ClaimRecord record;
         List<ClaimsDbClient.Document> docs;
         try {
@@ -62,6 +74,62 @@ public class FraudCheckTools {
             throw e;
         }
         return assess(record, docs, inflationThreshold).format();
+    }
+
+    /**
+     * Secured: read the claim and its documents through the MCP gateway as THIS agent on behalf of the
+     * user (claims agent -> fraud agent -> tools), never with a token of its own and never directly.
+     */
+    private String viaGateway(String claimNumber) {
+        String auth = request.get().getHeader("Authorization");
+        if (auth == null || !auth.startsWith("Bearer ")) {
+            return "FRAUD RISK: UNKNOWN. No caller identity on this request; nothing assessed.";
+        }
+        String subject = auth.substring(7).trim();
+        Span.current().setAttribute("enduser.id", GatewayTools.user(subject));
+        Span.current().setAttribute("gen_ai.agent.name", gateway.agentId());
+        String token = gateway.onBehalfOf(subject);
+        if (token == null) {
+            return "FRAUD RISK: UNKNOWN. The fraud-check agent could not act on behalf of "
+                    + GatewayTools.user(subject) + "; nothing assessed.";
+        }
+        String claim = gateway.callClaimsDb(token, "get_claim", claimNumber);
+        Matcher amount = RECORD_AMOUNT.matcher(claim);
+        if (!amount.find()) {
+            return "FRAUD RISK: UNKNOWN. No claim found with number " + claimNumber + "; nothing to assess.";
+        }
+        ClaimsDbClient.ClaimRecord record = new ClaimsDbClient.ClaimRecord(claimNumber.trim().toUpperCase(),
+                null, null, null, amount.group(1), null, null);
+        return assess(record, documents(gateway.callClaimsDb(token, "get_claim_documents", claimNumber)),
+                inflationThreshold).format();
+    }
+
+    /** "... amount 8400.00 USD ..." in the get_claim sentence. */
+    private static final Pattern RECORD_AMOUNT = Pattern.compile("amount ([0-9][0-9,]*(?:\\.[0-9]+)?) USD");
+
+    /** A paragraph addressed to the assistant: the hidden note, as the tool text carries it. */
+    private static final Pattern ADDRESSED = Pattern.compile(
+            "(?i)note to the claims assistant|assistant action required|automated processing note");
+
+    /**
+     * Split the get_claim_documents text back into documents. Each document is visible text followed by
+     * any hidden note (the tool returns the full text, as "select all" would); a paragraph addressed to
+     * the assistant is the hidden note.
+     */
+    static List<ClaimsDbClient.Document> documents(String text) {
+        List<ClaimsDbClient.Document> docs = new ArrayList<>();
+        if (text == null || text.startsWith("No documents")) {
+            return docs;
+        }
+        for (String chunk : text.split("\n\n---\n\n")) {
+            StringBuilder visible = new StringBuilder();
+            StringBuilder hidden = new StringBuilder();
+            for (String para : chunk.split("\n\n")) {
+                (ADDRESSED.matcher(para).find() ? hidden : visible).append(para).append("\n\n");
+            }
+            docs.add(new ClaimsDbClient.Document(null, null, visible.toString().strip(), hidden.toString().strip()));
+        }
+        return docs;
     }
 
     // ---- pure, testable logic -------------------------------------------------------------------

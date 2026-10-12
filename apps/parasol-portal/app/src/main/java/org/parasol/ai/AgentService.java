@@ -46,6 +46,9 @@ public class AgentService {
     MeterRegistry metrics;
 
     @Inject
+    McpBearerTokenProvider mcpAuth;
+
+    @Inject
     Tracer tracer;
 
     /** Secured: route writes through the local propose tool (A2). Free leaves this false. */
@@ -80,6 +83,13 @@ public class AgentService {
         String who = caller.subject();
         root.setAttribute("session.id", who);
         root.setAttribute("user.id", who);
+        // Attribution: WHO asked (enduser.id) and WHICH agent acted for them (the Keycloak client the
+        // tools see as azp), plus the prompt this deployment runs. PortalSpanProcessor stamps the
+        // same pair on every tool span.
+        root.setAttribute("enduser.id", who);
+        root.setAttribute("gen_ai.agent.name", mcpAuth.agentId());
+        root.setAttribute("gen_ai.agent.id", mcpAuth.agentId() + "@" + version);
+        root.setAttribute("gen_ai.prompt.ref", promptVersion);
         String traceId = root.getSpanContext().getTraceId();
         try {
             Result<String> result = proposeEnabled
@@ -102,7 +112,7 @@ public class AgentService {
             // Trace semantics: name the observed steps so the MLflow/Tempo trace reads as the story
             // (guardrails.tool_result when a detector flagged a tool result, the propose step).
             emitStorySpans(guardrail, proposal);
-            LOG.infof("chat caller=%s version=%s prompt=%s tools=%s guardrail=%s tokens=%s", caller.subject(), version,
+            LOG.infof("chat caller=%s agent=%s version=%s prompt=%s tools=%s guardrail=%s tokens=%s", caller.subject(), mcpAuth.agentId(), version,
                     promptVersion,
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     guardrail == null ? "none" : guardrail.action(),
@@ -120,20 +130,21 @@ public class AgentService {
             // P95 latency panel: a per-version/user histogram of the whole assistant turn.
             latency.stop(Timer.builder("parasol_agent_latency_seconds")
                     .description("Assistant turn latency (model + MCP round-trips)")
-                    .tag("version", version).tag("user", caller.subject())
+                    .tag("version", version).tag("user", caller.subject()).tag("agent", mcpAuth.agentId())
                     .publishPercentileHistogram()
                     .register(metrics));
         }
     }
 
     /**
-     * parasol_tool_calls_total{tool,user,status}: one count per MCP tool the model invoked on this
+     * parasol_tool_calls_total{tool,user,agent,status}: one count per MCP tool the model invoked on this
      * turn. These reached a result, so status is 200; the Approve path counts the 403s per tool.
      */
     private void recordToolCalls(List<ToolCall> toolCalls) {
         String user = caller.subject();
         for (ToolCall tc : toolCalls) {
-            metrics.counter("parasol_tool_calls_total", "tool", tc.tool(), "user", user, "status", "200")
+            metrics.counter("parasol_tool_calls_total", "tool", tc.tool(), "user", user, "agent", mcpAuth.agentId(),
+                    "status", "200")
                     .increment();
         }
     }
@@ -183,14 +194,17 @@ public class AgentService {
         // offender (e.g. nina.contractor in the night-shift storm); "anonymous" on the free, no-token path.
         String user = caller.subject();
         if (t.inputTokenCount() != null) {
-            metrics.counter("parasol_agent_tokens_total", "type", "input", "version", version, "user", user)
+            metrics.counter("parasol_agent_tokens_total", "type", "input", "version", version, "user", user,
+                    "agent", mcpAuth.agentId())
                     .increment(t.inputTokenCount());
         }
         if (t.outputTokenCount() != null) {
-            metrics.counter("parasol_agent_tokens_total", "type", "output", "version", version, "user", user)
+            metrics.counter("parasol_agent_tokens_total", "type", "output", "version", version, "user", user,
+                    "agent", mcpAuth.agentId())
                     .increment(t.outputTokenCount());
         }
-        metrics.counter("parasol_agent_model_calls_total", "version", version, "user", user).increment();
+        metrics.counter("parasol_agent_model_calls_total", "version", version, "user", user, "agent", mcpAuth.agentId())
+                .increment();
     }
 
     /**

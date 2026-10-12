@@ -9,6 +9,7 @@ import java.util.Map;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.parasol.ai.CallerIdentity;
+import org.parasol.ai.McpBearerTokenProvider;
 import org.parasol.model.ClaimDtos.ClaimDto;
 import org.parasol.model.ClaimDtos.Dashboard;
 import org.parasol.model.ClaimDtos.DocumentDto;
@@ -71,6 +72,9 @@ public class ClaimResource {
 
     @Inject
     Tracer tracer;
+
+    @Inject
+    McpBearerTokenProvider mcpAuth;
 
     @GET
     @Path("/claims")
@@ -146,8 +150,9 @@ public class ClaimResource {
                             "traceId", traceId)).build();
         }
         forwardToken();
-        // A human (a claims manager) clicked Approve, so record who: the timeline then reads
-        // "Approved by <user> via assistant" instead of a generic assistant note.
+        // A human (a claims manager) clicked Approve. The call carries a token exchanged on their
+        // behalf (sub = the manager, azp = the agent), so claims-db writes "Approved by <user> via
+        // <agent>" from the token; actor stays as the fallback for the token-less free path.
         String actor = identity.isAnonymous() ? "" : identity.getPrincipal().getName();
         String args = amount == null
                 ? String.format("{\"claimNumber\":\"%s\",\"actor\":\"%s\"}", number, actor)
@@ -172,7 +177,7 @@ public class ClaimResource {
         }
     }
 
-    /** parasol_tool_calls_total{tool,user,status}: the per-tool authz outcome for the operator dashboard. */
+    /** parasol_tool_calls_total{tool,user,agent,status}: the per-tool authz outcome for the operator dashboard. */
     private void toolCall(String tool, String status) {
         toolCall(tool, status, caller.subject());
     }
@@ -180,7 +185,8 @@ public class ClaimResource {
     /** As {@link #toolCall(String, String)} but with an explicit user, for paths where the caller
      * identity is known from SecurityIdentity before the forwarded token populates CallerIdentity. */
     private void toolCall(String tool, String status, String user) {
-        metrics.counter("parasol_tool_calls_total", "tool", tool, "user", user, "status", status)
+        metrics.counter("parasol_tool_calls_total", "tool", tool, "user", user, "agent", mcpAuth.agentId(),
+                        "status", status)
                 .increment();
     }
 
@@ -194,6 +200,8 @@ public class ClaimResource {
         try {
             s.setAttribute("tool.name", tool);
             s.setAttribute("authz.decision", denied ? "deny" : "allow");
+            s.setAttribute("enduser.id", identity.isAnonymous() ? "anonymous" : identity.getPrincipal().getName());
+            s.setAttribute("gen_ai.agent.name", mcpAuth.agentId());
             if (denied) {
                 s.setAttribute("http.status_code", 403L);
                 s.setStatus(StatusCode.ERROR, "403 forbidden");

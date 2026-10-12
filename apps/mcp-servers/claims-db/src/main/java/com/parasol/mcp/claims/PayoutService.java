@@ -58,12 +58,13 @@ public class PayoutService {
 
         long nextId = nextEventId();
         LocalDateTime now = LocalDateTime.now().withNano(0);
-        // When a named user drove the approval (the secured Approve button passes their username),
-        // record them: the timeline reads "Approved by marcus via assistant". The autonomous model
+        // When a named user drove the approval, record them: secured reads "Approved by marcus via
+        // parasol-claims-agent" (user + agent from the exchanged token), a bare username reads
+        // "Approved by marcus via assistant". The autonomous model
         // path passes no actor (or "claims-assistant"), so it keeps the amount-first wording.
         boolean namedUser = actor != null && !actor.isBlank() && !actor.equals("claims-assistant");
         String approvedNote = namedUser
-                ? "Approved by " + actor + " via assistant"
+                ? "Approved by " + actor + (actor.contains(" via ") ? "" : " via assistant")
                 : "Approved for " + paid.toPlainString() + " via claims assistant";
         addEvent(nextId, number, "Approved",
                 approvedNote + (previous.equals("Denied") ? " - previous status was Denied" : ""),

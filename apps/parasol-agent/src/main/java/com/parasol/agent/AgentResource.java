@@ -110,6 +110,9 @@ public class AgentResource {
                     .entity(new AskError("question is required", null, false, modelName))
                     .build();
         }
+        // Attribution on the request span: who asked, which agent acted for them.
+        io.opentelemetry.api.trace.Span.current().setAttribute("enduser.id", caller.subject());
+        io.opentelemetry.api.trace.Span.current().setAttribute("gen_ai.agent.name", mcpAuth.agentId());
         try {
             // Fresh memory id per request: no cross-request history, but the tool-calling
             // round-trip within THIS request still has somewhere to hold its messages.
@@ -134,7 +137,7 @@ public class AgentResource {
                         .map(AgentResource::toToolCall)
                         .toList();
             }
-            LOG.infof("ask caller=%s version=%s tools=%s tokens=%s", caller.subject(), version,
+            LOG.infof("ask caller=%s agent=%s version=%s tools=%s tokens=%s", caller.subject(), mcpAuth.agentId(), version,
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount());
             return Response.ok(new AskResponse(

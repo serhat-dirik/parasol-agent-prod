@@ -6,9 +6,16 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 import io.quarkiverse.mcp.server.Tool;
 import io.quarkiverse.mcp.server.ToolArg;
+import io.vertx.core.http.HttpServerRequest;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 
 /**
@@ -30,6 +37,33 @@ public class ClaimsTools {
 
     @Inject
     ClaimDocuments documents;
+
+    @Inject
+    Instance<HttpServerRequest> request;
+
+    private static final Pattern USER = Pattern.compile("\"preferred_username\"\\s*:\\s*\"([^\"]+)\"");
+    private static final Pattern AZP = Pattern.compile("\"azp\"\\s*:\\s*\"([^\"]+)\"");
+
+    /**
+     * "marcus via parasol-claims-agent": the user (sub) and the agent (azp) of the bearer token on
+     * this call, or null without one (free). Read, not validated: in secured this server is reachable
+     * only through the MCP gateway, which validated the token and the agent before routing here.
+     */
+    String caller() {
+        try {
+            String auth = request.get().getHeader("Authorization");
+            if (auth == null || !auth.startsWith("Bearer ")) {
+                return null;
+            }
+            String[] parts = auth.substring(7).trim().split("\\.");
+            String payload = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
+            Matcher u = USER.matcher(payload);
+            Matcher a = AZP.matcher(payload);
+            return u.find() && a.find() ? u.group(1) + " via " + a.group(1) : null;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
 
     @Tool(name = "get_claim",
             description = "Look up a single Parasol Insurance claim by its claim number "
@@ -62,7 +96,12 @@ public class ClaimsTools {
             @ToolArg(description = "The user who authorized this approval; omit when the assistant "
                     + "approves autonomously", required = false) String actor) {
         BigDecimal value = amount == null ? null : BigDecimal.valueOf(amount).setScale(2, RoundingMode.HALF_UP);
-        return payouts.approve(claimNumber, value, actor == null || actor.isBlank() ? "claims-assistant" : actor);
+        // The token's identity wins over the actor argument: "Approved by marcus via parasol-claims-agent".
+        String who = caller();
+        if (who == null) {
+            who = actor == null || actor.isBlank() ? "claims-assistant" : actor;
+        }
+        return payouts.approve(claimNumber, value, who);
     }
 
     @Tool(name = "list_claims_by_status",

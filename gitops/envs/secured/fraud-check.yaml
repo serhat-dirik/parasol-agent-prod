@@ -16,6 +16,7 @@ spec:
     metadata:
       labels: {app: fraud-check, app.kubernetes.io/part-of: parasol-agent}
     spec:
+      serviceAccountName: fraud-agent
       containers:
         - name: fraud-check
           image: image-registry.openshift-image-registry.svc:5000/parasol-build/fraud-check:latest
@@ -26,6 +27,15 @@ spec:
             # The data source of truth: the fraud-check agent reads the claim record + documents from
             # the claims-db read API. It keeps no copy, so it judges exactly what the demo shows.
             - {name: CLAIMS_DB_API_URL, value: http://claims-db:8080}
+            # Agent-to-agent: the fraud agent reads the claim through the MCP gateway ON BEHALF OF the
+            # user, re-exchanging the claims agent's token as parasol-fraud-agent (read-only ceiling),
+            # authenticated by this pod's ServiceAccount token. Setting these switches off the REST read.
+            - name: FRAUD_GATEWAY_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbMcpUrl}}
+            - name: FRAUD_TOKEN_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: tokenUrl}}
+            - {name: FRAUD_AGENT_ID, value: parasol-fraud-agent}
+            - {name: FRAUD_ASSERTION_FILE, value: /var/run/secrets/parasol/agent/token}
             - {name: QUARKUS_OTEL_SDK_DISABLED, value: "false"}
             - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
           readinessProbe:
@@ -39,6 +49,15 @@ spec:
           resources:
             requests: {cpu: 100m, memory: 256Mi}
             limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: agent-token, mountPath: /var/run/secrets/parasol/agent, readOnly: true}
+      volumes:
+        # Projected ServiceAccount token: the agent's credential at Keycloak (client assertion). Rotated by
+        # the kubelet; the audience is set to the realm issuer by the env-secured Argo Application.
+        - name: agent-token
+          projected:
+            sources:
+              - serviceAccountToken: {audience: https://sso.apps.CLUSTER_DOMAIN/realms/parasol, expirationSeconds: 3600, path: token}
 ---
 apiVersion: v1
 kind: Service
@@ -81,6 +100,13 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: observability}
+    - to:   # its own tool calls: Keycloak (token exchange) and the MCP gateway, via the router (+ portal-ingress-vip)
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: gateway-system}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: keycloak}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
 ---
 # Additive ingress allow on claims-db for the one new caller: the fraud-check agent. NetworkPolicies
 # only ADD allows, so this leaves the existing mcp-servers policy (gateway-only ingress) untouched.
