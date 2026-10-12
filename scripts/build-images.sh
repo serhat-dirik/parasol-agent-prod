@@ -11,13 +11,14 @@ timeout 900 oc start-build policy-docs -n parasol-build --from-dir=apps/mcp-serv
 timeout 900 oc start-build parasol-agent -n parasol-build --from-dir=apps/parasol-agent         --follow --wait &
 timeout 1200 oc start-build parasol-portal -n parasol-build --from-dir=apps/parasol-portal/app --follow --wait &
 timeout 900 oc start-build fraud-check -n parasol-build --from-dir=apps/mcp-servers/fraud-check --follow --wait &
+timeout 1500 oc start-build knowledge-base -n parasol-build --from-dir=apps/mcp-servers/knowledge-base --follow --wait &
 fail=0; for j in $(jobs -p); do wait "$j" || fail=1; done
 oc get istag parasol-portal:unsigned -n parasol-build >/dev/null 2>&1 || \
   oc tag parasol-build/parasol-portal:latest parasol-build/parasol-portal:unsigned || fail=1
 oc rollout restart deploy -n parasol-free 2>/dev/null || true
 # parasol-secured: admission resolved each :latest to a digest on the Deployment (Argo ignores that
 # field), so a restart would keep the OLD image; point each workload at the digest just built.
-for d in claims-db policy-docs parasol-agent fraud-check; do
+for d in claims-db policy-docs parasol-agent fraud-check knowledge-base; do
   ref=$(oc get istag "${d}:latest" -n parasol-build -o jsonpath='{.image.dockerImageReference}' 2>/dev/null) || continue
   oc set image "deploy/$d" -n parasol-secured "$d=$ref" >/dev/null 2>&1 || true
 done

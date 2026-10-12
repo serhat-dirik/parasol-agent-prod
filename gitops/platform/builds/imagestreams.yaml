@@ -17,3 +17,7 @@ metadata: {name: parasol-portal}
 apiVersion: image.openshift.io/v1
 kind: ImageStream
 metadata: {name: fraud-check}
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata: {name: knowledge-base}

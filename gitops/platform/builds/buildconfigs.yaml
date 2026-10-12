@@ -66,3 +66,17 @@ spec:
     to: {kind: ImageStreamTag, name: "fraud-check:latest"}
   resources:
     limits: {cpu: "2", memory: 3Gi}
+---
+# The knowledge-base MCP server (Python, embedding model baked in at build time), built the same binary way.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata: {name: knowledge-base}
+spec:
+  source: {type: Binary}
+  strategy:
+    type: Docker
+    dockerStrategy: {dockerfilePath: Containerfile}
+  output:
+    to: {kind: ImageStreamTag, name: "knowledge-base:latest"}
+  resources:
+    limits: {cpu: "2", memory: 4Gi}

@@ -1,0 +1,10 @@
+# CPU-only torch comes from the PyTorch CPU index (see Containerfile); no CUDA libraries in the image.
+torch==2.8.0
+sentence-transformers==5.1.2
+transformers==4.57.6
+mcp==1.30.0
+psycopg[binary]==3.3.6
+pyjwt[crypto]==2.15.1
+prometheus-client==0.26.0
+opentelemetry-sdk==1.45.1
+opentelemetry-exporter-otlp-proto-grpc==1.45.1
