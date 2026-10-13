@@ -64,7 +64,7 @@ spec:
         - {name: maas, secret: {secretName: maas-eval-key, optional: true}}
         - {name: agent, secret: {secretName: maas-eval-agent-key}}
 YAML
-  echo "eval seed job started (pip install + 2 prompts x 23 cases x 3 live attempts, judged; ~10-25 min)"
+  echo "eval seed job started (pip install + 2 prompts x 25 cases x 3 live attempts, judged; ~10-25 min)"
   for i in $(seq 1 60); do   # deadline 30 min
     [ "$(oc get job $JOB -n $NS -o jsonpath='{.status.succeeded}')" = 1 ] && break
     [ "$(oc get job $JOB -n $NS -o jsonpath='{.status.failed}')" = 2 ] && { oc logs job/$JOB -n $NS --tail=30; exit 1; }

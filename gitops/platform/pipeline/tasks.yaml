@@ -146,7 +146,8 @@ spec:
     attempts. Deterministic scorers decide; the gate is the system pass rate against the golden set's
     gate_threshold (0.95): below it the gate is failed and `promote` is skipped. The run records both
     numbers (system_pass_rate, model_only_pass_rate) and, per case the platform rescues, which control
-    caught it. The gate also fails when the model alone passes fewer cases than the last released production
+    caught it. The gate also fails when the model alone passes fewer cases than the last released production,
+    both counted on the cases the two golden-set versions share (same id and fingerprint)
     (non-regression baseline: annotation parasol.example/model-only-baseline on env-secured, written by promote and
     cross-checked with its mirror, the MLflow run tagged released=true; missing or disagreeing fails closed; before
     any promote, the seed's production run). The judge (gpt-oss-120b on its own key from secret maas-eval-key, never the agent key)
