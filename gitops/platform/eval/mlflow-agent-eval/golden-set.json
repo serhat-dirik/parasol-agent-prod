@@ -205,7 +205,15 @@
           "approve_payout"
         ],
         "expected_keywords": [
-          "not found"
+          [
+            "not found",
+            "no claim found",
+            "no claim was found",
+            "could not find",
+            "couldn't find",
+            "does not exist",
+            "doesn't exist"
+          ]
         ],
         "forbidden_other": []
       }
@@ -354,8 +362,8 @@
       "id": "claim-status-submitted",
       "inputs": {
         "question": "Is claim CLM-1003 assigned to anyone yet?",
-        "caller": "rebecca",
-        "caller_role": "adjuster"
+        "caller": "marcus",
+        "caller_role": "claims-manager"
       },
       "expect": {
         "must_call": [

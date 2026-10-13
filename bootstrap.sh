@@ -148,6 +148,7 @@ kustomize build gitops/platform/maas-tiers | envsubst '$GUARD_HOST' | oc apply -
 scripts/maas-key.sh || warn "no MaaS key minted; parasol-secured keeps the upstream key" scripts/maas-key.sh
 scripts/maas-portal-keys.sh || warn "secured portal per-group MaaS keys (STAFF/CONTRACTOR) missing; the secured portal cannot start" scripts/maas-portal-keys.sh
 scripts/maas-model-keys.sh || warn "per-model Secrets not all created" scripts/maas-model-keys.sh
+scripts/maas-eval-key.sh || warn "release-eval MaaS key not minted yet (scripts/eval-seed.sh retries it)" scripts/maas-eval-key.sh
 
 log "10/12 Prompt-injection detector model"
 scripts/fetch-detector-model.sh || warn "detector model fetch failed (the regex detector still works)" scripts/fetch-detector-model.sh

@@ -137,16 +137,20 @@ metadata:
 spec:
   description: >-
     Lifecycle gate: run the MLflow GenAI evaluation of the claims assistant against the
-    parasol-golden-set dataset in the parasol-secured MLflow workspace. Deterministic scorers
-    (contains_expected, no_payout_without_approval, no_other_claimant_data) decide the gate; a
-    release whose pass rate is below the golden set's gate_threshold (0.95) fails the gate so the `promote` task is skipped. The judge
-    scorers (ToolCallCorrectness, ToolCallEfficiency, RelevanceToQuery, Safety, Guidelines; judge =
-    gpt-oss-120b on its own key from secret maas-eval-key, never the agent key) attach per-case
-    assessments to the run. The agent under test is qwen3-14b (AGENT_MODEL).
-    The MLflow run id is written as a result so the pipeline stamps it onto the PipelineRun.
-    The release registers the prompt it ships first: prompt-file (the authoring source in Git) becomes the
-    registry version prompt-ref's alias points to (an identical text reuses its version), and the released
-    text is left in the workspace (release/released-prompt/) for the promote task to pin.
+    parasol-golden-set dataset in the parasol-secured MLflow workspace. Every answer is generated LIVE with
+    the prompt this release ships on the agent model (qwen3-14b, the eval's own MaaS subscription
+    parasol-eval, key in secret maas-eval-agent-key) against test fixtures (stub tools; no live demo data, no
+    writes), attempts times per case, in two modes: system = the release as deployed (secured model path
+    through the guardrails proxy, the persona's gateway tool list, the claims-db record rule, the portal's
+    correction note) and model_only = the bare model + prompt. A case passes on the majority of its
+    attempts. Deterministic scorers decide; the gate is the system pass rate against the golden set's
+    gate_threshold (0.95): below it the gate is failed and `promote` is skipped. The run records both
+    numbers (system_pass_rate, model_only_pass_rate) and, per case the platform rescues, which control
+    caught it. The judge (gpt-oss-120b on its own key from secret maas-eval-key, never the agent key)
+    attaches per-attempt assessments. The MLflow run id is written as a result. The release registers the
+    prompt it ships first: prompt-file becomes the registry version prompt-ref's alias points to
+    (append-only: an identical text reuses its version), and the released text is left in the workspace
+    (release/released-prompt/) for the promote task to pin.
   params:
     - {name: candidate, type: string, default: candidate-shortened}
     - {name: prompt-ref, type: string, default: ""}
@@ -155,6 +159,7 @@ spec:
     - {name: mlflow-uri, type: string, default: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
     - {name: mlflow-workspace, type: string, default: parasol-secured}
     - {name: experiment, type: string, default: parasol-agent-eval}
+    - {name: attempts, type: string, default: "3"}
   results:
     - {name: gate, description: passed or failed}
     - {name: score, description: pass-rate}
@@ -165,12 +170,15 @@ spec:
   volumes:
     - name: maas-eval-key
       secret: {secretName: maas-eval-key, optional: true}
+    - name: maas-eval-agent-key
+      secret: {secretName: maas-eval-agent-key}
   steps:
     - name: evaluate
       image: registry.access.redhat.com/ubi9/python-311:latest
       workingDir: $(workspaces.source.path)
       volumeMounts:
         - {name: maas-eval-key, mountPath: /maas, readOnly: true}
+        - {name: maas-eval-agent-key, mountPath: /agent, readOnly: true}
       env:
         - {name: MLFLOW_TRACKING_URI, value: "$(params.mlflow-uri)"}
         - {name: MLFLOW_WORKSPACE, value: "$(params.mlflow-workspace)"}
@@ -181,6 +189,10 @@ spec:
         - {name: PROMPT_FILE, value: "$(workspaces.source.path)/$(params.prompt-file)"}
         - {name: PROMPT_FILE_REL, value: "$(params.prompt-file)"}
         - {name: RELEASE_RUN, value: "$(context.taskRun.name)"}
+        - {name: EVAL_ATTEMPTS, value: "$(params.attempts)"}
+        - {name: AGENT_ENDPOINT_FILE, value: /agent/endpoint}
+        - {name: AGENT_KEY_FILE, value: /agent/key}
+        - {name: AGENT_MODEL_FILE, value: /agent/model}
       script: |
         #!/usr/bin/env bash
         set -eu

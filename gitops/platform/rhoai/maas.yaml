@@ -85,3 +85,39 @@ spec:
       namespace: models-as-a-service
       tokenRateLimits:
         - {limit: 20000, window: 10m}   # contractor allowance: a short night-shift storm exhausts it on camera
+---
+# Release evaluation (Scenario 5): the agent-eval gate generates every golden-set answer live with qwen3-14b
+# through this gateway, as the release pipeline's identity (ServiceAccounts of parasol-build), on its OWN
+# subscription: eval traffic is metered apart from staff and contractors and can never spend their allowance.
+# Budget (measured): one prompt = 23 cases x 3 attempts x 2 modes (with the platform, model alone) = about
+# 0.6M tokens, 7-11 min; an install's seed (2 prompts) plus both release runs = about 2.4M, so 6M per hour leaves
+# room for a re-run without a 429. Key minted by scripts/maas-eval-key.sh (Secret parasol-build/maas-eval-agent-key).
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSAuthPolicy
+metadata:
+  name: parasol-eval-access
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  subjects:
+    groups: [{name: "system:serviceaccounts:parasol-build"}]
+  modelRefs:
+    - {name: qwen3-14b, namespace: models-as-a-service}
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: parasol-eval
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  owner:
+    groups: [{name: "system:serviceaccounts:parasol-build"}]
+  priority: 30
+  modelRefs:
+    - name: qwen3-14b
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 6000000, window: 1h}
