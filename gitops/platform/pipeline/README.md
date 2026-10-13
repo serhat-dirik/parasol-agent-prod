@@ -24,10 +24,18 @@ finally: show-sbom, show-summary
 
 `agent-eval` first registers the prompt the release ships (`prompt-file` in the cloned repo, e.g.
 `gitops/envs/secured/system-prompt.txt`, becomes the registry version the `prompt-ref` alias points to; an
-identical text reuses its version), then runs the MLflow evaluation of the claims assistant (agent model
-qwen3-14b, judge gpt-oss-120b on its own key in secret `maas-eval-key`); the scorers judge the model's bare
-answer (production 22 of 23: the one miss is caught at run time by the portal's correction note, recorded on
-the case as `platform_control`). Below the 0.95 pass-rate gate the gate is `failed` and `promote` is skipped. `verify-enterprise-contract` is the Conforma gate: the image must carry a valid
+identical text reuses its version; the registry is append-only), then runs the MLflow evaluation of the claims
+assistant with that prompt, generating every golden-set answer live (agent model qwen3-14b through OpenShift AI MaaS
+on the eval's own subscription `parasol-eval`, key in secret `maas-eval-agent-key`; stub tools from `fixtures.json`, so
+no live data is read and nothing is written; 3 attempts per case, majority). Each case runs with the platform (the
+secured model path through the guardrails proxy, the persona's gateway tool list, the claims-db record rule, the
+portal's correction note: what the gate scores) and model alone (for comparison; a case only the platform saves names
+the control on the run as `platform_control`). The gate also fails when the model alone passes fewer cases than the last released production: `promote` writes
+that number as annotation `parasol.example/model-only-baseline` (+ `-run`) on `env-secured`, next to the pinned
+digest, and mirrors it as tag `released=true` on the MLflow run; a missing or disagreeing record fails the gate
+closed; before any promote the seed's production run is the bar. A prompt that got weaker fails even when the
+platform still masks it. Production passes 22 of 23 with the platform (18 alone); the judge is
+gpt-oss-120b on its own key in secret `maas-eval-key`. Below the 0.95 pass-rate gate the gate is `failed` and `promote` is skipped. `verify-enterprise-contract` is the Conforma gate: the image must carry a valid
 signature AND a signed SLSA provenance attestation (Tekton Chains). The SBOM ships as a signed
 cosign attestation (`cosign verify-attestation --type cyclonedx`). `promote` pins the released prompt
 (ConfigMap `parasol-secured/agent-prompt-release`: the registered text the gate evaluated and its registry

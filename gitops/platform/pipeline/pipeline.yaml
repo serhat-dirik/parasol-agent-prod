@@ -130,6 +130,7 @@ spec:
         - {name: prompt-sha256, value: "$(tasks.agent-eval.results.prompt-sha256)"}
         - {name: model-ref, value: "parasol-claims-assistant:$(params.candidate)"}
         - {name: mlflow-run-id, value: "$(tasks.agent-eval.results.mlflow-run-id)"}
+        - {name: model-only-passed, value: "$(tasks.agent-eval.results.model-only-passed)"}
       workspaces:
         - {name: source, workspace: workspace}
   finally:
