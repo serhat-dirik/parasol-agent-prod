@@ -55,7 +55,7 @@ What you should see: client `parasol-claims-agent`, `username` `marcus`, `subjec
 
 . *What the gateway decided.* Select the *OpenShift Console* tab, *Observe*, *Dashboards*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
 +
-What you should see: *Tool calls by tool, user, agent and status* with `approve_payout`, `marcus`, `parasol-claims-agent`, `200`, and in *Gateway rejections by reason* the refusals of the same period (for example rebecca's `403 role does not allow the tool`). Authorino logs each refusal with the person (`oc logs -n kuadrant-system deploy/authorino | grep 'denied for'`); an allowed call is attributed by the token itself, in the claims-db line and the timeline above.
+What you should see: *Tool calls by tool, user, agent and status* with `approve_payout`, `marcus`, `parasol-claims-agent`, `200`, and in *Gateway rejections by reason* the refusals of the same period (for example rebecca's `403 role does not allow the tool`). Every gateway decision, allowed or refused, is also one line in the MCP gateway's own access log, with the user and agent Authorino verified and the tool (`oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway | grep gateway-decision`): the approval appears there as `status=200 req=[user=marcus agent=parasol-claims-agent] ... tool=approve_payout`.
 
 . *What was live.* Select the *Argo CD* tab, application `env-secured`, *Details*, *Summary*, then *History and rollback*.
 +
@@ -80,9 +80,9 @@ What you should see: `PROMOTED_DIGEST` equal to Argo CD's `promoted-digest`, `EV
 scripts/incident-report.sh CLM-1001
 ----
 +
-What you should see: the same chain in seven read-only sections: the timeline and the PAYOUT line, the gateway refusals, the release annotations on `env-secured`, the release run's results and the running digest. The MLflow, Keycloak and Model Registry sections print `n/a` here (the Terminal's identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too.
+What you should see: the same chain in seven read-only sections: the timeline and the PAYOUT line, the gateway's decisions in the 15 minutes before the approval (allow and deny, each with user, agent and tool), the release annotations on `env-secured`, the release run's results and the running digest. The MLflow, Keycloak and Model Registry sections print `n/a` here (the Terminal's identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too.
 +
-// SCREENSHOT: s9-terminal-incident-report.png — Terminal: scripts/incident-report.sh CLM-1001 (Showroom terminal)
+// SCREENSHOT: s9-terminal-incident-report.png — Terminal: scripts/incident-report.sh CLM-1001 (Showroom terminal); recapture: section 4 now lists the gateway decisions (allow/deny, user, agent, tool) instead of n/a
 
 The point: one payout, seven independent records, joined by the same names. None of them depends on the model telling the truth.
 
