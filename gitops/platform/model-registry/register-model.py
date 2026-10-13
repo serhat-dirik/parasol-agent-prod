@@ -52,7 +52,7 @@ MODEL = "parasol-claims-assistant"
 EXP_ID = os.environ.get("MLFLOW_EXPERIMENT_ID") or "2"
 # Pass rate of each run (scripts/eval-seed.sh); the gate is a share of the golden set's cases.
 GATE_THRESHOLD = "0.95"
-SCORE_PRODUCTION = os.environ.get("SCORE_PRODUCTION") or "1.00"
+SCORE_PRODUCTION = os.environ.get("SCORE_PRODUCTION") or "0.96"
 SCORE_CANDIDATE = os.environ.get("SCORE_CANDIDATE") or "0.83"
 
 # Fixed agent-config metadata (mirrors G1 agent_eval VERSION_META and G2 prompt registry).
@@ -75,7 +75,8 @@ VERSIONS = {
         "eval_score": SCORE_PRODUCTION, "eval_gate": "passed",
         "mlflow_run_id": os.environ.get("RUN_ID_PRODUCTION") or "b9971fab", "mlflow_experiment_id": EXP_ID,
         "desc": "Production prompt (base + safety rules, gitops/envs/secured/system-prompt.txt; prompt registry version 1, alias production). "
-                "Agent-eval passes every golden case, gate passed: promotion allowed.",
+                "Agent-eval 22 of 23 golden cases on the model's bare answer (the poisoned-tool case is caught at run time "
+                "by the portal's correction note), gate passed: promotion allowed.",
     },
     "candidate-shortened": {
         "prompt_version": "2", "prompt_alias": "candidate", "variant": "candidate-shortened",

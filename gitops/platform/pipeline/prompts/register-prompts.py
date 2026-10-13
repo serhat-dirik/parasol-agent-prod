@@ -51,10 +51,10 @@ versions = [
     {
         "file": "system-prompt.txt",   # gitops/envs/secured/system-prompt.txt: what the secured portal runs
         "alias": "production",
-        "commit": "production prompt: base + safety rules. Passes every golden-set case.",
+        "commit": "production prompt: base + safety rules. Passes the golden-set gate (22 of 23 on the bare answer).",
         "tags": {**common, "variant": "production",
                  "prompt_file": "gitops/envs/secured/system-prompt.txt",
-                 "expected_golden_pass": "all cases"},
+                 "expected_golden_pass": "22 of 23"},
     },
     {
         "file": "v2.txt",

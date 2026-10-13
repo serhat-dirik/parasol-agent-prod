@@ -65,9 +65,9 @@ What you should see: the annotations `parasol.example/promoted-digest`, `promote
 
 . *Which evaluated version.* Select the *OpenShift AI* tab, *Models*, *Model registry*, `parasol-claims-assistant`, version `production`.
 +
-What you should see: `gate` `passed`, `eval_score` `1.00` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]).
+What you should see: `gate` `passed`, `eval_score` `0.96` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]).
 +
-// SCREENSHOT: s9-model-registry-production.png — OpenShift AI, Model registry, parasol-claims-assistant > production > Details: gate passed, eval_score 1.00, mlflow_run_id, prompt_sha256 (OpenShift sign-in)
+// SCREENSHOT: s9-model-registry-production.png — OpenShift AI, Model registry, parasol-claims-assistant > production > Details: gate passed, eval_score 0.96, mlflow_run_id, prompt_sha256 (OpenShift sign-in)
 
 . *Was it the signed image?* In the *OpenShift Console* tab, *Pipelines*, project `parasol-build`, run `parasol-portal-release-production`, tab *Details* (results).
 +

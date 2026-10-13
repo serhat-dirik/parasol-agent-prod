@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Scenario 5 data: the golden-set evaluation of the production prompt (run production-prompt, every case PASS)
+# Scenario 5 data: the golden-set evaluation of the production prompt (run production-prompt, 22 of 23 PASS)
 # and the shortened candidate (run candidate-shortened-prompt, below the gate: BLOCK) in MLflow
 # experiment parasol-agent-eval (workspace parasol-secured), each case judged by the JUDGE model.
 # Runs gitops/platform/eval/mlflow-agent-eval/agent_eval.py once as a Job in parasol-build (SA pipeline,
