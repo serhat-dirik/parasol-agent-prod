@@ -45,7 +45,7 @@ What you should see: `PAYOUT claim=CLM-1001 amount=4200.00 previousStatus=UnderR
 +
 What you should see: the approval trace: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, a `gateway.authz` span with status OK. Then open the chat turn just before it (search `tags.agent = 'parasol-claims-agent'`, newest marcus trace): tags `prompt` `parasol-claims-assistant-system-prompt@production`, `prompt_sha256` (the digest of the exact prompt text that ran), `model` `qwen3-14b`, and the spans `model.chat` -> `tool.propose_payout` (proposed 4200, claimed 4200), plus any `guardrails.*` decision of that turn. The model proposed; the person approved.
 +
-// SCREENSHOT: s9-mlflow-proposal-trace.png — MLflow, workspace parasol-secured, the marcus chat turn that proposed CLM-1001: tags agent / prompt @production / prompt_sha256 / model, span tool.propose_payout selected with payout.proposed and payout.claimed (OpenShift sign-in for MLflow)
+// SCREENSHOT: s9-mlflow-proposal-trace.png — MLflow, workspace parasol-secured, the marcus chat turn that proposed CLM-1001: tags agent / prompt (registry version) / prompt_sha256 / model, span tool.propose_payout selected with payout.proposed and payout.claimed (OpenShift sign-in for MLflow)
 
 . *Who acted for whom.* Select the *Keycloak* tab, realm `parasol`, *Events*, *User events*, type `TOKEN_EXCHANGE`, user `marcus`.
 +
@@ -59,9 +59,9 @@ What you should see: *Tool calls by tool, user, agent and status* with `approve_
 
 . *What was live.* Select the *Argo CD* tab, application `env-secured`, *Details*, *Summary*, then *History and rollback*.
 +
-What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-sha256` and `model-ref` `parasol-claims-assistant:production`. The `prompt-sha256` is the same value as the trace's `prompt_sha256` tag: the release refuses to promote when the prompt the portal runs is not the registered one, so the trace's `@production` is literally the gated text. *History and rollback* shows the sync that rolled that digest out, before the approval time.
+What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-version` (the registry version the release pinned), `prompt-sha256` and `model-ref` `parasol-claims-assistant:production`. The `prompt-sha256` is the same value as the trace's `prompt_sha256` tag: the release refuses to promote when the prompt the portal runs is not the registered one, so the trace's `@production` is literally the gated text. *History and rollback* shows the sync that rolled that digest out, before the approval time.
 +
-// SCREENSHOT: s9-argo-promote-annotations.png — Argo CD, env-secured, Details > Summary: promoted-digest, promoted-by, prompt-ref, prompt-sha256, model-ref (Argo CD sign-in)
+// SCREENSHOT: s9-argo-promote-annotations.png — Argo CD, env-secured, Details > Summary: promoted-digest, promoted-by, prompt-ref, prompt-version, prompt-sha256, model-ref (Argo CD sign-in)
 
 . *Which evaluated version.* Select the *OpenShift AI* tab, *Models*, *Model registry*, `parasol-claims-assistant`, version `production`.
 +

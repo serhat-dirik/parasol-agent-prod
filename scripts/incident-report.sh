@@ -112,7 +112,7 @@ hdr "5. What was live: the release on Argo CD Application env-secured"
 oc get application env-secured -n openshift-gitops -o json 2>/dev/null | python3 -c '
 import sys, json
 a = json.load(sys.stdin); an = a["metadata"].get("annotations", {})
-for k in ("promoted-digest", "promoted-by", "prompt-ref", "prompt-sha256", "model-ref"):
+for k in ("promoted-digest", "promoted-by", "prompt-ref", "prompt-version", "prompt-sha256", "model-ref"):
     print("  %-16s %s" % (k, an.get("parasol.example/" + k, "-")))
 for h in a.get("status", {}).get("history", [])[-3:]:
     print("  synced %s  revision %s" % (h.get("deployedAt"), h.get("revision", "")[:12]))' || na "cannot read the Application"
