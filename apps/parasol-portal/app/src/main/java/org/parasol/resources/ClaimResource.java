@@ -3,8 +3,7 @@ package org.parasol.resources;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-
-import java.util.Map;
+import java.util.function.Supplier;
 
 import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
@@ -37,6 +36,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
@@ -76,35 +76,60 @@ public class ClaimResource {
     @Inject
     McpBearerTokenProvider mcpAuth;
 
+    /*
+     * The UI's reads go to claims-db with the same identity the agent's tools use: the logged-in user's token
+     * exchanged by the agent (secured). claims-db decides, with the rule it applies to the tools, which records
+     * this user may see; a claim outside them comes back as claims-db's 403 refusal, which the UI renders as
+     * "not assigned to you" (no data). One enforcement point, no copy of the rule here.
+     */
+
     @GET
     @Path("/claims")
     public List<ClaimDto> all() {
-        return claims.all();
+        return read(() -> claims.all(readAuthorization()));
     }
 
     @GET
     @Path("/claims/{number}")
     public ClaimDto one(@PathParam("number") String number) {
-        return claims.one(number);
+        return read(() -> claims.one(number, readAuthorization()));
     }
 
     @GET
     @Path("/claims/{number}/history")
     public List<TimelineEntry> history(@PathParam("number") String number) {
-        return claims.history(number);
+        return read(() -> claims.history(number, readAuthorization()));
     }
 
     @GET
     @Path("/claims/{number}/documents")
     public List<DocumentDto> documents(@PathParam("number") String number) {
-        return claims.documents(number);
+        return read(() -> claims.documents(number, readAuthorization()));
     }
 
-    /** Dashboard aggregate (status counts, paid count, recent events), proxied from claims-db. */
+    /** Dashboard aggregate (status counts, paid count, recent events) over the records this user may read. */
     @GET
     @Path("/dashboard")
     public Dashboard dashboard() {
-        return claims.dashboard();
+        return read(() -> claims.dashboard(readAuthorization()));
+    }
+
+    /** The Authorization the agent presents for this user (null in free: claims-db does not check there). */
+    private String readAuthorization() {
+        forwardToken();
+        return mcpAuth.getAuthorization(null);
+    }
+
+    /** claims-db's refusal (403 not_assigned, 401) is passed to the UI as it is: status and explanation, no record. */
+    private static <T> T read(Supplier<T> call) {
+        try {
+            return call.get();
+        } catch (WebApplicationException e) {
+            Response r = e.getResponse();
+            String body = r.hasEntity() ? r.readEntity(String.class) : "";
+            throw new WebApplicationException(Response.status(r.getStatus())
+                    .type(MediaType.APPLICATION_JSON).entity(body).build());
+        }
     }
 
     /** The logged-in user's assistant usage, read from the portal's own Micrometer meters. */

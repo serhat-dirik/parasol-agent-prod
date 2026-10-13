@@ -36,24 +36,32 @@ const ClaimDetail: React.FunctionComponent = () => {
   const [claim, setClaim] = React.useState<any>({});
   const [documents, setDocuments] = React.useState<ClaimDoc[]>([]);
   const [history, setHistory] = React.useState<HistoryEntry[]>([]);
+  // Secured: claims-db refuses a claim outside the user's records (403); the page then shows the refusal, no data.
+  const [refusal, setRefusal] = React.useState<string | null>(null);
 
   // Bumped whenever a chat turn completes, to re-fetch claim + timeline (a payout may have changed them).
   const [refreshKey, setRefreshKey] = React.useState(0);
 
   React.useEffect(() => {
     axios.get(config.backend_api_url + `/claims/${claimNumber}`)
-      .then((response) => setClaim(response.data))
-      .catch(error => console.error(error));
+      .then((response) => { setClaim(response.data); setRefusal(null); })
+      .catch(error => {
+        if (error?.response?.status === 403) {
+          setRefusal(error.response.data?.message || 'This claim is not assigned to you.');
+        } else {
+          console.error(error);
+        }
+      });
     axios.get(config.backend_api_url + `/claims/${claimNumber}/history`)
       .then((response) => setHistory(response.data))
-      .catch(error => console.error(error));
+      .catch(() => setHistory([]));
   }, [claimNumber, refreshKey]);
 
   // Documents don't change across a turn, so fetch once per claim.
   React.useEffect(() => {
     axios.get(config.backend_api_url + `/claims/${claimNumber}/documents`)
       .then((response) => setDocuments(response.data))
-      .catch(error => console.error(error));
+      .catch(() => setDocuments([]));
   }, [claimNumber]);
 
   // Tabs control
@@ -66,6 +74,29 @@ const ClaimDetail: React.FunctionComponent = () => {
   // Chat panel
   const [isChatOpen, setIsChatOpen] = React.useState(false);
   const handleChatToggle = (_event: KeyboardEvent | React.MouseEvent) => setIsChatOpen(!isChatOpen);
+
+  if (refusal) {
+    return (
+      <Page>
+        <PageSection>
+          <Breadcrumb ouiaId="RefusedBreadcrumb" className='simple-padding'>
+            <BreadcrumbItem to="/ClaimsList">&lt; Back to claims</BreadcrumbItem>
+          </Breadcrumb>
+          <Card isRounded={true} className='width-100 padding-top-25'>
+            <CardBody>
+              <Title headingLevel="h1" size="2xl">
+                <FontAwesomeIcon className='colored-item-blue' icon={faShieldHalved} />&nbsp;{claimNumber} is not assigned to you
+              </Title>
+              <TextContent className='padding-top-25'>
+                <Text>{refusal}</Text>
+                <Text component={TextVariants.small}>Decided by claims-db from your identity: the same rule the assistant's tools get.</Text>
+              </TextContent>
+            </CardBody>
+          </Card>
+        </PageSection>
+      </Page>
+    );
+  }
 
   return (
     <Page>

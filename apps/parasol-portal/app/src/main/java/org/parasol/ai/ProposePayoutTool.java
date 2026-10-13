@@ -28,6 +28,9 @@ public class ProposePayoutTool {
     @Inject
     ProposalHolder holder;
 
+    @Inject
+    McpBearerTokenProvider mcpAuth;
+
     @Tool(name = "propose_payout",
             value = "Propose a payout on a claim for a claims manager to approve. Use this to approve, "
                     + "pay, pay out or settle a claim. It does NOT pay the claim - it submits a proposal "
@@ -44,7 +47,8 @@ public class ProposePayoutTool {
         }
         Double claimed = null;
         try {
-            ClaimDto c = claims.one(claimNumber);
+            // the claimed figure is read as the user (secured: claims-db's record rule; refused -> no figure)
+            ClaimDto c = claims.one(claimNumber, mcpAuth.getAuthorization(null));
             if (c != null && c.amount() != null) {
                 claimed = Double.parseDouble(c.amount());
             }

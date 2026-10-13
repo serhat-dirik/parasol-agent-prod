@@ -17,7 +17,9 @@ hdr() { printf '\n== %s\n' "$*"; }
 na() { echo "  n/a: $*"; }
 
 hdr "1. The claim: timeline and the write (claims-db, $NS)"
-hist=$(oc exec -n $NS deploy/claims-db -- curl -s "localhost:8080/api/claims/$claim/history" 2>/dev/null) || hist=""
+# claims-db answers record reads only for a verified user token: read as a claims manager (marcus, via the agent)
+MGR=$(scripts/agent-token.sh marcus 2>/dev/null || true)
+hist=$(oc exec -n $NS deploy/claims-db -- curl -s -H "Authorization: Bearer $MGR" "localhost:8080/api/claims/$claim/history" 2>/dev/null) || hist=""
 if [ -n "$hist" ]; then
   printf '%s' "$hist" | python3 -c 'import sys,json
 for e in json.load(sys.stdin): print("  %s  %-16s %s" % (e["createdAt"], e["eventType"], e["note"]))'

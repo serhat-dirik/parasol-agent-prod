@@ -9,6 +9,7 @@ import org.parasol.model.ClaimDtos.DocumentDto;
 import org.parasol.model.ClaimDtos.TimelineEntry;
 
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -24,21 +25,21 @@ import jakarta.ws.rs.core.MediaType;
 public interface ClaimsDbClient {
 
     @GET
-    List<ClaimDto> all();
+    List<ClaimDto> all(@HeaderParam("Authorization") String authorization);
 
     @GET
     @Path("/{number}")
-    ClaimDto one(@PathParam("number") String number);
+    ClaimDto one(@PathParam("number") String number, @HeaderParam("Authorization") String authorization);
 
     @GET
     @Path("/{number}/history")
-    List<TimelineEntry> history(@PathParam("number") String number);
+    List<TimelineEntry> history(@PathParam("number") String number, @HeaderParam("Authorization") String authorization);
 
     @GET
     @Path("/{number}/documents")
-    List<DocumentDto> documents(@PathParam("number") String number);
+    List<DocumentDto> documents(@PathParam("number") String number, @HeaderParam("Authorization") String authorization);
 
     @GET
     @Path("/dashboard")
-    Dashboard dashboard();
+    Dashboard dashboard(@HeaderParam("Authorization") String authorization);
 }

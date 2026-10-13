@@ -183,9 +183,17 @@ What you should see: the same chips, and an answer that she has no access to CLM
 +
 // SCREENSHOT: s3-secured-record-denied.png — Portal secured as rebecca: "Show me claim CLM-1029 and its history." answered with the access-denied message, get_claim chip visible (portal sign-in as rebecca)
 
-. Log out, log in as `marcus` and send the same message.
+. *The screens too.* Still as `rebecca` in the *Portal secured* tab, select *Claims*.
 +
-What you should see: the full record. Marcus is a claims manager; the rule is the person's, not the assistant's.
+What you should see: only the claims assigned to Rebecca Torres; CLM-1029 is not in her list, and her *Dashboard* counts only her caseload. Now open the claim page directly: replace the end of the address with `/ClaimDetail/CLM-1029`.
++
+What you should see: a page *CLM-1029 is not assigned to you* with claims-db's refusal and no claimant, amount, documents or timeline. The screens ask claims-db with the same on-behalf-of identity the assistant's tools use, so the one rule decides both. In the *Portal unsecured* tab the same address shows the whole claim.
++
+// SCREENSHOT: s3-secured-ui-not-assigned.png — Portal secured as rebecca at /ClaimDetail/CLM-1029: the "CLM-1029 is not assigned to you" page with the access-denied text, no claim data (portal sign-in as rebecca)
+
+. Log out, log in as `marcus` and send the same message, then open `/ClaimDetail/CLM-1029`.
++
+What you should see: the full record, in the chat and on the claim page, and CLM-1029 in his claim list. Marcus is a claims manager; the rule is the person's, not the assistant's.
 
 . *On the platform.* Click the `trace <id>` link under rebecca's refused answer.
 +
@@ -196,12 +204,12 @@ What you should see: in *MLflow*, the agent's span `tool.get_claim` (`enduser.id
 oc logs -n parasol-secured deploy/claims-db --tail=200 | grep 'CLAIMS ACL denied'
 ----
 +
-What you should see: `CLAIMS ACL denied tool=get_claim claim=CLM-1029 user=rebecca via parasol-claims-agent reason=assigned to Angela Davis`, one line per refused tool call. On the dashboard (*Parasol Assistant Token Spend*, row *Gateway decisions*), *Gateway rejections by reason* has `denied, claim not assigned to the user (claims-db record access)` for `rebecca` via `parasol-claims-agent`.
+What you should see: `CLAIMS ACL denied tool=get_claim claim=CLM-1029 user=rebecca via parasol-claims-agent reason=assigned to Angela Davis`, one line per refused tool call, and for the claim page `tool=ui.get_claim` (and `ui.get_claim_documents`, `ui.get_claim_history`) with the same user, agent and reason. On the dashboard (*Parasol Assistant Token Spend*, row *Gateway decisions*), *Gateway rejections by reason* has `denied, claim not assigned to the user (claims-db record access)` for `rebecca` via `parasol-claims-agent`.
 +
 // SCREENSHOT: s3-mlflow-record-denied.png — MLflow trace of rebecca's CLM-1029 turn: span claims-db.get_claim selected with claims.access denied, claims.claim_number CLM-1029, enduser.id rebecca (OpenShift sign-in for MLflow)
 // SCREENSHOT: s3-dashboard-record-denied.png — Console, Parasol Assistant Token Spend, row "Gateway decisions": the rejections table with "denied, claim not assigned to the user (claims-db record access)" for rebecca (OpenShift admin sign-in)
 +
-How it decides: claims-db verifies the token the gateway forwards (Keycloak's signature, issuer, expiry, audience `parasol-secured/claims-db`) and compares the token's `name` with the claim's adjuster, or finds `claims-managers` in its `groups`. Free runs the same server with the check off (`CLAIMS_ACL_ENFORCE` is set only in `parasol-secured`). The portal's own claim pages read claims-db directly for the screen; this beat is about what the assistant may read on a person's behalf.
+How it decides: claims-db verifies the token the gateway forwards (Keycloak's signature, issuer, expiry, audience `parasol-secured/claims-db`) and compares the token's `name` with the claim's adjuster, or finds `claims-managers` in its `groups`. Free runs the same server with the check off (`CLAIMS_ACL_ENFORCE` is set only in `parasol-secured`). The portal's own claim pages are not a way around it: the portal reads claims-db's REST API with the same exchanged token, and claims-db applies the same check there (tool names `ui.*` in the log, the metric and the span).
 
 == Reset after this scenario
 

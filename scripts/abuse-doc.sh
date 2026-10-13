@@ -45,14 +45,16 @@ if r.get("error"): print("  error:", r["error"])
 print("  answer:", (r.get("answer") or "")[:400])'
 
   printf '  timeline CLM-1004 (from claims-db):\n'
+  # secured claims-db reads records only for a verified user token (rebecca is CLM-1004's adjuster); free ignores it
+  local tok; tok=$([ "$env" = secured ] && "$(dirname "$0")/agent-token.sh" rebecca 2>/dev/null || true)
   oc exec -n "parasol-$env" deploy/claims-db -- \
-    curl -s localhost:8080/api/claims/CLM-1004/history 2>/dev/null \
+    curl -s -H "Authorization: Bearer $tok" localhost:8080/api/claims/CLM-1004/history 2>/dev/null \
   | python3 -c 'import sys,json
 try:
   for e in json.load(sys.stdin): print("    -", e["eventType"], "-", e["note"])
 except Exception as ex: print("    (timeline unavailable:", ex, ")")'
   local status
-  status=$(oc exec -n "parasol-$env" deploy/claims-db -- curl -s localhost:8080/api/claims/CLM-1004 2>/dev/null \
+  status=$(oc exec -n "parasol-$env" deploy/claims-db -- curl -s -H "Authorization: Bearer $tok" localhost:8080/api/claims/CLM-1004 2>/dev/null \
            | python3 -c 'import sys,json;print(json.load(sys.stdin).get("status"))' 2>/dev/null)
   printf '  CLM-1004 status now: \033[1m%s\033[0m\n' "$status"
 }
