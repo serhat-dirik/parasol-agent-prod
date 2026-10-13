@@ -45,13 +45,25 @@ spec:
             - name: CONTRACTOR_MAAS_KEY
               valueFrom: {secretKeyRef: {name: maas-portal-keys, key: CONTRACTOR_MAAS_KEY}}
             # --- login: Keycloak OIDC web-app (Secret created by Stream I in both namespaces) ---
-            - name: QUARKUS_OIDC_AUTH_SERVER_URL
-              valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: auth-server-url}}
             - name: QUARKUS_OIDC_CLIENT_ID
               valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: client-id}}
             - name: QUARKUS_OIDC_CREDENTIALS_SECRET
               valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: client-secret}}
             - {name: QUARKUS_OIDC_APPLICATION_TYPE, value: web-app}
+            # The server side of the login (code -> token, signing keys, refresh) goes to Keycloak's in-cluster
+            # Service (this pod has no route through the cluster ingress); the BROWSER is still sent to the public
+            # sso host (authorization and logout endpoints below). No discovery: Keycloak's discovery document
+            # names its public endpoints. The issuer checked is the public realm URL every token carries.
+            - name: QUARKUS_OIDC_AUTH_SERVER_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: realmUrl}}
+            - name: OIDC_PUBLIC_ISSUER
+              valueFrom: {configMapKeyRef: {name: agent-config, key: issuer}}
+            - {name: QUARKUS_OIDC_DISCOVERY_ENABLED, value: "false"}
+            - {name: QUARKUS_OIDC_TOKEN_ISSUER, value: "$(OIDC_PUBLIC_ISSUER)"}
+            - {name: QUARKUS_OIDC_AUTHORIZATION_PATH, value: "$(OIDC_PUBLIC_ISSUER)/protocol/openid-connect/auth"}
+            - {name: QUARKUS_OIDC_END_SESSION_PATH, value: "$(OIDC_PUBLIC_ISSUER)/protocol/openid-connect/logout"}
+            - {name: QUARKUS_OIDC_TOKEN_PATH, value: protocol/openid-connect/token}
+            - {name: QUARKUS_OIDC_JWKS_PATH, value: protocol/openid-connect/certs}
             # Behind the TLS-terminating router: trust X-Forwarded-Proto so OIDC builds https:// redirect URIs
             - {name: QUARKUS_HTTP_PROXY_PROXY_ADDRESS_FORWARDING, value: "true"}
             - {name: QUARKUS_OIDC_AUTHENTICATION_FORCE_REDIRECT_HTTPS_SCHEME, value: "true"}

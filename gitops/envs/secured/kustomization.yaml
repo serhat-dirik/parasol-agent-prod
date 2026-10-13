@@ -51,20 +51,54 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: CLAIMS_ACL_TOKEN_URL, valueFrom: {configMapKeyRef: {name: agent-config, key: tokenUrl}}}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: CLAIMS_ACL_ISSUER, valueFrom: {configMapKeyRef: {name: agent-config, key: issuer}}}
   - target: {kind: Deployment, name: knowledge-base}   # retrieval spans join the portal's trace
     patch: |-
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector.observability.svc.cluster.local:4317"}
+      - op: add   # tokens carry the public issuer; the signing keys come from KB_TOKEN_URL (Keycloak in-cluster)
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: KB_ISSUER, valueFrom: {configMapKeyRef: {name: agent-config, key: issuer}}}
+  # Keycloak is reached by its in-cluster Service (service-serving certificate): trust the cluster service CA
+  # (ConfigMap openshift-service-ca.crt, present in every namespace). The pods mount no API token, so it is mounted.
+  - target: {kind: Deployment, name: "^(portal|parasol-agent|fraud-check)$"}   # these already have volumes/mounts
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes/-
+        value: {name: service-ca, configMap: {name: openshift-service-ca.crt}}
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts/-
+        value: {name: service-ca, mountPath: /etc/parasol/service-ca, readOnly: true}
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: SERVICE_CA_FILE, value: /etc/parasol/service-ca/service-ca.crt}
+  - target: {kind: Deployment, name: "^(claims-db|knowledge-base)$"}
+    patch: |-
+      - op: add
+        path: /spec/template/spec/volumes
+        value: [{name: service-ca, configMap: {name: openshift-service-ca.crt}}]
+      - op: add
+        path: /spec/template/spec/containers/0/volumeMounts
+        value: [{name: service-ca, mountPath: /etc/parasol/service-ca, readOnly: true}]
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: SERVICE_CA_FILE, value: /etc/parasol/service-ca/service-ca.crt}
+      - op: add   # Python (knowledge-base): ssl's default context reads this file
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: SSL_CERT_FILE, value: /etc/parasol/service-ca/service-ca.crt}
 configMapGenerator:
   - name: agent-config
     literals:
       - endpoint=http://model-gateway-openshift-default.parasol-model-gateway.svc:8080/v1   # rate-limited model gateway -> guardrails-proxy -> MaaS
       - model=MAAS_MODEL
-      - claimsDbMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
-      - policyDocsMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp
-      - fraudCheckMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp   # V3: fraud-check agent via the one gateway
-      - knowledgeBaseMcpUrl=https://mcp.apps.CLUSTER_DOMAIN/mcp   # RAG: knowledge base via the one gateway
+      # the MCP gateway by its in-cluster Service (the gateway's private host): no route through the cluster ingress
+      - claimsDbMcpUrl=http://mcp-gateway-openshift-default.gateway-system.svc.cluster.local:8080/mcp
+      - policyDocsMcpUrl=http://mcp-gateway-openshift-default.gateway-system.svc.cluster.local:8080/mcp
+      - fraudCheckMcpUrl=http://mcp-gateway-openshift-default.gateway-system.svc.cluster.local:8080/mcp   # V3: fraud-check agent via the one gateway
+      - knowledgeBaseMcpUrl=http://mcp-gateway-openshift-default.gateway-system.svc.cluster.local:8080/mcp   # RAG: knowledge base via the one gateway
       - knowledgeBaseEnforce=true   # verify the caller's token, search only what its groups may read, RLS on
       - claimsDbApiUrl=http://claims-db:8080        # Stream P: direct REST read for the portal UI (not via the MCP gateway)
       - env=secured   # environment label on metrics and traces (not a prompt version)

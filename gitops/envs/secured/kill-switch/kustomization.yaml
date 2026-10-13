@@ -20,7 +20,6 @@ patches:
         path: /spec/egress
         value:
           - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: gateway-system}}}]
-          - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: openshift-ingress}}}]
           - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: keycloak}}}]
           - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}}]
   # Blocked packets are dropped, so the model call fails on the client timeout (25 s), not at once.
@@ -38,9 +37,7 @@ patches:
         path: /spec/egress
         value:
           - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: gateway-system}}}]
-          - to:
-              - {namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: keycloak}}}
-              - {namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: openshift-ingress}}}
+          - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: keycloak}}}]
           - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: observability}}}]
           - to:
               - {podSelector: {matchExpressions: [{key: app, operator: In, values: [claims-db]}]}}

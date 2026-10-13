@@ -18,6 +18,10 @@ spec:
     realm: parasol
     enabled: true
     accessTokenLifespan: 3600
+    # Tokens carry the public issuer even when a secured workload reaches Keycloak by its in-cluster Service
+    # (set by the platform-keycloak Application; scripts/agent-clients.sh keeps an existing realm in sync)
+    attributes:
+      frontendUrl: https://sso.apps.CLUSTER_DOMAIN
     clients:
     # (Listed before parasol-portal: the platform-keycloak Application patches clients/2 = parasol-portal.)
     # The agents' own identities (scripts/agent-clients.sh keeps them in sync). Confidential, but with NO

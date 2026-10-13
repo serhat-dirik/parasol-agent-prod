@@ -63,23 +63,6 @@ spec:
     name: policy-docs
     namespace: parasol-secured
 ---
-# The agent reaches the MCP gateway and Keycloak by their public hosts (mcp.apps / sso.apps), which in-cluster DNS
-# resolves to the bare-metal ingress VIP (host network, so no namespaceSelector matches it). Only port 443 on that VIP.
-# Cluster-specific: bootstrap.sh derives it from the Infrastructure ingressIPs (0.0.0.0/0 when the platform has none).
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: parasol-agent-ingress-vip
-spec:
-  podSelector:
-    matchLabels: {app: parasol-agent}
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - ipBlock: {cidr: INGRESS_CIDR}   # set by the env-secured Argo Application (bootstrap.sh)
-      ports:
-        - {protocol: TCP, port: 443}
----
 # One gateway URL, two tool sets: the agent's claims-db and policy-docs clients each send
 # X-Mcp-Virtualserver: parasol-secured/<name> (agent-identity-patch.yaml). tools/list is still filtered per identity.
 apiVersion: mcp.kuadrant.io/v1alpha1

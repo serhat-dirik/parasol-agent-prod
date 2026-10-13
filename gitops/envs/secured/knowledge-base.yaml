@@ -35,11 +35,9 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: observability}
-    - to:   # Keycloak's signing keys (JWKS) via the router; the ingress VIP is in portal-ingress-vip
+    - to:   # Keycloak's signing keys (JWKS), from its in-cluster Service
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: keycloak}
-        - namespaceSelector:
-            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

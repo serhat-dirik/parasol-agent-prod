@@ -46,7 +46,10 @@ RETRIEVALS = PCounter("parasol_rag_retrievals", "Knowledge-base searches", ["use
 WITHHELD = PCounter("parasol_rag_withheld", "Passages withheld from a caller", ["classification", "user", "agent", "env"])
 RESTRICTED = PCounter("parasol_rag_restricted_access", "Restricted documents returned", ["doc_id", "user", "agent", "env"])
 tracer = trace.get_tracer("knowledge-base")
-_jwks = jwt.PyJWKClient(ISSUER + "/protocol/openid-connect/certs", cache_keys=True) if ENFORCE else None
+# Signing keys from where the realm is reached (KB_TOKEN_URL: Keycloak's in-cluster address in secured, trusted via
+# SSL_CERT_FILE = the service CA); the issuer the tokens carry stays the public KB_ISSUER.
+REALM_URL = os.environ.get("KB_TOKEN_URL", "").split("/protocol/")[0] or ISSUER
+_jwks = jwt.PyJWKClient(REALM_URL + "/protocol/openid-connect/certs", cache_keys=True) if ENFORCE else None
 _lock = threading.Lock()   # ponytail: one embedding at a time on a CPU pod; a pool if queries ever overlap
 
 

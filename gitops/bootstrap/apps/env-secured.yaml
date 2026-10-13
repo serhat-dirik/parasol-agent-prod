@@ -19,21 +19,16 @@ spec:
             - op: replace
               path: /data/model
               value: qwen3-14b   # secured portal runs on the injection-obeying model; the controls (not model luck) stop the payout
+            # Keycloak by its in-cluster Service (transport only; tokens keep the public issuer below)
             - op: replace
-              path: /data/claimsDbMcpUrl
-              value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
-            - op: replace
-              path: /data/policyDocsMcpUrl
-              value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
+              path: /data/realmUrl
+              value: ${KEYCLOAK_INTERNAL_URL}/realms/parasol
             - op: replace
               path: /data/tokenUrl
-              value: https://sso.apps.${CLUSTER_DOMAIN}/realms/parasol/protocol/openid-connect/token
+              value: ${KEYCLOAK_INTERNAL_URL}/realms/parasol/protocol/openid-connect/token
             - op: replace
-              path: /data/fraudCheckMcpUrl
-              value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
-            - op: replace
-              path: /data/knowledgeBaseMcpUrl
-              value: https://mcp.apps.${CLUSTER_DOMAIN}/mcp
+              path: /data/issuer
+              value: https://sso.apps.${CLUSTER_DOMAIN}/realms/parasol
         # The agents' projected ServiceAccount tokens are client assertions for the parasol realm: their
         # audience must be the realm issuer.
         - target: {kind: Deployment, name: "^(portal|parasol-agent|fraud-check)$"}
@@ -46,18 +41,6 @@ spec:
             - op: replace
               path: /spec/host
               value: portal.apps.${CLUSTER_DOMAIN}
-        # In-cluster calls to the public *.apps hosts (Keycloak, MCP gateway) leave through the ingress
-        # address; bootstrap.sh derives it (INGRESS_CIDR) from the cluster's Infrastructure object.
-        - target: {kind: NetworkPolicy, name: parasol-agent-ingress-vip}
-          patch: |-
-            - op: replace
-              path: /spec/egress/0/to/0/ipBlock/cidr
-              value: ${INGRESS_CIDR}
-        - target: {kind: NetworkPolicy, name: portal-ingress-vip}
-          patch: |-
-            - op: replace
-              path: /spec/egress/0/to/0/ipBlock/cidr
-              value: ${INGRESS_CIDR}
   # Admission (policy-controller, policy.rhtas.com) resolves image tags to digests in parasol-secured,
   # so the :latest images of the other workloads would differ from Git forever (OutOfSync, selfHeal
   # loop). Ignore that field except on the portal container, whose image is the promoted pin.

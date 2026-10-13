@@ -23,8 +23,9 @@ spec:
         - {protocol: UDP, port: 5353}
         - {protocol: TCP, port: 5353}
 ---
-# The agent: ingress from the router (people), egress to the MCP gateway, Keycloak, guardrails, OTel.
-# Note: no egress rule to claims-db or policy-docs. The agent CANNOT bypass the gateway.
+# The agent: ingress from the router (people), egress to the MCP gateway, Keycloak, the model gateway, OTel,
+# each by its in-cluster Service. No egress rule to claims-db or policy-docs (the agent CANNOT bypass the MCP
+# gateway) and none to the cluster ingress (no path to a model route around the model gateway and guardrails).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -44,9 +45,6 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: gateway-system}
-    - to:
-        - namespaceSelector:
-            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: keycloak}

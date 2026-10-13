@@ -21,11 +21,11 @@ spec:
     - to:   # the MCP tools, only through the MCP gateway (layer 3)
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: gateway-system}
-    - to:   # login (OIDC) against the lab Keycloak, and the redirect back through the router
+    - to:   # login (code -> token, keys) and the on-behalf-of token exchange: Keycloak's in-cluster Service.
+            # No openshift-ingress: the router (and the MaaS gateway behind it) is not reachable, so the
+            # model is reachable only through the model gateway below; the browser's redirects need no egress.
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: keycloak}
-        - namespaceSelector:
-            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
     - to:   # the model, ONLY through the rate-limited model gateway (layer 5) - the kill switch drops this
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: parasol-model-gateway}
@@ -55,24 +55,3 @@ spec:
             matchLabels: {app: portal}
       ports:
         - {protocol: TCP, port: 8080}
----
-# The portal reaches Keycloak (OIDC) and the MCP gateway through their public *.apps routes, which
-# resolve to the ingress VIP (an IP, not a namespace), so a namespaceSelector cannot match it.
-# Mirror the agent's ingress-vip allow for app=portal (cluster-specific VIP). The fraud-check agent
-# uses the same two hosts for its own on-behalf-of tool calls, and the knowledge base and claims-db fetch
-# Keycloak's signing keys from the realm, so they share this allow.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: portal-ingress-vip
-spec:
-  podSelector:
-    matchExpressions:
-      - {key: app, operator: In, values: [portal, fraud-check, knowledge-base, claims-db]}
-  policyTypes: [Egress]
-  egress:
-    - to:
-        - ipBlock:
-            cidr: INGRESS_CIDR   # set by the env-secured Argo Application (bootstrap.sh)
-      ports:
-        - {protocol: TCP, port: 443}

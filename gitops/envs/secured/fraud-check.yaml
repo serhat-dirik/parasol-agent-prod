@@ -100,13 +100,11 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: observability}
-    - to:   # its own tool calls: Keycloak (token exchange) and the MCP gateway, via the router (+ portal-ingress-vip)
+    - to:   # its own tool calls: Keycloak (token exchange) and the MCP gateway, by their in-cluster Services
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: gateway-system}
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: keycloak}
-        - namespaceSelector:
-            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
 ---
 # Additive ingress allow on claims-db for the one new caller: the fraud-check agent. NetworkPolicies
 # only ADD allows, so this leaves the existing mcp-servers policy (gateway-only ingress) untouched.

@@ -36,19 +36,13 @@ export CLUSTER_DOMAIN="$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')"
 host() { echo "$1" | sed -E 's#https?://([^/:]+).*#\1#'; }
 port() { local p; p="$(echo "$1" | sed -nE 's#https?://[^/:]+:([0-9]+).*#\1#p')"; echo "${p:-443}"; }
 export AGENT_HOST="$(host "$AGENT_ENDPOINT")" AGENT_PORT="$(port "$AGENT_ENDPOINT")" GUARD_HOST="$(host "$GUARD_ENDPOINT")"
-# In-cluster calls to the public *.apps hosts leave through the ingress address: the platform's ingress
-# VIP where there is one (bare metal, vSphere, ...), otherwise any address on 443 (cloud load balancers).
-ip=$(oc get infrastructure cluster -o json | python3 -c 'import json,sys
-ps=json.load(sys.stdin)["status"].get("platformStatus",{})
-print(next((v["ingressIPs"][0] for v in ps.values() if isinstance(v,dict) and v.get("ingressIPs")),""))')
-export INGRESS_CIDR="${INGRESS_CIDR:-${ip:+$ip/32}}"; export INGRESS_CIDR="${INGRESS_CIDR:-0.0.0.0/0}"
 
 log(){ printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 WARNS=""
 warn(){ printf '\033[1;33mWARN: %s\033[0m\n  re-run: %s\n' "$1" "$2"; WARNS="$WARNS\n  - $1: $2"; }
-APPS_ENV='$CLUSTER_DOMAIN $REPO_URL $REPO_REVISION $AGENT_ENDPOINT $AGENT_MODEL $AGENT_HOST $AGENT_PORT $INGRESS_CIDR'
+APPS_ENV='$CLUSTER_DOMAIN $REPO_URL $REPO_REVISION $AGENT_ENDPOINT $AGENT_MODEL $AGENT_HOST $AGENT_PORT $KEYCLOAK_INTERNAL_URL'
 
-log "Cluster $CLUSTER_DOMAIN (ingress $INGRESS_CIDR), repo $REPO_URL@$REPO_REVISION, agent $AGENT_MODEL@$AGENT_HOST, guard @$GUARD_HOST"
+log "Cluster $CLUSTER_DOMAIN, repo $REPO_URL@$REPO_REVISION, agent $AGENT_MODEL@$AGENT_HOST, guard @$GUARD_HOST"
 
 log "1/12 OpenShift GitOps"
 if oc get deploy openshift-gitops-server -n openshift-gitops >/dev/null 2>&1; then
@@ -103,6 +97,16 @@ else
   oc get secret keycloak-db -n keycloak >/dev/null 2>&1 || \
     oc -n keycloak create secret generic keycloak-db --from-literal=username=keycloak --from-literal=password="$(openssl rand -hex 16)" >/dev/null
 fi
+
+# Secured workloads reach Keycloak by its in-cluster Service (their egress has no route to the cluster ingress);
+# the tokens keep the public issuer (realm frontendUrl, scripts/agent-clients.sh). The lab's instance serves TLS
+# on Service keycloak with a service-serving certificate; this demo's own instance serves plain HTTP in-cluster.
+if [ -z "${KEYCLOAK_INTERNAL_URL:-}" ]; then
+  if [ $KC_APP = 1 ]; then KEYCLOAK_INTERNAL_URL=http://keycloak-service.keycloak.svc:8080
+  elif oc get svc keycloak -n keycloak >/dev/null 2>&1; then KEYCLOAK_INTERNAL_URL=https://keycloak.keycloak.svc:8443
+  else KEYCLOAK_INTERNAL_URL=https://keycloak-service.keycloak.svc:8443; fi
+fi
+export KEYCLOAK_INTERNAL_URL; echo "Keycloak in-cluster: $KEYCLOAK_INTERNAL_URL"
 
 log "5/12 OpenShift AI platform (DSCInitialization, DataScienceCluster, dashboard config)"
 scripts/rhoai-enable.sh || warn "OpenShift AI platform objects not complete" scripts/rhoai-enable.sh

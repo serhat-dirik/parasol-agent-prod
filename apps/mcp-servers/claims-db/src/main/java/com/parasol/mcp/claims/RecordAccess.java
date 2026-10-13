@@ -80,6 +80,13 @@ public class RecordAccess {
     @ConfigProperty(name = "claims.acl.token-url")
     Optional<String> tokenUrl;
 
+    /**
+     * The realm's public issuer (https://sso.apps.example.com/realms/parasol), when the token URL is Keycloak's
+     * in-cluster address: tokens keep the public issuer, the signing keys are fetched in-cluster.
+     */
+    @ConfigProperty(name = "claims.acl.issuer")
+    Optional<String> issuer;
+
     @Inject
     MeterRegistry metrics;
 
@@ -107,15 +114,22 @@ public class RecordAccess {
     }
 
     final Map<String, PublicKey> keys = new ConcurrentHashMap<>();   // kid -> key (package-private for the test)
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
+            .sslContext(ServiceCa.sslContext()).build();
     private volatile long lastFetch;
 
     public boolean enforced() {
         return enforce;
     }
 
-    String issuer() {
+    /** Where the realm is reached (the token URL without /protocol/...): the signing keys come from here. */
+    String realmUrl() {
         return tokenUrl.map(u -> u.split("/protocol/")[0]).orElseThrow(() -> new Denied("claims.acl.token-url not set"));
+    }
+
+    /** The issuer every token must carry: claims.acl.issuer, else the realm URL. */
+    String issuer() {
+        return issuer.filter(i -> !i.isBlank()).orElseGet(this::realmUrl);
     }
 
     /** Verify the bearer token of this call; throws {@link Denied} when it is missing or invalid. */
@@ -173,7 +187,7 @@ public class RecordAccess {
         PublicKey k = keys.get(kid);
         if (k == null && System.currentTimeMillis() - lastFetch > 30_000) {
             lastFetch = System.currentTimeMillis();
-            HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(issuer() + "/protocol/openid-connect/certs"))
+            HttpResponse<String> r = http.send(HttpRequest.newBuilder(URI.create(realmUrl() + "/protocol/openid-connect/certs"))
                     .timeout(Duration.ofSeconds(10)).build(), HttpResponse.BodyHandlers.ofString());
             for (JsonNode j : JSON.readTree(r.body()).path("keys")) {
                 if ("RSA".equals(j.path("kty").asText()) && "sig".equals(j.path("use").asText("sig"))) {

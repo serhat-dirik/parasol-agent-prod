@@ -74,7 +74,7 @@ public class GatewayTools {
     // HTTP/1.1 like the agents' MCP clients: over h2 the gateway intermittently answered the first
     // tools/call on a fresh connection with "request body is not valid json"
     private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
-            .connectTimeout(Duration.ofSeconds(5)).build();
+            .connectTimeout(Duration.ofSeconds(5)).sslContext(ServiceCa.sslContext()).build();
 
     private record Cached(String token, Instant until) {
     }

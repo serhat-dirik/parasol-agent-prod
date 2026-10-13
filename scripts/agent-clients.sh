@@ -13,6 +13,7 @@
 #  - public client parasol-demo-cli: the headless persona logins of the scripts (scripts/token.sh), direct
 #    grants only (no browser flow), so the portal client parasol-portal stays browser-only
 #  - realm events on (TOKEN_EXCHANGE etc.), so Keycloak > Events shows user + client per exchange
+#  - realm frontendUrl = the public sso URL: the issuer stays public when secured pods call Keycloak in-cluster
 #  - removes the retired 'parasol-agent' (password-grant service identity) and unused 'mcp-gateway' clients
 # Mirrored into gitops/platform/keycloak/realm-import.yaml. Nothing secret is created or printed.
 set -euo pipefail
@@ -34,6 +35,9 @@ TOKEN="$(curl -sk "$KC/realms/master/protocol/openid-connect/token" \
 AUTH=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
 kc() { curl -sk "${AUTH[@]}" "$@"; }
 cuuid() { kc -G "$API/clients" --data-urlencode "clientId=$1" | jq -r '.[0].id // empty'; }
+
+# --- realm frontend URL: tokens keep the public issuer when secured workloads call Keycloak in-cluster ---
+kc -X PUT "$API" -d "$(jq -nc --arg u "$KC" '{attributes:{frontendUrl:$u}}')" -o /dev/null -w "realm frontendUrl $KC http=%{http_code}\n"
 
 # --- identity provider: this cluster's service accounts ---
 IDP="$(jq -nc --arg iss "$SA_ISSUER" '{alias:"openshift-sa",displayName:"OpenShift service accounts",

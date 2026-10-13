@@ -39,7 +39,9 @@ class RecordAccessTest {
     void verifiesTokenAndAppliesAssignedClaimsRule() throws Exception {
         KeyPair kp = KeyPairGenerator.getInstance("RSA").generateKeyPair();
         RecordAccess a = new RecordAccess();
-        a.tokenUrl = Optional.of(ISS + "/protocol/openid-connect/token");
+        // in-cluster token URL, public issuer: the issuer check uses claims.acl.issuer
+        a.tokenUrl = Optional.of("https://keycloak.keycloak.svc:8443/realms/parasol/protocol/openid-connect/token");
+        a.issuer = Optional.of(ISS);
         a.keys.put("k1", kp.getPublic());
         long exp = System.currentTimeMillis() / 1000 + 300;
 
@@ -57,5 +59,7 @@ class RecordAccessTest {
         KeyPair other2 = KeyPairGenerator.getInstance("RSA").generateKeyPair();
         assertThrows(RecordAccess.Denied.class, () -> a.verify(jwt(other2, claims("\"parasol-secured/claims-db\"", exp))));
         assertThrows(RecordAccess.Denied.class, () -> a.verify(null));
+        a.issuer = Optional.empty();   // issuer derived from the (in-cluster) token URL: the public token no longer matches
+        assertThrows(RecordAccess.Denied.class, () -> a.verify(jwt(kp, claims("\"parasol-secured/claims-db\"", exp))));
     }
 }

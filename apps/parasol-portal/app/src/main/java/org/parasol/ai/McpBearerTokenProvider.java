@@ -66,7 +66,8 @@ public class McpBearerTokenProvider implements McpClientAuthProvider {
     @ConfigProperty(name = "mcp-auth.static-token")
     Optional<String> staticToken;
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5)).build();
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(5))
+            .sslContext(ServiceCa.sslContext()).build();   // Keycloak in-cluster: the service CA
 
     private record Cached(String token, Instant until) {
     }
