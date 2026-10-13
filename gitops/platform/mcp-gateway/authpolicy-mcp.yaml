@@ -77,6 +77,9 @@ spec:
             {"error": "Unauthorized", "message": "Parasol MCP gateway: authentication required."}
       unauthorized:
         code: 403
+        headers:   # who was refused, for the gateway decision log (decision-log-envoyfilter.yaml)
+          x-parasol-caller:
+            expression: "'user=' + (has(auth.identity.preferred_username) ? auth.identity.preferred_username : '-') + ' agent=' + (has(auth.identity.azp) ? auth.identity.azp : '-')"
         message:
           expression: |
             (has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent'] ? 'access denied for ' : 'not via an approved agent: ') + (has(auth.identity.preferred_username) ? auth.identity.preferred_username : '-') + ' azp=' + (has(auth.identity.azp) ? auth.identity.azp : '-')
