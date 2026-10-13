@@ -109,7 +109,7 @@ hdr "4. What the gateway decided (the MCP gateway's decision log, every tools/ca
 if dlog=$(oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway --tail=-1 --max-log-requests=6 2>/dev/null); then
   printf '%s\n' "$dlog" | APPR="$appr" python3 -c '
 import os, re, sys, datetime as dt
-rx = re.compile(r"^(\S+) gateway-decision status=(\d+) req=\[([^]]*)\] resp=\[([^]]*)\] tool=(\S+) server=(\S+)")
+rx = re.compile(r"^(\S+) gateway-decision status=(\d+) req=\[([^]]*)\] resp=\[([^]]*)\] (?:method=\S+ )?tool=(\S+) server=(\S+)")
 rows = sorted(m.groups() for m in map(rx.match, sys.stdin.read().splitlines()) if m)
 a = os.environ.get("APPR", "")[:16]
 if a:
