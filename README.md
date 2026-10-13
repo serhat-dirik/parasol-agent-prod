@@ -122,7 +122,7 @@ required pairs before it touches the cluster and names any that are missing.
 `bootstrap.sh` is idempotent (re-run it after any failure; every WARN names the command to re-run). It
 installs what is missing, creates the secrets (none ever in Git), builds the images in-cluster, applies the
 Argo CD app-of-apps, sets up the supply chain (SPIRE, Trusted Artifact Signer, cosign key, admission) and
-seeds the demo data (MLflow golden-set runs, answers generated live: the production prompt passing the gate, 22 of 23
+seeds the demo data (MLflow golden-set runs, answers generated live: the production prompt passing the gate, 25 of 25
 with the platform controls on, and the shortened candidate prompt blocked below the 0.95 gate, prompt and model registry versions, the EvalHub run, the GenAI Studio playground), then runs
 the first release: the production prompt is signed, passes the gate and is promoted (pinned on the Argo CD
 Application `env-secured`; nothing is written to Git), the candidate (shortened prompt) is blocked by the
@@ -189,7 +189,7 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
 6. **Scenario 5 — the evaluation gate** — `scripts/eval-goldenset.sh` runs the golden set (secured
    blocked vs unsecured allowed, PASS 3/3); the dashboard LMEval run is
    `oc apply -f gitops/platform/eval/lmevaljob-agent-model.yaml` then `oc get lmevaljob -n parasol-eval -w`;
-   the golden set is generated live per release (3 attempts per case, majority; scored with the platform on for the gate and model alone for comparison): production 22 of 23 with the platform (18 alone), shortened candidate 20 or 21 of 23 (below the 0.95 gate, and below production's model-alone score), in MLflow `parasol-agent-eval`.
+   the golden set is generated live per release (3 attempts per case, majority; scored with the platform on for the gate and model alone for comparison): production 25 of 25 with the platform (21 alone), shortened candidate 22 or 23 of 25 (below the 0.95 gate, and below production's model-alone score), in MLflow `parasol-agent-eval`.
 7. **Scenario 6 — the poisoned tool** — `scripts/tool-rugpull.sh plug|on|off|register|unregister|status`
    plugs the vendor `currency-converter` (project `parasol-thirdparty`) into the unsecured portal, flips its
    tool description (same version), and switches the governed registration on the secured gateway;
@@ -201,6 +201,7 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
    and admitting the signed one.
 
 Other helpers:
+- `scripts/regression.sh [S1..S6 INC]` — every scenario's checks headless, driven like the browser (persona login, chat over the portal WebSocket with the claim open, a fresh conversation per check; `scripts/portal-chat.py`), one PASS/FAIL line with evidence each, demo reset at the end, non-zero exit on any FAIL. Workstation, cluster administrator.
 - `scripts/token.sh <user>` — print a demo user's access token (headless login through the public client `parasol-demo-cli`; the portal client is browser-only).
 - `scripts/agent-token.sh <user> [fraud-agent]` — the token an agent presents for that user at the MCP gateway.
 - Bootstrap helpers, called by `bootstrap.sh` (each idempotent, re-runnable alone): `ensure-operators.py`,

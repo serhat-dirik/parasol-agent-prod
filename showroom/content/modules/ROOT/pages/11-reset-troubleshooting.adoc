@@ -115,7 +115,7 @@ Every question the audience asks has one screen that answers it with the same na
 
 |Which prompt runs in production, and was it gated?
 |*MLflow*, experiment `parasol-agent-eval`; *Argo CD*, `env-secured`, *Details*, *Summary*
-|production 0.96 (22 of 23 with the platform, 18 model alone; answers generated live), candidate 0.87 to 0.91 below the 0.95 gate and below production's model-alone 18 (BLOCK); `prompt-ref` `...@production` and `prompt-sha256`, the same values as every chat trace's `prompt` and `prompt_sha256` tags and the registry version's `prompt_sha256`
+|production 1.00 (25 of 25 with the platform, 21 model alone; answers generated live), candidate 0.88 to 0.92 below the 0.95 gate and below production's model-alone 21 (BLOCK); `prompt-ref` `...@production` and `prompt-sha256`, the same values as every chat trace's `prompt` and `prompt_sha256` tags and the registry version's `prompt_sha256`
 
 |One payout, end to end?
 |xref:09-incident-forensics.adoc[09. The incident]; `scripts/incident-report.sh <claim>`
@@ -167,6 +167,15 @@ Each scenario has a script that drives the same beats without a browser. Use the
 |Supply chain
 |`scripts/signing-demo.sh`
 |===
+
+*All scenarios in one go.* From a workstation signed in to the cluster as an administrator (it resets claims-db, restarts Limitador, flips the vendor tool and reads the release runs):
+
+[source,bash]
+----
+scripts/regression.sh            # or only some: scripts/regression.sh S2 S3
+----
+
+It drives each check the way the browser does: the persona logs in through the portal's own login and sends the scenario's message over the chat WebSocket with the claim open (`scripts/portal-chat.py`), a new conversation per check, and reads the claim screens through the portal's API. One line per check, `PASS` or `FAIL` with its evidence (tool chips, guardrail banner, proposal, claim status, HTTP status): S1 rebecca can only propose and `abuse.sh` gets both 403s; S2 secured reads the documents, flags and proposes while CLM-1004 stays Denied, unsecured pays; S3 the knowledge-base checks and CLM-1029 refused to rebecca in the chat and on the claim page, shown to marcus; S4 nina.contractor reaches the usage limit while rebecca keeps working; S5 the production release promoted with its gate reason, the candidate's promote skipped; S6 the poisoned vendor tool pays unsecured, is absent secured and is flagged by the scanner; the incident report prints its seven sections. It starts and ends with `scripts/reset.sh` (also when it fails) and exits non-zero on any `FAIL`. About 20 minutes.
 
 == Troubleshooting
 
