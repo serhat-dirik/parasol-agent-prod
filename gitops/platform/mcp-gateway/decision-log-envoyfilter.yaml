@@ -1,0 +1,38 @@
+# Gateway decision log (incident forensics): the MCP gateway's Envoy writes one access-log line per tools/call to
+# its own stdout, after the response, so the record adds no call, no dependency and no latency to the decision:
+#   <utc time> gateway-decision status=200|403 req=[user=<u> agent=<azp>] resp=[...] tool=<tool> server=<ns/name>
+# The caller comes from the x-parasol-caller header the tool AuthPolicy sets (authpolicy-tools.yaml): on the
+# allowed request (req, Authorino overwrites any client value) or on the refusal (resp). No token, no tool
+# arguments are logged. Read with: oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway
+apiVersion: networking.istio.io/v1alpha3
+kind: EnvoyFilter
+metadata:
+  name: mcp-gateway-decision-log
+  namespace: gateway-system
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  workloadSelector:
+    labels: {gateway.networking.k8s.io/gateway-name: mcp-gateway}
+  configPatches:
+    - applyTo: NETWORK_FILTER
+      match:
+        context: GATEWAY
+        listener:
+          filterChain:
+            filter: {name: envoy.filters.network.http_connection_manager}
+      patch:
+        operation: MERGE
+        value:
+          typed_config:
+            "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+            access_log:
+              - name: envoy.access_loggers.stdout
+                filter:
+                  header_filter:
+                    header: {name: x-mcp-method, string_match: {exact: tools/call}}
+                typed_config:
+                  "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                  log_format:
+                    text_format_source:
+                      inline_string: "%START_TIME(%Y-%m-%dT%H:%M:%S)% gateway-decision status=%RESPONSE_CODE% req=[%REQ(X-PARASOL-CALLER)%] resp=[%RESP(X-PARASOL-CALLER)%] tool=%REQ(X-MCP-TOOLNAME)% server=%REQ(X-MCP-SERVERNAME)%\n"

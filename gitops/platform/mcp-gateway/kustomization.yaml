@@ -12,6 +12,7 @@ resources:
   - authpolicy-mcp.yaml
   - authpolicy-tools.yaml
   - tool-scanner.yaml   # tool-description scanner + drift pins (Scenario 6)
+  - decision-log-envoyfilter.yaml   # attributed gateway decisions in the gateway's access log (incident report)
 configMapGenerator:
   - name: mcp-tool-scanner
     namespace: mcp-system

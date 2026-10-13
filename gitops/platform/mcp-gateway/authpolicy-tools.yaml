@@ -44,6 +44,13 @@ spec:
             - predicate: |
                 ('tool:' + request.headers['x-mcp-toolname']) in (has(auth.identity.resource_access) && auth.identity.resource_access.exists(p, p == request.headers['x-mcp-servername']) ? auth.identity.resource_access[request.headers['x-mcp-servername']].roles : [])
     response:
+      # Attribution for the gateway decision log (decision-log-envoyfilter.yaml): the allowed request carries
+      # x-parasol-caller to the upstream (Authorino overwrites any client value), the refusal carries it back.
+      success:
+        headers:
+          x-parasol-caller:
+            plain:
+              expression: "'user=' + (has(auth.identity.preferred_username) ? auth.identity.preferred_username : '-') + ' agent=' + (has(auth.identity.azp) ? auth.identity.azp : '-')"
       unauthenticated:
         code: 401
         body:
@@ -55,6 +62,9 @@ spec:
         message:
           expression: |
             (has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent'] ? 'tool ' + request.headers['x-mcp-toolname'] + ' denied for ' : 'not via an approved agent: ') + auth.identity.preferred_username + ' azp=' + (has(auth.identity.azp) ? auth.identity.azp : '-')
+        headers:
+          x-parasol-caller:
+            expression: "'user=' + (has(auth.identity.preferred_username) ? auth.identity.preferred_username : '-') + ' agent=' + (has(auth.identity.azp) ? auth.identity.azp : '-')"
         body:
           expression: |
             has(auth.identity.azp) && auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent']

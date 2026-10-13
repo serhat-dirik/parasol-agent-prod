@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # incident-report.sh <claim> : one payout on the secured portal, reconstructed from the platform's own records.
-# Read-only: it only reads (claims-db timeline and log, MLflow traces, Keycloak events, the Authorino log,
+# Read-only: it only reads (claims-db timeline and log, MLflow traces, Keycloak events, the MCP gateway's decision log,
 # the Argo CD Application env-secured, the Model Registry, the release PipelineRun and the running pod).
 # Each section prints "n/a: <why>" when this identity may not read that source.
 #   scripts/incident-report.sh CLM-1001
@@ -103,10 +103,28 @@ for e in ev[:3]:
         e.get("clientId"), d.get("username"), d.get("subject_token_client_id"), d.get("audience")))' )
 else na "Keycloak admin login not available here (Keycloak tab: realm parasol, Events, User events, type TOKEN_EXCHANGE)"; fi
 
-hdr "4. What the gateway decided (Authorino logs refusals; the allowed write is attributed in claims-db)"
-oc logs -n kuadrant-system deploy/authorino --tail=3000 2>/dev/null | grep -E 'approved agent|denied for' | tail -3 | sed 's/^/  authorino: /' \
-  || na "Authorino log not readable"
-echo "  allowed calls carry the user and agent into claims-db: see the PAYOUT line and the 'Approved by <user> via <agent>' event above"
+hdr "4. What the gateway decided (the MCP gateway's decision log, every tools/call, gateway-system)"
+# One access-log line per MCP gateway decision (allow and deny) with the user and agent Authorino verified and the
+# tool; the claim's turns are the 15 minutes up to its approval (the gateway sees the tool, not its arguments).
+if dlog=$(oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway --tail=-1 --max-log-requests=6 2>/dev/null); then
+  printf '%s\n' "$dlog" | APPR="$appr" python3 -c '
+import os, re, sys, datetime as dt
+rx = re.compile(r"^(\S+) gateway-decision status=(\d+) req=\[([^]]*)\] resp=\[([^]]*)\] tool=(\S+) server=(\S+)")
+rows = sorted(m.groups() for m in map(rx.match, sys.stdin.read().splitlines()) if m)
+a = os.environ.get("APPR", "")[:16]
+if a:
+    t = dt.datetime.strptime(a, "%Y-%m-%dT%H:%M")
+    lo, hi = (t - dt.timedelta(minutes=15)).isoformat(), (t + dt.timedelta(minutes=2)).isoformat()
+    rows = [r for r in rows if lo <= r[0] <= hi]
+    print("  %d gateway decisions from %s to %s (UTC):" % (len(rows), lo[:16], hi[:16]))
+else:
+    rows = rows[-8:]
+    print("  no approval yet: the last %d gateway decisions" % len(rows))
+for ts, st, req, resp, tool, server in rows[-25:]:
+    who = req if st == "200" else resp   # allowed: the header Authorino set on the request; refused: on the response
+    print("  %s %-5s %s tool=%s server=%s" % (ts, {"200": "allow", "403": "deny", "401": "deny"}.get(st, st), who if who != "-" else "user=- agent=-", tool, server))'
+else na "gateway log not readable (oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway)"; fi
+echo "  the allowed write is also attributed in claims-db: see the PAYOUT line and the 'Approved by <user> via <agent>' event above"
 
 hdr "5. What was live: the release on Argo CD Application env-secured"
 oc get application env-secured -n openshift-gitops -o json 2>/dev/null | python3 -c '

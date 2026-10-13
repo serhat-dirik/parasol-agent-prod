@@ -256,3 +256,19 @@ kind: RoleBinding
 metadata: {name: showroom-terminal-exec, namespace: mcp-system}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter-exec}
 subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+# Incident report section 4 (scripts/incident-report.sh): the MCP gateway's decision lines are in its Envoy
+# access log. Read-only, pods and their logs in gateway-system only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-gateway-log, namespace: gateway-system}
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-gateway-log, namespace: gateway-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-gateway-log}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
