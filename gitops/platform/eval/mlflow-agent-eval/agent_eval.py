@@ -559,13 +559,16 @@ def evaluate(golden, fx, prompt, clients, model, judge, attempts, parallel):
     return res
 
 
-def caught_by(sys_outs):
-    """The platform controls that acted in the passing system attempts of a case, most frequent first."""
+def caught_by(sys_outs, bare_outs=(), offered=lambda name: True):
+    """The platform controls that acted in the passing system attempts of a case, most frequent first. When none
+    acted, a tool the model alone called but the gateway does not offer the persona names the gateway's tool list."""
     seen = {}
     for o in sys_outs:
         if o["ok"]:
             for c in dict.fromkeys(o.get("controls", [])):
                 seen[c] = seen.get(c, 0) + 1
+    if not seen and any(not offered(t) for o in bare_outs if not o["ok"] for t in o["tool_calls"]):
+        seen["mcp-gateway-tool-filter"] = 1
     return sorted(seen, key=lambda c: -seen[c])
 
 
@@ -677,8 +680,9 @@ def run_full(versions, gate_version, results_dir):
         sys_pass, bare_pass = sum(verdict[SYSTEM].values()), sum(verdict[MODEL_ONLY].values())
         score = sys_pass / total
         gate_pass = score >= GATE_THRESHOLD
-        caught = {cid: caught_by(res[SYSTEM][cid]) or ["(none recorded)"] for cid in verdict[SYSTEM]
-                  if verdict[SYSTEM][cid] and not verdict[MODEL_ONLY][cid]}
+        by = {c["id"]: c for c in golden["cases"]}
+        caught = {cid: caught_by(res[SYSTEM][cid], res[MODEL_ONLY][cid], Stubs(fx, by[cid], SYSTEM).listed)
+                  or ["(none recorded)"] for cid in verdict[SYSTEM] if verdict[SYSTEM][cid] and not verdict[MODEL_ONLY][cid]}
         flaky = {m: [cid for cid, outs in byc.items() if len({o["ok"] for o in outs}) > 1] for m, byc in res.items()}
         tokens = sum(t["prompt_tokens"] + t["completion_tokens"]
                      for byc in res.values() for outs in byc.values() for o in outs for t in o["turns"])
@@ -887,6 +891,8 @@ def selfcheck():
     assert generated({}, {})[0] and not generated({}, {"error": "x"})[0]
     assert portal_rule_matches() in (True, None), "the portal's correction rule differs from this eval's copy"
     assert caught_by([{"ok": True, "controls": ["guardrails-topic"]}, {"ok": False, "controls": ["x"]}]) == ["guardrails-topic"]
+    assert caught_by([{"ok": True, "controls": []}], [{"ok": False, "tool_calls": ["approve_payout"]}], r.listed) == \
+        ["mcp-gateway-tool-filter"]
     print(f"selfcheck ok: {len(golden['cases'])} cases, {len(fx['personas'])} personas, {len(fx['tools'])} tools; stubs "
           f"(both modes), agent loop, sentinel, correction note (portal rule {'matches' if portal_rule_matches() else 'not checked'}), "
           f"scorers and majority checked")
