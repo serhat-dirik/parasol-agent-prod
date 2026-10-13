@@ -51,8 +51,9 @@ something you watch happen in a browser:
   switch — the pods keep running, the agent can reach nothing.
 * **Scenario 5 — the evaluation gate.** A developer shortens the system prompt. The release pipeline
   evaluates it against the golden set; below the 0.95 gate the promotion is skipped. The production prompt
-  that does run is the registered one, to the byte: the portal reads it from the file it is registered from,
-  every chat trace carries its sha256, and the release refuses to promote when the two differ.
+  that does run is the released one, to the byte: the release registers the prompt from Git, gates it and
+  pins exactly that text next to the image digest; a Git edit alone changes nothing at run time, and every
+  chat trace carries the sha256 of the text it ran.
 * **Scenario 6 — the poisoned tool.** A third-party currency tool is plugged into the assistant; later its
   description changes, same version, and asks for payouts. *Unsecured:* the assistant pays. *Secured:* the
   gateway federates only reviewed registrations and the tool scanner flags and pins every description.

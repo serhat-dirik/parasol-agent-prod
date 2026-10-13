@@ -2,7 +2,7 @@
 #  - login with Keycloak (quarkus-oidc web-app) from Secret parasol-portal-oidc
 #  - the model call goes to the rate-limited model-gateway -> guardrails-proxy -> MaaS (agent-config endpoint)
 #  - the MCP tools are reached ONLY through the MCP gateway, carrying the caller's token (per-tool AuthPolicy)
-#  - the system prompt is the registered production prompt (system-prompt.txt); traces go to the OTel collector
+#  - the system prompt is the RELEASED prompt (ConfigMap agent-prompt-release, pinned by the release); traces go to the OTel collector
 # The pod spec references the image by NAME ONLY: the kustomize images digest pin (below, patched by the
 # secure pipeline) is what resolves it, so the signed digest is what admission verifies.
 apiVersion: apps/v1
@@ -97,7 +97,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: tokenUrl}}
             - {name: MCP_AUTH_AGENT_ID, value: parasol-claims-agent}
             - {name: MCP_AUTH_ASSERTION_FILE, value: /var/run/secrets/parasol/agent/token}
-            # the whole system prompt, read from the mounted ConfigMap on every turn (never a stale copy)
+            # the whole system prompt, read on every turn from the RELEASED prompt (ConfigMap agent-prompt-release,
+            # written only by the release's promote; promptVersion next to it names the registry version)
             - {name: AGENT_SYSTEM_PROMPT_FILE, value: /etc/parasol/prompt/systemPrompt}
             # A2 Read-Propose-Act: route writes through the local propose tool (secured only; free leaves this unset)
             - {name: PORTAL_PROPOSE_ENABLED, value: "true"}
@@ -137,10 +138,13 @@ spec:
             sources:
               - serviceAccountToken: {audience: https://sso.apps.CLUSTER_DOMAIN/realms/parasol, expirationSeconds: 3600, path: token}
         # keep after agent-token: the env-secured Application patches volumes/0 (the token audience)
+        # the released prompt: not in Git (Argo CD neither writes nor prunes it), pinned by the release next to
+        # the image digest. Required: until a release has pinned a prompt the portal does not start (fail closed;
+        # it runs 0 replicas until the first promote anyway).
         - name: system-prompt
           configMap:
-            name: agent-config
-            items: [{key: systemPrompt, path: systemPrompt}]
+            name: agent-prompt-release
+            items: [{key: systemPrompt, path: systemPrompt}, {key: promptVersion, path: promptVersion}]
 ---
 apiVersion: v1
 kind: Service

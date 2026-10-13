@@ -66,9 +66,11 @@ public class AgentService {
     boolean proposeEnabled;
 
     /**
-     * File holding the whole system prompt (secured: the registered production prompt, mounted from the
-     * ConfigMap agent-config). Read on every turn, so the prompt that runs is always the one the ConfigMap
-     * holds (the kubelet refreshes the mount within about a minute). Unset = the laptop prompt.
+     * File holding the whole system prompt (secured: the RELEASED prompt, mounted from ConfigMap
+     * agent-prompt-release, which only the release's promote writes). Read on every turn, so the prompt that
+     * runs is always the one the release pinned (the kubelet refreshes the mount within about a minute); a Git
+     * edit of the authoring file changes nothing here. Unset = the laptop prompt. A sibling file
+     * {@code promptVersion} names the registry version (name/version) the release pinned.
      */
     @ConfigProperty(name = "agent.system-prompt-file")
     Optional<String> systemPromptFile;
@@ -93,6 +95,21 @@ public class AgentService {
         } catch (IOException e) {   // never fall back silently to a weaker prompt
             throw new IllegalStateException("system prompt file unreadable: " + systemPromptFile.get(), e);
         }
+    }
+
+    /** The registry version the release pinned (file promptVersion next to the prompt), else the configured ref. */
+    private String releasedVersion() {
+        if (systemPromptFile.isPresent()) {
+            Path v = Path.of(systemPromptFile.get()).resolveSibling("promptVersion");
+            try {
+                if (Files.isReadable(v)) {
+                    return Files.readString(v).trim();
+                }
+            } catch (IOException ignored) {
+                // fall back to the configured reference
+            }
+        }
+        return promptVersion;
     }
 
     /** sha256 of a prompt text: equals the registry version's prompt_sha256 when they are the same text. */
@@ -139,6 +156,7 @@ public class AgentService {
         root.setAttribute("enduser.id", who);
         root.setAttribute("gen_ai.agent.name", mcpAuth.agentId());
         root.setAttribute("gen_ai.agent.id", mcpAuth.agentId());
+        String promptVersion = releasedVersion();
         root.setAttribute("gen_ai.prompt.ref", promptVersion);
         String prompt = systemPrompt();
         String promptSha = sha256(prompt);

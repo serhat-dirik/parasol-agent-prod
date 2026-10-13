@@ -22,11 +22,16 @@ init → clone-repository → build-container ─┬→ scan-image (Trivy) ─�
 finally: show-sbom, show-summary
 ```
 
-`agent-eval` runs the MLflow evaluation of the claims assistant (agent model qwen3-14b, judge
-gpt-oss-120b on its own key in secret `maas-eval-key`); below the 0.95 pass-rate gate the gate is `failed` and
-`promote` is skipped. `verify-enterprise-contract` is the Conforma gate: the image must carry a valid
+`agent-eval` first registers the prompt the release ships (`prompt-file` in the cloned repo, e.g.
+`gitops/envs/secured/system-prompt.txt`, becomes the registry version the `prompt-ref` alias points to; an
+identical text reuses its version), then runs the MLflow evaluation of the claims assistant (agent model
+qwen3-14b, judge gpt-oss-120b on its own key in secret `maas-eval-key`); the scorers judge the model's bare
+answer (production 22 of 23: the one miss is caught at run time by the portal's correction note, recorded on
+the case as `platform_control`). Below the 0.95 pass-rate gate the gate is `failed` and `promote` is skipped. `verify-enterprise-contract` is the Conforma gate: the image must carry a valid
 signature AND a signed SLSA provenance attestation (Tekton Chains). The SBOM ships as a signed
-cosign attestation (`cosign verify-attestation --type cyclonedx`). `promote` merge-patches the
+cosign attestation (`cosign verify-attestation --type cyclonedx`). `promote` pins the released prompt
+(ConfigMap `parasol-secured/agent-prompt-release`: the registered text the gate evaluated and its registry
+version; the portal reads only this, so a Git edit of the prompt waits for a release), then merge-patches the
 Application `openshift-gitops/env-secured` (`kustomize.images` = the signed digest, `kustomize.replicas`
 portal=1; its other kustomize patches are untouched), records the prompt and model version as
 annotations, then waits until Argo CD reports Synced/Healthy on that digest. The pipeline SA may only

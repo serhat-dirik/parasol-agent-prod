@@ -1,17 +1,20 @@
-# The release's promote task (parasol-build/pipeline) reads the prompt the secured portal runs (ConfigMap
-# agent-config, key systemPrompt) and refuses to pin a digest when it is not the registered prompt-ref.
-# Read-only, this one ConfigMap.
+# The release's promote task (parasol-build/pipeline) pins the released prompt for the secured portal: it
+# writes ConfigMap agent-prompt-release (the registered text the gate evaluated), which the portal mounts.
+# Create cannot be scoped by name; read and update are, to this one ConfigMap.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
-metadata: {name: parasol-release-prompt-check}
+metadata: {name: parasol-release-prompt-pin}
 rules:
   - apiGroups: [""]
     resources: [configmaps]
-    resourceNames: [agent-config]
-    verbs: [get]
+    verbs: [create]
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [agent-prompt-release]
+    verbs: [get, patch, update]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
-metadata: {name: parasol-release-prompt-check}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: parasol-release-prompt-check}
+metadata: {name: parasol-release-prompt-pin}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: parasol-release-prompt-pin}
 subjects: [{kind: ServiceAccount, name: pipeline, namespace: parasol-build}]

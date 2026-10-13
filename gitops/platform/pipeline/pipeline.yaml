@@ -1,8 +1,9 @@
 # Parasol secure supply-chain pipeline (layer 6), namespace parasol-build.
 # Reads like the Red Hat tssc reference: init -> clone-repository -> build-container (the portal,
 # from source) -> scan + SBOM, a lifecycle gate (agent-eval), keyless (Trusted Artifact Signer) and
-# keyed (cluster cosign key) signatures, the Conforma contract, then promote: the signed digest is pinned
-# on the Argo CD Application env-secured (no Git write), Argo CD rolls it out and admission verifies it.
+# keyed (cluster cosign key) signatures, the Conforma contract, then promote: the released prompt (registered
+# from Git by the gate) is pinned as ConfigMap agent-prompt-release and the signed digest on the Argo CD
+# Application env-secured (no Git write); Argo CD rolls it out and admission verifies it.
 # Synced by the Argo CD Application platform-pipeline; PipelineRuns are created by hand (pipelinerun.yaml).
 apiVersion: tekton.dev/v1
 kind: Pipeline
@@ -23,6 +24,8 @@ spec:
     - {name: candidate, type: string, default: "production"}
     # MLflow Prompt Registry entry the gate evaluated; promote records it on the Application.
     - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@production"}
+    # The prompt's authoring source in the cloned repo; the release registers it as prompt-ref and pins it.
+    - {name: prompt-file, type: string, default: "source/gitops/envs/secured/system-prompt.txt"}
   results:
     - {name: IMAGE_URL, value: "$(tasks.build-container.results.IMAGE_URL)"}
     - {name: IMAGE_DIGEST, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
@@ -80,6 +83,7 @@ spec:
       params:
         - {name: candidate, value: "$(params.candidate)"}
         - {name: prompt-ref, value: "$(params.prompt-ref)"}
+        - {name: prompt-file, value: "$(params.prompt-file)"}
       workspaces:
         - {name: source, workspace: workspace}
     # Governance: stamp the agent-eval result (gate, score, MLflow run id, prompt@version) onto the
@@ -125,6 +129,8 @@ spec:
         - {name: prompt-ref, value: "$(params.prompt-ref)"}
         - {name: prompt-sha256, value: "$(tasks.agent-eval.results.prompt-sha256)"}
         - {name: model-ref, value: "parasol-claims-assistant:$(params.candidate)"}
+      workspaces:
+        - {name: source, workspace: workspace}
   finally:
     - name: show-sbom
       taskRef: {name: show-sbom}

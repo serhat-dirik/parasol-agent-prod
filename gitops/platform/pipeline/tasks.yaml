@@ -144,9 +144,13 @@ spec:
     gpt-oss-120b on its own key from secret maas-eval-key, never the agent key) attach per-case
     assessments to the run. The agent under test is qwen3-14b (AGENT_MODEL).
     The MLflow run id is written as a result so the pipeline stamps it onto the PipelineRun.
+    The release registers the prompt it ships first: prompt-file (the authoring source in Git) becomes the
+    registry version prompt-ref's alias points to (an identical text reuses its version), and the released
+    text is left in the workspace (release/released-prompt/) for the promote task to pin.
   params:
     - {name: candidate, type: string, default: candidate-shortened}
     - {name: prompt-ref, type: string, default: ""}
+    - {name: prompt-file, type: string, default: "source/gitops/envs/secured/system-prompt.txt"}
     - {name: eval-path, type: string, default: source/gitops/platform/eval/mlflow-agent-eval}
     - {name: mlflow-uri, type: string, default: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
     - {name: mlflow-workspace, type: string, default: parasol-secured}
@@ -174,6 +178,9 @@ spec:
         - {name: MLFLOW_TRACKING_INSECURE_TLS, value: "true"}
         - {name: TOKEN_FILE, value: /var/run/secrets/kubernetes.io/serviceaccount/token}
         - {name: PROMPT_REF, value: "$(params.prompt-ref)"}
+        - {name: PROMPT_FILE, value: "$(workspaces.source.path)/$(params.prompt-file)"}
+        - {name: PROMPT_FILE_REL, value: "$(params.prompt-file)"}
+        - {name: RELEASE_RUN, value: "$(context.taskRun.name)"}
       script: |
         #!/usr/bin/env bash
         set -eu
@@ -188,13 +195,14 @@ spec:
           export NO_JUDGE=1
           echo "maas-eval-key not mounted: running deterministic-only gate (no judge calls)."
         fi
-        mkdir -p /tmp/res
-        python3 "$E/agent_eval.py" --run --versions "$CAND" --gate-version "$CAND" --no-fail --results-dir /tmp/res
-        cp /tmp/res/gate    "$(results.gate.path)"
-        cp /tmp/res/score   "$(results.score.path)"
-        cp /tmp/res/run-id  "$(results.mlflow-run-id.path)"
-        cat /tmp/res/prompt-sha256 > "$(results.prompt-sha256.path)" 2>/dev/null || printf "" > "$(results.prompt-sha256.path)"
-        echo "gate=$(cat /tmp/res/gate) score=$(cat /tmp/res/score) mlflow-run-id=$(cat /tmp/res/run-id) prompt=${PROMPT_REF:-none} sha256=$(cat /tmp/res/prompt-sha256 2>/dev/null)"
+        R="$(workspaces.source.path)/release"   # shared with promote: the released prompt text
+        rm -rf "$R"; mkdir -p "$R"
+        python3 "$E/agent_eval.py" --run --versions "$CAND" --gate-version "$CAND" --no-fail --results-dir "$R"
+        cp "$R/gate"    "$(results.gate.path)"
+        cp "$R/score"   "$(results.score.path)"
+        cp "$R/run-id"  "$(results.mlflow-run-id.path)"
+        cat "$R/prompt-sha256" > "$(results.prompt-sha256.path)" 2>/dev/null || printf "" > "$(results.prompt-sha256.path)"
+        echo "gate=$(cat "$R/gate") score=$(cat "$R/score") mlflow-run-id=$(cat "$R/run-id") prompt=${PROMPT_REF:-none} version=$(cat "$R/released-prompt/promptVersion" 2>/dev/null) sha256=$(cat "$R/prompt-sha256" 2>/dev/null)"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -277,9 +285,12 @@ metadata:
   labels: {app.kubernetes.io/version: "0.2"}
 spec:
   description: >-
-    Promote without Git: pin the signed, eval-passed digest on the Argo CD Application env-secured
-    (spec.source.kustomize.images, plus the portal replica count), then wait until Argo CD has synced
-    it and the secured portal is Healthy on that digest. The GitHub repo is read-only for releases.
+    Promote without Git: pin the released prompt (ConfigMap agent-prompt-release in parasol-secured, the
+    exact registered text the gate evaluated; the portal runs only this file) and the signed, eval-passed
+    digest on the Argo CD Application env-secured (spec.source.kustomize.images, plus the portal replica
+    count), then wait until Argo CD has synced it and the secured portal is Healthy on that digest. A Git
+    edit of the prompt changes nothing at run time until a release registers and pins it. The GitHub repo
+    is read-only for releases.
   params:
     - {name: image, type: string}
     - {name: image-digest, type: string}
@@ -292,13 +303,14 @@ spec:
     # shows which prompt and model version the promoted digest was gated on.
     - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@production"}
     - {name: model-ref, type: string, default: "parasol-claims-assistant:production"}
-    # sha256 of the registered prompt-ref (from agent-eval). The release refuses to promote when the prompt the
-    # secured portal runs (ConfigMap agent-config, key systemPrompt) is a different text: what the traces call
-    # prompt-ref must be literally the prompt that runs.
+    # sha256 of the registered prompt-ref (from agent-eval). The pinned text must hash to it: what the traces
+    # call prompt_sha256 is literally the registered prompt the gate evaluated.
     - {name: prompt-sha256, type: string, default: ""}
     - {name: runtime-namespace, type: string, default: parasol-secured}
   results:
     - {name: digest, description: the digest pinned on the Application (empty when not promoted)}
+  workspaces:
+    - {name: source}   # release/released-prompt/ from agent-eval
   steps:
     - name: pin-and-sync
       image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
@@ -309,13 +321,22 @@ spec:
         NAME="$(params.image-name)"; DIGEST="$(params.image-digest)"
         printf "" > "$(results.digest.path)"
         WANT="$(params.prompt-sha256)"
-        HAVE=$(oc get configmap agent-config -n "$(params.runtime-namespace)" -o go-template='{{index .data "systemPrompt"}}' | sha256sum | cut -d' ' -f1)
+        P="$(workspaces.source.path)/release/released-prompt"
+        HAVE=$(sha256sum < "$P/systemPrompt" | cut -d' ' -f1)
+        PVER=$(cat "$P/promptVersion")
         if [ -z "$WANT" ] || [ "$WANT" != "$HAVE" ]; then
-          echo "NOT PROMOTED: the runtime prompt (agent-config systemPrompt, sha256 $HAVE) is not the registered $(params.prompt-ref) (sha256 ${WANT:-unknown})."
-          echo "Register the prompt from gitops/envs/secured/system-prompt.txt (gitops/platform/pipeline/prompts/register.sh) and re-run."
+          echo "NOT PROMOTED: the released prompt text (sha256 $HAVE) is not the registered $(params.prompt-ref) (sha256 ${WANT:-unknown})."
           exit 1
         fi
-        echo "Prompt check: runtime prompt == registered $(params.prompt-ref) (sha256 $HAVE)"
+        # The runtime prompt pin: the portal mounts this ConfigMap and reads it on every turn. Not in Git, so
+        # Argo CD neither reverts nor prunes it; only a release writes it.
+        oc create configmap agent-prompt-release -n "$(params.runtime-namespace)" \
+          --from-file=systemPrompt="$P/systemPrompt" --from-literal=promptVersion="$PVER" \
+          --dry-run=client -o yaml | oc apply -f - >/dev/null
+        oc annotate configmap agent-prompt-release -n "$(params.runtime-namespace)" --overwrite \
+          parasol.example/prompt-ref="$(params.prompt-ref)" parasol.example/prompt-sha256="$HAVE" \
+          parasol.example/released-by="$(context.taskRun.name)" >/dev/null
+        echo "Prompt pinned: agent-prompt-release = $PVER ($(params.prompt-ref), sha256 $HAVE)"
         echo "Promoting $NAME@$DIGEST: Application $NS/$APP"
         # JSON merge patch: replaces only kustomize.images and kustomize.replicas (the Git overlay keeps the
         # portal at 0 replicas until the first promote); the Application's kustomize patches stay as they are.
@@ -326,6 +347,7 @@ spec:
             \"parasol.example/promoted-by\": \"$(context.taskRun.name)\",
             \"parasol.example/prompt-ref\": \"$(params.prompt-ref)\",
             \"parasol.example/prompt-sha256\": \"$HAVE\",
+            \"parasol.example/prompt-version\": \"$PVER\",
             \"parasol.example/model-ref\": \"$(params.model-ref)\"}},
           \"spec\": {\"source\": {\"kustomize\": {
             \"images\": [\"$NAME=$NAME@$DIGEST\"],
@@ -346,7 +368,7 @@ spec:
         done
         [ $ok -ge 2 ] || { echo "PROMOTION NOT CONVERGED: $APP did not reach Synced/Healthy on $DIGEST in 10 min"; exit 1; }
         printf "%s" "$DIGEST" > "$(results.digest.path)"
-        echo "PROMOTED: $APP runs $NAME@$DIGEST (prompt $(params.prompt-ref) sha256 $HAVE, model $(params.model-ref))"
+        echo "PROMOTED: $APP runs $NAME@$DIGEST (prompt $PVER = $(params.prompt-ref) sha256 $HAVE, model $(params.model-ref))"
 ---
 apiVersion: tekton.dev/v1
 kind: Task

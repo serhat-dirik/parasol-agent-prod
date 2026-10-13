@@ -215,6 +215,50 @@ def judge_case(client, model, case, out):
 
 
 # ---------- MLflow full run ----------
+def release_prompt(ref, prompt_file, results_dir):
+    """The release registers its prompt: PROMPT_FILE (the authoring source in Git, e.g.
+    gitops/envs/secured/system-prompt.txt) becomes the registry version the alias in PROMPT_REF points to.
+    A version with the same text is reused (a revert moves the alias back), else a new version is registered.
+    The released text and its version go to results_dir/released-prompt/ for the promote task, which pins
+    exactly that text for the runtime. Returns (version, sha256)."""
+    import mlflow
+    try:
+        from mlflow.genai import load_prompt, register_prompt, set_prompt_alias
+    except ImportError:   # older client
+        load_prompt, register_prompt, set_prompt_alias = mlflow.load_prompt, mlflow.register_prompt, mlflow.set_prompt_alias
+    name, alias = ref.split("@", 1)
+    text = pathlib.Path(prompt_file).read_text()
+    sha = hashlib.sha256(text.encode()).hexdigest()
+    version, v = None, 1
+    while True:   # ponytail: linear scan of the versions (a handful); a search API if they ever number hundreds
+        try:
+            pv = load_prompt(f"prompts:/{name}/{v}")
+        except Exception:
+            break
+        if pv.template == text:
+            version = pv.version
+        v += 1
+    if version is None:
+        rel = os.environ.get("PROMPT_FILE_REL", prompt_file).removeprefix("source/")
+        pv = register_prompt(name=name, template=text,
+                             commit_message=f"released from {rel} by {os.environ.get('RELEASE_RUN', 'a release run')}",
+                             tags={**{k: str(v) for k, v in COMMON_META.items()}, "variant": alias, "prompt_file": rel,
+                                   "prompt_sha256": sha, "prompt_chars": str(len(text))})
+        version = pv.version
+        print(f"registered {name} version {version} from {rel} (sha256 {sha})")
+    else:
+        print(f"{name} version {version} already holds {prompt_file} (sha256 {sha})")
+    set_prompt_alias(name, alias=alias, version=int(version))
+    print(f"alias {name}@{alias} -> version {version}")
+    if results_dir:
+        out = pathlib.Path(results_dir) / "released-prompt"
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "systemPrompt").write_text(text)
+        (out / "promptVersion").write_text(f"{name}/{version}")
+        (out / "promptSha256").write_text(sha)
+    return str(version), sha
+
+
 def run_full(versions, gate_version, results_dir):
     os.environ.setdefault("MLFLOW_TRACKING_INSECURE_TLS", "true")
     def from_file(env_key):
@@ -262,6 +306,12 @@ def run_full(versions, gate_version, results_dir):
     golden, cands = load()
     ensure_dataset(golden, experiment)
 
+    # A release run registers the prompt it ships (PROMPT_FILE -> PROMPT_REF) and records the registry version
+    # the gate evaluated on the run, so the run, the registry and the runtime pin name the same text.
+    released = None
+    if os.environ.get("PROMPT_REF") and os.environ.get("PROMPT_FILE"):
+        released = release_prompt(os.environ["PROMPT_REF"], os.environ["PROMPT_FILE"], results_dir)
+
     src_code = AssessmentSource(source_type=AssessmentSourceType.CODE, source_id="deterministic")
     src_judge = AssessmentSource(source_type=AssessmentSourceType.LLM_JUDGE, source_id=judge_model)
 
@@ -276,7 +326,9 @@ def run_full(versions, gate_version, results_dir):
         run_name = f"{version}-prompt" + os.environ.get("RUN_SUFFIX", "")
         with mlflow.start_run(run_name=run_name) as run:
             run_id = run.info.run_id
-            vmeta = VERSION_META.get(version, {"prompt_version": version, "variant": version})
+            vmeta = dict(VERSION_META.get(version, {"prompt_version": version, "variant": version}))
+            if released and version == gate_version:
+                vmeta.update(prompt_version=released[0], prompt_sha256=released[1])
             tags = {
                 "judge_model": judge_model,
                 "judge_note": "llama-scout-17b stand-in for gpt-oss-120b (not served); swap-ready",
