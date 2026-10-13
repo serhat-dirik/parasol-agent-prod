@@ -65,9 +65,9 @@ What you should see: the annotations `parasol.example/promoted-digest`, `promote
 
 . *Which evaluated version.* Select the *OpenShift AI* tab, *Models*, *Model registry*, `parasol-claims-assistant`, version `production`.
 +
-What you should see: `gate` `passed`, `eval_score` `0.96` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]).
+What you should see: `gate` `passed`, `eval_score` `1.00` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]).
 +
-// SCREENSHOT: s9-model-registry-production.png — OpenShift AI, Model registry, parasol-claims-assistant > production > Details: gate passed, eval_score 0.96, mlflow_run_id, prompt_sha256 (OpenShift sign-in)
+// SCREENSHOT: s9-model-registry-production.png — OpenShift AI, Model registry, parasol-claims-assistant > production > Details: gate passed, eval_score 1.00, mlflow_run_id, prompt_sha256 (OpenShift sign-in)
 
 . *Was it the signed image?* In the *OpenShift Console* tab, *Pipelines*, project `parasol-build`, run `parasol-portal-release-production`, tab *Details* (results).
 +
@@ -80,7 +80,7 @@ What you should see: `PROMOTED_DIGEST` equal to Argo CD's `promoted-digest`, `EV
 scripts/incident-report.sh CLM-1001
 ----
 +
-What you should see: the same chain in seven read-only sections: the timeline and the PAYOUT line, the gateway's decisions in the 15 minutes before the approval (allow and deny, each with user, agent and tool), the release annotations on `env-secured`, the release run's results and the running digest. The MLflow, Keycloak and Model Registry sections print `n/a` here (the Terminal's identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too.
+What you should see: the same chain in seven read-only sections: the timeline and the PAYOUT line, the gateway's decisions in the 15 minutes before the approval (allow and deny, each with user, agent and tool), the release annotations on `env-secured`, the release run's results and the running digest. The MLflow, Keycloak and Model Registry sections print `n/a` here (the Terminal's identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too. The gateway's decision lines live in the MCP gateway pod's log and are lost when that pod restarts; a production cluster ships them to cluster logging.
 +
 // SCREENSHOT: s9-terminal-incident-report.png — Terminal: scripts/incident-report.sh CLM-1001 (Showroom terminal); recapture: section 4 now lists the gateway decisions (allow/deny, user, agent, tool) instead of n/a
 
