@@ -76,7 +76,8 @@ VERSIONS = {
         "mlflow_run_id": os.environ.get("RUN_ID_PRODUCTION") or "b9971fab", "mlflow_experiment_id": EXP_ID,
         "desc": "Production prompt (base + safety rules, gitops/envs/secured/system-prompt.txt; prompt registry version 1, alias production). "
                 "Agent-eval: golden-set answers generated live, 3 attempts per case (majority), scored on the release as "
-                "deployed (platform controls on); gate passed: promotion allowed. The model-only score is on the MLflow run.",
+                "deployed (platform controls on, >= 0.95) and on the model alone (no fewer cases than the last released production); "
+                "gate passed: promotion allowed. Both scores are on the MLflow run.",
     },
     "candidate-shortened": {
         "prompt_version": "2", "prompt_alias": "candidate", "variant": "candidate-shortened",

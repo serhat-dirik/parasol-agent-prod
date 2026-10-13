@@ -146,7 +146,8 @@ spec:
     attempts. Deterministic scorers decide; the gate is the system pass rate against the golden set's
     gate_threshold (0.95): below it the gate is failed and `promote` is skipped. The run records both
     numbers (system_pass_rate, model_only_pass_rate) and, per case the platform rescues, which control
-    caught it. The judge (gpt-oss-120b on its own key from secret maas-eval-key, never the agent key)
+    caught it. The gate also fails when the model alone passes fewer cases than the last released production
+    (non-regression baseline: the eval run the promote task tagged released=true; on a first install, the seed). The judge (gpt-oss-120b on its own key from secret maas-eval-key, never the agent key)
     attaches per-attempt assessments. The MLflow run id is written as a result. The release registers the
     prompt it ships first: prompt-file becomes the registry version prompt-ref's alias points to
     (append-only: an identical text reuses its version), and the released text is left in the workspace
@@ -214,7 +215,7 @@ spec:
         cp "$R/score"   "$(results.score.path)"
         cp "$R/run-id"  "$(results.mlflow-run-id.path)"
         cat "$R/prompt-sha256" > "$(results.prompt-sha256.path)" 2>/dev/null || printf "" > "$(results.prompt-sha256.path)"
-        echo "gate=$(cat "$R/gate") score=$(cat "$R/score") mlflow-run-id=$(cat "$R/run-id") prompt=${PROMPT_REF:-none} version=$(cat "$R/released-prompt/promptVersion" 2>/dev/null) sha256=$(cat "$R/prompt-sha256" 2>/dev/null)"
+        echo "gate=$(cat "$R/gate") ($(cat "$R/gate-reason")) score=$(cat "$R/score") mlflow-run-id=$(cat "$R/run-id") prompt=${PROMPT_REF:-none} version=$(cat "$R/released-prompt/promptVersion" 2>/dev/null) sha256=$(cat "$R/prompt-sha256" 2>/dev/null)"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -319,6 +320,11 @@ spec:
     # call prompt_sha256 is literally the registered prompt the gate evaluated.
     - {name: prompt-sha256, type: string, default: ""}
     - {name: runtime-namespace, type: string, default: parasol-secured}
+    # The agent-eval run this release passed with: after the promote it is tagged released=true, which makes its
+    # model-only score the non-regression baseline the next release's gate must meet (agent_eval.py).
+    - {name: mlflow-run-id, type: string, default: ""}
+    - {name: mlflow-uri, type: string, default: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
+    - {name: mlflow-workspace, type: string, default: parasol-secured}
   results:
     - {name: digest, description: the digest pinned on the Application (empty when not promoted)}
   workspaces:
@@ -381,6 +387,18 @@ spec:
         [ $ok -ge 2 ] || { echo "PROMOTION NOT CONVERGED: $APP did not reach Synced/Healthy on $DIGEST in 10 min"; exit 1; }
         printf "%s" "$DIGEST" > "$(results.digest.path)"
         echo "PROMOTED: $APP runs $NAME@$DIGEST (prompt $PVER = $(params.prompt-ref) sha256 $HAVE, model $(params.model-ref))"
+        # Ratchet the gate's non-regression baseline: the released eval run becomes the bar for the next release.
+        RUN="$(params.mlflow-run-id)"
+        if [ -n "$RUN" ]; then
+          T=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+          for kv in "released=true" "released_by=$(context.taskRun.name)" "released_digest=$DIGEST"; do
+            curl -sfk -X POST "$(params.mlflow-uri)/api/2.0/mlflow/runs/set-tag" -H "Authorization: Bearer $T" \
+              -H "x-mlflow-workspace: $(params.mlflow-workspace)" -H "content-type: application/json" \
+              -d "{\"run_id\": \"$RUN\", \"key\": \"${kv%%=*}\", \"value\": \"${kv#*=}\"}" >/dev/null \
+              || { echo "WARN: could not tag MLflow run $RUN ${kv%%=*}: the gate's model-only baseline stays at the previous release"; break; }
+          done
+          echo "MLflow run $RUN tagged released=true: its model-only score is the next release's non-regression baseline"
+        fi
 ---
 apiVersion: tekton.dev/v1
 kind: Task
