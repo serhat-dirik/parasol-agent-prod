@@ -115,7 +115,7 @@ Every question the audience asks has one screen that answers it with the same na
 
 |Which prompt runs in production, and was it gated?
 |*MLflow*, experiment `parasol-agent-eval`; *Argo CD*, `env-secured`, *Details*, *Summary*
-|production 0.96 (22 of 23 with the platform, 18 model alone; answers generated live), candidate 0.87 below the 0.95 gate (BLOCK); `prompt-ref` `...@production` and `prompt-sha256`, the same values as every chat trace's `prompt` and `prompt_sha256` tags and the registry version's `prompt_sha256`
+|production 0.96 (22 of 23 with the platform, 18 model alone; answers generated live), candidate 0.87 to 0.91 below the 0.95 gate and below production's model-alone 18 (BLOCK); `prompt-ref` `...@production` and `prompt-sha256`, the same values as every chat trace's `prompt` and `prompt_sha256` tags and the registry version's `prompt_sha256`
 
 |One payout, end to end?
 |xref:09-incident-forensics.adoc[09. The incident]; `scripts/incident-report.sh <claim>`

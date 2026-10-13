@@ -189,7 +189,7 @@ The scripts behind each scenario (the browser steps are in **Demo UI**):
 6. **Scenario 5 — the evaluation gate** — `scripts/eval-goldenset.sh` runs the golden set (secured
    blocked vs unsecured allowed, PASS 3/3); the dashboard LMEval run is
    `oc apply -f gitops/platform/eval/lmevaljob-agent-model.yaml` then `oc get lmevaljob -n parasol-eval -w`;
-   the golden set is generated live per release (3 attempts per case, majority; scored with the platform on for the gate and model alone for comparison): production 22 of 23 with the platform (18 alone), shortened candidate 20 of 23 (below the 0.95 gate), in MLflow `parasol-agent-eval`.
+   the golden set is generated live per release (3 attempts per case, majority; scored with the platform on for the gate and model alone for comparison): production 22 of 23 with the platform (18 alone), shortened candidate 20 or 21 of 23 (below the 0.95 gate, and below production's model-alone score), in MLflow `parasol-agent-eval`.
 7. **Scenario 6 — the poisoned tool** — `scripts/tool-rugpull.sh plug|on|off|register|unregister|status`
    plugs the vendor `currency-converter` (project `parasol-thirdparty`) into the unsecured portal, flips its
    tool description (same version), and switches the governed registration on the secured gateway;
