@@ -18,7 +18,6 @@ spec:
             - {name: MLFLOW_TRACKING_URI, value: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
             - {name: MLFLOW_WORKSPACE, value: "parasol-secured"}
             - {name: MLFLOW_TRACKING_INSECURE_TLS, value: "true"}
-            - {name: RESET, value: "1"}
             - {name: HOME, value: "/tmp"}
           volumeMounts:
             - {name: scripts, mountPath: /scripts}

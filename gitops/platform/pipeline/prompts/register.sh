@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # Register the claims-assistant system prompt in the MLflow Prompt Registry, workspace parasol-secured:
-# the production prompt (gitops/envs/secured/system-prompt.txt, the very file the secured portal runs ->
-# registry version 1, alias production) and the candidate shortened prompt (v2.txt -> registry version 2,
-# alias candidate). Idempotent: the Job runs with RESET=1 so the
-# numbering is always deterministic. Run as cluster-admin (or any identity that can create the Job/SA).
+# the production prompt (gitops/envs/secured/system-prompt.txt, the file the production release ships ->
+# alias production) and the candidate shortened prompt (v2.txt -> alias candidate). Append-only and
+# idempotent: an unchanged text keeps its version, a changed text gets a new version (or reuses the version
+# that already holds it), the alias moves; no version is ever deleted. Run as cluster-admin (or any identity
+# that can create the Job/SA).
 #
 #   gitops/platform/pipeline/prompts/register.sh
 #
@@ -22,4 +23,4 @@ oc -n "$NS" create configmap parasol-prompt-registrar \
 oc -n "$NS" delete job parasol-prompt-registrar --ignore-not-found
 oc apply -f "$DIR/register-job.yaml"
 oc -n "$NS" wait --for=condition=complete job/parasol-prompt-registrar --timeout=180s
-oc -n "$NS" logs job/parasol-prompt-registrar | grep -E 'registered|loaded|alias'
+oc -n "$NS" logs job/parasol-prompt-registrar | grep -E 'registered|reused|loaded|alias'
