@@ -93,6 +93,6 @@ What you should see: `parasol-free reset`, `parasol-secured reset` and `model al
 +
 What you should see: the Parasol sign-in page on each.
 
-The two portals have separate databases, so you do not reset when you switch between them within a scenario. The scenarios tell you when a reset is needed.
+The two portals have separate databases, so you do not reset when you switch between them within a showcase. The showcases tell you when a reset is needed.
 
-Continue with xref:03-scenario1-colleague.adoc[03. Scenario 1: The colleague].
+Continue with xref:03-scenario1-colleague.adoc[03. Showcase 1: The colleague].

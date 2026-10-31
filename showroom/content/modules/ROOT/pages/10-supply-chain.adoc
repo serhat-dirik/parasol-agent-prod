@@ -1,5 +1,5 @@
-= 10. Supply chain: signing and admission
-:navtitle: 10. Supply chain
+= 10. Showcase 8: Supply chain, signing and admission
+:navtitle: 10. Showcase 8: Supply chain, signing and admission
 :toc: macro
 :toclevels: 2
 
@@ -21,7 +21,7 @@ What you should see: the release process is code too. Argo CD keeps the `parasol
 
 . Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-release-production`.
 +
-What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Scenario 4 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom` and `register-model-version`.
+What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Showcase 4 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom` and `register-model-version`.
 +
 // SCREENSHOT: sc-pipeline-v1-promoted.png — Console, Pipelines, parasol-build, run parasol-portal-release-production: full graph with promote succeeded (recapture: old run name, and the run was re-executed on 12 Oct)
 image::sc-pipeline-v1-promoted.png["The release run: build, scan, keyed and keyless signing, Conforma, the evaluation gate, then promote"]
@@ -36,7 +36,7 @@ What you should see: first `Prompt pinned: agent-prompt-release = parasol-claims
 
 . Select the *Argo CD* tab, open application `env-secured`, click *Details* and select the *Parameters* tab.
 +
-What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref`, `prompt-version` (the registry version pinned), `prompt-sha256` (the digest of the pinned prompt text) and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-ref` here is the same `parasol-claims-assistant-system-prompt@production` every live chat trace carries as its `prompt` tag (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]): release record and runtime evidence agree.
+What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref`, `prompt-version` (the registry version pinned), `prompt-sha256` (the digest of the pinned prompt text) and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-ref` here is the same `parasol-claims-assistant-system-prompt@production` every live chat trace carries as its `prompt` tag (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]): release record and runtime evidence agree.
 +
 // SCREENSHOT: sc-argo-env-secured-promote.png — Argo CD, application env-secured, Details > Summary: annotations parasol.example/promoted-digest, promoted-by, prompt-ref, prompt-version, prompt-sha256, model-ref; and Parameters > Images with the parasol-portal digest override (Argo CD sign-in; recapture: prompt-sha256 is new)
 
@@ -107,7 +107,7 @@ oc adm node-logs $node --path=ovn/acl-audit-log.log | grep 'NP:parasol-secured:E
 +
 What you should see: `name="NP:parasol-secured:Egress", verdict=drop, severity=alert, ... nw_src=<the portal pod IP>, nw_dst=<the public address>, tp_dst=443`. Without the annotation, NetworkPolicy drops are not logged at all; the namespace in this demo opts in.
 
-. *Only registered models, only MaaS keys.* Select the *OpenShift AI* tab, *Models as a Service*: the models the platform serves (`qwen3-14b` for the assistant, `granite-guardian-3-1-8b` as the guard tier), each an `ExternalModel` in project `models-as-a-service` whose upstream provider key lives there, in that project only. Then, in the *OpenShift Console* tab, project `parasol-secured`, *Secrets*: `maas-credentials` and `maas-portal-keys` hold *MaaS* keys, each bound to a subscription with its own token limit (xref:06-scenario4-night-shift.adoc[06. Scenario 4]); no provider key is in the namespace. Every model call goes portal -> model gateway -> guardrails proxy -> MaaS, and MaaS routes only to the models registered in it: a request for any other model name finds no route.
+. *Only registered models, only MaaS keys.* Select the *OpenShift AI* tab, *Models as a Service*: the models the platform serves (`qwen3-14b` for the assistant, `granite-guardian-3-1-8b` as the guard tier), each an `ExternalModel` in project `models-as-a-service` whose upstream provider key lives there, in that project only. Then, in the *OpenShift Console* tab, project `parasol-secured`, *Secrets*: `maas-credentials` and `maas-portal-keys` hold *MaaS* keys, each bound to a subscription with its own token limit (xref:06-scenario4-night-shift.adoc[06. Showcase 4]); no provider key is in the namespace. Every model call goes portal -> model gateway -> guardrails proxy -> MaaS, and MaaS routes only to the models registered in it: a request for any other model name finds no route.
 +
 // SCREENSHOT: sc-maas-models.png — OpenShift AI, Models as a Service: qwen3-14b and granite-guardian-3-1-8b, the only models the platform serves (OpenShift sign-in)
 
@@ -122,7 +122,7 @@ What you should see: `000`, `curl: (28) Connection timed out`. Even with a MaaS 
 
 == Conclusion
 
-The six scenarios and the incident made one argument. The unsecured and the secured portal are the same image running the same model. The difference is the platform around it, and every piece of that platform is a product an operator already knows:
+The showcases and the incident made one argument. The unsecured and the secured portal are the same image running the same model. The difference is the platform around it, and every piece of that platform is a product an operator already knows:
 
 * Identity on every tool call: Keycloak and the MCP gateway.
 * Identity on data: retrieval runs as the user, down to row-level security in the database.

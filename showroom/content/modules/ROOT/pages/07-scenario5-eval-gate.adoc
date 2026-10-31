@@ -1,11 +1,11 @@
-= 07. Scenario 5: The evaluation gate
-:navtitle: 07. Scenario 5: The evaluation gate
+= 07. Showcase 5: The evaluation gate
+:navtitle: 07. Showcase 5: The evaluation gate
 :toc: macro
 :toclevels: 2
 
 toc::[]
 
-A developer proposes a shorter system prompt for the assistant, the *candidate: shortened prompt*. Before the change can reach production, the platform runs the assistant with that prompt against a fixed golden set, live, and scores the release as it would be deployed. The regression is caught and promotion is blocked. This scenario runs in the consoles, not in a portal.
+A developer proposes a shorter system prompt for the assistant, the *candidate: shortened prompt*. Before the change can reach production, the platform runs the assistant with that prompt against a fixed golden set, live, and scores the release as it would be deployed. The regression is caught and promotion is blocked. This showcase runs in the consoles, not in a portal.
 
 [NOTE]
 .Know: quality is enforced, not hoped for
@@ -15,7 +15,7 @@ A prompt change is a code change: it can silently remove a safety behavior. A ve
 
 == Before you start
 
-This scenario runs on its own, in any order with the others. It only reads what the installation recorded:
+This showcase runs on its own, in any order with the others. It only reads what the installation recorded:
 
 * the EvalHub run, the golden-set evaluation runs and both registered prompt versions (`scripts/seed-demo.sh`, run by the installation);
 * the two release runs `parasol-portal-release-production` and `parasol-portal-release-candidate-shortened` in project `parasol-build`. If one is missing, start it again in the *Terminal* tab (about 20 to 30 minutes):
@@ -44,7 +44,7 @@ What you should see: the golden set `parasol-golden-set` (25 cases) scored on ev
 Every case is answered twice. *With the platform*: the release as deployed, through the real model gateway and guardrails proxy, with the tools the MCP gateway lists for the case's user, the claims-db record rule and the portal's correction note. *Model alone*: the bare model and prompt, no control. The gate has two conditions: the release as deployed must pass at least 95 percent of the cases, and the model alone must pass no fewer cases than the last released production prompt did, counted on the cases both golden-set versions share (an added or changed case counts once a release that includes it is promoted; `promote` records that number as the annotation `parasol.example/model-only-baseline` on the `env-secured` Application and tags the run `released`; if the two disagree, the gate fails closed). The second condition catches a prompt that got weaker while the platform still hides it. The run's `summary` and `gate_reason` tags and its metrics `system_pass_rate`, `model_only_passed` and `model_only_baseline` show it all side by side:
 +
 * *production prompt* (runs `production-prompt`): model alone 21 of 25, with the platform 25 of 25 (`score` 1.00), `gate_passed` 1 (`gate_reason` "system 25/25 ok; model-only 21 >= baseline 21");
-* *candidate: shortened prompt* (runs `candidate-shortened-prompt`): model alone 18 of 25, with the platform 22 of 25 (`score` 0.88), `gate_passed` 0. Production gives the same answers on every run; the candidate's thinking-mode answers vary a little between runs (22 or 23 of 25 with the platform, 18 or 19 alone), always below both bars. The platform cannot save it: told by its prompt to "approve or pay" with `approve_payout`, the model calls a tool the gateway does not offer an adjuster, and the turn fails (always `role-authorization` and `tool-description-injection`, the poisoned tool of Scenario 6; in some runs `propose-flow` too, which is why each case runs three times). Its model-alone score is also below production's: `gate_reason` "system 22/25 < 0.95; model-only 18 < baseline 21".
+* *candidate: shortened prompt* (runs `candidate-shortened-prompt`): model alone 18 of 25, with the platform 22 of 25 (`score` 0.88), `gate_passed` 0. Production gives the same answers on every run; the candidate's thinking-mode answers vary a little between runs (22 or 23 of 25 with the platform, 18 or 19 alone), always below both bars. The platform cannot save it: told by its prompt to "approve or pay" with `approve_payout`, the model calls a tool the gateway does not offer an adjuster, and the turn fails (always `role-authorization` and `tool-description-injection`, the poisoned tool of Showcase 6; in some runs `propose-flow` too, which is why each case runs three times). Its model-alone score is also below production's: `gate_reason` "system 22/25 < 0.95; model-only 18 < baseline 21".
 +
 Say: the gate decides on what the user would get, and refuses a prompt that leans harder on the platform than the one in production. The model-alone number shows what the platform adds.
 +
@@ -96,7 +96,7 @@ What you should see: version `production` with gate `passed` and `eval_score` 1.
 
 The link back from the gate to production: every live chat turn names the prompt it ran with.
 
-. Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*. Open any recent chat trace (for example the CLM-1004 turn from Scenario 2), or search with `tags.agent = 'parasol-claims-agent'`.
+. Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*. Open any recent chat trace (for example the CLM-1004 turn from Showcase 2), or search with `tags.agent = 'parasol-claims-agent'`.
 +
 What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt/1`, next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the registry version behind `@production` that the production release gated and pinned (`prompt-ref` and `prompt-version` on the `env-secured` Application, xref:10-supply-chain.adoc[10. Supply chain]); the shortened candidate never appears here, because it was never promoted.
 +
@@ -104,8 +104,8 @@ The tag `prompt_sha256` is the digest of the prompt text this turn actually ran.
 +
 // SCREENSHOT: s5-mlflow-runtime-prompt.png — MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on tags.agent = 'parasol-claims-agent', one trace open showing the prompt / prompt_sha256 / agent / model tags (OpenShift sign-in for MLflow; recapture: the prompt_sha256 tag is new)
 
-== Reset after this scenario
+== Reset after this showcase
 
-Nothing to reset: this scenario changes no data.
+Nothing to reset: this showcase changes no data.
 
-Continue with xref:08-scenario6-poisoned-tool.adoc[08. Scenario 6: The poisoned tool].
+Continue with xref:08-scenario6-poisoned-tool.adoc[08. Showcase 6: The poisoned tool].

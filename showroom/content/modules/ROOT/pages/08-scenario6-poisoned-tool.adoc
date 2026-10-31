@@ -1,5 +1,5 @@
-= 08. Scenario 6: The poisoned tool
-:navtitle: 08. Scenario 6: The poisoned tool
+= 08. Showcase 6: The poisoned tool
+:navtitle: 08. Showcase 6: The poisoned tool
 :toc: macro
 :toclevels: 2
 
@@ -15,7 +15,7 @@ The model reads every tool description as instructions. Whoever writes a descrip
 
 == Before you start
 
-This scenario runs on its own, in any order with the others.
+This showcase runs on its own, in any order with the others.
 
 * Persona: `rebecca` (claims adjuster); the password equals the user name. *CLM-1001* is her claim, a USD 4,200 motor claim *UnderReview*.
 * The vendor's server runs in project `parasol-thirdparty`, with its clean description and plugged into neither portal. Check it in the *Terminal* tab:
@@ -157,7 +157,7 @@ What you should see: `tool-scan action=drift server=parasol-thirdparty/currency-
 
 What is native and what is ours: the MCP gateway (Connectivity Link, Technology Preview) federates only registered servers, reports each registration's tool count, filters `tools/list` by the person's roles and limits each agent to a virtual server's tool names. It does not read or pin descriptions. The scanner (`mcp-system/mcp-tool-scanner`, a small service next to the gateway) does that, with the guardrails' own rules.
 
-== Reset after this scenario
+== Reset after this showcase
 
 In the *Terminal* tab:
 

@@ -5,7 +5,7 @@
 
 toc::[]
 
-This module is the map: the application, the people, the models, and the layer that stops each scenario. Everything here is declared in Git and synced by Argo CD.
+This module is the map: the application, the people, the models, and the layer that stops each showcase. Everything here is declared in Git and synced by Argo CD.
 
 [NOTE]
 .Know: why the architecture is the story
@@ -72,9 +72,9 @@ Keycloak realm `parasol`. Passwords equal the usernames; these users exist only 
 
 The demo uses a lean model set on an external Models-as-a-Service endpoint, reached through OpenShift AI MaaS:
 
-* `qwen3-14b`: the agent model. *Both* portals run it. It emits structured tool calls and it obeys an instruction hidden in a document, which is what makes Scenario 2 live.
+* `qwen3-14b`: the agent model. *Both* portals run it. It emits structured tool calls and it obeys an instruction hidden in a document, which is what makes Showcase 2 live.
 * `granite-guardian-3-1-8b`: the guard-tier detector, a model-based second opinion beside the regex detector.
-* `gpt-oss-120b`: the evaluation judge in Scenario 5. It is reached with its own key, off the MaaS tiers.
+* `gpt-oss-120b`: the evaluation judge in Showcase 5. It is reached with its own key, off the MaaS tiers.
 * `Llama-Guard-3-1B`: an optional third detector, skipped when absent.
 
 The agent never holds the upstream model key. OpenShift AI MaaS lists the two tiered models (`qwen3-14b` on the prod tier, `granite-guardian-3-1-8b` on the guard tier), each with its own subscription, auth policy, key and token budget.
@@ -92,30 +92,30 @@ The unsecured portal skips all of it: a shared model key, and tools called with 
 
 `approve_payout` is hidden from the gateway's tool list for *every* identity, so no model can call it on its own. It stays reachable for a direct call, which is still authorized by the Keycloak role `tool:approve_payout` (claims managers only). The assistant can therefore only *propose*; a claims manager's *Approve* click performs the write, and an adjuster's forced call is a 403.
 
-== Which layer stops which scenario
+== Which layer stops which showcase
 
 [cols="1,2,2",options="header"]
 |===
 |Layer |Defends |Component
 
 |1 Isolation
-|the blast radius of all scenarios
+|the blast radius of all showcases
 |Namespace, ResourceQuota, NetworkPolicy, restricted pod security, no Kubernetes API token
 
 |2 Identity
-|Scenarios 1 and 3
+|Showcases 1 and 3
 |Keycloak: the user's identity plus the agent's own (ServiceAccount, no secret), joined by token exchange on every tool call; the user's groups decide which documents retrieval may search, down to PostgreSQL row-level security
 
 |3 Tool authorization
-|Scenario 1
+|Showcase 1
 |MCP gateway (Connectivity Link): per-identity tool list, per-tool AuthPolicy
 
 |4 Guardrails
-|Scenarios 2, 3 and 4
+|Showcases 2, 3 and 4
 |Guardrails proxy (enforced): regex and prompt-injection detection, PII masking, topic refusal, the confidential-document marker on answers; Granite Guardian as a model-based detector in the guard tier
 
 |5 Model governance
-|Scenario 4
+|Showcase 4
 |OpenShift AI MaaS: per-tier subscriptions, auth policies, keys and token budgets enforced by Connectivity Link
 
 |6 Lifecycle gate
@@ -123,14 +123,14 @@ The unsecured portal skips all of it: a shared model key, and tools called with 
 |Tekton pipeline (build, scan, evaluation gate, sign, verify, promote) and Sigstore admission policy
 
 |7 Observability and control
-|Scenarios 3 and 4, knowing and stopping
+|Showcases 3 and 4, knowing and stopping
 |OpenTelemetry to Tempo and MLflow, token metrics and an alert, the kill-switch component
 |===
 
 [NOTE]
 .Technology Preview status
 ====
-As of OpenShift AI 3.5 and Connectivity Link 1.4, the MCP gateway, the MCP catalog, MaaS external-model egress and GenAI Studio guardrails are Technology Preview. Gateway-native MCP guardrails are the target design but do not yet relay tool-calling turns in this release, so the guardrails proxy is the enforced path for both Scenario 2's flag and Scenario 4's topic refusal.
+As of OpenShift AI 3.5 and Connectivity Link 1.4, the MCP gateway, the MCP catalog, MaaS external-model egress and GenAI Studio guardrails are Technology Preview. Gateway-native MCP guardrails are the target design but do not yet relay tool-calling turns in this release, so the guardrails proxy is the enforced path for both Showcase 2's flag and Showcase 4's topic refusal.
 ====
 
 Continue with xref:02-before-you-start.adoc[02. Before you start].

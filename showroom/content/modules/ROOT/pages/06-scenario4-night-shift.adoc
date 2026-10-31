@@ -1,5 +1,5 @@
-= 06. Scenario 4: The night shift
-:navtitle: 06. Scenario 4: The night shift
+= 06. Showcase 4: The night shift
+:navtitle: 06. Showcase 4: The night shift
 :toc: macro
 :toclevels: 2
 
@@ -17,10 +17,10 @@ An agent on a shared key is an open invoice: anyone who can reach the chat can s
 
 == Before you start
 
-This scenario runs on its own, in any order with the others.
+This showcase runs on its own, in any order with the others.
 
 * Personas: `nina.contractor` (the night-shift contractor, played by the script) and `rebecca`; passwords equal the user names.
-* State: `nina.contractor` is enabled in Keycloak, the kill switch is off, and her token budget is full. If an earlier run used any of them, undo it as in *Reset after this scenario* below.
+* State: `nina.contractor` is enabled in Keycloak, the kill switch is off, and her token budget is full. If an earlier run used any of them, undo it as in *Reset after this showcase* below.
 
 == Show: unsecured
 
@@ -151,7 +151,7 @@ oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"
 
 The morning report is two screens you already have open: the alert and the dashboard.
 
-== Reset after this scenario
+== Reset after this showcase
 
 . Refill the per-user token budgets (and put the claims back):
 +
@@ -169,4 +169,4 @@ oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"
 
 The `ParasolAssistantTokenSpendHigh` alert resolves on its own 10 minutes after the spend stops.
 
-Continue with xref:07-scenario5-eval-gate.adoc[07. Scenario 5: The evaluation gate].
+Continue with xref:07-scenario5-eval-gate.adoc[07. Showcase 5: The evaluation gate].

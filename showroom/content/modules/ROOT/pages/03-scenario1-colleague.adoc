@@ -1,5 +1,5 @@
-= 03. Scenario 1: The colleague
-:navtitle: 03. Scenario 1: The colleague
+= 03. Showcase 1: The colleague
+:navtitle: 03. Showcase 1: The colleague
 :toc: macro
 :toclevels: 2
 
@@ -15,10 +15,10 @@ The agent acts *as the person*, and the gateway checks the person's rights befor
 
 == Before you start
 
-This scenario runs on its own, in any order with the others.
+This showcase runs on its own, in any order with the others.
 
 * Personas: `rebecca` (claims adjuster) and `marcus` (claims manager); passwords equal the user names.
-* Data: claim *CLM-1001* is *UnderReview* on both portals. If another scenario or an earlier run approved it, reset in the *Terminal* tab:
+* Data: claim *CLM-1001* is *UnderReview* on both portals. If another showcase or an earlier run approved it, reset in the *Terminal* tab:
 +
 [source,bash,role=execute]
 ----
@@ -91,7 +91,7 @@ The governance beat for what the audience just watched: rebecca refused, marcus 
 
 . Select the *Keycloak* tab. In realm `parasol`, open *Events*, tab *User events*, and search for event type `TOKEN_EXCHANGE`. Expand the newest rows.
 +
-What you should see: one row per chat turn, client `parasol-claims-agent`, with the details `username` `rebecca` (and, after the approval, `marcus`), `subject_token_client_id` `parasol-portal` (the login it acted on) and `client_assertion_sub` `system:serviceaccount:parasol-secured:claims-agent` (the agent's own workload identity, no secret). Every tool call in this scenario was made by this agent on behalf of that person.
+What you should see: one row per chat turn, client `parasol-claims-agent`, with the details `username` `rebecca` (and, after the approval, `marcus`), `subject_token_client_id` `parasol-portal` (the login it acted on) and `client_assertion_sub` `system:serviceaccount:parasol-secured:claims-agent` (the agent's own workload identity, no secret). Every tool call in this showcase was made by this agent on behalf of that person.
 +
 Then open *Clients*, `parasol-claims-agent`, tab *Client scopes*, `parasol-claims-agent-dedicated`, tab *Scope*.
 +
@@ -125,7 +125,7 @@ What you should see: the *MLflow* trace of the approval, in workspace `parasol-s
 +
 // SCREENSHOT: s1-mlflow-approval-trace.png — MLflow (workspace parasol-secured, experiment parasol-portal-chat), the approval trace opened from the card's link: user marcus, tags agent=parasol-claims-agent and action=approve_payout CLM-1001, span gateway.authz (OpenShift sign-in for MLflow)
 
-== Reset after this scenario
+== Reset after this showcase
 
 Both portals approved CLM-1001 (unsecured by the assistant, secured by marcus's click). Put it back to *UnderReview*:
 
@@ -134,4 +134,4 @@ Both portals approved CLM-1001 (unsecured by the assistant, secured by marcus's 
 scripts/reset.sh
 ----
 
-Continue with xref:04-scenario2-document.adoc[04. Scenario 2: The customer's document].
+Continue with xref:04-scenario2-document.adoc[04. Showcase 2: The customer's document].

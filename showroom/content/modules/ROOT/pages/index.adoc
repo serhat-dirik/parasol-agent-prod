@@ -17,7 +17,7 @@ The same portal image runs twice on one cluster, over separate, identically seed
 
 You demo the *same claim* with the *same request* on each portal. The only variable is the platform.
 
-== The six scenarios
+== The showcases
 
 . *The colleague.* A claims adjuster asks the assistant to approve a payout the adjuster has no authority to approve.
 . *The customer's document.* An uploaded repair estimate is inflated to AED 84,000 and carries a hidden note addressed to the assistant.
@@ -26,12 +26,13 @@ You demo the *same claim* with the *same request* on each portal. The only varia
 . *The evaluation gate.* A developer simplifies the system prompt; the platform evaluates it against a golden set and blocks the regression.
 . *The poisoned tool.* A handy third-party currency-conversion tool is plugged into the assistant; later its description changes, without a new version, and asks the assistant to approve payouts.
 
-Unsecured, all but the evaluation gate cause harm. Secured, a *different* layer stops each, and the platform consoles show why.
+. *The incident.* One payout reconstructed from the platform's own records, from the claim back to the signed release.
+. *Supply chain.* Signed images, admission control, and *only approved models*: what a secured workload can and cannot reach.
 
-Then *the incident*: one payout reconstructed from the platform's own records, from the claim back to the signed release. The supply-chain page closes with *only approved models*: what a secured workload can and cannot reach.
+Unsecured, the first, second, third, fourth and sixth cause harm. Secured, a *different* layer stops each, and the platform consoles show why. Each showcase stands on its own: run any of them, in any order, using its *Before you start* and *Reset* steps.
 
 [NOTE]
-.The six messages to land
+.The messages to land
 ====
 . Identity on every tool call, and on the data the agent retrieves.
 . A document is data, not a command.

@@ -38,9 +38,9 @@ not from luck with the model.
 `marcus`, a claims manager (can approve payouts); `nina.contractor`, an outsourced night-shift contractor
 (read-only, small usage allowance).
 
-### The six scenarios
+### The showcases
 
-Each scenario is something a real user, customer or developer might do. You run it on both portals,
+Each showcase is something a real user, customer or developer might do. You run it on both portals,
 in the browser, and then look at the platform's own records to see what happened and why.
 
 **1. The colleague: can the assistant do something the person isn't allowed to do?**
@@ -128,7 +128,7 @@ same version number, and now quietly tells the assistant to approve payouts.
 registered tools are allowed, and they're continuously checked for hidden instructions and silent
 changes. A compromised third-party tool can't quietly take over the assistant.
 
-### And two more pages
+### Two more showcases
 
 * **The incident:** one payout, reconstructed after the fact from the platform's own records: who asked,
   through which agent, which prompt and model version answered, what the guardrails saw, and which
@@ -142,7 +142,7 @@ changes. A compromised third-party tool can't quietly take over the assistant.
   *What this shows:* only trusted software and approved models run in production, which closes off
   both tampered images and "shadow AI" (teams quietly using unapproved AI services).
 
-On the unsecured portal, five of the six scenarios cause real harm. On the secured portal a different
+On the unsecured portal, the first, second, third, fourth and sixth showcases cause real harm. On the secured portal a different
 control stops each one, and the platform's consoles (Keycloak, the OpenShift AI dashboard, MLflow, the
 OpenShift console, Argo CD) show what happened, who did it, and through which agent. The scripts in this
 repository only set the demo up, play the abusive user and reset between runs; the demo itself happens

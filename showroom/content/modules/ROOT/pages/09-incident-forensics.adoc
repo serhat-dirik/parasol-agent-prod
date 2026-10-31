@@ -1,5 +1,5 @@
-= 09. The incident: one payout, reconstructed
-:navtitle: 09. The incident: one payout, reconstructed
+= 09. Showcase 7: The incident, one payout reconstructed
+:navtitle: 09. Showcase 7: The incident, one payout reconstructed
 :toc: macro
 :toclevels: 2
 
@@ -25,7 +25,7 @@ This page runs on its own, in any order with the others. It needs one payout on 
 Approve the payout for this claim.
 ----
 +
-Click *Approve* on the proposal card. What you should see: the card reads "Approved by marcus via parasol-claims-agent", with a `trace <id>` link. (This is the last beat of xref:03-scenario1-colleague.adoc[03. Scenario 1]; if you just ran it, the payout already exists.)
+Click *Approve* on the proposal card. What you should see: the card reads "Approved by marcus via parasol-claims-agent", with a `trace <id>` link. (This is the last beat of xref:03-scenario1-colleague.adoc[03. Showcase 1]; if you just ran it, the payout already exists.)
 * Headless alternative, if no browser is at hand: `scripts/abuse.sh secured marcus 1` approves CLM-1001 through the agent's token at the gateway. The claim, Keycloak, Argo CD, registry and signature steps below then work the same; the two MLflow traces of step 2 exist only for the browser path.
 
 == Show: the chain, from the payout back to the release
@@ -65,7 +65,7 @@ What you should see: the annotations `parasol.example/promoted-digest`, `promote
 
 . *Which evaluated version.* Select the *OpenShift AI* tab, *Models*, *Model registry*, `parasol-claims-assistant`, version `production`.
 +
-What you should see: `gate` `passed`, `eval_score` `1.00` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Scenario 5]).
+What you should see: `gate` `passed`, `eval_score` `1.00` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]).
 +
 // SCREENSHOT: s9-model-registry-production.png — OpenShift AI, Model registry, parasol-claims-assistant > production > Details: gate passed, eval_score 1.00, mlflow_run_id, prompt_sha256 (OpenShift sign-in)
 
@@ -86,7 +86,7 @@ What you should see: the same chain in seven read-only sections: the timeline an
 
 The point: one payout, seven independent records, joined by the same names. None of them depends on the model telling the truth.
 
-== Reset after this scenario
+== Reset after this showcase
 
 The secured portal approved CLM-1001. Put it back to *UnderReview*:
 

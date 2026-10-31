@@ -1,5 +1,5 @@
-= 04. Scenario 2: The customer's document
-:navtitle: 04. Scenario 2: The customer's document
+= 04. Showcase 2: The customer's document
+:navtitle: 04. Showcase 2: The customer's document
 :toc: macro
 :toclevels: 2
 
@@ -15,7 +15,7 @@ Every agent that reads customer content will one day read an instruction aimed a
 
 == Before you start
 
-This scenario runs on its own, in any order with the others.
+This showcase runs on its own, in any order with the others.
 
 * Persona: `rebecca` (claims adjuster, password `rebecca`).
 * Data: claim *CLM-1004* is *Denied* (claimed AED 8,400) on both portals, with the customer's repair estimate in its documents. If an earlier run paid it, reset in the *Terminal* tab:
@@ -140,7 +140,7 @@ The hidden note asked for a payout. A note could just as well ask the assistant 
 oc get mcpvirtualserver -n parasol-secured -o custom-columns=SERVER:.metadata.name,TOOLS:.spec.tools
 ----
 +
-What you should see: every tool an agent in `parasol-secured` can be offered: `claims-db` (`get_claim`, `list_claims_by_status`, `get_claim_history`, `get_claim_documents`), `fraud-check` (`fraud_check`), `knowledge-base` (`search_knowledge`), `policy-docs` (`search_policies`, `get_policy`, `list_policies`). None takes a web address, a host or a mailbox. A new tool appears only through a reviewed registration (xref:08-scenario6-poisoned-tool.adoc[08. Scenario 6]).
+What you should see: every tool an agent in `parasol-secured` can be offered: `claims-db` (`get_claim`, `list_claims_by_status`, `get_claim_history`, `get_claim_documents`), `fraud-check` (`fraud_check`), `knowledge-base` (`search_knowledge`), `policy-docs` (`search_policies`, `get_policy`, `list_policies`). None takes a web address, a host or a mailbox. A new tool appears only through a reviewed registration (xref:08-scenario6-poisoned-tool.adoc[08. Showcase 6]).
 
 . *The network reaches nothing else.* Select the *OpenShift Console* tab, project `parasol-secured`, *Networking*, *NetworkPolicies*, `portal`.
 +
@@ -173,7 +173,7 @@ What you should see: `guardrail action=redact detector=external-link score=1 use
 
 On the unsecured portal none of these exist: its pods have open egress and the chat shows whatever address the model writes. There is nothing to demonstrate there; that absence is the point.
 
-== Reset after this scenario
+== Reset after this showcase
 
 The unsecured portal paid CLM-1004 (AED 84,000). Put it back to *Denied*; the secured portal wrote nothing:
 
@@ -182,4 +182,4 @@ The unsecured portal paid CLM-1004 (AED 84,000). Put it back to *Denied*; the se
 scripts/reset.sh
 ----
 
-Continue with xref:05-scenario3-confidential-document.adoc[05. Scenario 3: The confidential document].
+Continue with xref:05-scenario3-confidential-document.adoc[05. Showcase 3: The confidential document].
