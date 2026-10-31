@@ -75,3 +75,9 @@ spec:
   to: {kind: Service, name: portal}
   port: {targetPort: http}
   tls: {termination: edge, insecureEdgeTerminationPolicy: Redirect}
+  # Never let the browser reuse a cached portal page: a stale page skips the sign-in redirect and shows
+  # the portal with no user (its API calls then fail). Set by the router, no image change.
+  httpHeaders:
+    actions:
+      response:
+        - {name: Cache-Control, action: {type: Set, set: {value: no-store}}}
