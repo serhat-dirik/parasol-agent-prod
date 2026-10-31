@@ -357,7 +357,8 @@ spec:
         # Argo CD neither reverts nor prunes it; only a release writes it.
         oc create configmap agent-prompt-release -n "$(params.runtime-namespace)" \
           --from-file=systemPrompt="$P/systemPrompt" --from-literal=promptVersion="$PVER" \
-          --dry-run=client -o yaml | { oc replace -f - 2>/dev/null || oc create -f -; } >/dev/null
+          --dry-run=client -o yaml > /tmp/agent-prompt-release.yaml   # a file, not a pipe: replace would consume stdin and leave create (first install) with nothing
+        oc replace -f /tmp/agent-prompt-release.yaml >/dev/null 2>&1 || oc create -f /tmp/agent-prompt-release.yaml >/dev/null
         oc annotate configmap agent-prompt-release -n "$(params.runtime-namespace)" --overwrite \
           parasol.example/prompt-ref="$(params.prompt-ref)" parasol.example/prompt-sha256="$HAVE" \
           parasol.example/released-by="$(context.taskRun.name)" >/dev/null
