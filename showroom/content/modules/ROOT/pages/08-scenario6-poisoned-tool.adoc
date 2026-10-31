@@ -13,6 +13,23 @@ Claims at Parasol mix dirhams and dollars, so someone finds a handy third-party 
 The model reads every tool description as instructions. Whoever writes a description writes part of the agent's prompt, and can change it later without changing the version: an "MCP rug pull". On the platform, an agent sees only the tools the MCP gateway federates, a server gets there only through a reviewed registration in Git, the person's role still decides which tools they may call, and a scanner reads every description and pins it, so a change nobody reviewed raises an alert.
 ====
 
+== The business case
+
+[cols="1,4"]
+|===
+|Who
+|Rebecca Torres, an adjuster using a handy third-party currency tool, and the vendor who controls that tool's description.
+
+|What is at stake
+|A third-party supply chain inside the prompt. A tool description is an instruction to the model; the vendor, or whoever compromises the vendor, can change it without a new version and turn a harmless question into a payout.
+
+|Without the platform
+|One URL plugs the tool in. A changed description makes the assistant approve a payout on a currency question, and nobody notices the change.
+
+|With the platform
+|The agent sees only reviewed, registered tools; the person's role still decides every call; a scanner pins each description and alerts on a silent change within a minute.
+|===
+
 == Before you start
 
 This showcase runs on its own, in any order with the others.

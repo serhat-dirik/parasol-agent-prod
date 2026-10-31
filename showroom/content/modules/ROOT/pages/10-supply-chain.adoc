@@ -13,7 +13,24 @@ The agent reached production the way any workload should: a pipeline that evalua
 What runs next to customer data must be the exact image the pipeline built, evaluated and signed. An unsigned or tampered image cannot start in the secured namespace, whoever deploys it.
 ====
 
-== Show: the secure build pipeline
+== The business case
+
+[cols="1,4"]
+|===
+|Who
+|The platform team, and anyone who can deploy to the cluster.
+
+|What is at stake
+|What runs next to customer data must be exactly what was built, scanned, evaluated and approved. A tampered or unsigned image, or a workload calling an unapproved model, bypasses every other control.
+
+|Without the platform
+|Any image can run, and any workload can call any model endpoint it has a key for.
+
+|With the platform
+|The pipeline signs and verifies every release, admission refuses unsigned images in the secured namespace, and only approved models are reachable.
+|===
+
+== Technical evidence: the secure build pipeline
 
 . Select the *Argo CD* tab and open application `platform-pipeline`.
 +
@@ -44,7 +61,7 @@ What you should see: under *Images*, the `parasol-portal` override with the prom
 +
 What you should see: the secured portal runs exactly that pinned digest; admission verified its signature when Argo CD rolled it out.
 
-== Show: admission refuses an unsigned image
+== Technical evidence: admission refuses an unsigned image
 
 The `ClusterImagePolicy` `parasol-portal-must-be-signed` admits only portal images signed by the pipeline.
 
@@ -69,7 +86,7 @@ Signatures, the admission decision and the promote history on `env-secured` toge
 +
 // SCREENSHOT: sc-admission-refused.png — Terminal output of scripts/signing-demo.sh: the unsigned image refused by the admission webhook naming parasol-portal-must-be-signed, the signed one admitted (Showroom terminal)
 
-== Show: only approved models
+== Technical evidence: only approved models
 
 Shadow AI: a developer is in a hurry, has a personal key for a public model API, and points a workload at it directly, around the platform's model gateway. Same model swap, different blast radius. On the secured side the image can be signed and the prompt gated, and still the question is: which models can this workload reach at all?
 

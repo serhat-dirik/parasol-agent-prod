@@ -15,6 +15,23 @@ The script `scripts/night-shift.sh` plays the scripted account. It logs in as `n
 An agent on a shared key is an open invoice: anyone who can reach the chat can spend the budget, and nobody can say who did. On the platform, spend is attributed to a user, so the right account is throttled, everyone else keeps working, and the alert says who.
 ====
 
+== The business case
+
+[cols="1,4"]
+|===
+|Who
+|Nina Patel, an outsourced night-shift contractor (or whoever holds her leaked token), and the claims staff who need the assistant in the morning.
+
+|What is at stake
+|Denial of wallet. Every model call costs money. One account looping long requests all night burns the shared budget, and in the morning the assistant is down for everyone. Without attribution nobody can say who spent it, or stop only that account.
+
+|Without the platform
+|One shared key, no per-user limit. The budget is gone by morning, and no dashboard or alert says who spent it.
+
+|With the platform
+|Off-topic requests are refused for 0 tokens, only Nina's account is throttled at her tier's limit, an alert names her and the agent, and the operator can switch off one agent, every agent or the user.
+|===
+
 == Before you start
 
 This showcase runs on its own, in any order with the others.
@@ -63,7 +80,7 @@ What you should see:
 * the on-topic loop keeps hammering, and the per-user spend climbs;
 * after the per-user limit, the response reads "you have reached your usage limit (429)" and the script stops.
 
-. Select the *Portal secured* tab, sign in as `nina.contractor`, open any claim and ask a question.
+. Select the *Portal secured* tab, sign in as `nina.contractor`, open her claim *CLM-1031* and ask a question.
 +
 What you should see: the chat answers with the usage-limit message "You have reached your usage limit (429). Please try again later." The account, not the portal, is out of budget.
 
@@ -75,17 +92,17 @@ What you should see: rebecca keeps working normally. Only `nina.contractor` is t
 
 The governance beat for the night: who spent the budget, through which agent, what stopped them, and who was told. Three screens, then the operator acts.
 
-. Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*. Set *User* to `nina.contractor` if the other personas crowd the view.
+. Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*. Set *User* to `nina.contractor` and `rebecca`, so the earlier showcases' chats do not crowd the view.
 +
 What you should see, in the row *Token spend*:
 +
-* *Token spend per user and agent* climbing as `nina.contractor via parasol-claims-agent` past the red 5000 tokens/min line, while `rebecca via parasol-claims-agent` stays low;
+* *Token spend per user and agent* climbing as `nina.contractor via parasol-claims-agent` past the red 5000 tokens/min line for the whole loop, while `rebecca via parasol-claims-agent` shows only a short blip for her one question;
 * *Tokens by user and agent* with `nina.contractor`, `parasol-claims-agent`, `secured` on top;
 * *ParasolAssistantTokenSpendHigh: alert state* stepping to `firing nina.contractor via parasol-claims-agent`.
 +
-// SCREENSHOT: s4-dashboard-spend.png — Console, Parasol Assistant Token Spend, row "Token spend" right after night-shift.sh 40: nina.contractor via parasol-claims-agent above the 5000 line, the tokens table, the alert-state panel firing (OpenShift admin sign-in)
+image::s4-dashboard-spend.png["Console, Parasol Assistant Token Spend, row 'Token spend' right after night-shift.sh 40: nina.contractor via parasol-claims-agent above the 5000 line, the tokens table, the alert-state panel firing"]
 
-. Scroll to the row *Gateway decisions*, then open *Observe*, *Alerting*.
+. Scroll to the row *Gateway decisions*, then open *Observe*, *Alerting* with the project set to `parasol-secured`, and open the firing `ParasolAssistantTokenSpendHigh`.
 +
 What you should see: *Gateway rejections by reason* has `429 usage limit (MaaS token budget)` for `nina.contractor` via `parasol-claims-agent` (and Limitador's own `429 all models, all users` count). In *Alerting*, `ParasolAssistantTokenSpendHigh` is firing with the labels `user=nina.contractor`, `agent=parasol-claims-agent`, `namespace=parasol-secured`, and its description reads "Agent parasol-claims-agent on behalf of user nina.contractor is spending ... tokens/min".
 +
@@ -105,7 +122,7 @@ Three switches, from the most precise to the widest. Show the first; the others 
 
 Disable an agent the way you disable a user. The claims assistant's identity is the Keycloak client `parasol-claims-agent`; with it off, Keycloak refuses the agent's own sign-in, so it can no longer act on behalf of anyone. Other agents and every user keep their access.
 
-. In the Keycloak admin *private window* (page 02; realm `parasol`, user `admin`, password `admin`). Open *Clients*, then `parasol-claims-agent`, switch *Enabled* off and confirm. Or from the *Terminal* tab:
+. Switch to the Keycloak admin *private window* (page 02; realm `parasol`, user `admin`, password `admin`). Open *Clients*, then `parasol-claims-agent`, switch *Enabled* off and confirm. Or from the *Terminal* tab:
 +
 [source,bash,role=execute]
 ----
@@ -116,7 +133,7 @@ scripts/agent-switch.sh claims-agent off
 +
 What you should see: the chat answers at once with the red notice "This assistant has been disabled by an operator." No tool runs and the model is not asked: the portal checks the agent's identity at the start of every turn. How fast the switch bites: on the very next chat turn through the portal; a token the agent obtained before the switch, wherever it was copied to, expires within 5 minutes (the agent clients' token lifespan).
 
-. Show who was refused. In the *Keycloak* tab, open *Events*, *User events*, and search for event type `TOKEN_EXCHANGE_ERROR`.
+. Show who was refused. In the Keycloak admin *private window*, open *Events*, *User events*, and search for event type `TOKEN_EXCHANGE_ERROR`.
 +
 What you should see: one entry per refused turn, error `client_not_found` (a disabled client is unknown to Keycloak), with `client_assertion_sub` = `system:serviceaccount:parasol-secured:claims-agent`, the agent's own ServiceAccount. The portal log has the same refusal with the user: `assistant refused: agent parasol-claims-agent was refused by Keycloak (client disabled) caller=rebecca`. The MCP gateway sees nothing: the agent never got a token to present. The same refusals from the *Terminal* tab:
 +
@@ -125,7 +142,7 @@ What you should see: one entry per refused turn, error `client_not_found` (a dis
 scripts/agent-switch.sh claims-agent status
 ----
 
-. Undo it: switch *Enabled* back on in the *Keycloak* tab, or:
+. Undo it: switch *Enabled* back on in the Keycloak admin *private window*, or:
 +
 [source,bash,role=execute]
 ----
@@ -177,7 +194,7 @@ scripts/night-shift.sh 3
 +
 What you should see: the script cannot log in as `nina.contractor`. Everyone else keeps working.
 
-. Re-enable `nina.contractor` in the *Keycloak* tab after the demo.
+. Re-enable `nina.contractor` in the Keycloak admin *private window* after the demo.
 
 The morning report is two screens you already have open: the alert and the dashboard.
 
@@ -192,7 +209,7 @@ scripts/reset.sh
 +
 To undo only the switches: `scripts/agent-switch.sh claims-agent on`, `scripts/agent-switch.sh fraud-agent on`, `scripts/kill-switch.sh on`.
 
-. If you disabled `nina.contractor`, re-enable her in the *Keycloak* tab.
+. If you disabled `nina.contractor`, re-enable her in the Keycloak admin *private window*.
 
 The `ParasolAssistantTokenSpendHigh` alert resolves on its own 10 minutes after the spend stops.
 

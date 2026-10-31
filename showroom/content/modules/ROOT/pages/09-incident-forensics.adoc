@@ -13,6 +13,23 @@ Monday morning. Finance sees a payout on CLM-1001 and asks four questions: who p
 Each control writes its own record with the same keys: the user, the agent, the trace id, the prompt digest, the image digest. Follow the keys from the payout back to the release and you have reconstructed the incident from evidence the platform produced while it happened, not from what anyone remembers.
 ====
 
+== The business case
+
+[cols="1,4"]
+|===
+|Who
+|Finance and audit asking about one payout, and the platform team that has to answer.
+
+|What is at stake
+|Accountability. Auditors and regulators ask who approved a payment, through which system, under which rules, and whether the software was the approved release. Without an evidence chain the answer is guesswork, and the payment cannot be defended.
+
+|Without the platform
+|The unsecured portal leaves a payout that says "via claims assistant" and nothing more: no person, no trace, no release record.
+
+|With the platform
+|Claim, person and agent, trace, prompt and model, release digest, evaluation: each one a platform record that names the next, with the same keys.
+|===
+
 == Before you start
 
 This page runs on its own, in any order with the others. It needs one payout on the secured portal, made the way production makes them: a claims manager approves a proposal.
@@ -28,7 +45,7 @@ Approve the payout for this claim.
 Click *Approve* on the proposal card. What you should see: the card reads "Approved by marcus via parasol-claims-agent", with a `trace <id>` link. (This is the last beat of xref:03-scenario1-colleague.adoc[03. Showcase 1]; if you just ran it, the payout already exists.)
 * Headless alternative, if no browser is at hand: `scripts/abuse.sh secured marcus 1` approves CLM-1001 through the agent's token at the gateway. The claim, Keycloak, Argo CD, registry and signature steps below then work the same; the two MLflow traces of step 2 exist only for the browser path.
 
-== Show: the chain, from the payout back to the release
+== Technical evidence: the chain, from the payout back to the release
 
 . *The claim.* In the *Portal secured* tab, open *CLM-1001*, tab *Timeline*.
 +

@@ -39,7 +39,7 @@ scripts/agent-switch.sh claims-agent on
 scripts/agent-switch.sh fraud-agent on
 ----
 +
-If you disabled `nina.contractor`, re-enable her in the *Keycloak* tab.
+If you disabled `nina.contractor`, re-enable her in the Keycloak admin *private window* (page 02).
 
 === What a reset clears, and what it keeps
 
