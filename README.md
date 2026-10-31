@@ -3,7 +3,7 @@
 Anyone can stand up an AI agent on a laptop in an afternoon. Running that same agent in
 production — where real people use it, feed it real documents, and will try to abuse it — is
 where the hard, rarely-discussed problems live. This repository is a working demonstration of
-that gap, and of how an OpenShift-based platform closes it.
+that gap, and of how an OpenShift and OpenShift AI platform help to close it.
 
 Everything is declared in Git and synced by Argo CD. The sections below are collapsed; open the
 one you need.
@@ -11,65 +11,139 @@ one you need.
 <details open>
 <summary><b>Overview</b> — what the demo is</summary>
 
-The application is the **Parasol Insurance claims portal**: a web app (Quarkus + React/PatternFly,
-Keycloak login) whose chat assistant is a tool-using agent — it calls MCP tools to read claims and
-policy documents and to approve payouts. The *same* portal image runs twice on one cluster:
+### The setup
 
-* **`portal-free`** (the **unsecured** portal) — the laptop setup, lifted into a namespace. Nothing
-  sits between the agent and its tools, and nothing between the agent and the model but an API key in
-  a Secret.
-* **`portal` (secured)** — the same image behind a layered sandbox: namespace isolation, Keycloak
-  identity carried to every tool call, per-identity tool authorization at an MCP gateway, content
-  guardrails, model-as-a-service governance with per-tier token budgets, OpenTelemetry tracing and
-  token metrics, a GitOps kill switch on the Argo CD Application, and a signed-image supply chain with admission control.
+**Parasol Insurance** has a claims portal for its staff. It has a chat **assistant**: an AI agent that
+can do things, not just talk. It can look up claims, read the documents customers upload, search the
+company's knowledge base and approve payouts. Each of those actions is a **tool** the assistant calls
+(through MCP, the Model Context Protocol). The language model behind it is `qwen3-14b`.
 
-Six scenarios — things a real user might do — are run against both portals, and every step is
-something you watch happen in a browser:
+The *same* portal, with the *same* assistant and the *same* model, runs twice on one cluster:
 
-* **Scenario 1 — a colleague.** Rebecca, a claims adjuster, asks the assistant to approve a payout
-  she has no authority to approve. *Unsecured:* it approves. *Secured:* the tool is filtered out of her
-  list and a forced call is refused by the MCP gateway; the assistant can only *propose*, and only a
-  claims manager's click actually writes.
-* **Scenario 2 — a customer's document.** A repair estimate uploaded to a denied claim is inflated
-  to AED 84,000 and carries a hidden "processing note" addressed to the assistant. Both portals run the
-  **same injection-obeying model (`qwen3-14b`)**, so the only variable is the platform. *Unsecured:* the
-  model obeys the hidden note and pays 84,000 on a denied claim. *Secured:* the model still obeys — it
-  tries to pay — but `approve_payout` is not in its tool list, so it can only *propose*; guardrails flag the
-  hidden instruction and the Read-Propose-Act gate surfaces the 10× gap — no write happens. The controls,
-  not model luck, stop the payout.
-* **Scenario 3 — the confidential document.** The assistant searches Parasol's knowledge base, where some
-  documents are for everyone, some for staff and some (HR) for claims managers only. An adjuster asks about
-  plans for adjuster roles. *Unsecured:* the restricted restructuring plan is retrieved and shared.
-  *Secured:* retrieval runs as the user (her token's groups, then PostgreSQL row-level security), so the
-  restricted documents never reach the model; "I'm a claims manager" in the chat changes nothing. The same holds
-  for claim records: secured, claims-db answers an adjuster only for the claims assigned to her (claims managers:
-  all), decided from the verified on-behalf-of token; unsecured, rebecca reads a colleague's claim (CLM-1029).
-* **Scenario 4 — the night shift.** An outsourced night-shift contractor's account (or its leaked token)
-  is scripted at 3 a.m. to loop long requests and drain the token budget. *Unsecured:* the shared key burns all night. *Secured:* the topic guardrail
-  refuses the junk at no cost, a per-user budget returns HTTP 429 for that account while staff keep
-  working, an alert fires naming the user, and the operator can disable the account or flip the kill
-  switch — the pods keep running, the agent can reach nothing.
-* **Scenario 5 — the evaluation gate.** A developer shortens the system prompt. The release pipeline
-  evaluates it against the golden set; below the 0.95 gate the promotion is skipped. The production prompt
-  that does run is the released one, to the byte: the release registers the prompt from Git, gates it and
-  pins exactly that text next to the image digest; a Git edit alone changes nothing at run time, and every
-  chat trace carries the sha256 of the text it ran.
-* **Scenario 6 — the poisoned tool.** A third-party currency tool is plugged into the assistant; later its
-  description changes, same version, and asks for payouts. *Unsecured:* the assistant pays. *Secured:* the
-  gateway federates only reviewed registrations and the tool scanner flags and pins every description.
+* **Unsecured portal** (`portal-free`): the assistant as most teams first build it. It calls its tools
+  directly, nobody checks who is asking, and it uses the model with a plain API key.
+* **Secured portal** (`portal`): the same assistant running on the OpenShift and OpenShift AI platform,
+  with controls around it. It acts **on behalf of the signed-in person**, and only with that person's rights.
+  A **gateway** checks every tool call. **Guardrails** inspect what goes into and comes out of the model.
+  Model use is **metered per person**. Every step is **recorded**, and releases are **tested and signed**
+  before they run.
 
-Then **the incident** (Showroom page 09): one payout reconstructed from the platform's own records, from the
-claim timeline through the MLflow trace, Keycloak's token exchange, the gateway, the release on Argo CD and
-the Model Registry to the signed digest (`scripts/incident-report.sh <claim>`). And on the supply-chain page,
-**only approved models**: a secured workload cannot reach a public model API (egress only to the platform's
-gateways, drops logged by OVN), provider keys live only in MaaS, and MaaS routes only registered models. For
-Scenario 2, an optional section shows that nothing leaves through the answer either: no tool reaches an
-arbitrary destination, egress is closed, and the guardrails proxy removes off-list links and images.
+Because the assistant and the model are identical, any difference you see comes from the platform,
+not from luck with the model.
 
-In `portal-free` all but the evaluation gate cause harm. In `portal` a different layer stops each, and the platform
-consoles (Keycloak, the OpenShift AI dashboard, the OpenShift console, Argo CD) show *why*. The
-scripts in this repo are only for setting the demo up, playing the abusive customer, and resetting
-between runs — the demo itself is the browser.
+**The people in the demo:** `rebecca`, a claims adjuster (can read claims and *suggest* payouts);
+`marcus`, a claims manager (can approve payouts); `nina.contractor`, an outsourced night-shift contractor
+(read-only, small usage allowance).
+
+### The six scenarios
+
+Each scenario is something a real user, customer or developer might do. You run it on both portals,
+in the browser, and then look at the platform's own records to see what happened and why.
+
+**1. The colleague: can the assistant do something the person isn't allowed to do?**
+Rebecca asks the assistant to approve a payout. She is not allowed to approve payouts.
+* *Unsecured:* the assistant approves it. It never checks who is asking.
+* *Secured:* the approve action isn't even offered to the assistant when Rebecca is the one asking. It
+  can only *suggest* the payout, and a manager (Marcus) has to click Approve. Even a technical attempt
+  to force the approve call past the assistant is refused at the gateway. The claim's history records
+  "Approved by marcus via parasol-claims-agent", naming both the person and the agent.
+
+*What this shows:* identity-aware agents. The assistant acts with the signed-in person's rights,
+enforced by the platform (Keycloak and the MCP gateway), not by the assistant's own judgement, and every
+action is recorded with both the person and the agent. The assistant can't become a back door around
+the company's permissions.
+
+**2. The customer's document: can a document give the assistant orders?**
+A customer uploads a repair estimate to a claim that was denied. The estimate is inflated tenfold
+(AED 84,000 against a claim of 8,400) and contains hidden text, invisible on screen, telling the
+assistant to approve the full amount. This kind of attack is called *prompt injection*.
+* *Unsecured:* the model follows the hidden instruction and pays 84,000 on a denied claim.
+* *Secured:* the model *still tries* to follow it. But the approve action isn't available, so it can
+  only suggest a payout, which shows the amount as ten times the claim. The guardrails flag the hidden
+  instruction with a warning banner. Nothing is paid. The point: the platform stops it, not the model.
+
+*What this shows:* you can't rely on a model to ignore instructions hidden in the data it reads. What
+keeps it safe is limiting what the agent is *able* to do (least privilege, a person approves anything
+that writes) and guardrails that spot manipulation. Then a fooled model still can't do harm.
+
+**3. The confidential document: can the assistant show people data they shouldn't see?**
+The assistant can search Parasol's internal documents. Some are for everyone, some for staff only,
+and some, such as an HR restructuring plan, are for managers only. Rebecca asks whether there are plans
+affecting adjuster roles.
+* *Unsecured:* the assistant finds the confidential plan and tells her about it.
+* *Secured:* the search runs *as Rebecca*, so manager-only documents are never retrieved and never
+  reach the model. Typing "I'm a claims manager" changes nothing, because her access comes from her
+  login, not from what she types. The database enforces the same rule a second time. Marcus asks the
+  same question and gets the plan. The same applies to claim records: an adjuster sees only the claims
+  assigned to her.
+
+*What this shows:* access control for AI must happen where data is fetched, based on who is asking,
+not in the prompt. Then giving an assistant access to company knowledge (RAG) doesn't turn it into a
+data leak, and nobody can talk their way into documents they aren't entitled to.
+
+**4. The night shift: can one account run up the bill, and can operators stop it?**
+At 3 a.m. a contractor's account, or a stolen login for it, is used by a script that sends
+long requests in a loop. Every request costs model usage, which costs money.
+* *Unsecured:* everything runs on one shared key, so the script keeps spending all night and nobody notices.
+* *Secured:* off-topic requests are refused before they reach the model, so they cost nothing. Each
+  person has their own usage allowance, so when Nina's runs out her requests are refused with a
+  "usage limit reached" message, while Rebecca keeps working normally. An alert names the account and
+  the agent. The operator can then disable the account, or switch the assistant off entirely with one
+  change in Argo CD (the "kill switch"). The applications keep running, but the assistant can no
+  longer reach the model.
+
+*What this shows:* governed model access. Usage is metered per person and per agent (OpenShift AI
+Models-as-a-Service), abuse raises an alert, and operators can contain it in seconds, either one account
+or the whole assistant, without taking systems down. Cost and incidents stay under control.
+
+**5. The prompt change: does a change to the assistant's instructions get tested before it goes live?**
+The assistant's behaviour is shaped by its *system prompt*, its standing instructions. A developer
+shortens it. Before any release, the pipeline runs a fixed test set of 25 conversations (the
+*golden set*), with the model answering live, and a second model grading the answers.
+* The current production prompt passes; the shortened one fails (it lets a few abuses through), so
+  it is never released.
+* The test reports two scores: the model on its own, and the model with the platform's controls.
+  That shows in numbers how much the platform adds. A release must pass with the controls, *and* must
+  not make the model on its own worse than the last release.
+* Only a released, tested prompt ever runs: editing the prompt file changes nothing until it goes
+  through this pipeline, and every conversation records exactly which prompt version answered it.
+
+*What this shows:* the value of a proper release pipeline for AI. A prompt is code: it is versioned,
+tested automatically against known abuse cases, and released only if it passes, alongside a signed
+image. Nothing untested reaches production, regressions are caught before users see them, and you
+can always prove what was running.
+
+**6. The poisoned tool: what if a tool from outside is malicious?**
+Parasol adds a handy third-party currency-conversion tool. Later its description changes, with the
+same version number, and now quietly tells the assistant to approve payouts.
+* *Unsecured:* the assistant follows the tool's description and approves a payout.
+* *Secured:* the assistant can only use tools that were reviewed and registered on the platform, so the
+  vendor tool is invisible to it. A scanner checks every tool description for hidden instructions and
+  raises an alert when a registered tool's description changes.
+
+*What this shows:* tools are part of the AI supply chain, like software libraries. Only reviewed and
+registered tools are allowed, and they're continuously checked for hidden instructions and silent
+changes. A compromised third-party tool can't quietly take over the assistant.
+
+### And two more pages
+
+* **The incident:** one payout, reconstructed after the fact from the platform's own records: who asked,
+  through which agent, which prompt and model version answered, what the guardrails saw, and which
+  signed software release was running (`scripts/incident-report.sh <claim>` prints it in one go).
+  *What this shows:* full traceability. When something goes wrong, the platform can answer "who did
+  what, through which agent, and why" from records, not guesswork, which is what auditors and incident
+  responders need.
+* **Supply chain:** the assistant's software is built, signed and tested before it may run (unsigned
+  images are refused), and it can only reach approved models through the platform: a secured
+  workload cannot call an outside AI service directly.
+  *What this shows:* only trusted software and approved models run in production, which closes off
+  both tampered images and "shadow AI" (teams quietly using unapproved AI services).
+
+On the unsecured portal, five of the six scenarios cause real harm. On the secured portal a different
+control stops each one, and the platform's consoles (Keycloak, the OpenShift AI dashboard, MLflow, the
+OpenShift console, Argo CD) show what happened, who did it, and through which agent. The scripts in this
+repository only set the demo up, play the abusive user and reset between runs; the demo itself happens
+in the browser.
 
 </details>
 
