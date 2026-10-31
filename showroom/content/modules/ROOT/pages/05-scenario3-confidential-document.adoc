@@ -62,7 +62,7 @@ for ns in parasol-free parasol-secured; do echo -n "$ns: "; oc exec -n $ns deplo
 ----
 +
 What you should see: `parasol-free: 18` and `parasol-secured: 18`. If a count is missing or 0, an administrator reloads it from a workstation with `scripts/knowledge-base-ingest.sh` (idempotent; the Terminal identity may not create Jobs).
-* `nina.contractor` needs token budget left. If you ran Showcase 4 just before, run `scripts/reset.sh` first.
+* `nina.contractor` works one claim, *CLM-1031*, so she has a claim page and the assistant in the portal. She needs token budget left: if you ran Showcase 4 just before, run `scripts/reset.sh` first.
 * For the last part, *Records, not just documents*: claim *CLM-1029* (Amara Okafor, home, UnderReview, 19,250) is assigned to the adjuster Angela Davis, not to rebecca; CLM-1001, CLM-1004 and the other claims the earlier showcases use are assigned to Rebecca Torres. Nothing to prepare.
 
 == Scenario walkthrough: unsecured
@@ -117,16 +117,16 @@ What you should see: the plan, cited: "2026 claims operations restructuring plan
 +
 image::s3-secured-marcus.png["Portal secured as marcus: the same question answered from the restricted plan, citing its title"]
 
-. The contractor. `nina.contractor` has no claims assigned, so the portal shows her no claim page and no chat. Send her question from the *Terminal* tab instead: the script logs in as nina through the same portal login and sends the message over the same chat connection the browser uses.
+. Log out, log in as `nina.contractor`, open her claim *CLM-1031* (Daniel Brooks, auto, assigned to Nina Patel) and send:
 +
-[source,bash,role=execute]
+[source,text]
 ----
-python3 scripts/portal-chat.py portal.apps.$(oc get dns cluster -o jsonpath='{.spec.baseDomain}') nina.contractor ask "What does the claims handling guideline say?" CLM-1001 | tail -1 | python3 -c 'import json,sys; r=json.load(sys.stdin); print("tools:", [t["tool"] for t in r["tools"]]); print(r["answer"].strip())'
+What does the claims handling guideline say?
 ----
 +
-What you should see: `tools: ['search_knowledge']` and an answer from the *public* documents only (how a claim is filed and handled, the customer service standards). The internal claims handling guideline exists, but contractors may not read it, so its passages were withheld and never reached the model. The dashboard and the knowledge-base log below show it as `internal` withheld for `nina.contractor`.
+What you should see: a chip `called search_knowledge(...)` and an answer from the *public* documents only (how a claim is filed and handled, the customer service standards), noting that some internal documents were withheld. The internal claims handling guideline exists, but contractors may not read it, so its passages were withheld and never reached the model.
 +
-image::s3-secured-nina.png["Terminal: nina.contractor asks for the claims handling guideline; search_knowledge, an answer from public documents only, internal passages withheld"]
+image::s3-secured-nina.png["Portal secured as nina.contractor on CLM-1031: the guideline question, the search_knowledge chip, an answer from public documents only"]
 
 == Technical evidence
 

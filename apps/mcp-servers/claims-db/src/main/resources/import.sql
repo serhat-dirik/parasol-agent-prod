@@ -1,4 +1,4 @@
--- Deterministic seed for parasol-claims: 30 claims, CLM-1001..CLM-1030.
+-- Deterministic seed for parasol-claims: 31 claims, CLM-1001..CLM-1031.
 -- Values are FIXED so workshop lab text can reference exact claim numbers,
 -- statuses, amounts, and adjusters. Do NOT randomize or reorder.
 --
@@ -38,6 +38,8 @@ INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_
 INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1028', 'Victor Osei', 'auto', 'UnderReview', 7800.00, '2026-03-22', 'Marcus Johnson');
 INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1029', 'Amara Okafor', 'home', 'UnderReview', 19250.00, '2026-04-11', 'Angela Davis');
 INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1030', 'Frank Miller', 'life', 'Submitted', 30000.00, '2026-06-27', 'Unassigned');
+-- CLM-1031: the night-shift contractor's one assigned claim, so she has a claim page (and the assistant) in the portal.
+INSERT INTO claim (claim_number, claimant, claim_type, status, amount, incident_date, adjuster) VALUES ('CLM-1031', 'Daniel Brooks', 'auto', 'UnderReview', 2650.00, '2026-06-20', 'Nina Patel');
 
 -- Claim audit timeline (claim_event). Backs GET /api/claims/{claimNumber}/history,
 -- which loads each event by id in a loop (a DELIBERATE N+1 for the M11 tracing lab -
@@ -64,3 +66,5 @@ INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES 
 INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (18, 'CLM-1005', 'UnderReview', 'Adjuster review in progress', '2026-04-02 11:00:00');
 INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (19, 'CLM-1005', 'Approved', 'Approved for 25000.00', '2026-04-06 14:00:00');
 INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (20, 'CLM-1005', 'PaymentIssued', 'Payment issued to beneficiary', '2026-04-09 10:00:00');
+INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (21, 'CLM-1031', 'Submitted', 'Claim submitted via portal', '2026-06-20 23:40:00');
+INSERT INTO claim_event (id, claim_number, event_type, note, created_at) VALUES (22, 'CLM-1031', 'AdjusterAssigned', 'Assigned to Nina Patel (night shift)', '2026-06-21 02:15:00');
