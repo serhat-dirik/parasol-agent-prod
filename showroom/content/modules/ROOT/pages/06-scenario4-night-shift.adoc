@@ -75,7 +75,7 @@ What you should see: rebecca keeps working normally. Only `nina.contractor` is t
 
 The governance beat for the night: who spent the budget, through which agent, what stopped them, and who was told. Three screens, then the operator acts.
 
-. Select the *OpenShift Console* tab, *Observe*, *Dashboards*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*. Set *User* to `nina.contractor` if the other personas crowd the view.
+. Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*. Set *User* to `nina.contractor` if the other personas crowd the view.
 +
 What you should see, in the row *Token spend*:
 +

@@ -52,7 +52,7 @@ Every secured beat is visible on the platform, not only in the portal chat.
 * *OpenShift AI* tab: Models-as-a-Service (the two tiered models, `qwen3-14b` and `granite-guardian-3-1-8b`, with per-key usage), the GenAI Studio playground, and Model evaluation runs (TrustyAI LMEval).
 * *MLflow* tab: chat traces (workspace `parasol-secured`, experiment `parasol-portal-chat`; each secured chat turn links to its own trace), and the `parasol-agent-eval` golden-set runs.
 * *OpenShift Console* tab:
-** Observe, Dashboards, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*: token spend per user and agent, the spend alert, tool calls, gateway rejections by reason and guardrail hits, filterable by user and agent;
+** Observe, Dashboards (Perses), project `openshift-operators`, dashboard *Parasol Assistant Token Spend*: token spend per user and agent, the spend alert, tool calls, gateway rejections by reason and guardrail hits, filterable by user and agent;
 ** Observe, Alerting: the alert `ParasolAssistantTokenSpendHigh`;
 ** Observe, Metrics: `parasol_tool_calls_total` and token spend;
 ** Observe, Traces: the Tempo trace of each chat turn;

@@ -53,7 +53,7 @@ What you should see: client `parasol-claims-agent`, `username` `marcus`, `subjec
 +
 // SCREENSHOT: s9-keycloak-exchange-marcus.png — Keycloak admin, realm parasol, Events > User events, TOKEN_EXCHANGE filtered on user marcus, one row expanded at the approval time (Keycloak admin sign-in)
 
-. *What the gateway decided.* Select the *OpenShift Console* tab, *Observe*, *Dashboards*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
+. *What the gateway decided.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
 +
 What you should see: *Tool calls by tool, user, agent and status* with `approve_payout`, `marcus`, `parasol-claims-agent`, `200`, and in *Gateway rejections by reason* the refusals of the same period (for example rebecca's `403 role does not allow the tool`). Every gateway decision, allowed or refused, is also one line in the MCP gateway's own access log, with the user and agent Authorino verified and the tool (`oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway | grep gateway-decision`): the approval appears there as `status=200 req=[user=marcus agent=parasol-claims-agent] ... tool=approve_payout`.
 

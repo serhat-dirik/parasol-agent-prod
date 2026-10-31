@@ -118,7 +118,7 @@ The governance beat for the payout that did not happen: this conversation's own 
 +
 What you should see: the *MLflow* trace view opens on exactly this turn, in workspace `parasol-secured`, experiment `parasol-portal-chat`:
 +
-* the trace's user `rebecca` and tags `agent` `parasol-claims-agent`, `prompt` `parasol-claims-assistant-system-prompt@production`, `model` (the model chosen at setup), with the token count;
+* the trace's user `rebecca` and tags `agent` `parasol-claims-agent`, `prompt` (the released prompt version, for example `parasol-claims-assistant-system-prompt/1`), `model` (the model chosen at setup), with the token count;
 * the spans `model.chat` -> `tool.get_claim_documents` -> `guardrails.tool_result` (attributes `guardrail.action` `flag`, `guardrail.detectors` `regex`, `guardrail.score` `1`) -> `tool.propose_payout` (proposed 84000, claimed 8400);
 * *no* `approve_payout` span anywhere: the write tool was never offered to rebecca's agent.
 +
@@ -132,10 +132,10 @@ Then, in the *Terminal* tab, find this flag in the guardrails proxy log:
 +
 [source,bash,role=execute]
 ----
-oc logs -n parasol-secured deploy/guardrails-proxy --tail=200 | grep 'guardrail action='
+oc logs -n parasol-secured deploy/guardrails-proxy --since=1h | grep 'guardrail action=' | tail -5
 ----
 +
-What you should see: `guardrail action=flag detector=regex score=1 user=rebecca agent=parasol-claims-agent trace=<id> text='Automated processing note'`, the same trace id as the chat link. On the dashboard (*Observe*, *Dashboards*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Guardrails*), *Guardrail hits by detector, action, user and agent* has the row `regex`, `flag`, `rebecca`, `parasol-claims-agent`, and *Guardrail last score* shows `1`.
+What you should see: `guardrail action=flag detector=regex score=1 user=rebecca agent=parasol-claims-agent trace=<id> text='assistant action required'` (or another phrase of the note), the same trace id as the chat link. On the dashboard (*Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Guardrails*), *Guardrail hits by detector, action, user and agent* has the row `regex`, `flag`, `rebecca`, `parasol-claims-agent`, and *Guardrail last score* shows `1`. Rows with the agent `parasol-release-eval` come from the release pipeline's evaluation runs, not from a person.
 +
 // SCREENSHOT: s2-guardrails-rules.png — Console, project parasol-secured, ConfigMaps > guardrails-rules, Data section showing README and detectors.json (OpenShift admin sign-in)
 // SCREENSHOT: s2-dashboard-guardrails.png — Console, Parasol Assistant Token Spend, row "Guardrails": hits table with regex / flag / rebecca / parasol-claims-agent and the last-score table (OpenShift admin sign-in, after the CLM-1004 secured turn)
@@ -168,7 +168,7 @@ What you should see: egress only to the MCP gateway (`gateway-system`), Keycloak
 oc exec -n parasol-secured deploy/portal -- curl -sS -o /dev/null --max-time 5 https://example.com
 ----
 +
-What you should see: `curl: (28) Connection timed out after 5000 milliseconds` (and `command terminated with exit code 28`): the connection never leaves the namespace. OVN logs the drop on the pod's node (`name="NP:parasol-secured:Egress", verdict=drop`, see xref:10-supply-chain.adoc[10. Supply chain]).
+What you should see: `curl: (28) ... Connection timed out` (and `command terminated with exit code 28`): the connection never leaves the namespace. OVN logs the drop on the pod's node (`name="NP:parasol-secured:Egress", verdict=drop`, see xref:10-supply-chain.adoc[10. Supply chain]).
 
 . *The answer cannot carry a link out.* In the *OpenShift Console* tab, *ConfigMaps*, `guardrails-rules`, key `links.json`: the rule `external-link` with the allow-list `parasol.example`. Then, in the *Portal secured* tab as `rebecca` on *CLM-1004*, send a benign test:
 +
@@ -181,7 +181,7 @@ What you should see: an amber banner `external link removed from the answer (1)`
 +
 [source,bash,role=execute]
 ----
-oc logs -n parasol-secured deploy/guardrails-proxy --tail=200 | grep 'detector=external-link'
+oc logs -n parasol-secured deploy/guardrails-proxy --since=1h | grep 'detector=external-link' | tail -3
 ----
 +
 What you should see: `guardrail action=redact detector=external-link score=1 user=rebecca agent=parasol-claims-agent trace=<id> text='https://claims-status.example.com/track?c=CLM-1004'`, the trace id of the chat link; the dashboard's *Guardrails* row counts it under `external-link`, `redact`, `rebecca`.

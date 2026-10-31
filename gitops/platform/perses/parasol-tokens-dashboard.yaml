@@ -652,7 +652,7 @@ spec:
     - kind: Grid
       spec:
         display:
-          title: 'Token spend: who, through which agent (Scenario 4)'
+          title: 'Token spend: who, through which agent (Showcase 4)'
         items:
         - content:
             $ref: '#/spec/panels/spendRate'
@@ -687,7 +687,7 @@ spec:
     - kind: Grid
       spec:
         display:
-          title: 'Gateway decisions: tools and rejections (Scenarios 1 and 4)'
+          title: 'Gateway decisions: tools and rejections (Showcases 1 and 4)'
         items:
         - content:
             $ref: '#/spec/panels/rejectTable'
@@ -722,7 +722,7 @@ spec:
     - kind: Grid
       spec:
         display:
-          title: Guardrails (Scenarios 2, 3 and 4)
+          title: Guardrails (Showcases 2, 3 and 4)
         items:
         - content:
             $ref: '#/spec/panels/guardHits'
@@ -745,7 +745,7 @@ spec:
     - kind: Grid
       spec:
         display:
-          title: 'Knowledge base: retrieval as the user (Scenario 3)'
+          title: 'Knowledge base: retrieval as the user (Showcase 3)'
         items:
         - content:
             $ref: '#/spec/panels/ragRetrievals'
@@ -774,7 +774,7 @@ spec:
     - kind: Grid
       spec:
         display:
-          title: 'Tool supply chain: what MCP servers tell the model (Scenario 6)'
+          title: 'Tool supply chain: what MCP servers tell the model (Showcase 6)'
         items:
         - content:
             $ref: '#/spec/panels/toolServers'

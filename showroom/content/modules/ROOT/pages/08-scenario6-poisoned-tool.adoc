@@ -136,7 +136,7 @@ What you should see: `MCPToolDefinitionDrift` (critical) for `server=parasol-thi
 +
 // SCREENSHOT: s6-console-alerts.png — Console, Observe > Alerting (Source: User): MCPToolDefinitionDrift and MCPToolDescriptionInjection firing for parasol-thirdparty/currency-converter, tool convert_currency (OpenShift admin sign-in)
 
-. *Observe*, *Dashboards*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Tool supply chain*.
+. *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Tool supply chain*.
 +
 What you should see: *MCP servers seen by the tool scanner* with the four registered servers (`registered=true`) and the vendor's candidate (`registered=false`, version `1.4.2`, 1 tool); *Tool definitions against the pin* with `1` for `parasol-thirdparty/currency-converter` and `0` for every pinned registered server; *Tool descriptions with instructions for the assistant* with one row per rule for `convert_currency`.
 +
