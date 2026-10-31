@@ -100,12 +100,16 @@ spec:
                 hide: true
               - name: user
                 header: user
+                width: 120
               - name: agent
                 header: agent
+                width: 150
               - name: env
                 header: env
+                width: 70
               - name: value
                 header: tokens
+                width: 80
                 sort: desc
                 enableSorting: true
           queries:
@@ -441,7 +445,7 @@ spec:
               plugin:
                 kind: PrometheusTimeSeriesQuery
                 spec:
-                  query: max by (alertstate, user, agent, namespace) (ALERTS{alertname="ParasolAssistantTokenSpendHigh"})
+                  query: max by (alertstate, user, agent, namespace) (ALERTS{alertname="ParasolAssistantTokenSpendHigh", user=~"$user", agent=~"$agent"})
                   seriesNameFormat: '{{alertstate}} {{user}} via {{agent}}'
       ragRetrievals:
         kind: Panel
