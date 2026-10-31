@@ -179,8 +179,7 @@ rules:
   - apiGroups: [argoproj.io]
     resources: [applications]
     verbs: [get, list, watch]
-  # Kill switch: add/remove the kill-switch component on env-secured (one `oc patch`). Scenario 6
-  # (scripts/tool-rugpull.sh): plug-in-vendor-tool on env-free, register-currency-converter on env-secured.
+  # Scenario 6 (scripts/tool-rugpull.sh): plug-in-vendor-tool on env-free, register-currency-converter on env-secured.
   - apiGroups: [argoproj.io]
     resources: [applications]
     resourceNames: [env-secured, env-free]
@@ -271,4 +270,46 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata: {name: showroom-terminal-gateway-log, namespace: gateway-system}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-gateway-log}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+# Showcase 4, platform kill switch (scripts/kill-switch.sh off|on): scale this gateway to 0 and back.
+# Only this Deployment; the cluster-wide MaaS gateway (--all) stays an admin-workstation action.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-kill-switch, namespace: gateway-system}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments, deployments/scale]
+    resourceNames: [mcp-gateway-openshift-default]
+    verbs: [get, list, watch, patch, update]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    resourceNames: [mcp-gateway-openshift-default]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-kill-switch, namespace: gateway-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-kill-switch}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+# Showcase 4, platform kill switch (scripts/kill-switch.sh off|on): scale this gateway to 0 and back.
+# Only this Deployment; the cluster-wide MaaS gateway (--all) stays an admin-workstation action.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-kill-switch, namespace: parasol-model-gateway}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments, deployments/scale]
+    resourceNames: [model-gateway-openshift-default]
+    verbs: [get, list, watch, patch, update]
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    resourceNames: [model-gateway-openshift-default]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-kill-switch, namespace: parasol-model-gateway}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-kill-switch}
 subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
