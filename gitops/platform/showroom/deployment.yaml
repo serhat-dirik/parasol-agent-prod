@@ -70,15 +70,17 @@ spec:
             requests: {cpu: 200m, memory: 512Mi}
             limits: {cpu: "1", memory: 1Gi}
       containers:
-        # Nookbag cockpit SPA. Serves the split view on :8080, framing /antora on the left and
-        # the tabs from /nookbag.yml on the right.
+        # Nookbag cockpit SPA (pinned release). Serves the split view on :8080, framing /antora on
+        # the left and the tabs on the right. v0.5 reads /ui-config.yml (default_width, the
+        # Instructions/Split/Tabs view switcher); /nookbag.yml stays mounted for the probes.
         - name: nookbag
-          image: quay.io/rhpds/nookbag:latest
-          imagePullPolicy: Always
+          image: quay.io/rhpds/nookbag:v0.5.1@sha256:355f7856d683a86a777a4f8dd403404c2a6e178e56a7453e7af3f4b3689ead57
+          imagePullPolicy: IfNotPresent
           ports:
             - {containerPort: 8080, name: nookbag}
           volumeMounts:
             - {name: site, mountPath: /var/www/html/antora}
+            - {name: nookbagcfg, mountPath: /var/www/html/ui-config.yml, subPath: ui-config.yml}
             - {name: nookbagcfg, mountPath: /var/www/html/nookbag.yml, subPath: ui-config.yml}
           readinessProbe:
             httpGet: {path: /nookbag.yml, port: 8080}

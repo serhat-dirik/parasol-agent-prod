@@ -3,19 +3,22 @@ kind: ConfigMap
 metadata:
   name: showroom-uiconfig
   namespace: parasol-showroom
-# Mirror of showroom/ui-config.yml (keep identical). Mounted as /nookbag.yml in the cockpit,
+# Mirror of showroom/ui-config.yml (keep identical). Mounted as /ui-config.yml in the cockpit,
 # which reads its module list and tab list from it.
 data:
   ui-config.yml: |
     ---
-    type: showroom
+    # Guided mode keeps the Previous/Next buttons and the progress bar under the guide.
+    type: guided
+    skipModuleEnabled: false
     theme: rh-one-2025
 
     # Left column (the guide) takes 30% of the width, leaving the framed tabs as wide as possible.
+    # Drag the divider to resize.
     default_width: 30
-    # Persist the URL state so a browser refresh does not reset the UI.
-    persist_url_state: true
 
+    # Right-edge popout: Instructions (guide only), Split, Tabs (apps full width, guide hidden).
+    # Alt+V cycles the three modes.
     view_switcher:
       enabled: true
       default_mode: split
