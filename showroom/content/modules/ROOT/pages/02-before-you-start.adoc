@@ -26,7 +26,9 @@ What you should see: a shell prompt in the `parasol-agent-prod` repository, with
 scripts/status.sh
 ----
 
-. Select the *Argo CD* tab and sign in.
+. Sign in to Argo CD once in a normal browser tab: open link:{argocd_url}[Argo CD,window=_blank], click *Log in via OpenShift*, sign in and click *Allow*. Then select the *Argo CD* tab and reload it.
++
+Argo CD keeps its own session. Its *Log in via OpenShift* button goes to the OpenShift sign-in page, which refuses to open inside a tab ("refused to connect"), so this one sign-in must happen outside the Showroom.
 +
 What you should see: every component Synced and Healthy. Argo CD is the GitOps source of truth for the whole demo.
 
@@ -36,7 +38,7 @@ This Showroom itself sits behind the OpenShift sign-in, so you signed in to Open
 
 . Select the *OpenShift Console*, *OpenShift AI*, *MLflow* and *Argo CD* tabs in turn.
 +
-What you should see: each one opens signed in. If one still shows a sign-in button, click it once. If a tab stays blank, open link:{console_url}[the OpenShift console,window=_blank] in a normal browser tab, sign in there once, and reload the tab.
+What you should see: each one opens signed in. If a tab shows a sign-in button, a blank page or "refused to connect", do not sign in inside the tab: open that console in a normal browser tab (link:{console_url}[OpenShift console,window=_blank], link:{rhoai_url}[OpenShift AI,window=_blank], link:{mlflow_url}[MLflow,window=_blank], link:{argocd_url}[Argo CD,window=_blank]), sign in there once, then reload the Showroom tab. It is a one-time step per browser session; do it before you present.
 
 . Select the *Keycloak* tab and sign in to the administration console.
 +
