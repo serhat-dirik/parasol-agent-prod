@@ -24,6 +24,7 @@ spec:
             # Install contract (substituted by register.sh): recorded as model_id / maas_endpoint_host.
             - {name: AGENT_MODEL, value: "${AGENT_MODEL}"}
             - {name: AGENT_ENDPOINT, value: "${AGENT_ENDPOINT}"}
+            - {name: JUDGE_MODEL, value: "${JUDGE_MODEL}"}   # recorded as eval_judge_model
             - {name: HOME, value: "/tmp"}
             # This cluster's golden-set runs (scripts/eval-seed.sh); empty = the reference ids.
             - {name: MLFLOW_EXPERIMENT_ID, value: "${MLFLOW_EXPERIMENT_ID}"}

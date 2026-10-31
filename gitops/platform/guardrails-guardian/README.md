@@ -15,7 +15,7 @@ request it runs the detectors named in the `detectors` field:
 | detector_id        | model / rule                        | used on                         |
 |--------------------|-------------------------------------|---------------------------------|
 | `regex`            | the owner's three wave-1 phrases    | any text (document + user msg)  |
-| `granite_guardian` | `granite-guardian-3-1-8b` (MaaS)    | any text                        |
+| `granite_guardian` | `GUARD_MODEL` (MaaS; tested with `granite-guardian-3-1-8b`) | any text   |
 | `llama_guard`      | `Llama-Guard-3-1B` (MaaS), optional | the **user message** only       |
 
 ### Scoring (verdict token, confirmed by confidence)
@@ -56,7 +56,8 @@ regex detector, and Llama Guard flags the user-message injection as the optional
 * The guard-tier keys are out-of-band Secrets (`maas-key-granite-guardian`, `maas-key-llama-guard`,
   data key `GENAI_API_KEY`, from `GUARD_KEY` / `LLAMAGUARD_KEY` via `scripts/maas-model-keys.sh`),
   **never in Git**. `scripts/guardian-key.sh` creates the base-URL Secret `maas-guardian`
-  (`GUARD_URL` from `GUARD_ENDPOINT`, `GUARD2_URL` from the optional `LLAMAGUARD_ENDPOINT`).
+  (`GUARD_URL` from `GUARD_ENDPOINT`, `GUARD_MODEL` from `GUARD_MODEL`, `GUARD2_URL` from the optional
+  `LLAMAGUARD_ENDPOINT`).
 
 ## History (fallback that is no longer needed)
 

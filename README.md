@@ -180,8 +180,8 @@ provider**, so each has its own endpoint (a base URL ending in `/v1`) and its ow
 | Role | Model | Endpoint | Key | Must support |
 |---|---|---|---|---|
 | Agent, both portals | `qwen3-14b` (set another with `AGENT_MODEL`) | `AGENT_ENDPOINT` | `AGENT_KEY` | structured tool calls, and obeying an instruction hidden in a document (that is what makes Scenario 2 live) |
-| Guard detector | `granite-guardian-3-1-8b` | `GUARD_ENDPOINT` | `GUARD_KEY` | chat completions with `logprobs` (the risk score is read from them) |
-| Evaluation judge | `gpt-oss-120b` | `JUDGE_ENDPOINT` | `JUDGE_KEY` | strong instruction following (Scenario 5) |
+| Guard detector | `granite-guardian-3-1-8b` (set another with `GUARD_MODEL`) | `GUARD_ENDPOINT` | `GUARD_KEY` | chat completions with `logprobs` (the risk score is read from them) and a Yes/No (or safe/unsafe) verdict token |
+| Evaluation judge | `gpt-oss-120b` (set another with `JUDGE_MODEL`) | `JUDGE_ENDPOINT` | `JUDGE_KEY` | strong instruction following: it must return the scoring JSON it is asked for (Scenario 5) |
 | Third detector (optional) | `Llama-Guard-3-1B` | `LLAMAGUARD_ENDPOINT` | `LLAMAGUARD_KEY` | chat completions with `logprobs` |
 
 ```bash
@@ -190,8 +190,14 @@ export GUARD_ENDPOINT=https://<guard-provider>/v1   GUARD_KEY=<key>
 export JUDGE_ENDPOINT=https://<judge-provider>/v1   JUDGE_KEY=<key>
 # optional
 export LLAMAGUARD_ENDPOINT=https://<provider>/v1    LLAMAGUARD_KEY=<key>
+export AGENT_MODEL=<model-id> GUARD_MODEL=<model-id> JUDGE_MODEL=<model-id>   # defaults: the tested models above
 ./bootstrap.sh
 ```
+
+The demo was tested with the models in the table; those are the defaults. To use others, set `AGENT_MODEL`,
+`GUARD_MODEL` and `JUDGE_MODEL` to the upstream model ids before `./bootstrap.sh` (and before
+`source scripts/load-credentials.sh`, which then picks each role's endpoint and key for that model). The guard
+model's OpenShift AI MaaS objects are named after it (lower case, other characters as `-`).
 
 If all models sit behind one endpoint, set the same URL for each. `bootstrap.sh` checks the three
 required pairs before it touches the cluster and names any that are missing.

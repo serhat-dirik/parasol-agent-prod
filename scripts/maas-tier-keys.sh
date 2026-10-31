@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # maas-tier-keys.sh : mint one OpenShift AI MaaS API key for each demo tier and store them as Secrets.
 #   parasol-tier-prod   -> Secret maas-tier-keys  key PROD_MAAS_KEY   (backs qwen3-14b, the agent model)
-#   parasol-tier-guard  -> Secret maas-tier-keys  key GUARD_MAAS_KEY  (backs granite-guardian-3-1-8b;
+#   parasol-tier-guard  -> Secret maas-tier-keys  key GUARD_MAAS_KEY  (backs the guard model, GUARD_MODEL;
 #                          + standalone Secret maas-guard-key for stream P1-GUARDIAN; data key GENAI_API_KEY)
 # The two tiers back the two external models the demo exercises (see gitops/platform/maas-tiers).
 # Keys belong to ServiceAccount parasol-maas-tiers/maas-tier-client, whose group each tier subscription

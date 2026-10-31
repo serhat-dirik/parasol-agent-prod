@@ -9,7 +9,7 @@
 # --patch-eval to stamp a run's gate/score/mlflow-run-id onto the matching ModelVersion.
 set -euo pipefail
 : "${AGENT_ENDPOINT:?export the install contract (AGENT_ENDPOINT, AGENT_MODEL) or source scripts/load-credentials.sh}"
-export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}"
+export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}" JUDGE_MODEL="${JUDGE_MODEL:-gpt-oss-120b}"
 NS=observability
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -20,6 +20,6 @@ oc -n "$NS" create configmap parasol-model-registrar \
   --from-file="$DIR/../../envs/secured/system-prompt.txt" --from-file="$DIR/../pipeline/prompts/v2.txt"
 oc -n "$NS" delete job parasol-model-registrar --ignore-not-found
 CLUSTER_DOMAIN="${CLUSTER_DOMAIN:-$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')}" \
-  envsubst '$AGENT_MODEL $AGENT_ENDPOINT $CLUSTER_DOMAIN $MLFLOW_EXPERIMENT_ID $RUN_ID_PRODUCTION $RUN_ID_CANDIDATE $SCORE_PRODUCTION $SCORE_CANDIDATE' < "$DIR/register-job.yaml" | oc apply -f -
+  envsubst '$AGENT_MODEL $JUDGE_MODEL $AGENT_ENDPOINT $CLUSTER_DOMAIN $MLFLOW_EXPERIMENT_ID $RUN_ID_PRODUCTION $RUN_ID_CANDIDATE $SCORE_PRODUCTION $SCORE_CANDIDATE' < "$DIR/register-job.yaml" | oc apply -f -
 oc -n "$NS" wait --for=condition=complete job/parasol-model-registrar --timeout=180s
 oc -n "$NS" logs job/parasol-model-registrar

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # maas-ext-model-secrets.sh : create the upstream API-key Secrets that the external models reference via
 # credentialRef. Data key is "api-key" (the format the MaaS ExternalProvider expects). Keys come from the
-# install contract env (bootstrap.sh): AGENT_KEY -> qwen3-14b, GUARD_KEY -> granite-guardian-3-1-8b.
+# install contract env (bootstrap.sh): AGENT_KEY -> the agent model (AGENT_MODEL), GUARD_KEY -> the guard model
+# (GUARD_MODEL). The Secret names are fixed role names: they do not change with the model.
 # Values are never printed or committed.
-#   Secret maas-upstream-qwen3-14b         -> qwen3-14b (the agent model both portals run)
-#   Secret maas-upstream-granite-guardian  -> granite-guardian-3-1-8b (guard-tier detector)
+#   Secret maas-upstream-qwen3-14b         -> AGENT_MODEL (the agent model both portals run; default qwen3-14b)
+#   Secret maas-upstream-granite-guardian  -> GUARD_MODEL (guard-tier detector; default granite-guardian-3-1-8b)
 set -euo pipefail
 : "${AGENT_KEY:?set AGENT_KEY (or source scripts/load-credentials.sh)}"
 : "${GUARD_KEY:?set GUARD_KEY (or source scripts/load-credentials.sh)}"

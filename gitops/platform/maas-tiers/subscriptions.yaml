@@ -1,22 +1,23 @@
 # MaaS tiers (demo item P1-MAAS-TIERS). Two named tiers, each a distinct external model + one API key:
 #   parasol-tier-prod   -> qwen3-14b                (prod; THE agent model both portals run)
-#   parasol-tier-guard  -> granite-guardian-3-1-8b  (guard; detector for P1-GUARDIAN)
+#   parasol-tier-guard  -> GUARD_MODEL              (guard; detector for P1-GUARDIAN; tested with granite-guardian-3-1-8b)
 #
 # These are the only two models the demo actually exercises, so the "Models as a Service" dashboard lists
 # exactly two external models, each on a tier with a budget and its own key. llama-scout-17b and
 # granite-4-0-h-tiny were dropped (both portals run qwen; those two only populated the dashboard).
 #
 # MODELS: each model has its own endpoint + key (bootstrap.sh env: AGENT_ENDPOINT/AGENT_KEY for qwen3-14b,
-# GUARD_ENDPOINT/GUARD_KEY for granite-guardian). qwen3-14b's ExternalModel +
+# GUARD_ENDPOINT/GUARD_KEY for the guard model). qwen3-14b's ExternalModel +
 # MaaSModelRef are registered by the platform (platform-rhoai, gitops/platform/rhoai/maas.yaml);
-# granite-guardian-3-1-8b is added here as an additional ExternalModel. Upstream API-key Secrets (data key
+# the guard model is added here as an additional ExternalModel (named GUARD_MODEL_NAME, the DNS-1123 form of
+# GUARD_MODEL; targetModel is GUARD_MODEL itself). Upstream API-key Secrets (data key
 # api-key) are created out-of-band by scripts/maas-ext-model-secrets.sh (maas-upstream-qwen3-14b,
 # maas-upstream-granite-guardian) and are never committed.
 #
 # Isolated + additive: own namespace parasol-maas-tiers owns the subscriptions (owner group
 # system:serviceaccounts:parasol-maas-tiers), so scripts/maas-tier-keys.sh mints both keys from one pod
 # WITHOUT touching the shared operational subscriptions (parasol-stage/contractor). Applied by bootstrap.sh
-# (envsubst GUARD_HOST; not Argo-wired). Priorities (111/71) differ from the operational 50/10.
+# (envsubst GUARD_HOST GUARD_MODEL GUARD_MODEL_NAME; not Argo-wired). Priorities (111/71) differ from the operational 50/10.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -28,30 +29,30 @@ metadata:
   name: maas-tier-client
   namespace: parasol-maas-tiers
 ---
-# --- External model: granite-guardian-3-1-8b (guard tier). qwen3-14b's ExternalModel lives in
-#     gitops/platform/rhoai/maas.yaml (platform-rhoai); only granite-guardian is declared here. ---
+# --- External model: the guard model (guard tier). qwen3-14b's ExternalModel lives in
+#     gitops/platform/rhoai/maas.yaml (platform-rhoai); only the guard model is declared here. ---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: ExternalModel
 metadata:
-  name: granite-guardian-3-1-8b
+  name: ${GUARD_MODEL_NAME}
   namespace: models-as-a-service
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   provider: openai
-  endpoint: ${GUARD_HOST}    # FQDN of GUARD_ENDPOINT; apply with: kustomize build ... | envsubst '$GUARD_HOST' | oc apply -f -
-  targetModel: granite-guardian-3-1-8b
+  endpoint: ${GUARD_HOST}    # FQDN of GUARD_ENDPOINT; apply with: kustomize build ... | envsubst '$GUARD_HOST $GUARD_MODEL $GUARD_MODEL_NAME' | oc apply -f -
+  targetModel: ${GUARD_MODEL}
   credentialRef: {name: maas-upstream-granite-guardian}
 ---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef
 metadata:
-  name: granite-guardian-3-1-8b
+  name: ${GUARD_MODEL_NAME}
   namespace: models-as-a-service
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  modelRef: {kind: ExternalModel, name: granite-guardian-3-1-8b}
+  modelRef: {kind: ExternalModel, name: "${GUARD_MODEL_NAME}"}
 ---
 # Who may call the tier models with a tier key.
 apiVersion: maas.opendatahub.io/v1alpha1
@@ -67,7 +68,7 @@ spec:
       - {name: "system:serviceaccounts:parasol-maas-tiers"}
   modelRefs:
     - {name: qwen3-14b, namespace: models-as-a-service}
-    - {name: granite-guardian-3-1-8b, namespace: models-as-a-service}
+    - {name: "${GUARD_MODEL_NAME}", namespace: models-as-a-service}
 ---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription
@@ -100,7 +101,7 @@ spec:
     groups: [{name: "system:serviceaccounts:parasol-maas-tiers"}]
   priority: 71
   modelRefs:
-    - name: granite-guardian-3-1-8b
+    - name: ${GUARD_MODEL_NAME}
       namespace: models-as-a-service
       tokenRateLimits:
         - {limit: 100000, window: 10m}

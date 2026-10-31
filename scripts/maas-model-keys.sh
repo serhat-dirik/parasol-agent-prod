@@ -3,6 +3,9 @@
 # namespaces that consume it. Idempotent; key values are never printed or committed.
 # Usage: scripts/maas-model-keys.sh   (with AGENT_/GUARD_/JUDGE_[/LLAMAGUARD_] ENDPOINT+KEY exported)
 set -euo pipefail
+JUDGE_MODEL="${JUDGE_MODEL:-gpt-oss-120b}"
+# Secret name from the judge model id, DNS-1123 (as bootstrap.sh derives GUARD_MODEL_NAME); default: maas-key-gpt-oss-120b
+JUDGE_SECRET="maas-key-$(printf '%s' "$JUDGE_MODEL" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g' | cut -c1-54 | sed -E 's/^-+|-+$//g')"
 : "${GUARD_KEY:?set the model env (AGENT_KEY, GUARD_KEY, JUDGE_KEY, ...) or source scripts/load-credentials.sh}"
 
 # mk <namespace> <secret-name> <key-value>  — Secret with data key GENAI_API_KEY (+ MAAS_API_KEY alias,
@@ -20,17 +23,17 @@ mk() {
 # guard-tier detector models (granite-guardian required; Llama-Guard optional 3rd detector)
 mk parasol-guardian maas-key-granite-guardian "$GUARD_KEY"
 mk parasol-guardian maas-key-llama-guard      "${LLAMAGUARD_KEY:-}"
-# eval judge (gpt-oss-120b) — pipeline + eval namespaces
-mk parasol-build maas-key-gpt-oss-120b        "${JUDGE_KEY:-}"
-mk parasol-eval  maas-key-gpt-oss-120b        "${JUDGE_KEY:-}"
+# eval judge (JUDGE_MODEL) — pipeline + eval namespaces
+mk parasol-build "$JUDGE_SECRET"              "${JUDGE_KEY:-}"
+mk parasol-eval  "$JUDGE_SECRET"              "${JUDGE_KEY:-}"
 # agent model (evaluated by the LMEvalJob)
 mk parasol-eval  maas-key-qwen3-14b           "${AGENT_KEY:-}"
-# MLflow judge in the Tekton agent-eval task (mounted as files /maas/endpoint + /maas/key)
+# MLflow judge in the Tekton agent-eval task (mounted as files /maas/endpoint + /maas/key + /maas/model)
 if oc get ns parasol-build >/dev/null 2>&1 && [ -n "${JUDGE_ENDPOINT:-}" ] && [ -n "${JUDGE_KEY:-}" ]; then
   oc create secret generic maas-eval-key -n parasol-build \
-    --from-literal=endpoint="$JUDGE_ENDPOINT" --from-literal=key="$JUDGE_KEY" \
+    --from-literal=endpoint="$JUDGE_ENDPOINT" --from-literal=key="$JUDGE_KEY" --from-literal=model="$JUDGE_MODEL" \
     --dry-run=client -o yaml | oc apply -f - >/dev/null
-  echo "secret parasol-build/maas-eval-key applied (judge endpoint + key)"
+  echo "secret parasol-build/maas-eval-key applied (judge endpoint + key + model $JUDGE_MODEL)"
 fi
 
 echo "done: per-model Secrets applied where the consuming namespace exists."

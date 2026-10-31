@@ -9,8 +9,10 @@
 # endpoint is taken from that model's own curl sample, so models may sit behind different providers.
 _f="${1:-${CREDENTIALS_FILE:-$(cd "$(dirname "${BASH_SOURCE[0]:-${(%):-%x}}")" && pwd)/../../credentials.txt}}"
 [ -r "$_f" ] || { echo "credentials file not found: $_f (set CREDENTIALS_FILE)"; return 1 2>/dev/null || exit 1; }
+# role -> model: GUARD_MODEL / JUDGE_MODEL / AGENT_MODEL when set, else the models the demo was tested with
+export GUARD_MODEL="${GUARD_MODEL:-granite-guardian-3-1-8b}" JUDGE_MODEL="${JUDGE_MODEL:-gpt-oss-120b}"
 eval "$(python3 -I - "$_f" <<'PY'
-import re, shlex, sys
+import os, re, shlex, sys
 lines = [l.rstrip("\n") for l in open(sys.argv[1])]
 out = {}
 labels = {  # label (lower-case) -> variable
@@ -35,7 +37,7 @@ for l in lines:
     m = re.search(r'"model"\s*:\s*"([^"]+)"', l)
     if m and key and url:
         models[m.group(1).lower()] = (url, key); key = None
-roles = {"AGENT": None, "GUARD": "granite-guardian-3-1-8b", "JUDGE": "gpt-oss-120b",
+roles = {"AGENT": None, "GUARD": os.environ["GUARD_MODEL"].lower(), "JUDGE": os.environ["JUDGE_MODEL"].lower(),
          "LLAMAGUARD": "llama-guard-3-1b"}
 for role, model in roles.items():
     if role == "AGENT": continue
@@ -53,7 +55,7 @@ _pair="$(printf '%s' "$_MODEL_PAIRS" | tr ';' '\n' | grep -i "^${AGENT_MODEL}=" 
 [ -n "$_pair" ] && export AGENT_ENDPOINT="$(printf '%s' "$_pair" | cut -d= -f2- | cut -d'|' -f1)" AGENT_KEY="$(printf '%s' "$_pair" | cut -d'|' -f2)"
 # legacy names some scripts still read
 export MAAS_ENDPOINT="${AGENT_ENDPOINT:-}" MAAS_API_KEY="${AGENT_KEY:-}" MAAS_MODEL="$AGENT_MODEL"
-echo "loaded: api=${OCP_API:-<missing>} agent=$AGENT_MODEL@${AGENT_ENDPOINT:-<missing>} models in file: $_MODELS (secrets not shown)"
+echo "loaded: api=${OCP_API:-<missing>} agent=$AGENT_MODEL@${AGENT_ENDPOINT:-<missing>} guard=$GUARD_MODEL judge=$JUDGE_MODEL models in file: $_MODELS (secrets not shown)"
 _set=""; for _v in AGENT_KEY GUARD_KEY JUDGE_KEY LLAMAGUARD_KEY; do [ -n "$(eval "printf '%s' \"\${$_v:-}\"")" ] && _set="$_set $_v"; done
 echo "model keys set:$_set"
 unset _f _pair _set _v _MODEL_PAIRS

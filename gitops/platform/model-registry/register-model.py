@@ -177,7 +177,7 @@ def version_props(v):
         "eval_dataset": "parasol-golden-set",
         "eval_score": v["eval_score"],
         "eval_gate": v["eval_gate"], "eval_threshold": GATE_THRESHOLD,
-        "eval_judge_model": "gpt-oss-120b",
+        "eval_judge_model": os.environ.get("JUDGE_MODEL") or "gpt-oss-120b",
         "mlflow_run_id": v["mlflow_run_id"], "mlflow_experiment_id": v["mlflow_experiment_id"],
         "mlflow_run_url": f"{MLFLOW_UI}/#/experiments/{v['mlflow_experiment_id']}/runs/{v['mlflow_run_id']}",
     })

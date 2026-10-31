@@ -17,11 +17,12 @@ spec:
           image: registry.access.redhat.com/ubi9/python-312:latest
           command: ["python3", "-u", "/app/guardian_detector.py"]
           env:
-            # Primary guard tier (granite-guardian-3-1-8b). Base URL from maas-guardian; the REAL
+            # Primary guard tier (GUARD_MODEL, default granite-guardian-3-1-8b). Base URL and model id from
+            # maas-guardian (scripts/guardian-key.sh); the REAL
             # guard-capable key from maas-key-granite-guardian (minted by P1-MAAS-TIERS), out-of-band.
             - {name: GUARD_URL, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD_URL}}}
             - {name: GUARD_KEY, valueFrom: {secretKeyRef: {name: maas-key-granite-guardian, key: GENAI_API_KEY}}}
-            - {name: GUARD_MODEL, value: "granite-guardian-3-1-8b"}
+            - {name: GUARD_MODEL, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD_MODEL, optional: true}}}
             # Optional second guard model (Llama-Guard-3-1B), used on the USER MESSAGE only. Its own endpoint
             # (LLAMAGUARD_ENDPOINT -> maas-guardian GUARD2_URL) and key; skipped when either is absent.
             - {name: GUARD2_URL, valueFrom: {secretKeyRef: {name: maas-guardian, key: GUARD2_URL, optional: true}}}

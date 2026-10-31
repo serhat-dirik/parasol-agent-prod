@@ -13,7 +13,7 @@ times, in two modes:
               Shows what the platform adds: a case that passes only in system mode names the control
               that caught it (platform_control).
 A case passes in a mode when the majority of its attempts pass. The tool calls the model makes and its
-answer are scored by deterministic checks; the gpt-oss-120b judge adds per-attempt assessments (system).
+answer are scored by deterministic checks; the judge (JUDGE_MODEL) adds per-attempt assessments (system).
 
   python agent_eval.py                 # self-check: stubs, agent loop (scripted fake model), sentinel, note,
                                        # scorers, majority vote; no network
@@ -32,7 +32,7 @@ Full-run config comes from the environment (secrets never hard-coded):
   EVAL_ATTEMPTS         generations per case and mode (default 3); EVAL_PARALLEL concurrent generations (default 10)
   JUDGE_ENDPOINT        OpenAI-compatible base of the judge (alias MAAS_ENDPOINT, file "endpoint" of maas-eval-key)
   JUDGE_KEY             the judge's own key -- NEVER the agent key (alias MAAS_EVAL_KEY, file "key")
-  JUDGE_MODEL           default gpt-oss-120b
+  JUDGE_MODEL           default gpt-oss-120b (file "model" of maas-eval-key, next to MAAS_EVAL_KEY_FILE)
   PROMPT_FILE           with --gate-version: the prompt text that version runs (default: the file in VERSION_META)
   PROMPT_REF            name@alias: register PROMPT_FILE as the version behind that alias (release runs only)
 
@@ -728,7 +728,10 @@ def run_full(versions, gate_version, results_dir):
     experiment = os.environ.get("MLFLOW_EXPERIMENT", "parasol-agent-eval")
     exp = mlflow.set_experiment(experiment)
 
-    judge_model = os.environ.get("JUDGE_MODEL", "gpt-oss-120b")
+    # file "model" of maas-eval-key sits next to its "key" (scripts/maas-model-keys.sh); absent = the tested default
+    jm_file = os.path.join(os.path.dirname(os.environ.get("MAAS_EVAL_KEY_FILE") or "/nonexistent/key"), "model")
+    judge_model = (os.environ.get("JUDGE_MODEL") or (open(jm_file).read().strip() if os.path.exists(jm_file) else "")
+                   or "gpt-oss-120b")
     attempts = int(os.environ.get("EVAL_ATTEMPTS", "3"))
     parallel = int(os.environ.get("EVAL_PARALLEL", "10"))
     jclient = None
