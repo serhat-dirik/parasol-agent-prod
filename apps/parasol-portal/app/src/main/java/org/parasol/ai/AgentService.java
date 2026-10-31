@@ -180,6 +180,16 @@ public class AgentService {
                 .put("enduser.id", who).put("gen_ai.agent.name", mcpAuth.agentId())
                 .put("enduser.groups", groups).build().makeCurrent();
         try {
+            // Agent kill switch: an operator disabled this agent's Keycloak client, so it may not act for
+            // anyone. Refuse before the model is asked (the model path uses a MaaS key, not the agent identity).
+            if (mcpAuth.agentRefused()) {
+                LOG.warnf("assistant refused: agent %s was refused by Keycloak (client disabled) caller=%s trace=%s",
+                        mcpAuth.agentId(), who, traceId);
+                metrics.counter("parasol_agent_rejections_total", "reason", reason(AGENT_DISABLED), "user", who,
+                        "agent", mcpAuth.agentId(), "env", env).increment();
+                return new AgentAnswer(question, null, List.of(), modelName, null,
+                        who, env, AGENT_DISABLED, false, null, null, traceId);
+            }
             Result<String> result = proposeEnabled
                     ? assistant.askWithPropose(conversationId, prompt, question)
                     : assistant.ask(conversationId, prompt, question);
@@ -272,8 +282,14 @@ public class AgentService {
         }
     }
 
+    /** The chat's answer while an operator has this agent switched off (scripts/agent-switch.sh). */
+    static final String AGENT_DISABLED = "This assistant has been disabled by an operator.";
+
     /** The rejection reason label for {@link #errorMessage}'s message. */
     static String reason(String error) {
+        if (AGENT_DISABLED.equals(error)) {
+            return "agent_disabled";
+        }
         if (error.contains("(429)")) {
             return "usage_limit";
         }

@@ -74,6 +74,8 @@ public class McpBearerTokenProvider implements McpClientAuthProvider {
 
     private final Map<String, Cached> exchanged = new ConcurrentHashMap<>();
     private volatile Cached own;
+    /** Keycloak's last answer refused the agent itself (client disabled by an operator): see {@link #agentRefused}. */
+    private volatile boolean refused;
 
     @Override
     public String getAuthorization(Input input) {
@@ -103,6 +105,32 @@ public class McpBearerTokenProvider implements McpClientAuthProvider {
             return "caller token forwarded";
         }
         return staticToken.filter(t -> !t.isBlank()).isPresent() ? "static token" : "none (anonymous to tools)";
+    }
+
+    /**
+     * Once per chat turn, before the model is asked: exchange the caller's token afresh (the per-caller cache
+     * would otherwise keep a token for its whole lifespan, so an operator's switch would wait for it to expire).
+     * True only when Keycloak refused the agent itself: an operator disabled its client (Clients > Enabled off,
+     * scripts/agent-switch.sh), so the agent may not act for anyone. Any other outcome, including other exchange
+     * errors, returns false and the turn runs as before (tools then fail closed on their own).
+     */
+    public boolean agentRefused() {
+        String caller = callerAuthorization();
+        if (!agentIdentity() || caller == null) {
+            return false;
+        }
+        String subject = caller.substring(caller.indexOf(' ') + 1).trim();
+        exchanged.remove(subject);
+        return onBehalfOf(subject) == null && refused;
+    }
+
+    /**
+     * Keycloak's answer when the authenticating client is disabled: 401 invalid_client ("Invalid client or
+     * Invalid client credentials"; it does not say "disabled"). A wrong assertion gets the same answer; either
+     * way this agent cannot act, and the Keycloak event (CLIENT_LOGIN_ERROR) says which.
+     */
+    static boolean refusedAgent(int status, String body) {
+        return status == 401 && body != null && body.contains("\"invalid_client\"");
     }
 
     private boolean agentIdentity() {
@@ -166,6 +194,7 @@ public class McpBearerTokenProvider implements McpClientAuthProvider {
                     .build();
             HttpResponse<String> res = http.send(req, HttpResponse.BodyHandlers.ofString());
             Matcher t = ACCESS_TOKEN.matcher(res.body());
+            refused = refusedAgent(res.statusCode(), res.body());
             if (res.statusCode() != 200 || !t.find()) {
                 Matcher e = ERROR.matcher(res.body());
                 LOG.warnf("%s as %s failed: HTTP %d %s", what, agentId, res.statusCode(), e.find() ? e.group(1) : "");
@@ -178,6 +207,7 @@ public class McpBearerTokenProvider implements McpClientAuthProvider {
             }
             return new Cached(t.group(1), Instant.now().plusSeconds(Math.max(10, expires - 30)));
         } catch (IOException | InterruptedException | RuntimeException ex) {
+            refused = false;   // Keycloak did not answer: not an operator's refusal
             LOG.warnf("%s as %s error: %s", what, agentId, ex.getMessage());
             return null;
         }
