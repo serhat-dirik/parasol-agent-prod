@@ -114,7 +114,7 @@ scripts/agent-switch.sh claims-agent off
 
 . Select the *Portal secured* tab, sign in as `rebecca`, open any claim and ask a question.
 +
-What you should see: the chat answers at once with the red notice "This assistant has been disabled by an operator." No tool runs and the model is not asked: the portal checks the agent's identity at the start of every turn.
+What you should see: the chat answers at once with the red notice "This assistant has been disabled by an operator." No tool runs and the model is not asked: the portal checks the agent's identity at the start of every turn. How fast the switch bites: on the very next chat turn through the portal; a token the agent obtained before the switch, wherever it was copied to, expires within 5 minutes (the agent clients' token lifespan).
 
 . Show who was refused. In the *Keycloak* tab, open *Events*, *User events*, and search for event type `TOKEN_EXCHANGE_ERROR`.
 +

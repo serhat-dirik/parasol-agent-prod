@@ -12,6 +12,8 @@
 #    agent's token by the fraud agent (agent-to-agent)
 #  - public client parasol-demo-cli: the headless persona logins of the scripts (scripts/token.sh), direct
 #    grants only (no browser flow), so the portal client parasol-portal stays browser-only
+#  - agent tokens live 5 min (access.token.lifespan 300): once an operator switches an agent off
+#    (scripts/agent-switch.sh), any token it obtained earlier stops working within 5 minutes
 #  - realm events on (TOKEN_EXCHANGE etc.), so Keycloak > Events shows user + client per exchange
 #  - realm frontendUrl = the public sso URL: the issuer stays public when secured pods call Keycloak in-cluster
 #  - removes the retired 'parasol-agent' (password-grant service identity) and unused 'mcp-gateway' clients
@@ -57,7 +59,8 @@ agent() {  # $1 clientId  $2 service account  $3 display name  $4 default client
     standardFlowEnabled:false, implicitFlowEnabled:false, directAccessGrantsEnabled:false,
     fullScopeAllowed:false,
     attributes:{"standard.token.exchange.enabled":"true",
-      "jwt.credential.issuer":"openshift-sa", "jwt.credential.sub":$sub},
+      "jwt.credential.issuer":"openshift-sa", "jwt.credential.sub":$sub,
+      "access.token.lifespan":"300"},
     defaultClientScopes:$scopes, optionalClientScopes:[]}')"
   uuid="$(cuuid "$1")"
   if [ -z "$uuid" ]; then

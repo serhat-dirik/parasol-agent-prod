@@ -391,8 +391,8 @@ topic refusal fire through it). Manifests mark field names to check against the 
   differs. `night-shift.sh` detects the limit from the body.
 * **Agent switch "does nothing".** The portal re-exchanges the user's token once per chat turn, so the
   next question after `scripts/agent-switch.sh claims-agent off` is refused; a turn already running
-  finishes. Tokens minted before the switch stay valid at the gateway until they expire (realm access
-  token lifespan). Restore: `scripts/agent-switch.sh claims-agent on` (or `scripts/reset.sh`).
+  finishes. A token the agent obtained before the switch stays valid at the gateway until it expires,
+  within 5 minutes (`access.token.lifespan` 300 on both agent clients, `scripts/agent-clients.sh`). Restore: `scripts/agent-switch.sh claims-agent on` (or `scripts/reset.sh`).
 * **Gateways scaled to 0 come back by themselves?** They should not: nothing owns `spec.replicas` and
   the HPA (min 2) does not act on a Deployment at 0. `scripts/kill-switch.sh on` restores 2 replicas.
 * **Portal not exporting traces.** `QUARKUS_OTEL_ENABLED` is build-time; at runtime set

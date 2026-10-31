@@ -43,6 +43,7 @@ spec:
         standard.token.exchange.enabled: 'true'
         jwt.credential.issuer: openshift-sa
         jwt.credential.sub: system:serviceaccount:parasol-secured:claims-agent
+        access.token.lifespan: '300'   # a token this agent obtained dies within 5 min of the agent being switched off
       # groups: the knowledge base decides which documents the user may read from this claim
       defaultClientScopes: [basic, roles, profile, groups]
       # its tokens may be exchanged again by the fraud agent (agent-to-agent)
@@ -69,6 +70,7 @@ spec:
         standard.token.exchange.enabled: 'true'
         jwt.credential.issuer: openshift-sa
         jwt.credential.sub: system:serviceaccount:parasol-secured:fraud-agent
+        access.token.lifespan: '300'   # a token this agent obtained dies within 5 min of the agent being switched off
       # groups: claims-db decides which claim records the user may read through this agent
       defaultClientScopes: [basic, roles, profile, groups]
     # Portal login (quarkus-oidc web-app, authorization-code flow). Confidential: on a fresh realm import
