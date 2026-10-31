@@ -22,7 +22,7 @@ restart() {
   echo " currency-converter: description=$(oc get configmap currency-converter-release -n "$NS" -o jsonpath='{.data.description}' 2>/dev/null || true)"
 }
 
-# $1 = Application, $2 = component, $3 = add|remove. Keeps the other components (e.g. kill-switch).
+# $1 = Application, $2 = component, $3 = add|remove. Keeps the other components.
 # Prints "changed" when the list changed.
 components() {
   local cur new

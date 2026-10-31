@@ -5,7 +5,7 @@
 
 toc::[]
 
-An outsourced night-shift contractor's account (or its leaked token) is scripted at 3 a.m. to loop long requests and drain the model budget. Unsecured, the shared key burns all night. Secured, the off-topic junk is refused for free, only that account is throttled, an alert names the user, and the operator has two one-click responses.
+An outsourced night-shift contractor's account (or its leaked token) is scripted at 3 a.m. to loop long requests and drain the model budget. Unsecured, the shared key burns all night. Secured, the off-topic junk is refused for free, only that account is throttled, an alert names the user, and the operator has three responses, from one agent to the whole platform, each one command or one click.
 
 The script `scripts/night-shift.sh` plays the scripted account. It logs in as `nina.contractor` (Nina Patel, a contractor with read-only claim tools), sends two off-topic requests, then loops long on-topic requests, printing the HTTP status, the caller and the token spend of each. It stops at the first usage-limit response and has a hard ceiling, so a stray run cannot drain the model key.
 
@@ -20,7 +20,7 @@ An agent on a shared key is an open invoice: anyone who can reach the chat can s
 This showcase runs on its own, in any order with the others.
 
 * Personas: `nina.contractor` (the night-shift contractor, played by the script) and `rebecca`; passwords equal the user names.
-* State: `nina.contractor` is enabled in Keycloak, the kill switch is off, and her token budget is full. If an earlier run used any of them, undo it as in *Reset after this showcase* below.
+* State: `nina.contractor` is enabled in Keycloak, both agents are enabled, the gateways are up, and her token budget is full. If an earlier run changed any of them, undo it as in *Reset after this showcase* below.
 
 == Show: unsecured
 
@@ -99,9 +99,72 @@ image::s4-maas-subscriptions.png["MaaS governance: the contractor, stage and gua
 
 == Show: the operator's response
 
-Pick one. Reach for the precise control first.
+Three switches, from the most precise to the widest. Show the first; the others are there when the first is not enough. Each is undone with one command, and `scripts/reset.sh` undoes all of them.
 
-=== Option A: disable the user
+=== 1. Switch one agent off
+
+Disable an agent the way you disable a user. The claims assistant's identity is the Keycloak client `parasol-claims-agent`; with it off, Keycloak refuses the agent's own sign-in, so it can no longer act on behalf of anyone. Other agents and every user keep their access.
+
+. Select the *Keycloak* tab (realm `parasol`, user `admin`, password `admin`). Open *Clients*, then `parasol-claims-agent`, switch *Enabled* off and confirm. Or from the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+scripts/agent-switch.sh claims-agent off
+----
+
+. Select the *Portal secured* tab, sign in as `rebecca`, open any claim and ask a question.
++
+What you should see: the chat answers at once with the red notice "This assistant has been disabled by an operator." No tool runs and the model is not asked: the portal checks the agent's identity at the start of every turn.
+
+. Show who was refused. In the *Keycloak* tab, open *Events*, *User events*, and search for event type `CLIENT_LOGIN_ERROR`.
++
+What you should see: one entry per refused turn, error `client_not_found` (a disabled client is unknown to Keycloak), with `client_assertion_sub` = `system:serviceaccount:parasol-secured:claims-agent`, the agent's own ServiceAccount. The same refusals from the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+scripts/agent-switch.sh claims-agent status
+----
+
+. Undo it: switch *Enabled* back on in the *Keycloak* tab, or:
++
+[source,bash,role=execute]
+----
+scripts/agent-switch.sh claims-agent on
+----
++
+What you should see: the next question in the *Portal secured* tab is answered normally.
+
+Switching off `fraud-agent` instead (`scripts/agent-switch.sh fraud-agent off`) shows the other half of the story: rebecca's "run a fraud check on CLM-1004" comes back with the fraud check refused ("FRAUD RISK: UNKNOWN. The fraud-check agent could not act on behalf of rebecca"), while the claims assistant keeps answering her other questions. Undo with `scripts/agent-switch.sh fraud-agent on`.
+
+=== 2. Take every agent offline: the platform switch
+
+When you cannot tell which agent is misbehaving, stop them all at the platform. Every secured tool call goes through the MCP gateway and every secured model call through the model gateway; scaling both to zero takes the secured assistant off the air in seconds. No Git change, no redeploy.
+
+. In the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+scripts/kill-switch.sh off
+----
+
+. Select the *Portal secured* tab and ask the assistant anything.
++
+What you should see: the chat reports "The assistant is offline." In the *OpenShift Console* tab, project `parasol-secured`, the portal and agent pods are still *Running*: they simply reach nothing. Under *Workloads*, *Deployments*, project `gateway-system`, `mcp-gateway-openshift-default` shows 0 of 0 pods (and `model-gateway-openshift-default` in `parasol-model-gateway`).
+
+. Bring it back:
++
+[source,bash,role=execute]
+----
+scripts/kill-switch.sh on
+----
++
+What you should see: both gateways at 2 of 2 pods; the next question is answered.
+
+`scripts/kill-switch.sh off --all` also scales the cluster's Models-as-a-Service gateway: every model consumer on the cluster goes dark, evaluations included. It runs from an administrator's workstation, not from this Terminal.
+
+=== 3. Disable the user
+
+When the problem is one account, not the agent: the night-shift contractor.
 
 . Select the *Keycloak* tab. In realm `parasol`, open *Users*, then `nina.contractor`, and switch *Enabled* off. Save.
 
@@ -116,56 +179,20 @@ What you should see: the script cannot log in as `nina.contractor`. Everyone els
 
 . Re-enable `nina.contractor` in the *Keycloak* tab after the demo.
 
-=== Option B: the kill switch
-
-The kill switch is a kustomize component already in Git (`gitops/envs/secured/kill-switch`). You switch it on in the cluster, on the Argo CD Application, not with a Git commit.
-
-. Select the *Argo CD* tab and open application `env-secured`. Click *Details* in the top bar, select the *Manifest* tab and click *Edit*.
-
-. Under `spec.source.kustomize`, at the same indentation as `patches:`, add one line, then click *Save*:
-+
-[source,yaml]
-----
-components: [kill-switch]
-----
-+
-The same change from the *Terminal* tab:
-+
-[source,bash,role=execute]
-----
-oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"kustomize":{"components":["kill-switch"]}}}}'
-----
-+
-What you should see: Argo CD syncs `env-secured` on its own; the component replaces the portal's network egress.
-
-. Select the *Portal secured* tab and ask the assistant anything.
-+
-What you should see: after about 50 seconds the assistant reports it is offline. In the *OpenShift Console* tab, the pods in project `parasol-secured` are still *Running*: they simply reach nothing.
-
-. Switch it off to bring the assistant back: in *Details* > *Manifest* > *Edit*, delete the `components` line and click *Save*. From the *Terminal* tab:
-+
-[source,bash,role=execute]
-----
-oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"kustomize":{"components":null}}}}'
-----
-
 The morning report is two screens you already have open: the alert and the dashboard.
 
 == Reset after this showcase
 
-. Refill the per-user token budgets (and put the claims back):
+. Refill the per-user token budgets, put the claims back, and switch both agents and the gateways back on:
 +
 [source,bash,role=execute]
 ----
 scripts/reset.sh
 ----
-
-. If you used Option A, re-enable `nina.contractor` in the *Keycloak* tab. If you used Option B, switch the kill switch off:
 +
-[source,bash,role=execute]
-----
-oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"kustomize":{"components":null}}}}'
-----
+To undo only the switches: `scripts/agent-switch.sh claims-agent on`, `scripts/agent-switch.sh fraud-agent on`, `scripts/kill-switch.sh on`.
+
+. If you disabled `nina.contractor`, re-enable her in the *Keycloak* tab.
 
 The `ParasolAssistantTokenSpendHigh` alert resolves on its own 10 minutes after the spend stops.
 

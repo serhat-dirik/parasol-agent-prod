@@ -30,16 +30,20 @@ What you should see: CLM-1001 *UnderReview*, CLM-1004 *Denied*.
 
 . Repeat on the *Portal secured* tab.
 
-. If you used an operator response in Showcase 4, undo it: re-enable `nina.contractor` in the *Keycloak* tab, or switch the kill switch off: in the *Argo CD* tab open `env-secured`, *Details* > *Manifest* > *Edit*, delete the `components` line and *Save*. From the *Terminal* tab:
+. If you used an operator response in Showcase 4, `scripts/reset.sh` has already switched both agents and the gateways back on. Always make sure, before a recording (each command is a no-op when the switch is already on):
 +
 [source,bash,role=execute]
 ----
-oc patch application env-secured -n openshift-gitops --type merge -p '{"spec":{"source":{"kustomize":{"components":null}}}}'
+scripts/kill-switch.sh on
+scripts/agent-switch.sh claims-agent on
+scripts/agent-switch.sh fraud-agent on
 ----
++
+If you disabled `nina.contractor`, re-enable her in the *Keycloak* tab.
 
 === What a reset clears, and what it keeps
 
-`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every per-user token budget and zeroes Limitador's own 429 count. It also puts the Showcase 6 vendor tool back: clean description, unplugged from the unsecured portal (which restarts if it was plugged in), not registered on the secured gateway. It does not clear the governance record, on purpose:
+`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every per-user token budget and zeroes Limitador's own 429 count. It also puts the Showcase 6 vendor tool back: clean description, unplugged from the unsecured portal (which restarts if it was plugged in), not registered on the secured gateway. And it undoes the Showcase 4 switches: the MCP and model gateways back at 2 replicas, `parasol-claims-agent` and `parasol-fraud-agent` enabled in Keycloak. It does not clear the governance record, on purpose:
 
 * the dashboard counters are cumulative since their process started: token spend, tool calls and per-user 429s live in the secured portal (cleared when the portal pod restarts, for example after a release), guardrail hits in the guardrails proxy, gateway refusals in Authorino. Between runs, read the *change* on a panel, not the absolute number;
 * MLflow traces, Keycloak events (kept 7 days) and the Authorino log stay, so a later run can still be traced back;
@@ -207,8 +211,14 @@ It drives each check the way the browser does: the persona logs in through the p
 |A live `oc patch` reverts itself
 |Argo CD self-heal reverts live edits on synced resources. Change them in Git and refresh the application.
 
-|The kill switch "does nothing"
-|The kill-switch component must *replace* the portal egress NetworkPolicy; a separate deny policy only adds allows. Under the kill switch the assistant returns a clean error after about 50 seconds.
+|The secured assistant says "This assistant has been disabled by an operator."
+|The agent switch is off. `scripts/agent-switch.sh claims-agent status` shows `enabled=false` and the refusals; `scripts/agent-switch.sh claims-agent on` (or `scripts/reset.sh`) restores it. The portal checks once per chat turn, so the next question is answered.
+
+|The secured assistant says "The assistant is offline." with every pod Running
+|The platform switch is off: `scripts/kill-switch.sh status` shows the gateways at 0 replicas. `scripts/kill-switch.sh on` brings them back (the HPA does not do it on its own: it does not act on a Deployment at 0).
+
+|A fraud check answers "could not act on behalf of" the user
+|The fraud agent is switched off: `scripts/agent-switch.sh fraud-agent on`.
 
 |The assistant's tool list comes back empty
 |The portal must forward a token that carries the `resource_access` roles for `claims-db` and `policy-docs`. Check the `parasol-portal` client mappers in realm `parasol`.

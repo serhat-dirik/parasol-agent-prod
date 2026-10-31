@@ -1,7 +1,5 @@
 # Layer 1 for the portal: default-deny (namespace-wide) is already in networkpolicy.yaml; this adds
-# exactly the paths the portal needs. The kill switch (Stream O) revokes the model path by replacing
-# this policy's egress (NetworkPolicies only ADD allows, so a replacement that drops the model-gateway
-# rule severs the model while leaving the pod Running).
+# exactly the paths the portal needs.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -26,7 +24,7 @@ spec:
             # model is reachable only through the model gateway below; the browser's redirects need no egress.
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: keycloak}
-    - to:   # the model, ONLY through the rate-limited model gateway (layer 5) - the kill switch drops this
+    - to:   # the model, ONLY through the rate-limited model gateway (layer 5)
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: parasol-model-gateway}
     - to:   # traces to the OTel collector

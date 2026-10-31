@@ -124,7 +124,7 @@ The unsecured portal skips all of it: a shared model key, and tools called with 
 
 |7 Observability and control
 |Showcases 3 and 4, knowing and stopping
-|OpenTelemetry to Tempo and MLflow, token metrics and an alert, the kill-switch component
+|OpenTelemetry to Tempo and MLflow, token metrics and an alert, the agent switch and the platform switch
 |===
 
 [NOTE]

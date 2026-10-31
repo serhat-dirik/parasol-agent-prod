@@ -7,7 +7,7 @@ kind: Kustomization
 #  4 guardrails     the model endpoint is the Guardrails Orchestrator gateway (prompt-injection + regex), then MaaS
 #  5 model governance  MaaS subscription + auth policy (see platform/rhoai/maas.yaml), stage quota
 #  6 lifecycle gate (Clip E, stretch)
-#  7 observability + control  OTel traces to Tempo, token metrics + alert, kill-switch component below
+#  7 observability + control  OTel traces to Tempo, token metrics + alert; kill switches: scripts/agent-switch.sh, scripts/kill-switch.sh
 namespace: parasol-secured
 resources:
   - namespace.yaml
@@ -20,7 +20,7 @@ resources:
   - claims-db-records.yaml # record-level access: adjusters read only the claims assigned to them
   - knowledge-base.yaml    # RAG: the knowledge base behind the gateway, retrieval as the user (groups + row-level security)
   - portal.yaml            # Stream P: the secured claims portal (login, gated writes, guardrails)
-  - portal-networkpolicy.yaml  # Stream P: the portal's layer-1 egress (kill switch patches this)
+  - portal-networkpolicy.yaml  # Stream P: the portal's layer-1 egress
   - ../base
 # The secured portal runs a PINNED, SIGNED digest, but the pin does NOT live in Git: the release
 # pipeline's promote task sets it on the Argo CD Application env-secured (spec.source.kustomize.images,
@@ -35,8 +35,7 @@ images:
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000                 # placeholder
 replicas:
   - {name: portal, count: 0}   # placeholder; the promote's Application override sets 1
-# Kill switch: not edited here. The operator adds the component on the Application
-# (spec.source.kustomize.components: [kill-switch]) and removes it to restore.
+# Components are added on the Application, not here (Scenario 6: register-currency-converter).
 components: []
 patches:
   - path: agent-identity-patch.yaml

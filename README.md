@@ -91,9 +91,10 @@ long requests in a loop. Every request costs model usage, which costs money.
 * *Secured:* off-topic requests are refused before they reach the model, so they cost nothing. Each
   person has their own usage allowance, so when Nina's runs out her requests are refused with a
   "usage limit reached" message, while Rebecca keeps working normally. An alert names the account and
-  the agent. The operator can then disable the account, or switch the assistant off entirely with one
-  change in Argo CD (the "kill switch"). The applications keep running, but the assistant can no
-  longer reach the model.
+  the agent. The operator can then switch one agent off in Keycloak, as one would disable a user (the
+  assistant answers "disabled by an operator" while other agents and all users keep working), take
+  every secured agent offline by scaling the gateways to zero (the applications keep running, but reach
+  nothing), or disable the account.
 
 *What this shows:* governed model access. Usage is metered per person and per agent (OpenShift AI
 Models-as-a-Service), abuse raises an alert, and operators can contain it in seconds, either one account
@@ -325,8 +326,8 @@ of the stack is that a *different* layer catches each scenario:
   answer carrying the restricted-document marker for anyone outside claims-managers (Layer 4).
 * **Scenario 4 (the night shift)** → **model governance + observability.** MaaS gives the contractor a
   low per-tier token budget and returns 429 for that account alone (Layer 5); the topic guardrail refuses
-  off-topic junk at zero cost (Layer 4); token metrics raise an alert naming the user and the agent, and the kill switch
-  severs egress with one change on the Argo CD Application (Layer 7). Namespace isolation (Layer 1) bounds the blast radius throughout.
+  off-topic junk at zero cost (Layer 4); token metrics raise an alert naming the user and the agent; the agent switch disables one agent in
+  Keycloak and the platform switch scales the gateways to zero (Layer 7). Namespace isolation (Layer 1) bounds the blast radius throughout.
 
 | # | Layer | Defends | Component | In this repo |
 |---|---|---|---|---|
@@ -336,14 +337,16 @@ of the stack is that a *different* layer catches each scenario:
 | 4 | Guardrails | Scenarios 2, 3 and 4 | Guardrails detection proxy (enforced): regex injection phrases, PII masking, topic refusal, off-list links and images removed from answers (rules in ConfigMap `guardrails-rules`); flag-and-continue or block, each detection logged and counted with user, agent and trace id. The HF prompt-injection detector is deployed but not inline. Additive model-based detectors in the guard tier: Granite Guardian (`granite-guardian-3-1-8b`) and optional Llama-Guard (user message only), shown in GenAI Studio | `gitops/platform/guardrails`, `gitops/platform/guardrails-guardian` |
 | 5 | Model governance | Scenario 4 | OpenShift AI MaaS: **two external models** on their own tiers — `qwen3-14b` (prod, the agent both portals run) and `granite-guardian-3-1-8b` (guard, the detector) — each a MaaSSubscription + MaaSAuthPolicy with its own key and per-tier token budget enforced by Connectivity Link; the agent never holds the upstream key (TP for external models). The eval judge `gpt-oss-120b` is reached via its own key, off the tiers | `gitops/platform/rhoai/*`, `gitops/platform/maas-tiers`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh`, `scripts/maas-tier-keys.sh` |
 | 6 | Lifecycle gate | regressions, unsigned images (cross-cutting) | Tekton pipeline (build → scan → eval gate → cosign sign → promote); Sigstore admission `ClusterImagePolicy` | `gitops/platform/pipeline`, `scripts/signing-demo.sh` |
-| 7 | Observability and control | Scenarios 3 and 4; knowing and stopping | OTel → Tempo and MLflow (each chat turn links to its trace; tags agent/prompt/model), Perses dashboard *Parasol Assistant Token Spend* (spend, tool calls, gateway rejections, guardrail hits by user and agent), PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
+| 7 | Observability and control | Scenarios 3 and 4; knowing and stopping | OTel → Tempo and MLflow (each chat turn links to its trace; tags agent/prompt/model), Perses dashboard *Parasol Assistant Token Spend* (spend, tool calls, gateway rejections, guardrail hits by user and agent), PrometheusRule alert; agent switch (Keycloak client off) and platform switch (gateways to 0) | `gitops/platform/observability`, `scripts/agent-switch.sh`, `scripts/kill-switch.sh` |
 
 **Request paths (secured).** Model: portal → model-gateway → guardrails-proxy → OpenShift AI MaaS
 → LiteLLM; the MaaS serves the model named in `agent-config` (set at install with `AGENT_MODEL`; tested with **`qwen3-14b`**) on both portals so the
 hidden-note obedience is live. Tools: portal → MCP gateway (`https://mcp.apps.<domain>/mcp`, per-client virtual server)
-→ `claims-db` / `policy-docs`. The **kill switch** is a kustomize component that *replaces* the
-agent/portal NetworkPolicy egress (a NetworkPolicy only ever adds allows, so a "deny" policy would
-do nothing); add it to the `env-secured` Application (`spec.source.kustomize.components`) and Argo severs the model path — pods keep running, the agent reaches nothing.
+→ `claims-db` / `policy-docs`. **Kill switches**, precise first: `scripts/agent-switch.sh <claims-agent|fraud-agent> off|on|status`
+turns the agent's Keycloak client off (Keycloak refuses its client authentication, so it can exchange no one's
+token; the portal checks once per chat turn and answers "This assistant has been disabled by an operator.");
+`scripts/kill-switch.sh off|on|status` scales the MCP gateway and the model gateway to 0 (pods keep running,
+the assistant is offline; `--all` also takes down the cluster-wide MaaS gateway). `scripts/reset.sh` switches both back on.
 
 **Read-Propose-Act.** `approve_payout` is hidden from the gateway's `tools/list` for every identity
 (so no model ever auto-calls it) but stays backend-federated; `tools/call` is still authorized by
@@ -386,9 +389,12 @@ topic refusal fire through it). Manifests mark field names to check against the 
 * **429 shows as HTTP 502.** The portal surfaces the upstream 429 as a 502 whose chat body still reads
   "you have reached your usage limit (429)". The on-screen wording is correct; only the HTTP status
   differs. `night-shift.sh` detects the limit from the body.
-* **Kill switch "does nothing".** A separate quarantine NetworkPolicy only adds allows and blocks
-  nothing — the kill-switch component must *replace* the egress. Under the kill switch the agent
-  returns a clean 502 after ~50 s (connect timeout + one retry).
+* **Agent switch "does nothing".** The portal re-exchanges the user's token once per chat turn, so the
+  next question after `scripts/agent-switch.sh claims-agent off` is refused; a turn already running
+  finishes. Tokens minted before the switch stay valid at the gateway until they expire (realm access
+  token lifespan). Restore: `scripts/agent-switch.sh claims-agent on` (or `scripts/reset.sh`).
+* **Gateways scaled to 0 come back by themselves?** They should not: nothing owns `spec.replicas` and
+  the HPA (min 2) does not act on a Deployment at 0. `scripts/kill-switch.sh on` restores 2 replicas.
 * **Portal not exporting traces.** `QUARKUS_OTEL_ENABLED` is build-time; at runtime set
   `QUARKUS_OTEL_SDK_DISABLED=false` + `QUARKUS_OTEL_EXPORTER_OTLP_ENDPOINT` + `quarkus.application.name`.
 * **OpenShift AI MaaS not Ready.** Each Gateway that calls Authorino needs the annotation

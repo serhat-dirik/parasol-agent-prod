@@ -3,7 +3,7 @@
 # picks its subscription (parasol-stage) and meters tokens (429 when the allowance is spent). The agent
 # never holds the upstream key; only MaaS does (Secret maas-upstream-api-key).
 # Path: agent -> model-gateway (this ns) -> guardrails-proxy (parasol-secured) -> MaaS -> upstream.
-# The model-gateway hop is what the kill switch cuts (agent egress), see envs/secured/kill-switch.
+# The model-gateway hop is what the platform kill switch cuts (scripts/kill-switch.sh scales it to 0).
 apiVersion: v1
 kind: Namespace
 metadata:
