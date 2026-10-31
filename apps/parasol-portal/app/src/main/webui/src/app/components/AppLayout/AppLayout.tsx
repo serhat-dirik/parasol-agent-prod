@@ -38,7 +38,9 @@ interface IAppLayout {
 }
 
 const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
-  const [sidebarOpen, setSidebarOpen] = React.useState(true);
+  // Below PatternFly's xl breakpoint (1200px, e.g. inside a Showroom tab) an open sidebar overlays the page
+  // and hides content, so start closed there; the masthead button still opens it.
+  const [sidebarOpen, setSidebarOpen] = React.useState(window.innerWidth >= 1200);
 
   const [me, setMe] = React.useState<{ username?: string, name?: string, role?: string }>({});
   React.useEffect(() => {
@@ -170,6 +172,7 @@ const AppLayout: React.FunctionComponent<IAppLayout> = ({ children }) => {
       mainContainerId={pageId}
       header={Header}
       sidebar={sidebarOpen && Sidebar}
+      onPageResize={(_event, { mobileView }) => { if (mobileView) { setSidebarOpen(false); } }}
       skipToContent={PageSkipToContent}>
       {children}
     </Page>
