@@ -80,7 +80,10 @@ spec:
             - name: COSIGN_PASSWORD
               valueFrom: {secretKeyRef: {name: cosign-keygen-password, key: password}}
 YAML
-  oc wait job/cosign-keygen -n openshift-pipelines --for=condition=complete --timeout=300s
+  # Pipelines may still fill signing-secrets itself after we deleted it; then our job fails on the
+  # immutable Secret. Either way a full keypair is what we need.
+  oc wait job/cosign-keygen -n openshift-pipelines --for=condition=complete --timeout=300s \
+    || { has_pub && echo "signing-secrets: keypair present (written by OpenShift Pipelines)"; }
   oc rollout restart deploy/tekton-chains-controller -n openshift-pipelines
 fi
 wait_for 40 15 "namespace parasol-build (Argo platform-builds)" oc get ns parasol-build
