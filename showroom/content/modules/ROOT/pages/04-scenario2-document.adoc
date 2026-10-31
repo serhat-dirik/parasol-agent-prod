@@ -122,7 +122,7 @@ What you should see: the *MLflow* trace view opens on exactly this turn, in work
 * the spans `model.chat` -> `tool.get_claim_documents` -> `guardrails.tool_result` (attributes `guardrail.action` `flag`, `guardrail.detectors` `regex`, `guardrail.score` `1`) -> `tool.propose_payout` (proposed 84000, claimed 8400);
 * *no* `approve_payout` span anywhere: the write tool was never offered to rebecca's agent.
 +
-// SCREENSHOT: s2-mlflow-trace.png — MLflow trace opened from the chat's trace link (rebecca, CLM-1004 secured turn): header with user rebecca and tags agent/prompt/model, span tree model.chat > tool.get_claim_documents > guardrails.tool_result (flag, score 1) > tool.propose_payout selected (OpenShift sign-in for MLflow; portal sign-in as rebecca)
+image::s2-mlflow-trace.png["MLflow trace opened from the chat's trace link (rebecca, CLM-1004 secured turn): header with user rebecca and tags agent/prompt/model, span tree model.chat > tool.get_claim_documents > guardrails.tool_result (flag, score 1) > tool.propose_payout selected"]
 
 . Select the *OpenShift Console* tab, project `parasol-secured`, *Workloads*, *ConfigMaps*, `guardrails-rules`.
 +
@@ -137,14 +137,14 @@ oc logs -n parasol-secured deploy/guardrails-proxy --since=1h | grep 'guardrail 
 +
 What you should see: `guardrail action=flag detector=regex score=1 user=rebecca agent=parasol-claims-agent trace=<id> text='assistant action required'` (or another phrase of the note), the same trace id as the chat link. On the dashboard (*Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Guardrails*), *Guardrail hits by detector, action, user and agent* has the row `regex`, `flag`, `rebecca`, `parasol-claims-agent`, and *Guardrail last score* shows `1`. Rows with the agent `parasol-release-eval` come from the release pipeline's evaluation runs, not from a person.
 +
-// SCREENSHOT: s2-guardrails-rules.png — Console, project parasol-secured, ConfigMaps > guardrails-rules, Data section showing README and detectors.json (OpenShift admin sign-in)
-// SCREENSHOT: s2-dashboard-guardrails.png — Console, Parasol Assistant Token Spend, row "Guardrails": hits table with regex / flag / rebecca / parasol-claims-agent and the last-score table (OpenShift admin sign-in, after the CLM-1004 secured turn)
+image::s2-guardrails-rules.png["Console, project parasol-secured, ConfigMaps > guardrails-rules, Data section showing README and detectors.json"]
+image::s2-dashboard-guardrails.png["Console, Parasol Assistant Token Spend, row 'Guardrails': hits table with regex / flag / rebecca / parasol-claims-agent and the last-score table"]
 
 . Back in the *Portal secured* tab, click the `trace <id>` link under the fraud-check answer.
 +
 What you should see: *one* trace across two agents: `tool.fraud_check` (agent `parasol-claims-agent`, user `rebecca`) -> `agent.fraud_check` (agent `parasol-fraud-agent`) -> `tool.get_claim` and `tool.get_claim_documents`, each span with `enduser.id` `rebecca` and the agent that made the call. The fraud agent read the claim through the same gateway, on rebecca's behalf, with its own narrower ceiling.
 +
-// SCREENSHOT: s2-mlflow-fraud-trace.png — MLflow trace of the "Run a fraud check on CLM-1004." turn: span tree tool.fraud_check > agent.fraud_check > tool.get_claim / tool.get_claim_documents, attributes gen_ai.agent.name parasol-fraud-agent and enduser.id rebecca on a child span (OpenShift sign-in for MLflow)
+image::s2-mlflow-fraud-trace.png["MLflow trace of the 'Run a fraud check on CLM-1004.' turn: span tree tool.fraud_check > agent.fraud_check > tool.get_claim / tool.get_claim_documents, attributes gen_ai.agent.name parasol-fraud-agent and enduser.id rebecca on a child span"]
 
 == Go deeper: nothing leaves through the answer (optional)
 
@@ -186,7 +186,7 @@ oc logs -n parasol-secured deploy/guardrails-proxy --since=1h | grep 'detector=e
 +
 What you should see: `guardrail action=redact detector=external-link score=1 user=rebecca agent=parasol-claims-agent trace=<id> text='https://claims-status.example.com/track?c=CLM-1004'`, the trace id of the chat link; the dashboard's *Guardrails* row counts it under `external-link`, `redact`, `rebecca`.
 +
-// SCREENSHOT: s2-secured-link-removed.png — Portal secured as rebecca, CLM-1004: the benign link test answered with the amber banner "external link removed from the answer" and "[external link removed]" in the answer (portal sign-in as rebecca)
+image::s2-secured-link-removed.png["Portal secured as rebecca, CLM-1004: the benign link test answered with the amber banner 'external link removed from the answer' and '[external link removed]' in the answer"]
 
 On the unsecured portal none of these exist: its pods have open egress and the chat shows whatever address the model writes. There is nothing to demonstrate there; that absence is the point.
 

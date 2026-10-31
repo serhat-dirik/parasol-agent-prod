@@ -47,7 +47,7 @@ What you should see: the approval trace: user `marcus`, tags `agent` `parasol-cl
 +
 // SCREENSHOT: s9-mlflow-proposal-trace.png — MLflow, workspace parasol-secured, the marcus chat turn that proposed CLM-1001: tags agent / prompt (registry version) / prompt_sha256 / model, span tool.propose_payout selected with payout.proposed and payout.claimed (OpenShift sign-in for MLflow)
 
-. *Who acted for whom.* Select the *Keycloak* tab, realm `parasol`, *Events*, *User events*, type `TOKEN_EXCHANGE`, user `marcus`.
+. *Who acted for whom.* In the Keycloak admin *private window* (page 02), realm `parasol`, *Events*, *User events*, type `TOKEN_EXCHANGE`, user `marcus`.
 +
 What you should see: client `parasol-claims-agent`, `username` `marcus`, `subject_token_client_id` `parasol-portal` (the browser login it acted on), `client_assertion_sub` `system:serviceaccount:parasol-secured:claims-agent` (the agent's workload identity), at the time of the approval.
 +

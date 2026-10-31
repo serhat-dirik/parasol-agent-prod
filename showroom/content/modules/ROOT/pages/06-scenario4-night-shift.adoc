@@ -105,7 +105,7 @@ Three switches, from the most precise to the widest. Show the first; the others 
 
 Disable an agent the way you disable a user. The claims assistant's identity is the Keycloak client `parasol-claims-agent`; with it off, Keycloak refuses the agent's own sign-in, so it can no longer act on behalf of anyone. Other agents and every user keep their access.
 
-. Select the *Keycloak* tab (realm `parasol`, user `admin`, password `admin`). Open *Clients*, then `parasol-claims-agent`, switch *Enabled* off and confirm. Or from the *Terminal* tab:
+. In the Keycloak admin *private window* (page 02; realm `parasol`, user `admin`, password `admin`). Open *Clients*, then `parasol-claims-agent`, switch *Enabled* off and confirm. Or from the *Terminal* tab:
 +
 [source,bash,role=execute]
 ----
@@ -166,7 +166,7 @@ What you should see: both gateways at 2 of 2 pods; the next question is answered
 
 When the problem is one account, not the agent: the night-shift contractor.
 
-. Select the *Keycloak* tab. In realm `parasol`, open *Users*, then `nina.contractor`, and switch *Enabled* off. Save.
+. In the Keycloak admin *private window*, realm `parasol`, open *Users*, then `nina.contractor`, and switch *Enabled* off. Save.
 
 . In the *Terminal* tab, run the night shift once more:
 +

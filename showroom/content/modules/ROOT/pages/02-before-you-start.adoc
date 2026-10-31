@@ -40,9 +40,14 @@ This Showroom itself sits behind the OpenShift sign-in, so you signed in to Open
 +
 What you should see: each one opens signed in. If a tab shows a sign-in button, a blank page or "refused to connect", do not sign in inside the tab: open that console in a normal browser tab (link:{console_url}[OpenShift console,window=_blank], link:{rhoai_url}[OpenShift AI,window=_blank], link:{mlflow_url}[MLflow,window=_blank], link:{argocd_url}[Argo CD,window=_blank]), sign in there once, then reload the Showroom tab. It is a one-time step per browser session; do it before you present.
 
-. Select the *Keycloak* tab and sign in with username `admin`, password `admin`. This account administers only the demo's realm `parasol` (users, groups, clients, events); it has no rights anywhere else in Keycloak.
+. Open the Keycloak admin console in a *private (incognito) window*, link:{keycloak_url}/admin/parasol/console/[Keycloak admin,window=_blank], and sign in with username `admin`, password `admin`. This account administers only the demo's realm `parasol` (users, groups, clients, events); it has no rights anywhere else in Keycloak. Keep that window open for the Keycloak steps of every showcase.
 +
 What you should see: realm `parasol`.
++
+[IMPORTANT]
+====
+The portals and the Keycloak admin console share *one sign-in per browser*, because they are all in realm `parasol`. Signed in as `admin` in the same browser, the portals would open as "Parasol Admin" instead of asking for a persona; signed in as a persona, the Keycloak tab would open as that persona, who has no admin rights; and logging out in one logs out the other. The private window keeps the two apart: personas in the Showroom portal tabs, `admin` in the private window. Do not sign in inside the Showroom *Keycloak* tab.
+====
 
 == Consoles, dashboards and logs: where to look
 
@@ -57,7 +62,7 @@ Every secured beat is visible on the platform, not only in the portal chat.
 ** Observe, Metrics: `parasol_tool_calls_total` and token spend;
 ** Observe, Traces: the Tempo trace of each chat turn;
 ** Networking, Gateways: the MCP and MaaS gateways and their AuthPolicies (Enforced).
-* *Keycloak* tab: realm `parasol`, users, groups and the `tool:*` roles.
+* *Keycloak* (admin console in a private window, see above): realm `parasol`, users, groups, events and the `tool:*` roles.
 * *Terminal* tab, live logs to confirm a beat at the component level:
 ** guardrails flag or block:
 +
