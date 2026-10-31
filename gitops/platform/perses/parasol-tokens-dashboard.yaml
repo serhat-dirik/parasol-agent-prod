@@ -245,12 +245,16 @@ spec:
                 hide: true
               - name: reason
                 header: reason
+                width: 360
               - name: user
                 header: user
+                width: 110
               - name: agent
                 header: agent
+                width: 160
               - name: value
                 header: count
+                width: 60
                 sort: desc
                 enableSorting: true
           queries:
