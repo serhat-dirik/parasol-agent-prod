@@ -32,15 +32,15 @@ antora:
 tabs:
   # The two Parasol portals are our own app and can be framed inline.
   - name: Portal unsecured
-    url: 'https://portal-free.apps.CLUSTER_DOMAIN'
+    url: 'https://portal-free.apps.CLUSTER_DOMAIN/Dashboard?from=showroom'
   - name: Portal secured
-    url: 'https://portal.apps.CLUSTER_DOMAIN'
+    url: 'https://portal.apps.CLUSTER_DOMAIN/Dashboard?from=showroom'
 
   # The platform consoles are framed like the portals. Their own X-Frame-Options / CSP would
   # block that, so scripts/showroom-framing.sh (run by bootstrap.sh) rewrites both headers on the
   # default IngressController to allow this Showroom origin only.
   - name: Keycloak
-    url: 'https://sso.apps.CLUSTER_DOMAIN/admin/master/console/#/parasol'
+    url: 'https://sso.apps.CLUSTER_DOMAIN/admin/parasol/console/'
   - name: OpenShift AI
     url: 'https://rh-ai.apps.CLUSTER_DOMAIN'
   - name: OpenShift Console

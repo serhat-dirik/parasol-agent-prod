@@ -219,6 +219,7 @@ directly. Then open the portals in a browser — **this is the demo**:
 * `nina.contractor` — Nina Patel, night-shift contractor (read-only claim tools; no payout, no fraud check;
   a low per-user token budget)
 * `dev` — developer
+* `admin` — administrator of realm `parasol` only, for the Keycloak console (`https://sso.apps.<cluster-domain>/admin/parasol/console/`)
 
 </details>
 

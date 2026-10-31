@@ -40,7 +40,7 @@ This Showroom itself sits behind the OpenShift sign-in, so you signed in to Open
 +
 What you should see: each one opens signed in. If a tab shows a sign-in button, a blank page or "refused to connect", do not sign in inside the tab: open that console in a normal browser tab (link:{console_url}[OpenShift console,window=_blank], link:{rhoai_url}[OpenShift AI,window=_blank], link:{mlflow_url}[MLflow,window=_blank], link:{argocd_url}[Argo CD,window=_blank]), sign in there once, then reload the Showroom tab. It is a one-time step per browser session; do it before you present.
 
-. Select the *Keycloak* tab and sign in to the administration console.
+. Select the *Keycloak* tab and sign in with username `admin`, password `admin`. This account administers only the demo's realm `parasol` (users, groups, clients, events); it has no rights anywhere else in Keycloak.
 +
 What you should see: realm `parasol`.
 

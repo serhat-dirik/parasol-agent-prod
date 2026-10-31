@@ -70,4 +70,23 @@ fi
 [ -n "$UID_" ] || { echo "missing user id"; exit 1; }
 
 curl -sk "${AUTH[@]}" -X PUT "$API/users/$UID_/groups/$GID" -o /dev/null -w "join nina.contractor to contractors http=%{http_code}\n"
+
+# --- user: admin (password admin) -- administrator of realm 'parasol' only (realm-management:realm-admin).
+# For the Keycloak tab: sign in at https://sso.apps.<domain>/admin/parasol/console/ . Demo-only credentials,
+# like the personas; it has no rights in the lab's master realm or any other realm.
+AID="$(user_id admin)"
+if [ -z "$AID" ]; then
+  curl -sk "${AUTH[@]}" -X POST "$API/users" -H 'Content-Type: application/json' -d '{
+    "username":"admin","enabled":true,"emailVerified":true,
+    "firstName":"Parasol","lastName":"Admin","email":"admin@parasol.example",
+    "credentials":[{"type":"password","value":"admin","temporary":false}],
+    "requiredActions":[]}' -o /dev/null -w "create user admin http=%{http_code}\n"
+  AID="$(user_id admin)"
+else
+  echo "user admin exists ($AID)"
+fi
+RM="$(curl -sk "${AUTH[@]}" -G "$API/clients" --data-urlencode "clientId=realm-management" | jq -r '.[0].id // empty')"
+RA="$(curl -sk "${AUTH[@]}" "$API/clients/$RM/roles/realm-admin")"
+curl -sk "${AUTH[@]}" -X POST "$API/users/$AID/role-mappings/clients/$RM" -H 'Content-Type: application/json' \
+  -d "[$RA]" -o /dev/null -w "admin -> realm-management:realm-admin http=%{http_code}\n"
 echo "DONE"
