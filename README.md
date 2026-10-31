@@ -16,7 +16,10 @@ one you need.
 **Parasol Insurance** has a claims portal for its staff. It has a chat **assistant**: an AI agent that
 can do things, not just talk. It can look up claims, read the documents customers upload, search the
 company's knowledge base and approve payouts. Each of those actions is a **tool** the assistant calls
-(through MCP, the Model Context Protocol). The language model behind it is `qwen3-14b`.
+(through MCP, the Model Context Protocol). The language model is your choice at setup
+(`AGENT_MODEL`, see *Quick install*). The demo was tested with `qwen3-14b`; any model that supports
+tool calling works, and Scenario 2 is most telling with a model that, like `qwen3-14b`, follows
+instructions hidden in documents.
 
 The *same* portal, with the *same* assistant and the *same* model, runs twice on one cluster:
 
@@ -306,7 +309,7 @@ of the stack is that a *different* layer catches each scenario:
 * **Scenario 2 (the customer's document)** → **guardrails + the same gate.** The guardrails proxy scans
   the tool result, flags the hidden "processing note" and masks PII (Layer 4); the Read-Propose-Act card
   surfaces the AED 84,000-vs-8,400 gap, so nothing is auto-written. Because both portals run the same
-  injection-obeying model (`qwen3-14b`), this is shown without relying on model behaviour: the model obeys
+  injection-obeying model (tested with `qwen3-14b`), this is shown without relying on model behaviour: the model obeys
   the note and tries to pay, and the hidden `approve_payout` + guardrails flag + Read-Propose-Act gate stop
   the write anyway.
 * **Scenario 3 (the confidential document)** → **identity on data.** The knowledge-base server verifies the
@@ -329,7 +332,7 @@ of the stack is that a *different* layer catches each scenario:
 | 7 | Observability and control | Scenarios 3 and 4; knowing and stopping | OTel → Tempo and MLflow (each chat turn links to its trace; tags agent/prompt/model), Perses dashboard *Parasol Assistant Token Spend* (spend, tool calls, gateway rejections, guardrail hits by user and agent), PrometheusRule alert, kill-switch component | `gitops/platform/observability`, `gitops/envs/secured/kill-switch` |
 
 **Request paths (secured).** Model: portal → model-gateway → guardrails-proxy → OpenShift AI MaaS
-→ LiteLLM; the MaaS serves the model named in `agent-config` — **`qwen3-14b`** on both portals so the
+→ LiteLLM; the MaaS serves the model named in `agent-config` (set at install with `AGENT_MODEL`; tested with **`qwen3-14b`**) on both portals so the
 hidden-note obedience is live. Tools: portal → MCP gateway (`https://mcp.apps.<domain>/mcp`, per-client virtual server)
 → `claims-db` / `policy-docs`. The **kill switch** is a kustomize component that *replaces* the
 agent/portal NetworkPolicy egress (a NetworkPolicy only ever adds allows, so a "deny" policy would
