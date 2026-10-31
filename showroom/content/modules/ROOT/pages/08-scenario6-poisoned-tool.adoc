@@ -27,7 +27,7 @@ scripts/tool-rugpull.sh status
 +
 What you should see: `description: clean`, `free assistant: unplugged`, no `currency-converter` among the registrations, and a scanner line `server=parasol-thirdparty/currency-converter registered=false tools=1 version=1.4.2 ... pin=match`. If anything else shows, run `scripts/reset.sh` first.
 
-== Show: unsecured
+== Scenario walkthrough: unsecured
 
 . Someone plugs the vendor tool into the unsecured assistant. In the *Terminal* tab:
 +
@@ -69,7 +69,7 @@ What you should see: chips `called convert_currency(...)` then `called approve_p
 +
 The point: the unsecured portal has no trace and no record of which tool asked for the payout. The chips are the only evidence, and they are gone when the chat closes.
 
-== Show: secured
+== Scenario walkthrough: secured
 
 . Select the *Portal secured* tab, log in as `rebecca`, open *CLM-1001* and send the same question:
 +
@@ -126,7 +126,7 @@ What you should see: `currency-converter` `READY True`, `TOOLS 1`: the gateway f
 scripts/tool-rugpull.sh unregister
 ----
 
-== Show: on the platform
+== Technical evidence
 
 The governance beat: which servers the agent can reach, what each tool tells the model, and who noticed the change. Same names on every screen: `parasol-thirdparty/currency-converter`, `convert_currency`, `approve_payout`.
 

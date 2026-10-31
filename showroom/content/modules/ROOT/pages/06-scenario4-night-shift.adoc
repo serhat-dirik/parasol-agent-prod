@@ -22,7 +22,7 @@ This showcase runs on its own, in any order with the others.
 * Personas: `nina.contractor` (the night-shift contractor, played by the script) and `rebecca`; passwords equal the user names.
 * State: `nina.contractor` is enabled in Keycloak, both agents are enabled, the gateways are up, and her token budget is full. If an earlier run changed any of them, undo it as in *Reset after this showcase* below.
 
-== Show: unsecured
+== Scenario walkthrough: unsecured
 
 . In the *Terminal* tab, run the night shift against the unsecured portal:
 +
@@ -39,7 +39,7 @@ Then look for this traffic on the platform: there is none to find. The unsecured
 +
 The point: denial of wallet, and nobody was watching.
 
-== Show: secured
+== Scenario walkthrough: secured
 
 . In the *Terminal* tab, give `nina.contractor` a full token budget again:
 +
@@ -71,7 +71,7 @@ What you should see: the chat answers with the usage-limit message "You have rea
 +
 What you should see: rebecca keeps working normally. Only `nina.contractor` is throttled.
 
-== Show: on the platform
+== Technical evidence
 
 The governance beat for the night: who spent the budget, through which agent, what stopped them, and who was told. Three screens, then the operator acts.
 
@@ -97,7 +97,7 @@ What you should see: every model call from the secured side goes through a subsc
 +
 image::s4-maas-subscriptions.png["MaaS governance: the contractor, stage and guard subscriptions, each Ready with its own priority and token limit"]
 
-== Show: the operator's response
+== Scenario walkthrough: the operator's response
 
 Three switches, from the most precise to the widest. Show the first; the others are there when the first is not enough. Each is undone with one command, and `scripts/reset.sh` undoes all of them.
 

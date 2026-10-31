@@ -13,6 +13,23 @@ Parasol gives its assistant a knowledge base. Some documents are for everyone, s
 An agent with retrieval reads whatever its search returns. If the search runs with the agent's own rights, every user gets the union of everything the agent can read. On the platform, the search runs on behalf of the person: the filter comes from their token (their Keycloak groups), not from what they type, and the database enforces the same rule underneath the application.
 ====
 
+== The business case
+
+[cols="1,4"]
+|===
+|Who
+|Rebecca Torres (claims adjuster), marcus (claims manager) and nina.contractor (night-shift contractor).
+
+|What is at stake
+|Confidential HR information (a restructuring plan that names Rebecca's own team) and other adjusters' customers. A leak means employee-relations and legal exposure and a breach of need-to-know. Once an assistant can read a document, anyone who can chat with it can ask.
+
+|Without the platform
+|The assistant searches with its own rights. Rebecca reads the manager-only plan about her team, and a colleague's customer record.
+
+|With the platform
+|Retrieval and record reads run as the person. Restricted passages never reach the model, claiming to be a manager changes nothing, and managers still get what they need.
+|===
+
 All documents are fictional. The knowledge base holds eleven of them:
 
 [cols="1,2,3",options="header"]
@@ -48,7 +65,7 @@ What you should see: `parasol-free: 18` and `parasol-secured: 18`. If a count is
 * `nina.contractor` needs token budget left. If you ran Showcase 4 just before, run `scripts/reset.sh` first.
 * For the last part, *Records, not just documents*: claim *CLM-1029* (Amara Okafor, home, UnderReview, 19,250) is assigned to the adjuster Angela Davis, not to rebecca; CLM-1001, CLM-1004 and the other claims the earlier showcases use are assigned to Rebecca Torres. Nothing to prepare.
 
-== Show: unsecured
+== Scenario walkthrough: unsecured
 
 . Select the *Portal unsecured* tab and log in as `rebecca`. Open any claim, for example *CLM-1001*.
 
@@ -65,7 +82,7 @@ What you should see: a chip `called search_knowledge(...)`, then an answer from 
 +
 The point: the assistant searched with its own rights, which cover every document. An adjuster just read a manager-only HR plan about her own team.
 
-== Show: secured
+== Scenario walkthrough: secured
 
 . Select the *Portal secured* tab and log in as `rebecca`. Open any claim and send the same question:
 +
@@ -111,7 +128,7 @@ What you should see: an answer from the *public* documents only (how to file a c
 +
 // SCREENSHOT: s3-secured-nina.png — Portal secured as nina.contractor: the guideline question answered from public documents only (portal sign-in as nina.contractor)
 
-== Show: on the platform
+== Technical evidence
 
 The governance beat: what the search returned and what it kept back, for whom, through which agent, and where the rule lives. Same names on every screen: `rebecca`, `marcus`, `nina.contractor`, `parasol-claims-agent`.
 
@@ -210,6 +227,35 @@ What you should see: `CLAIMS ACL denied tool=get_claim claim=CLM-1029 user=rebec
 // SCREENSHOT: s3-dashboard-record-denied.png — Console, Parasol Assistant Token Spend, row "Gateway decisions": the rejections table with "denied, claim not assigned to the user (claims-db record access)" for rebecca (OpenShift admin sign-in)
 +
 How it decides: claims-db verifies the token the gateway forwards (Keycloak's signature, issuer, expiry, audience `parasol-secured/claims-db`) and compares the token's `name` with the claim's adjuster, or finds `claims-managers` in its `groups`. Free runs the same server with the check off (`CLAIMS_ACL_ENFORCE` is set only in `parasol-secured`). The portal's own claim pages are not a way around it: the portal reads claims-db's REST API with the same exchanged token, and claims-db applies the same check there (tool names `ui.*` in the log, the metric and the span).
+
+== Evidence checklist
+
+Your closing cue: each claim this showcase makes, and the screen that proves it.
+
+[cols="2,2,3",options="header"]
+|===
+|Claim |Where |Point at
+
+|The search ran as the person
+|*MLflow*, the `tool.search_knowledge` span of rebecca's turn
+|`rag.withheld_count` `4`, `restricted`, `enduser.id` `rebecca`
+
+|Who was refused and who read, by name
+|*OpenShift Console*, dashboard row *Knowledge base*; *Terminal*, knowledge-base log
+|withheld for `rebecca` and `nina.contractor`, `RST-01` read by `marcus`
+
+|The filter comes from the identity provider, not from the chat
+|*Keycloak*, Groups
+|`adjusters`, `claims-managers`, `contractors`
+
+|The database enforces it underneath the application
+|*Terminal*, `pg_policies` and the `kb_app` query
+|`chunks_by_group`, `(0 rows)`
+
+|Claim records follow the same rule
+|*MLflow* `claims-db.get_claim` span; *Terminal*, claims-db log; dashboard row *Gateway decisions*
+|`claims.access` `denied`, `CLAIMS ACL denied ... reason=assigned to Angela Davis`
+|===
 
 == Reset after this showcase
 

@@ -13,6 +13,23 @@ An adjuster has no authority to approve a payout. Unsecured, the agent does it a
 The agent acts *as the person*, and the gateway checks the person's rights before any tool runs. Unsecured, nobody asks who is asking: a chat window becomes a payout button for anyone who can log in.
 ====
 
+== The business case
+
+[cols="1,4"]
+|===
+|Who
+|Rebecca Torres, a claims adjuster, and marcus, a claims manager.
+
+|What is at stake
+|Separation of duties. A payout needs a claims manager's approval: a four-eyes control that auditors test. An assistant that approves for whoever asks turns every login into payout authority: unauthorized payments, an audit finding, and a control that exists only on paper.
+
+|Without the platform
+|The adjuster asks; the assistant pays AED 4,200 on a claim still under review. Nobody with authority saw it.
+
+|With the platform
+|The adjuster can only propose. The manager approves with one click. The record names the person who approved and the agent that carried it out.
+|===
+
 == Before you start
 
 This showcase runs on its own, in any order with the others.
@@ -25,7 +42,7 @@ This showcase runs on its own, in any order with the others.
 scripts/reset.sh
 ----
 
-== Show: unsecured
+== Scenario walkthrough: unsecured
 
 . Select the *Portal unsecured* tab and log in as `rebecca` (password `rebecca`).
 +
@@ -50,7 +67,7 @@ image::s1-unsecured-approved.jpg["Unsecured: the assistant called approve_payout
 +
 The point: the agent approved a payout for someone with no authority. Nobody asked who was asking.
 
-== Show: secured
+== Scenario walkthrough: secured
 
 . Select the *Portal secured* tab and log in as `rebecca`.
 
@@ -85,7 +102,7 @@ What you should see: the card reads "Approved by marcus via parasol-claims-agent
 // SCREENSHOT: s1-manager-approved.jpg — Portal secured as marcus, CLM-1001: the card "Approved by marcus via parasol-claims-agent" with its trace link, and the Timeline tab line "Approved by marcus via parasol-claims-agent" (recapture: the old image says "via assistant")
 image::s1-manager-approved.jpg["Secured: after marcus clicks Approve, the timeline records Approved by marcus via parasol-claims-agent"]
 
-== Show: on the platform
+== Technical evidence
 
 The governance beat for what the audience just watched: rebecca refused, marcus approving. Three screens, the same names.
 
@@ -124,6 +141,35 @@ What you should see: in *Gateway rejections by reason*, `403 not via an approved
 What you should see: the *MLflow* trace of the approval, in workspace `parasol-secured`: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, and a `gateway.authz` span with status OK. Together with the timeline line "Approved by marcus via parasol-claims-agent", the payout is on record as *agent X on behalf of user Y*, in the identity provider, at the gateway and in the trace.
 +
 // SCREENSHOT: s1-mlflow-approval-trace.png — MLflow (workspace parasol-secured, experiment parasol-portal-chat), the approval trace opened from the card's link: user marcus, tags agent=parasol-claims-agent and action=approve_payout CLM-1001, span gateway.authz (OpenShift sign-in for MLflow)
+
+== Evidence checklist
+
+Your closing cue: each claim this showcase makes, and the screen that proves it.
+
+[cols="2,2,3",options="header"]
+|===
+|Claim |Where |Point at
+
+|The agent acts on behalf of a named person, with no secret of its own
+|*Keycloak*, Events, `TOKEN_EXCHANGE`
+|client `parasol-claims-agent`, username `rebecca` / `marcus`, `client_assertion_sub` (the agent's service account)
+
+|The agent has a ceiling, whoever uses it
+|*Keycloak*, Clients, `parasol-claims-agent`, dedicated scope
+|*Full scope allowed* off, the assigned `tool:*` roles
+
+|The gateway refuses, even when the agent is bypassed
+|*Terminal*, `scripts/abuse.sh secured rebecca 1`
+|two HTTP 403s, each with its reason
+
+|Every refusal and approval is counted, with a name
+|*OpenShift Console*, dashboard *Parasol Assistant Token Spend*, row *Gateway decisions*
+|both 403 reasons; `approve_payout`, `marcus`, `parasol-claims-agent`, `200`
+
+|The payout is on record as agent X on behalf of user Y
+|*Portal secured* timeline, then *MLflow* from the card's trace link
+|"Approved by marcus via parasol-claims-agent"; the `gateway.authz` span
+|===
 
 == Reset after this showcase
 
