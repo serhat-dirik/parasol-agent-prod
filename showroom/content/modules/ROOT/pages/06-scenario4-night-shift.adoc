@@ -116,9 +116,9 @@ scripts/agent-switch.sh claims-agent off
 +
 What you should see: the chat answers at once with the red notice "This assistant has been disabled by an operator." No tool runs and the model is not asked: the portal checks the agent's identity at the start of every turn.
 
-. Show who was refused. In the *Keycloak* tab, open *Events*, *User events*, and search for event type `CLIENT_LOGIN_ERROR`.
+. Show who was refused. In the *Keycloak* tab, open *Events*, *User events*, and search for event type `TOKEN_EXCHANGE_ERROR`.
 +
-What you should see: one entry per refused turn, error `client_not_found` (a disabled client is unknown to Keycloak), with `client_assertion_sub` = `system:serviceaccount:parasol-secured:claims-agent`, the agent's own ServiceAccount. The same refusals from the *Terminal* tab:
+What you should see: one entry per refused turn, error `client_not_found` (a disabled client is unknown to Keycloak), with `client_assertion_sub` = `system:serviceaccount:parasol-secured:claims-agent`, the agent's own ServiceAccount. The portal log has the same refusal with the user: `assistant refused: agent parasol-claims-agent was refused by Keycloak (client disabled) caller=rebecca`. The MCP gateway sees nothing: the agent never got a token to present. The same refusals from the *Terminal* tab:
 +
 [source,bash,role=execute]
 ----
@@ -134,7 +134,7 @@ scripts/agent-switch.sh claims-agent on
 +
 What you should see: the next question in the *Portal secured* tab is answered normally.
 
-Switching off `fraud-agent` instead (`scripts/agent-switch.sh fraud-agent off`) shows the other half of the story: rebecca's "run a fraud check on CLM-1004" comes back with the fraud check refused ("FRAUD RISK: UNKNOWN. The fraud-check agent could not act on behalf of rebecca"), while the claims assistant keeps answering her other questions. Undo with `scripts/agent-switch.sh fraud-agent on`.
+Switching off `fraud-agent` instead (`scripts/agent-switch.sh fraud-agent off`) shows the other half of the story: rebecca's "Run a fraud check on this claim." on CLM-1004 still calls `fraud_check`, but the fraud agent cannot act for her, so the answer says the fraud check could not be completed and nothing was assessed (the fraud-check log: `token exchange as parasol-fraud-agent failed: HTTP 401`), while the claims assistant keeps answering her other questions. Undo with `scripts/agent-switch.sh fraud-agent on`.
 
 === 2. Take every agent offline: the platform switch
 

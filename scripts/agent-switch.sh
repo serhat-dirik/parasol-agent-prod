@@ -31,7 +31,7 @@ case "${2:-status}" in
 esac
 echo "$CLIENT enabled=$(kc "$API/clients/$ID" | jq -r .enabled)"
 # who was refused: a disabled client is "not found" to Keycloak; the event names the agent's ServiceAccount
-echo "recent refusals (Keycloak > Events, CLIENT_LOGIN_ERROR / TOKEN_EXCHANGE_ERROR):"
+echo "recent refusals (Keycloak > Events, TOKEN_EXCHANGE_ERROR / CLIENT_LOGIN_ERROR):"
 kc "$API/events?max=200&type=CLIENT_LOGIN_ERROR&type=TOKEN_EXCHANGE_ERROR" | jq -r --arg c "$CLIENT" --arg s "$SA" '
   [.[] | select(.clientId==$c or .details.client_assertion_sub==$s)][:5][]
   | "  \(.time/1000|todate) \(.type) error=\(.error) grant=\(.details.grant_type // "-") sa=\(.details.client_assertion_sub // "-")"'
