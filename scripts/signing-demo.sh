@@ -13,9 +13,13 @@ oc create rolebinding sign-demo-pull -n parasol-build --clusterrole=system:image
   --group="system:serviceaccounts:$NS" --dry-run=client -o yaml | oc apply -f - >/dev/null
 
 # Unsigned: the istag kept for this beat (no .sig artifact under either authority; :latest is signed
-# now, so it cannot serve as the unsigned case). Signed: the digest the secured overlay pins.
+# now, so it cannot serve as the unsigned case). Signed: the digest the release promoted, read from
+# the Argo CD Application env-secured (the pin is not in Git), else from the running secured portal.
 UNSIGNED=$(oc get istag parasol-portal:unsigned -n parasol-build -o jsonpath='{.image.metadata.name}')
-SIGNED=$(awk '/parasol-portal$/ {getline; print $2}' "$(dirname "$0")/../gitops/envs/secured/kustomization.yaml")
+SIGNED=$(oc get applications.argoproj.io env-secured -n openshift-gitops \
+  -o jsonpath='{.metadata.annotations.parasol\.example/promoted-digest}' 2>/dev/null || true)
+[ -n "$SIGNED" ] || SIGNED=$(oc get deploy portal -n parasol-secured -o jsonpath='{.spec.template.spec.containers[0].image}' | sed 's/.*@//')
+case "$SIGNED" in sha256:*) ;; *) echo "no promoted portal digest yet (run scripts/pipeline-runs.sh)"; exit 1;; esac
 if oc get istag "parasol-portal:${UNSIGNED/:/-}.sig" -n parasol-build >/dev/null 2>&1; then
   echo "parasol-portal:unsigned ($UNSIGNED) carries a signature; pick an unsigned image"; exit 1
 fi
@@ -24,7 +28,7 @@ echo; echo "== 1) UNSIGNED image ($UNSIGNED) -> expect DENY =="
 oc delete pod portal-unsigned -n "$NS" --ignore-not-found >/dev/null 2>&1 || true
 oc run portal-unsigned --image="$REG@$UNSIGNED" -n "$NS" || true
 
-echo; echo "== 2) SIGNED image pinned in the secured overlay ($SIGNED) -> expect ADMIT =="
+echo; echo "== 2) SIGNED image the release promoted ($SIGNED) -> expect ADMIT =="
 oc delete pod portal-signed -n "$NS" --ignore-not-found >/dev/null 2>&1 || true
 oc run portal-signed --image="$REG@$SIGNED" -n "$NS"
 oc get pod portal-signed -n "$NS" -o wide

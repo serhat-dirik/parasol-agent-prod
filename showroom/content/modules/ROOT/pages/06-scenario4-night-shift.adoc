@@ -198,6 +198,35 @@ What you should see: the script cannot log in as `nina.contractor`. Everyone els
 
 The morning report is two screens you already have open: the alert and the dashboard.
 
+== Evidence checklist
+
+Your closing cue: each claim this showcase makes, and the screen that proves it.
+
+[cols="2,2,3",options="header"]
+|===
+|Claim |Where |Point at
+
+|Only the contractor was throttled
+|*Terminal*, `night-shift.sh` output; dashboard row *Token spend* (User `nina.contractor`)
+|`usage limit (429)` after a few requests; her line above the 5000 line
+
+|The alert names the person and the agent
+|*OpenShift Console*, *Observe*, *Alerting*, project `parasol-secured`
+|`ParasolAssistantTokenSpendHigh`, `user=nina.contractor`, `agent=parasol-claims-agent`
+
+|Budgets are per tier
+|*OpenShift AI*, *Settings*, *MaaS governance*
+|`parasol-contractor`, separate from the staff tiers
+
+|One agent can be switched off
+|*Portal secured* chat; Keycloak admin *private window*, *Events*
+|"This assistant has been disabled by an operator."; `TOKEN_EXCHANGE_ERROR` `client_not_found`
+
+|Every agent can be taken offline
+|*Portal secured* chat; *OpenShift Console*, *Deployments*, `gateway-system`
+|"The assistant is offline."; `mcp-gateway-openshift-default` 0 of 0
+|===
+
 == Reset after this showcase
 
 . Refill the per-user token budgets, put the claims back, and switch both agents and the gateways back on:

@@ -96,15 +96,15 @@ What you should see: alias `production` on version 1 (the production prompt) and
 
 == Technical evidence: the gate
 
-. Select the *OpenShift Console* tab and open *Pipelines*, project `parasol-build`, then *Pipeline runs*. Direct link: link:{console_url}/k8s/ns/parasol-build/tekton.dev~v1~PipelineRun[parasol-build pipeline runs,window=_blank].
+. Select the *OpenShift Console* tab and open *Pipelines* from the menu (not a bookmarked link: the menu opens the Pipelines view with the run graph), project `parasol-build`, tab *PipelineRuns*.
 +
 What you should see: two release runs of the same pipeline. In `parasol-portal-release-production` (the production prompt) `agent-eval` generated and scored the golden set with the prompt the release ships, reported `gate=passed`, score 1.00, and `promote` ran. In `parasol-portal-release-candidate-shortened` (the candidate: shortened prompt) `agent-eval` completed with the result `gate=failed`, score 0.92 (its log ends with `GATE[candidate-shortened]: FAILED (system 23/25 < 0.95; model-only 19 < baseline 21)`), and in the graph `promote` shows as *skipped* (`>> promote 0/1`): the candidate was built, scanned and even signed, but it was never promoted, so nothing reached production. The task itself is green: the evaluation ran fine; its verdict is what stops the release.
 +
 image::sc-pipeline-v2-blocked.png["The candidate-shortened release run: every stage ran, and promote was skipped by the evaluation gate"]
 
-. Select the *OpenShift AI* tab and open *Model registry*, then `parasol-claims-assistant`, then *Versions*.
+. Select the *OpenShift AI* tab, *AI hub*, *Models*, tab *Registry*, then `parasol-claims-assistant`, tab *Versions*, and open each version's *Properties* (*Show more properties* for the rest).
 +
-What you should see: version `production` with gate `passed` and `eval_score` 1.00, and version `candidate-shortened` with gate `failed` and `eval_score` 0.92 (stamped by its release run), both against `eval_threshold` 0.95: each evaluation score tied to the agent version the pipeline would promote.
+What you should see: version `production` with `eval_gate` `passed` and `eval_score` 1.00, and version `candidate-shortened` with `eval_gate` `failed` and `eval_score` 0.92 (stamped by its release run), both against `eval_threshold` 0.95: each evaluation score tied to the agent version the pipeline would promote.
 
 == Technical evidence: the gated prompt at runtime
 
@@ -117,6 +117,35 @@ What you should see: the trace tag `prompt` `parasol-claims-assistant-system-pro
 The tag `prompt_sha256` is the digest of the prompt text this turn actually ran. It equals the `prompt_sha256` of prompt registry version 1 (alias `production`), of the Model Registry version `production`, and the `parasol.example/prompt-sha256` annotation on `env-secured`: the secured portal reads its whole system prompt only from what the release pinned (ConfigMap `agent-prompt-release`, written by `promote` with the registered text the gate evaluated). Editing `gitops/envs/secured/system-prompt.txt` in Git changes nothing here until the next release registers, gates and pins it. The running prompt is literally the gated text.
 +
 image::s5-mlflow-runtime-prompt.png["MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on tags.agent = 'parasol-claims-agent', one trace open showing the prompt / prompt_sha256 / agent / model tags"]
+
+== Evidence checklist
+
+Your closing cue: each claim this showcase makes, and the screen that proves it.
+
+[cols="2,2,3",options="header"]
+|===
+|Claim |Where |Point at
+
+|Evaluation is a platform service
+|*OpenShift AI*, *Evaluations*, project `parasol-eval`
+|`parasol-agent-model-ifeval` *Completed*
+
+|The release is scored with and without the platform
+|*MLflow*, `parasol-agent-eval`, *Evaluation runs*
+|production 1.00 / 0.84, `gate_passed` 1; candidate 0.92 / 0.76, `gate_passed` 0
+
+|The gate stopped the candidate
+|*OpenShift Console*, *Pipelines*, *PipelineRuns*, the candidate run
+|`agent-eval` `gate=failed`; `promote` skipped
+
+|Each score is tied to a version
+|*OpenShift AI*, *AI hub*, *Models*, *Registry*
+|`eval_gate` `passed` / `failed`, `eval_score`
+
+|Production runs the gated prompt
+|*MLflow*, a `parasol-portal-chat` trace
+|tags `prompt` `.../1` and `prompt_sha256`
+|===
 
 == Reset after this showcase
 

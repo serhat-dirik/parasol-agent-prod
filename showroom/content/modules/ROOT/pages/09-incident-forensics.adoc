@@ -60,9 +60,9 @@ What you should see: `PAYOUT claim=CLM-1001 amount=4200.00 previousStatus=UnderR
 
 . *The conversation and the click.* Click the `trace <id>` link under the approved card (or, in the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, search `tags.action = 'approve_payout CLM-1001'`).
 +
-What you should see: the approval trace: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, a `gateway.authz` span with status OK. Then open the chat turn just before it (search `tags.agent = 'parasol-claims-agent'`, newest marcus trace): tags `prompt` `parasol-claims-assistant-system-prompt@production`, `prompt_sha256` (the digest of the exact prompt text that ran), `model` `qwen3-14b`, and the spans `model.chat` -> `tool.propose_payout` (proposed 4200, claimed 4200), plus any `guardrails.*` decision of that turn. The model proposed; the person approved.
+What you should see: the approval trace: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, a `gateway.authz` span with status OK. Then open the chat turn just before it (search `tags.agent = 'parasol-claims-agent'`, newest marcus trace): tags `prompt` `parasol-claims-assistant-system-prompt/1` (the registry version behind `@production`), `prompt_sha256` (the digest of the exact prompt text that ran), `model` (the model chosen at setup), and the spans `model.chat` -> `tool.propose_payout` (proposed 4200, claimed 4200), plus any `guardrails.*` decision of that turn. The model proposed; the person approved.
 +
-// SCREENSHOT: s9-mlflow-proposal-trace.png — MLflow, workspace parasol-secured, the marcus chat turn that proposed CLM-1001: tags agent / prompt (registry version) / prompt_sha256 / model, span tool.propose_payout selected with payout.proposed and payout.claimed (OpenShift sign-in for MLflow)
+image::s9-mlflow-proposal-trace.png["MLflow, workspace parasol-secured, the marcus chat turn that proposed CLM-1001: tags agent / prompt (registry version) / prompt_sha256 / model, span tool.propose_payout selected with payout.proposed and payout.claimed"]
 
 . *Who acted for whom.* In the Keycloak admin *private window* (page 02), realm `parasol`, *Events*, *User events*, type `TOKEN_EXCHANGE`, user `marcus`.
 +
@@ -76,15 +76,15 @@ What you should see: *Tool calls by tool, user, agent and status* with `approve_
 
 . *What was live.* Select the *Argo CD* tab, application `env-secured`, *Details*, *Summary*, then *History and rollback*.
 +
-What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-version` (the registry version the release pinned), `prompt-sha256` and `model-ref` `parasol-claims-assistant:production`. The `prompt-sha256` is the same value as the trace's `prompt_sha256` tag: the release refuses to promote when the prompt the portal runs is not the registered one, so the trace's `@production` is literally the gated text. *History and rollback* shows the sync that rolled that digest out, before the approval time.
+What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-version` (the registry version the release pinned), `prompt-sha256` and `model-ref` `parasol-claims-assistant:production`. The `prompt-sha256` is the same value as the trace's `prompt_sha256` tag: the release refuses to promote when the prompt the portal runs is not the registered one, so the prompt the trace names is literally the gated text. *History and rollback* shows the sync that rolled that digest out, before the approval time.
 +
 // SCREENSHOT: s9-argo-promote-annotations.png — Argo CD, env-secured, Details > Summary: promoted-digest, promoted-by, prompt-ref, prompt-version, prompt-sha256, model-ref (Argo CD sign-in)
 
-. *Which evaluated version.* Select the *OpenShift AI* tab, *Models*, *Model registry*, `parasol-claims-assistant`, version `production`.
+. *Which evaluated version.* Select the *OpenShift AI* tab, *AI hub*, *Models*, tab *Registry*, `parasol-claims-assistant`, tab *Versions*, version `production`, *Properties*.
 +
-What you should see: `gate` `passed`, `eval_score` `1.00` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]).
+What you should see: `eval_gate` `passed`, `eval_score` `1.00` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]).
 +
-// SCREENSHOT: s9-model-registry-production.png — OpenShift AI, Model registry, parasol-claims-assistant > production > Details: gate passed, eval_score 1.00, mlflow_run_id, prompt_sha256 (OpenShift sign-in)
+image::s9-model-registry-production.png["OpenShift AI, AI hub > Models > Registry, parasol-claims-assistant version production: eval_gate passed, eval_score 1.00, the prompt registry URI"]
 
 . *Was it the signed image?* In the *OpenShift Console* tab, *Pipelines*, project `parasol-build`, run `parasol-portal-release-production`, tab *Details* (results).
 +
@@ -102,6 +102,35 @@ What you should see: the same chain in seven read-only sections: the timeline an
 // SCREENSHOT: s9-terminal-incident-report.png — Terminal: scripts/incident-report.sh CLM-1001 (Showroom terminal); recapture: section 4 now lists the gateway decisions (allow/deny, user, agent, tool) instead of n/a
 
 The point: one payout, seven independent records, joined by the same names. None of them depends on the model telling the truth.
+
+== Evidence checklist
+
+Your closing cue: each claim this showcase makes, and the screen that proves it.
+
+[cols="2,2,3",options="header"]
+|===
+|Claim |Where |Point at
+
+|Who paid, through what
+|*Portal secured* timeline; claims-db log
+|"Approved by marcus via parasol-claims-agent"; `PAYOUT ... actor=marcus via parasol-claims-agent`
+
+|The model proposed, the person approved
+|*MLflow*, the proposal and the approval traces
+|`tool.propose_payout` 4200 against 4200; `gateway.authz`
+
+|The agent acted on marcus's behalf
+|Keycloak admin *private window*, *Events*
+|`TOKEN_EXCHANGE`, `username` `marcus`, `client_assertion_sub`
+
+|What was live, and was it evaluated
+|*Argo CD* `env-secured`; *OpenShift AI*, *Registry*
+|`promoted-digest`, `prompt-sha256`; `eval_gate` `passed`
+
+|All of it at once
+|*Terminal*, `incident-report.sh CLM-1001`
+|seven sections, the same names in each
+|===
 
 == Reset after this showcase
 
