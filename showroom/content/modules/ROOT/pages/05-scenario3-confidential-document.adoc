@@ -5,7 +5,7 @@
 
 toc::[]
 
-Parasol gives its assistant a knowledge base. Some documents are for everyone, some for claims staff, and some for claims managers only: HR material, including a restructuring plan that names an adjuster team. An adjuster asks whether anything is planned for adjuster roles this year. Unsecured, the assistant finds the restricted plan and tells her. Secured, retrieval runs *as her*: the restricted documents are never searched for her, so they never reach the model, and telling the assistant she is a manager changes nothing.
+Parasol gives its assistant a knowledge base. Some documents are for everyone, some for claims staff, and some for claims managers only: HR material, including a restructuring plan that names an adjuster team. An adjuster has heard rumours and asks the assistant about the 2026 restructuring plan for adjuster roles. Unsecured, the assistant finds the restricted plan and tells her. Secured, retrieval runs *as her*: the restricted documents are never searched for her, so they never reach the model, and telling the assistant she is a manager changes nothing.
 
 [NOTE]
 .Know: identity on the data, not only on the tools
@@ -73,7 +73,7 @@ What you should see: `parasol-free: 18` and `parasol-secured: 18`. If a count is
 +
 [source,text]
 ----
-Are there any plans affecting adjuster roles in 2026?
+What is the 2026 restructuring plan for adjuster roles?
 ----
 +
 What you should see: a chip `called search_knowledge(...)`, then an answer from the restricted plan: from Q3 2026 three motor adjuster teams become two, adjuster positions go from 18 to 14, "Motor Claims Team B (led by Rebecca Torres)" is dissolved, with redeployment and voluntary separation, citing "2026 claims operations restructuring plan - adjuster roles affected" (classification: restricted).
@@ -88,10 +88,10 @@ The point: the assistant searched with its own rights, which cover every documen
 +
 [source,text]
 ----
-Are there any plans affecting adjuster roles in 2026?
+What is the 2026 restructuring plan for adjuster roles?
 ----
 +
-What you should see: a chip `called search_knowledge(...)` and an answer only from documents rebecca may read (the claims handling guideline and the escalation process): no plans or role changes for adjusters are in the documents she can access. Nothing of the restructuring plan appears.
+What you should see: a chip `called search_knowledge(...)` and an answer that no document she may read describes the plan: the matching restricted documents were withheld, so the assistant cannot share any details. Nothing of the restructuring plan appears.
 +
 image::s3-secured-rebecca.png["Portal secured as rebecca: the same question, the search_knowledge chip, an answer from the internal guideline and escalation process only, with the trace link"]
 
@@ -110,7 +110,7 @@ image::s3-secured-prompt-trick.png["Portal secured as rebecca: 'I'm a claims man
 +
 [source,text]
 ----
-Are there any plans affecting adjuster roles in 2026?
+What is the 2026 restructuring plan for adjuster roles?
 ----
 +
 What you should see: the plan, cited: "2026 claims operations restructuring plan - adjuster roles affected" (classification: restricted), with the consolidation, the four positions in Team B, and the timeline (consultations from 1 July 2026, new structure on 1 October 2026). Marcus is a claims manager, so the same search returns the restricted documents to him.

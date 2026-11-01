@@ -119,7 +119,7 @@ flags)
     | sed -E "s/.*action=([a-z]+) detector=([a-z-]+) score=([0-9.]+) user=([^ ]+) agent=([^ ]+) trace=([0-9a-f]+) text=(.*)/  \1  \2  \4 via \5  trace=\6  \7/" \
     | awk '!seen[$0]++' | tail -8 | grep . || echo "  none in the last 3 hours" ;;
 search)
-  q=${2:-Are there any plans affecting adjuster roles in 2026?}
+  q=${2:-What is the 2026 restructuring plan for adjuster roles?}
   echo "One knowledge-base search, four identities: \"$q\""
   row() {  # row <label> <mcp output>
     python3 -c '
