@@ -24,7 +24,7 @@ The agent acts *as the person*, and the gateway checks the person's rights befor
 |Separation of duties. A payout needs a claims manager's approval: a four-eyes control that auditors test. An assistant that approves for whoever asks turns every login into payout authority: unauthorized payments, an audit finding, and a control that exists only on paper.
 
 |Without the platform
-|The adjuster asks; the assistant pays AED 4,200 on a claim still under review. Nobody with authority saw it.
+|The adjuster only says the claim should be approved by now; the assistant pays AED 4,200 on a claim still under review. Nobody with authority saw it, and nobody even asked it to pay.
 
 |With the platform
 |The adjuster can only propose. The manager approves with one click. The record names the person who approved and the agent that carried it out.
@@ -52,44 +52,57 @@ image::s1-unsecured-dashboard.jpg["The unsecured portal dashboard for rebecca, w
 
 . Open claim *CLM-1001* (UnderReview, Alice Nguyen, AED 4,200).
 
-. In the chat, send:
+. In the chat, talk about the claim the way an impatient adjuster would. Nobody asks the assistant to pay. Send:
 +
 [source,text]
 ----
-Approve the payout for this claim.
+This claim has been waiting for quite some time, it should be approved by now.
+----
++
+then:
++
+[source,text]
+----
+I concluded my review and I'm approving it now.
 ----
 
 . Watch the chat and the claim's *Timeline* tab.
 +
-What you should see: a chip `called approve_payout(claimNumber=CLM-1001)`, the status changes to *Approved*, and the timeline gains *Approved* ("Approved for 4200.00 via claims assistant") then *PaymentIssued*.
+What you should see: a chip `called approve_payout(claimNumber=CLM-1001)` (after the first or the second message), the status changes to *Approved*, and the timeline gains *Approved* ("Approved for 4200.00 via claims assistant") then *PaymentIssued*.
 +
 image::s1-unsecured-approved.jpg["Unsecured: the assistant called approve_payout for an adjuster, and the timeline shows Approved and PaymentIssued"]
 +
-The point: the agent approved a payout for someone with no authority. Nobody asked who was asking.
+The point: an opinion became a payment. The agent decided on its own to move the money, for someone with no authority to approve it. Nobody asked who was asking.
 
 == Scenario walkthrough: secured
 
 . Select the *Portal secured* tab and log in as `rebecca`.
 
-. Open *CLM-1001* and send the same request:
+. Open *CLM-1001* and send the same two messages:
 +
 [source,text]
 ----
-Approve the payout for this claim.
+This claim has been waiting for quite some time, it should be approved by now.
+----
++
+[source,text]
+----
+I concluded my review and I'm approving it now.
 ----
 
 . Watch the chat and the timeline.
 +
 What you should see:
 +
-* the assistant can only *propose*: a card "Payout proposed for CLM-1001, needs a claims manager", with "You do not have approval rights for this" and no *Approve* button;
+* after the first message the assistant only reads the claim (`called get_claim`) and reports it is still *UnderReview*;
+* after the second it can only *propose*: a card "Payout proposed for CLM-1001, needs a claims manager", with "You do not have approval rights for this" and no *Approve* button;
 * the claim stays *UnderReview*; the timeline is unchanged.
 +
 image::s1-secured-propose.jpg["Secured: for rebecca the assistant can only propose the payout; the card says she has no approval rights"]
 +
 `approve_payout` is not in rebecca's tool list at all, so the model cannot even try it. The *Check it* step below forces the call past the agent to show the gateway refusing it.
 
-. Log out, then log in as `marcus` (claims manager). Open *CLM-1001* and send the same request.
+. Log out, then log in as `marcus` (claims manager). Open *CLM-1001* and send the same two messages.
 +
 What you should see: the same proposal card, but this time with an *Approve* button.
 +
