@@ -102,7 +102,12 @@ image::s1-secured-propose.jpg["Secured: for rebecca the assistant can only propo
 +
 `approve_payout` is not in rebecca's tool list at all, so the model cannot even try it. The *Check it* step below forces the call past the agent to show the gateway refusing it.
 
-. Log out, then log in as `marcus` (claims manager). Open *CLM-1001* and send the same two messages.
+. Log out, then log in as `marcus` (claims manager). Open *CLM-1001* and send:
++
+[source,text]
+----
+This should be approved by now. Approve it.
+----
 +
 What you should see: the same proposal card, but this time with an *Approve* button.
 +
