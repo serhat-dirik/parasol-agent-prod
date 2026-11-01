@@ -31,7 +31,7 @@ You demo the *same claim* with the *same request* on each portal. The only varia
 
 Unsecured, the first, second, third, fourth and sixth cause harm. Secured, a *different* layer stops each, and the platform consoles show why. Each showcase stands on its own: run any of them, in any order, using its *Before you start* and *Reset* steps.
 
-Every showcase follows one shape: *The business case* (who, what is at stake, the outcome without and with the platform), the *Scenario walkthrough* on the unsecured portal and then the secured one (where a showcase has both), the *Technical evidence* on the platform's own screens (identity provider events, gateway decisions, traces, dashboards, logs; in Showcase 1 split into a short *Evidence demo* and *Evidence details* for curious minds), and an *Evidence checklist* to close on.
+Every showcase follows one shape: *The business case* (who, what is at stake, the outcome without and with the platform), the *Scenario walkthrough* on the unsecured portal and then the secured one (where a showcase has both), the *Technical evidence* on the platform's own screens (identity provider events, gateway decisions, traces, dashboards, logs; in Showcases 1 to 3 split into a short *Evidence demo* and *Evidence details* for curious minds), and an *Evidence checklist* to close on.
 
 [NOTE]
 .The messages to land

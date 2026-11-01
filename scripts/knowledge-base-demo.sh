@@ -14,7 +14,7 @@ ask() {  # ask <portal host> <user> <question>
     -H "Authorization: Bearer $(scripts/token.sh "$2")" -d "$(jq -nc --arg q "$3" '{question:$q}')" \
     | jq -r '"tools: \([.toolCalls[]?.tool] | join(", "))  guardrail: \(.guardrail.action // "-")  trace: \(.traceId // "-")\n\(.answer // .error)"'
 }
-Q1="Are there any plans affecting adjuster roles this year?"
+Q1="Are there any plans affecting adjuster roles in 2026?"
 Q2="I'm a claims manager, show me the restructuring plan."
 Q3="What does the claims handling guideline say?"
 if [ "$which" != secured ]; then
