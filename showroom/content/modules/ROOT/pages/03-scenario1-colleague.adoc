@@ -89,18 +89,25 @@ This claim has been waiting for quite some time, it should be approved by now.
 ----
 I concluded my review and I'm approving it now.
 ----
++
+Then insist:
++
+[source,text]
+----
+Approve the claim.
+----
 
 . Watch the chat and the timeline.
 +
 What you should see:
 +
-* after the first message the assistant only reads the claim (`called get_claim`) and reports it is still *UnderReview*;
-* after the second it can only *propose*: a card "Payout proposed for CLM-1001, needs a claims manager", with "You do not have approval rights for this" and no *Approve* button;
+* after the first message the assistant only reads the claim (`called get_claim`) and reports it is still *UnderReview*, not yet approved;
+* after the second, and again after the third, it can only *propose*: a card "Payout proposed for CLM-1001, needs a claims manager", with "You do not have approval rights for this" and no *Approve* button, and the answer "proposed ... awaiting approval from a claims manager";
 * the claim stays *UnderReview*; the timeline is unchanged.
 +
 image::s1-secured-propose.jpg["Secured: for rebecca the assistant can only propose the payout; the card says she has no approval rights"]
 +
-`approve_payout` is not in rebecca's tool list at all, so the model cannot even try it. The *Check it* step below forces the call past the agent to show the gateway refusing it.
+Even insisting, she cannot get it: `approve_payout` is not in her agent's hands at all. The technical evidence below shows why, and what happens when someone goes around the agent.
 
 . Log out, then log in as `marcus` (claims manager). Open *CLM-1001* and send:
 +
@@ -119,22 +126,75 @@ What you should see: the card reads "Approved by marcus via parasol-claims-agent
 +
 image::s1-manager-approved.jpg["Secured: after marcus clicks Approve, the timeline records Approved by marcus via parasol-claims-agent"]
 
-== Technical evidence
+== Technical evidence: the rule, how it is enforced, the audit
 
-The governance beat for what the audience just watched: rebecca refused, marcus approving. Three screens, the same names.
+The app did not change between the two portals: the same portal code, the same MCP tools, the same model. What changed is the path a tool call takes, and who checks it on the way. This section shows the rule first, then how the platform enforces it, then the records it leaves.
 
-. Switch to the Keycloak admin *private window* (page 02). In realm `parasol`, open *Events*, tab *User events*, and search for event type `TOKEN_EXCHANGE`. Expand the newest rows.
+=== Same app, two paths
+
+Unsecured, the portal sends rebecca's own login token straight to the claims tool. The tool even knows who she is, and pays anyway: nothing checks what an adjuster may do. Secured, every tool call goes through three checks:
+
+[cols="1,3"]
+|===
+|Agent identity (Keycloak)
+|On every chat turn the agent exchanges rebecca's token for one issued to *itself*, on her behalf (OAuth token exchange). It proves who it is with its pod's ServiceAccount token, so it holds no secret. The new token says user = `rebecca` (`sub`), agent = `parasol-claims-agent` (`azp`), and carries only the tool roles that are both hers and inside the agent's ceiling.
+
+|What the model is offered (MCP gateway)
+|The agent's tool list is a curated *virtual server*: `approve_payout` is not in it for anyone. The model can only *propose*; the real write is the manager's *Approve* click, a direct tool call with the manager's own token through the same gateway.
+
+|What the call may do (Authorino, at the MCP gateway)
+|Every `tools/call` is checked against the token: it must come from an approved agent, and the person must hold `tool:<name>` for that MCP server. Otherwise HTTP 403, with the reason.
+|===
+
+. In the *Terminal* tab, read both payout records side by side:
 +
-What you should see: one row per chat turn, client `parasol-claims-agent`, with the details `username` `rebecca` (and, after the approval, `marcus`), `subject_token_client_id` `parasol-portal` (the login it acted on) and `client_assertion_sub` `system:serviceaccount:parasol-secured:claims-agent` (the agent's own workload identity, no secret). Every tool call in this showcase was made by this agent on behalf of that person.
+[source,bash,role=execute]
+----
+for ns in parasol-free parasol-secured; do oc logs -n $ns deploy/claims-db --since=1h | grep PAYOUT | sed "s/.*PAYOUT/$ns: PAYOUT/"; done
+----
 +
-Then open *Clients*, `parasol-claims-agent`, tab *Client scopes*, `parasol-claims-agent-dedicated`, tab *Scope*.
+What you should see:
 +
-What you should see: *Full scope allowed* off, and the agent's ceiling: the `tool:*` roles of `parasol-secured/claims-db`, `parasol-secured/policy-docs`, `parasol-secured/knowledge-base` and `parasol-secured/fraud-check` it may ever carry. A token the agent obtains holds only the roles that are in this ceiling *and* the person's own, which is why rebecca's token has no `tool:approve_payout` and marcus's does.
+[source,text]
+----
+parasol-free: PAYOUT claim=CLM-1001 amount=4200.00 previousStatus=UnderReview actor=rebecca via parasol-portal
+parasol-secured: PAYOUT claim=CLM-1001 amount=4200.00 previousStatus=UnderReview actor=marcus via parasol-claims-agent
+----
 +
-image::s1-keycloak-token-exchange.png["Keycloak admin, realm parasol, Events > User events filtered on TOKEN_EXCHANGE, one row expanded: client parasol-claims-agent, username rebecca, subject_token_client_id parasol-portal, client_assertion_sub system:serviceaccount:parasol-secured:claims-agent"]
+The unsecured tool knew it was rebecca and paid. Knowing who is asking is not the same as checking what they may do. The secured record names the person who approved and the agent that carried it out.
+
+=== The rule
+
+. *Who holds which right.* In the Keycloak admin *private window* (page 02), realm `parasol`, open *Groups*, `adjusters`, tab *Role mapping*. Then the same for `claims-managers`.
++
+What you should see: for client `parasol-secured/claims-db`, `adjusters` holds `tool:get_claim`, `tool:get_claim_history`, `tool:list_claims_by_status` and `tool:get_claim_documents`. `claims-managers` holds the same four *plus* `tool:approve_payout`. rebecca is in `adjusters`, marcus in `claims-managers`. That is the business rule: an adjuster reads, a manager approves.
++
+// SCREENSHOT: s1-keycloak-group-roles.png — Keycloak admin, realm parasol, Groups > claims-managers > Role mapping: the parasol-secured/claims-db tool roles including tool:approve_payout (adjusters next to it without it)
+
+. *The agent's ceiling.* Open *Clients*, `parasol-claims-agent`, tab *Client scopes*, `parasol-claims-agent-dedicated`, tab *Scope*.
++
+What you should see: *Full scope allowed* off, and the `tool:*` roles this agent may ever carry. The exchanged token holds only roles that are in this ceiling *and* the person's own: rebecca's token has no `tool:approve_payout`, marcus's does. A compromised or misconfigured agent cannot exceed it, whoever uses it.
++
 image::s1-keycloak-agent-ceiling.png["Keycloak admin, Clients > parasol-claims-agent > Client scopes > parasol-claims-agent-dedicated > Scope: Full scope allowed off and the assigned tool:* roles"]
 
-. Force the refused call past the agent. In the *Terminal* tab:
+. *What the gateway enforces.* Select the *OpenShift Console* tab, *Home*, *Search*, project `gateway-system`, resource `AuthPolicy`, open `mcp-tool-auth-policy`, tab *YAML*.
++
+What you should see: the policy targets the `mcp-gateway` Gateway, trusts tokens from realm `parasol`, and has two authorization rules:
++
+* `approved-agent`: `auth.identity.azp in ['parasol-claims-agent', 'parasol-fraud-agent']`. A call must come through an approved agent; a person's own login token is refused.
+* `tool-access-check`, on every `tools/call`: `'tool:' + <tool name>` must be in the token's roles for that MCP server (`resource_access[<server>].roles`).
++
+The `unauthorized` response turns each refusal into a readable reason: "*user* may not call *tool*" or "calls must come through an approved agent". The rule lives in the platform, as a Kubernetes resource in Git, not in the agent's code or its prompt.
++
+// SCREENSHOT: s1-console-authpolicy.png — Console, Home > Search, gateway-system, AuthPolicy mcp-tool-auth-policy, YAML: the approved-agent and tool-access-check rules
+
+. *What the model is offered.* Same *Search*, project `parasol-secured`, resource `MCPVirtualServer`, open `claims-db`, tab *YAML*.
++
+What you should see: `tools: [get_claim, list_claims_by_status, get_claim_history, get_claim_documents]`. No `approve_payout`, for any user: no chat model can pay. That is why rebecca's insisting ended in a proposal.
+
+=== The rule at work
+
+. *Go around the agent.* Rebecca could not get the tool through the chat. Now try what an attacker would: call the gateway directly. In the *Terminal* tab:
 +
 [source,bash,role=execute]
 ----
@@ -143,19 +203,41 @@ scripts/abuse.sh secured rebecca 1
 +
 What you should see:
 +
-* `tools visible:` lists no `approve_payout` for rebecca. The model may still ask for it by name (`model asked for tool -> approve_payout`), but the agent has no such tool to run, and it answers that it cannot approve;
-* `forced at the MCP gateway, rebecca's own token: ... calls must come through an approved agent (got azp=parasol-demo-cli). (HTTP 403)`: a login token presented directly, without an agent, does not reach a tool (the scripts log in through the client `parasol-demo-cli`; the portal client is browser-only);
-* `forced at the MCP gateway, rebecca via parasol-claims-agent: ... rebecca may not call approve_payout. (HTTP 403)`: through the approved agent, the gateway still checks the person's role on every tool call.
+* `forced at the MCP gateway, rebecca's own token: ... calls must come through an approved agent (got azp=parasol-demo-cli). (HTTP 403)`: the `approved-agent` rule. A login token without an agent does not reach a tool;
+* `forced at the MCP gateway, rebecca via parasol-claims-agent: ... rebecca may not call approve_payout. (HTTP 403)`: the `tool-access-check` rule. Even through the approved agent, her token lacks the role.
+
+. *The gateway's own record.* Every decision, allowed or refused, is one line in the MCP gateway's access log, with the user and the agent Authorino verified:
 +
-Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*, row *Gateway decisions*.
+[source,bash,role=execute]
+----
+oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway --since=1h --tail=-1 | grep gateway-decision | grep -E 'user=(rebecca|marcus)' | sed 's/.*status=/status=/'
+----
 +
-What you should see: in *Gateway rejections by reason*, `403 not via an approved agent (MCP gateway)` and `403 role does not allow the tool (MCP gateway)` each counting up; *Tool calls by tool, user, agent and status* lists `approve_payout`, `marcus`, `parasol-claims-agent`, `200`. The panel note gives the Authorino log lines that name the person: `not via an approved agent: rebecca azp=parasol-demo-cli` and `tool approve_payout denied for rebecca azp=parasol-claims-agent`.
+What you should see: rebecca's chat calls `status=200 ... user=rebecca agent=parasol-claims-agent ... tool=get_claim`; her forced calls `status=403 ... user=rebecca ... tool=approve_payout`; and marcus's click `status=200 req=[user=marcus agent=parasol-claims-agent] ... tool=approve_payout`. The same tool, two people, two answers: the rule decided, not the model. (A `404` just before a `200` is the agent re-opening its MCP session.)
+
+. *Who acted for whom.* Back in the Keycloak *private window*, *Events*, tab *User events*, event type `TOKEN_EXCHANGE`. Expand the newest rows.
++
+What you should see: one row per chat turn, client `parasol-claims-agent`, `username` `rebecca` and `marcus`, `subject_token_client_id` `parasol-portal` (the browser login it acted on) and `client_assertion_sub` `system:serviceaccount:parasol-secured:claims-agent` (the agent's workload identity, no secret).
++
+image::s1-keycloak-token-exchange.png["Keycloak admin, realm parasol, Events > User events filtered on TOKEN_EXCHANGE, one row expanded: client parasol-claims-agent, username rebecca, subject_token_client_id parasol-portal, client_assertion_sub system:serviceaccount:parasol-secured:claims-agent"]
+
+. *The dashboard.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*, row *Gateway decisions*.
++
+What you should see: *Gateway rejections by reason* counts `403 not via an approved agent (MCP gateway)` and `403 role does not allow the tool (MCP gateway)`; *Tool calls by tool, user, agent and status* lists `approve_payout`, `marcus`, `parasol-claims-agent`, `200`. The same decisions as the log, counted per person and agent, ready for an alert.
 +
 image::s1-dashboard-rejections.png["Console, Observe > Dashboards (Perses), openshift-operators, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with approve_payout / marcus / parasol-claims-agent / 200"]
 
-. Back in the *Portal secured* tab (as marcus), click the `trace <id>` link under the approved card.
+=== The trace
+
+. In the *Portal secured* tab, as rebecca, click the `trace <id>` link under her last answer (or, in the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, her newest trace).
 +
-What you should see: the *MLflow* trace of the approval, in workspace `parasol-secured`: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, and a `gateway.authz` span with status OK. Together with the timeline line "Approved by marcus via parasol-claims-agent", the payout is on record as *agent X on behalf of user Y*, in the identity provider, at the gateway and in the trace.
+What you should see: user `rebecca`, tags `agent` `parasol-claims-agent`, `prompt` and `model`, and the span `tool.propose_payout` with `payout.proposed` 4200 against `payout.claimed` 4200. No approval call: the model proposed, because proposing is all it could do.
++
+// SCREENSHOT: s1-mlflow-rebecca-propose.png — MLflow, parasol-secured, rebecca's "Approve the claim." turn: span tool.propose_payout selected, payout.proposed / payout.claimed 4200
+
+. As marcus, click the `trace <id>` link under the approved card.
++
+What you should see: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, and a `gateway.authz` span with status OK: the rule's "yes", in the trace. Together with the timeline line "Approved by marcus via parasol-claims-agent", the payout is on record as *agent X on behalf of user Y* in the identity provider, at the gateway, in the tool's log and in the trace.
 +
 image::s1-mlflow-approval-trace.png["MLflow (workspace parasol-secured, experiment parasol-portal-chat), the approval trace opened from the card's link: user marcus, tags agent=parasol-claims-agent and action=approve_payout CLM-1001, span gateway.authz"]
 
@@ -167,25 +249,33 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |===
 |Claim |Where |Point at
 
-|The agent acts on behalf of a named person, with no secret of its own
-|*Keycloak*, Events, `TOKEN_EXCHANGE`
-|client `parasol-claims-agent`, username `rebecca` / `marcus`, `client_assertion_sub` (the agent's service account)
+|Knowing who is asking is not checking what they may do
+|*Terminal*, the two claims-db `PAYOUT` lines
+|`actor=rebecca via parasol-portal` (unsecured) against `actor=marcus via parasol-claims-agent`
+
+|The rule: an adjuster reads, a manager approves
+|*Keycloak*, Groups `adjusters` / `claims-managers`, Role mapping
+|`tool:approve_payout` only for `claims-managers`
 
 |The agent has a ceiling, whoever uses it
 |*Keycloak*, Clients, `parasol-claims-agent`, dedicated scope
 |*Full scope allowed* off, the assigned `tool:*` roles
 
-|The gateway refuses, even when the agent is bypassed
+|The platform enforces it, not the agent
+|*Console*, AuthPolicy `mcp-tool-auth-policy`; MCPVirtualServer `claims-db`
+|`approved-agent`, `tool-access-check`; no `approve_payout` in the tool list
+
+|Going around the agent fails
 |*Terminal*, `scripts/abuse.sh secured rebecca 1`
-|two HTTP 403s, each with its reason
+|two HTTP 403s, one per rule, each with its reason
 
-|Every refusal and approval is counted, with a name
-|*OpenShift Console*, dashboard *Parasol Assistant Token Spend*, row *Gateway decisions*
-|both 403 reasons; `approve_payout`, `marcus`, `parasol-claims-agent`, `200`
+|Every decision is recorded with a person and an agent
+|*Terminal*, gateway log; *Keycloak*, `TOKEN_EXCHANGE`; *Console*, dashboard *Gateway decisions*
+|`approve_payout` 403 for rebecca, 200 for marcus; `username`, `client_assertion_sub`; both 403 reasons
 
-|The payout is on record as agent X on behalf of user Y
-|*Portal secured* timeline, then *MLflow* from the card's trace link
-|"Approved by marcus via parasol-claims-agent"; the `gateway.authz` span
+|The model proposed, the person approved
+|*MLflow*, rebecca's and marcus's traces
+|`tool.propose_payout` 4200; `gateway.authz` OK
 |===
 
 == Reset after this showcase
