@@ -89,4 +89,13 @@ RM="$(curl -sk "${AUTH[@]}" -G "$API/clients" --data-urlencode "clientId=realm-m
 RA="$(curl -sk "${AUTH[@]}" "$API/clients/$RM/roles/realm-admin")"
 curl -sk "${AUTH[@]}" -X POST "$API/users/$AID/role-mappings/clients/$RM" -H 'Content-Type: application/json' \
   -d "[$RA]" -o /dev/null -w "admin -> realm-management:realm-admin http=%{http_code}\n"
+
+# The realm import leaves the built-in security-admin-console client with no default scopes, so its
+# ID token has no name and the console header reads "Anonymous". Attach the realm's defaults.
+SAC="$(curl -sk "${AUTH[@]}" -G "$API/clients" --data-urlencode "clientId=security-admin-console" | jq -r '.[0].id // empty')"
+for s in basic profile email roles; do
+  SID="$(curl -sk "${AUTH[@]}" "$API/client-scopes" | jq -r --arg s "$s" '.[] | select(.name==$s) | .id')"
+  curl -sk "${AUTH[@]}" -X PUT "$API/clients/$SAC/default-client-scopes/$SID" -o /dev/null \
+    -w "security-admin-console scope $s http=%{http_code}\n"
+done
 echo "DONE"
