@@ -107,7 +107,7 @@ What you should see:
 +
 image::s1-secured-propose.jpg["Secured: for rebecca the assistant can only propose the payout; the card says she has no approval rights"]
 +
-Even insisting, she cannot get it: `approve_payout` is not in her agent's hands at all. The technical evidence below shows why, and what happens when someone goes around the agent.
+Even insisting, she cannot get it: `approve_payout` is not in her agent's hands at all. The evidence demo below shows why, and what happens when someone goes around the agent.
 
 . Log out, then log in as `marcus` (claims manager). Open *CLM-1001* and send:
 +
@@ -126,9 +126,88 @@ What you should see: the card reads "Approved by marcus via parasol-claims-agent
 +
 image::s1-manager-approved.jpg["Secured: after marcus clicks Approve, the timeline records Approved by marcus via parasol-claims-agent"]
 
-== Technical evidence: the rule, how it is enforced, the audit
+== Evidence demo
 
-The app did not change between the two portals: the same portal code, the same MCP tools, the same model. What changed is the path a tool call takes, and who checks it on the way. This section shows the rule first, then how the platform enforces it, then the records it leaves.
+Five short steps, one command or one screen each: what happened, the rule, how the platform enforces it, and the record it leaves. Everything runs in the *Terminal* tab and reads only; nothing is paid. The full walk through every screen is in <<Evidence details>> below.
+
+. *Same app, two outcomes.* The payout records the claims tool wrote on each portal:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh payouts
+----
++
+What you should see:
++
+[source,text]
+----
+parasol-free: PAYOUT claim=CLM-1001 ... actor=rebecca via parasol-portal
+parasol-secured: PAYOUT claim=CLM-1001 ... actor=marcus via parasol-claims-agent
+----
++
+Say: the unsecured tool knew it was rebecca, and paid anyway. Knowing who is asking is not checking what they may do. The secured record names the person who approved and the agent that carried it out.
+
+. *The rule.* Who may do what, as Keycloak hands it to every service in the user's token:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh roles
+----
++
+What you should see: rebecca, group `adjusters`, tools `get_claim, get_claim_documents, get_claim_history, list_claims_by_status`; marcus, group `claims-managers`, the same tools *plus* `approve_payout`.
++
+Say: this is the whole business rule, an adjuster reads, a manager approves. It is kept in Keycloak groups (a click in its admin console), not in the agent's code or its prompt.
+
+. *The agent acts on her behalf, never above her.* Rebecca's login token next to the token the claims agent obtains for her:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh token rebecca
+----
++
+What you should see: the same `user` (`rebecca`), the same `groups` and the same `tools`, but the `client` changes from the login client to `parasol-claims-agent`.
++
+Say: on every chat turn the agent exchanges her token for one issued to itself, on her behalf (OAuth token exchange). It proves who it is with its pod's ServiceAccount token, so it holds no secret. The gateway and every tool now see both names: who asked, and which agent did it. And the agent can never carry more rights than the person.
+
+. *The gateway enforces the rule.* Live calls straight at the MCP gateway, then the gateway's own decision log:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh gateway
+----
++
+What you should see:
++
+[source,text]
+----
+rebecca, own login token           get_claim       HTTP 403  ... calls must come through an approved agent ...
+rebecca via parasol-claims-agent   get_claim       HTTP 200  allowed
+rebecca via parasol-claims-agent   approve_payout  HTTP 403  ... rebecca may not call approve_payout.
+marcus via parasol-claims-agent    get_claim       HTTP 200  allowed
+----
++
+then the decision log, with marcus's Approve click from the walkthrough: `200  marcus via parasol-claims-agent  approve_payout`.
++
+Say: two checks at the gateway on every tool call. The call must come through an approved agent, and the person must hold the tool's role. Even going around the agent, rebecca cannot pay; marcus's click passed the same check. The rule is applied by the platform, one place for every agent and every tool.
+
+. *Watch it and trace it.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
++
+What you should see: *Gateway rejections by reason* counts `403 not via an approved agent (MCP gateway)` and `403 role does not allow the tool (MCP gateway)`; *Tool calls by tool, user, agent and status* lists `approve_payout`, `marcus`, `parasol-claims-agent`, `200`.
++
+image::s1-dashboard-rejections.png["Console, Observe > Dashboards (Perses), openshift-operators, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with approve_payout / marcus / parasol-claims-agent / 200"]
++
+Then, in the *Portal secured* tab as marcus, click the `trace <id>` link under the approved card.
++
+What you should see: the *MLflow* trace: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, and a `gateway.authz` span with status OK. (Rebecca's last turn has a `tool.propose_payout` span and no approval: the model proposed, because proposing is all it could do.)
++
+image::s1-mlflow-approval-trace.png["MLflow (workspace parasol-secured, experiment parasol-portal-chat), the approval trace opened from the card's link: user marcus, tags agent=parasol-claims-agent and action=approve_payout CLM-1001, span gateway.authz"]
+
+== Evidence details
+
+For curious minds: every screen behind the demo above, the rule in the Keycloak and console UIs, and the full audit.
+
+
+The app did not change between the two portals: the same portal code, the same MCP tools, the same model. What changed is the path a tool call takes, and who checks it on the way.
 
 === Same app, two paths
 
