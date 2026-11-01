@@ -134,7 +134,7 @@ Five short steps, one command or one screen each: what happened, the rule, how t
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh payouts
+scripts/evidence.sh payouts CLM-1001
 ----
 +
 What you should see:

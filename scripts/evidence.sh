@@ -164,7 +164,7 @@ rls)
 kb-audit)
   echo "Knowledge-base access records, last 3 hours (deploy/knowledge-base, parasol-secured):"
   oc logs -n parasol-secured deploy/knowledge-base --since=3h | grep -E 'RAG (restricted|withheld)' \
-    | sed -E 's/^[0-9-]+ ([0-9:]+),[0-9]+ INFO /  \1 /' | tail -8 | grep . || echo "  none in the last 3 hours"
+    | sed -E 's/^[0-9-]+ ([0-9:]+),[0-9]+ INFO /  \1 /' | tail -12 | grep . || echo "  none in the last 3 hours"
   echo
   echo "Claim-record refusals, last 3 hours (deploy/claims-db, parasol-secured):"
   oc logs -n parasol-secured deploy/claims-db --since=3h | grep 'CLAIMS ACL denied' | grep -v 'user=- ' \

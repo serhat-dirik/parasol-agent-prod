@@ -227,7 +227,7 @@ Say: the last line of defence is PostgreSQL itself: even a bug in the server cou
 scripts/evidence.sh kb-audit
 ----
 +
-What you should see: `RAG withheld doc=RST-01 classification=restricted ... from rebecca via parasol-claims-agent`, `RAG restricted doc=RST-01 accessed by marcus via parasol-claims-agent`, `RAG withheld doc=INT-01 classification=internal ... from nina.contractor via parasol-claims-agent`, and the claim refusals `tool=get_claim claim=CLM-1029 user=rebecca via parasol-claims-agent reason=assigned to Angela Davis`.
+What you should see: `RAG withheld doc=RST-01 classification=restricted ... from rebecca via parasol-claims-agent`, `RAG restricted doc=RST-01 accessed by marcus via parasol-claims-agent`, `RAG withheld ... from nina.contractor via parasol-claims-agent` (the searches of step 1 are on record too, like any other), and the claim refusals `tool=get_claim claim=CLM-1029 user=rebecca via parasol-claims-agent reason=assigned to Angela Davis`.
 +
 Say: who was refused and who read the restricted plan, by name and agent, without anyone having to ask the model what it saw.
 
