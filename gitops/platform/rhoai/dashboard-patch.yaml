@@ -7,3 +7,4 @@ spec:
     observabilityDashboard: true
     disableModelCatalog: false
     disableLMEval: false        # Develop & train -> Evaluations (EvalHub, gitops/platform/eval/evalhub.yaml)
+    mcpCatalog: true            # MCP Catalog page: Parasol's servers and tools (gitops/platform/mcp-catalog/parasol-mcp-catalog.yaml)
