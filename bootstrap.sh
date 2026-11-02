@@ -167,6 +167,8 @@ else scripts/seed-demo.sh || warn "demo data incomplete (the lines above name ea
 scripts/knowledge-base-ingest.sh || warn "knowledge base not loaded (search_knowledge returns nothing)" scripts/knowledge-base-ingest.sh
 scripts/showroom-framing.sh || warn "console framing headers not applied; Showroom console tabs stay blank" scripts/showroom-framing.sh
 scripts/console-plugins.sh || warn "console plugins not enabled; the PipelineRun graph will be missing" scripts/console-plugins.sh
+envsubst '$CLUSTER_DOMAIN' < gitops/platform/mcp-catalog/parasol-mcp-catalog.yaml | oc apply -f - >/dev/null \
+  || warn "Parasol MCP servers missing from the OpenShift AI catalog" "./bootstrap.sh"
 echo "first release: the production prompt is promoted onto env-secured, the shortened candidate is blocked by the gate (~20-30 min)"
 scripts/pipeline-runs.sh --wait || warn "production release not promoted; the secured portal stays at 0 replicas" "scripts/pipeline-runs.sh --wait"
 scripts/status.sh || true

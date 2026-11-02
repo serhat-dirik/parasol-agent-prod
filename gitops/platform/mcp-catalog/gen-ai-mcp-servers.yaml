@@ -8,8 +8,10 @@
 # rhoai-model-registries) describes DEPLOYABLE container MCP servers for the MCPLifecycleOperator to
 # run as a pod; it has no "register an already-running external URL" entry type on 3.5 (Developer
 # Preview). Our servers already run and federate through the Kuadrant gateway, so the playground
-# ConfigMap is the correct surface. Applied directly to the operator-owned namespace (not Argo-synced);
-# this file is the source of record.
+# ConfigMap is the correct surface.
+# NOT applied by bootstrap: the playground calls the gateway without a Keycloak token issued to an
+# approved agent, so the gateway answers 401. The AI hub catalog entry (parasol-mcp-catalog.yaml) is the
+# applied surface. To try it: envsubst '$CLUSTER_DOMAIN' < this file | oc apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -18,6 +20,6 @@ metadata:
 data:
   Parasol-MCP-Gateway: |
     {
-      "url": "https://mcp.apps.cluster-znh6n.dyn.redhatworkshops.io/mcp",
-      "description": "Parasol federated MCP tools via the Kuadrant MCP gateway: claims-db (get_claim, list_claims_by_status, get_claim_history, approve_payout) and policy-docs (search_policies, get_policy, list_policies). Per-identity tool authorization and the Read-Propose-Act gate are enforced at the gateway."
+      "url": "https://mcp.apps.$CLUSTER_DOMAIN/mcp",
+      "description": "Parasol federated MCP tools via the Kuadrant MCP gateway: claims-db (get_claim, list_claims_by_status, get_claim_history, approve_payout) and policy-docs (search_policies, get_policy, list_policies). Each call needs the user's token exchanged by an approved agent; the gateway shows and allows only the tools the user's roles grant."
     }
