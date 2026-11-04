@@ -746,7 +746,11 @@ def run_full(versions, gate_version, results_dir):
         if not maas.endswith("/v1"):
             maas = maas + "/v1"
         from openai import OpenAI
-        jclient = OpenAI(base_url=maas, api_key=key, timeout=90.0, max_retries=3)
+        import certifi, httpx
+        # explicit CA file: Tekton sets SSL_CERT_DIR to bundle-only directories, and httpx then trusts nothing
+        # (every judge call failed TLS verification as "Connection error.")
+        jclient = OpenAI(base_url=maas, api_key=key, timeout=90.0, max_retries=3,
+                         http_client=httpx.Client(verify=os.environ.get("SSL_CERT_FILE") or certifi.where(), timeout=90.0))
     clients, model = agent_clients()
 
     golden, fx = load()
