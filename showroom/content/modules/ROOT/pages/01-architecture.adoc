@@ -82,7 +82,7 @@ The agent never holds the upstream model key. OpenShift AI MaaS lists the two ti
 == The secured request paths
 
 * *Model:* portal -> model-gateway -> guardrails-proxy -> OpenShift AI MaaS -> external endpoint. The guardrails proxy scans prompts and tool results; MaaS attributes token spend to the user and enforces the per-tier budget.
-* *Tools:* portal -> MCP gateway (`https://mcp.{domain}/mcp`, one virtual server per client) -> claims-db, policy-docs, fraud-check, knowledge-base. The assistant acts *on behalf of* the user: on every call it exchanges the user's Keycloak token for one issued to the agent's own identity (`parasol-claims-agent`; user = `sub`, agent = `azp`), carrying only the tool roles that are both the user's and inside the agent's ceiling. The agent authenticates to Keycloak with its pod's ServiceAccount token, so there is no client secret. The gateway accepts only tokens from approved agents, filters the tool list per identity and enforces a per-tool AuthPolicy. The fraud-check agent does the same again (`parasol-fraud-agent`, read-only) when it reads the claim.
+* *Tools:* portal -> MCP gateway (`https://mcp.{domain}/mcp`: one URL for all four servers; each of the portal's MCP clients asks for its own named tool set, a _virtual server_, such as the four claims read tools) -> claims-db, policy-docs, fraud-check, knowledge-base. The assistant acts *on behalf of* the user: on every call it exchanges the user's Keycloak token for one issued to the agent's own identity (`parasol-claims-agent`; user = `sub`, agent = `azp`), carrying only the tool roles that are both the user's and inside the agent's ceiling. The agent authenticates to Keycloak with its pod's ServiceAccount token, so there is no client secret. The gateway accepts only tokens from approved agents, filters the tool list per identity and enforces a per-tool AuthPolicy. The fraud-check agent does the same again (`parasol-fraud-agent`, read-only) when it reads the claim.
 
 * *Knowledge:* the knowledge-base server checks the same on-behalf-of token itself (signature, issuer, audience) and searches only the documents the user's Keycloak groups may read; PostgreSQL row-level security on the documents table enforces the same rule a second time, below the application.
 
@@ -90,7 +90,9 @@ The unsecured portal skips all of it: a shared model key, and tools called with 
 
 == Read, propose, act
 
-`approve_payout` is hidden from the gateway's tool list for *every* identity, so no model can call it on its own. It stays reachable for a direct call, which is still authorized by the Keycloak role `tool:approve_payout` (claims managers only). The assistant can therefore only *propose*; a claims manager's *Approve* click performs the write, and an adjuster's forced call is a 403.
+The model is never shown `approve_payout`: its claims tool set holds only the read tools, plus a local `propose_payout` that draws a proposal card and moves no money. So the assistant can only *propose*, whatever a person or a document asks. The write is a claims manager's *Approve* click, which calls `approve_payout` directly.
+
+What enforces it is the gateway's role check on every call, not the tool set: the gateway serves `approve_payout` only to a token that carries the Keycloak role `tool:approve_payout` (claims managers only) and was exchanged by an approved agent. No token is a 401, a person's own login token is a 403, and an adjuster's forced call is a 403.
 
 == Which layer stops which showcase
 
