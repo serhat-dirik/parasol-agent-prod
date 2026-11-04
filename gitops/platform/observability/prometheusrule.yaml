@@ -12,14 +12,17 @@ spec:
     - name: parasol-agent
       rules:
         - alert: ParasolAssistantTokenSpendHigh
-          # Per user: a single account looping heavy requests (the night shift) crosses the threshold on
-          # its own. Threshold 5000 tokens/min is well above normal single-user interactive load
-          # (an adjuster runs a few hundred to low-thousands/min) and below the measured night-shift rate
-          # (~9000/min for nina.contractor). The portal tags the counter with the caller's username.
-          expr: sum by (namespace, user, agent) (rate(parasol_agent_tokens_total[2m])) * 60 > 5000
-          for: 1m
-          # the night-shift burst lasts ~2-3 min before the 429 stops it; keep the alert up long enough
-          # to be the morning report instead of resolving 30 s after the spend stops
+          # Denial-of-wallet, per user and agent: a burst above 5000 tokens/min (peak of the 2m rate in the
+          # last 10 min) that ALSO ran the user into the MaaS usage limit (a 429 in the last 10 min).
+          # Rate alone cannot tell the night shift (~9000/min for 2-3 min, nina.contractor) from staff
+          # asking a few questions back to back (one turn is 4-8k tokens, so 8-12k/min over 2m); the
+          # exhausted budget can. The portal tags both counters with the caller's username.
+          expr: |
+            max_over_time((sum by (namespace, user, agent) (rate(parasol_agent_tokens_total[2m])) * 60)[10m:30s]) > 5000
+            and on (namespace, user, agent)
+            sum by (namespace, user, agent) (increase(parasol_agent_rejections_total{reason="usage_limit"}[10m])) > 0
+          for: 30s
+          # keep it up long enough to be the morning report, not a blip
           keep_firing_for: 10m
           labels:
             severity: warning

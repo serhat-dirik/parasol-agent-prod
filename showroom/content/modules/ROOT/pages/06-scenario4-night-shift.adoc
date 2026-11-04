@@ -98,7 +98,7 @@ What you should see, in the row *Token spend*:
 +
 * *Token spend per user and agent* climbing as `nina.contractor via parasol-claims-agent` past the red 5000 tokens/min line for the whole loop, while `rebecca via parasol-claims-agent` shows only a short blip for her one question;
 * *Tokens by user and agent* with `nina.contractor`, `parasol-claims-agent`, `secured` on top;
-* *ParasolAssistantTokenSpendHigh: alert state* stepping to `firing nina.contractor via parasol-claims-agent`.
+* *ParasolAssistantTokenSpendHigh: alert state* stepping to `firing nina.contractor via parasol-claims-agent` once her budget runs out: the alert needs both the burst above the line and the usage-limit 429, so staff asking a few questions back to back do not trigger it.
 +
 image::s4-dashboard-spend.png["Console, Parasol Assistant Token Spend, row 'Token spend' right after night-shift.sh 40: nina.contractor via parasol-claims-agent above the 5000 line, the tokens table, the alert-state panel firing"]
 
@@ -240,6 +240,6 @@ To undo only the switches: `scripts/agent-switch.sh claims-agent on`, `scripts/a
 
 . If you disabled `nina.contractor`, re-enable her in the Keycloak admin *private window*.
 
-The `ParasolAssistantTokenSpendHigh` alert resolves on its own 10 minutes after the spend stops.
+The `ParasolAssistantTokenSpendHigh` alert resolves on its own about 20 minutes after the spend stops.
 
 Continue with xref:07-scenario5-eval-gate.adoc[07. Showcase 5: The evaluation gate].

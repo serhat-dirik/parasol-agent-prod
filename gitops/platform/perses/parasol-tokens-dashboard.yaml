@@ -59,7 +59,7 @@ spec:
         spec:
           display:
             name: Token spend per user and agent (tokens/min), alert at 5000
-            description: 'sum by (user, agent) (rate(parasol_agent_tokens_total[2m])) * 60: the ParasolAssistantTokenSpendHigh expression'
+            description: 'sum by (user, agent) (rate(parasol_agent_tokens_total[2m])) * 60. ParasolAssistantTokenSpendHigh fires when a user went above 5000 AND hit the usage limit (429) in the last 10 min'
           plugin:
             kind: TimeSeriesChart
             spec:
