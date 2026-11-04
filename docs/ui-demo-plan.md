@@ -72,7 +72,7 @@ Connectivity Link has no product console; its policies are shown in the OpenShif
 | G: guardrails and MaaS UI | Guardrails Orchestrator, GenAI Studio playground, MaaS external models, subscriptions, keys, usage dashboard | Demo 2 beat 2 and all MaaS screens; Demo 1 beat 4 |
 | O: observability | OTel → Tempo and MLflow, alert, Argo CD app for the storm overlay, kill switch | Demo 3 beats 1 to 6 in the browser |
 
-Rules unchanged from `CLAUDE.md`: slow is fine, stuck is not; no credentials in Git; `kustomize build` before every commit; Decisions in `docs/handover.md`.
+Working rules: slow is fine, stuck is not; no credentials in Git; `kustomize build` before every commit; decisions are written down.
 
 ## 5. Recording
 

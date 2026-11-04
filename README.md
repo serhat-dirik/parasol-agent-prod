@@ -414,3 +414,24 @@ topic refusal fire through it). Manifests mark field names to check against the 
   A `calls must come through an approved agent` 403 means a raw login token reached the gateway.
 
 </details>
+
+<details>
+<summary><b>Status and known limits</b></summary>
+
+* **Tested on** one OpenShift 4.22 lab cluster (Red Hat Demo Platform) with OpenShift AI 3.5 and
+  Connectivity Link 1.4, and the models in *Quick install*. The install path is idempotent but has not
+  been re-run on a second fresh cluster since the last changes: if a step fails, re-run `./bootstrap.sh`
+  and check *Troubleshooting*.
+* **Showcases 1 to 3 are presentation quality.** Showcases 4 to 8 work end to end but are still being
+  polished (screens, wording, evidence steps).
+* **OpenShift AI dashboard integration is partial** (model and MCP catalogs, MLflow setup) and is being
+  extended; the Parasol MCP servers are already published to the MCP catalog (`gitops/platform/mcp-catalog`).
+* **Another agent model** (`AGENT_MODEL`) is used as set, but its model-access objects keep the name
+  `qwen3-14b` and only point at the chosen model.
+
+</details>
+
+## License
+
+Apache License 2.0, see [LICENSE](LICENSE). The claim photos and the claim page layout come from the
+Red Hat *parasol-insurance* workshop application (see `docs/reference/parasol-insurance-workshop`).
