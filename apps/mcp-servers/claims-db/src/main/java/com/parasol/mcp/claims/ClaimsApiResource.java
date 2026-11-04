@@ -151,6 +151,27 @@ public class ClaimsApiResource {
                 .orElseGet(() -> Response.status(Response.Status.NOT_FOUND).build());
     }
 
+    /** The claim page's details (narrative, location, contact, policy, photos); never an MCP tool. 404 if none. */
+    @GET
+    @Path("/{number}/details")
+    @Transactional
+    public Response details(@PathParam("number") String number, @HeaderParam("Authorization") String authorization) {
+        Response refused = guard("ui.get_claim_details", number, authorization);
+        if (refused != null) {
+            return refused;
+        }
+        ClaimDetails d = ClaimDetails.findById(ClaimsRepository.normalize(number));
+        return d == null ? Response.status(Response.Status.NOT_FOUND).build()
+                : Response.ok(new DetailsView(d.claimNumber, d.eventTime, d.location, d.summary, d.clientEmail,
+                        d.clientPhone, d.policyNumber, d.coverage, d.deductible, d.coverageLimit,
+                        d.photos == null || d.photos.isBlank() ? List.of() : List.of(d.photos.split(",")))).build();
+    }
+
+    public record DetailsView(String claimNumber, String eventTime, String location, String summary, String clientEmail,
+                              String clientPhone, String policyNumber, String coverage, String deductible,
+                              String coverageLimit, List<String> photos) {
+    }
+
     /** The claim's audit timeline, oldest first (drives the detail-page timeline). */
     @GET
     @Path("/{number}/history")

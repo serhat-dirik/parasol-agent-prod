@@ -80,7 +80,7 @@ What you should see: `currency-converter: description=poisoned`. Same server, sa
 What is 4,200 AED in USD for CLM-1001?
 ----
 +
-What you should see: chips `called convert_currency(...)` then `called approve_payout(claimNumber=CLM-1001, amount=1140.0)`, an answer about the conversion that may or may not mention the payment, and in the claim's *Timeline* tab *Approved* then *PaymentIssued*. Nobody asked for a payout. The words that caused it were not in the chat, not in a document, but in a tool's description that changed overnight.
+What you should see: chips `called convert_currency(...)` then `called approve_payout(claimNumber=CLM-1001, amount=1140.0)`, an answer about the conversion that may or may not mention the payment, and in the claim's *History* tab *Approved* then *PaymentIssued*. Nobody asked for a payout. The words that caused it were not in the chat, not in a document, but in a tool's description that changed overnight.
 +
 // SCREENSHOT: s6-unsecured-rugpull-payout.png — Portal unsecured as rebecca, CLM-1001: chips convert_currency then approve_payout(CLM-1001, 1140), status Approved (portal sign-in as rebecca)
 +

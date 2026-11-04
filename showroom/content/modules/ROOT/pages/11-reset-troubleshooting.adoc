@@ -70,7 +70,7 @@ Every question the audience asks has one screen that answers it with the same na
 |user, tags `agent`, `prompt`, `model`, token count; spans `model.chat`, `tool.*`, `guardrails.tool_result`, `tool.propose_payout`
 
 |Who approved a payout?
-|Claim *Timeline* tab; the approved card's `trace <id>` link
+|Claim *History* tab; the approved card's `trace <id>` link
 |"Approved by marcus via parasol-claims-agent"; the MLflow trace with user `marcus`, tag `action` `approve_payout <claim>`
 
 |Who was refused at the gateway, and why?

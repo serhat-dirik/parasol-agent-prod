@@ -88,4 +88,14 @@ class ClaimsToolsTest {
         given().when().get("/q/health/ready")
                 .then().statusCode(200).body("status", is("UP"));
     }
+
+    @Test
+    void claimPageDetailsAreServedOnTheUiApiOnly() {
+        given().when().get("/api/claims/CLM-1004/details")
+                .then().statusCode(200).body("policyNumber", is("HO-30578812"))
+                .body("photos[0]", is("storm-house.jpg"));
+        given().when().get("/api/claims/CLM-1005/details")
+                .then().statusCode(200).body("photos.size()", is(0));
+        given().when().get("/api/claims/CLM-9999/details").then().statusCode(404);
+    }
 }

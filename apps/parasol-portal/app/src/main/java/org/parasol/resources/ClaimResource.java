@@ -9,6 +9,7 @@ import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.parasol.ai.CallerIdentity;
 import org.parasol.ai.McpBearerTokenProvider;
+import org.parasol.model.ClaimDtos.ClaimDetailsDto;
 import org.parasol.model.ClaimDtos.ClaimDto;
 import org.parasol.model.ClaimDtos.Dashboard;
 import org.parasol.model.ClaimDtos.DocumentDto;
@@ -93,6 +94,12 @@ public class ClaimResource {
     @Path("/claims/{number}")
     public ClaimDto one(@PathParam("number") String number) {
         return read(() -> claims.one(number, readAuthorization()));
+    }
+
+    @GET
+    @Path("/claims/{number}/details")
+    public ClaimDetailsDto details(@PathParam("number") String number) {
+        return read(() -> claims.details(number, readAuthorization()));
     }
 
     @GET

@@ -3,6 +3,7 @@ package org.parasol.resources;
 import java.util.List;
 
 import org.eclipse.microprofile.rest.client.inject.RegisterRestClient;
+import org.parasol.model.ClaimDtos.ClaimDetailsDto;
 import org.parasol.model.ClaimDtos.ClaimDto;
 import org.parasol.model.ClaimDtos.Dashboard;
 import org.parasol.model.ClaimDtos.DocumentDto;
@@ -30,6 +31,10 @@ public interface ClaimsDbClient {
     @GET
     @Path("/{number}")
     ClaimDto one(@PathParam("number") String number, @HeaderParam("Authorization") String authorization);
+
+    @GET
+    @Path("/{number}/details")
+    ClaimDetailsDto details(@PathParam("number") String number, @HeaderParam("Authorization") String authorization);
 
     @GET
     @Path("/{number}/history")

@@ -15,7 +15,7 @@ Nothing here is exotic. It is one ordinary insurance application with a chat ass
 
 == The application
 
-The Parasol claims portal is a Quarkus backend with a React/PatternFly front end and a Keycloak login. It lists claims; each claim has a detail page with a timeline, a *Documents* tab and a chat panel. The chat is the agent.
+The Parasol claims portal is a Quarkus backend with a React/PatternFly front end and a Keycloak login. It lists claims; each claim has a detail page with a *Summary* tab (the customer's account, photos and, at the bottom, the documents the customer attached), an *Insurance* tab, a *History* tab (the claim's timeline) and a chat panel. The chat is the agent.
 
 Its tools come from MCP servers:
 

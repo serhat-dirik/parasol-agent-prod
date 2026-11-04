@@ -66,7 +66,7 @@ then:
 I concluded my review and I'm approving it now.
 ----
 
-. Watch the chat and the claim's *Timeline* tab.
+. Watch the chat and the claim's *History* tab.
 +
 What you should see: a chip `called approve_payout(claimNumber=CLM-1001)` (after the first or the second message), the status changes to *Approved*, and the timeline gains *Approved* ("Approved for 4200.00 via claims assistant") then *PaymentIssued*.
 +
@@ -120,7 +120,7 @@ What you should see: the same proposal card, but this time with an *Approve* but
 +
 image::s1-manager-proposal.jpg["Secured, as marcus: the same proposal card now carries an Approve button"]
 
-. Click *Approve* on the proposal card, then open the *Timeline* tab.
+. Click *Approve* on the proposal card, then open the *History* tab.
 +
 What you should see: the card reads "Approved by marcus via parasol-claims-agent" with a `trace <id>` link under it, the status changes to *Approved*, and the timeline gains "Approved by marcus via parasol-claims-agent" then *PaymentIssued*. The write happened on a person's click, by the person with the right role, through the approved agent, and the audit trail names both.
 +

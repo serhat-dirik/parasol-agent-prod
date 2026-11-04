@@ -17,6 +17,12 @@ public final class ClaimDtos {
                            String amount, String incidentDate, String adjuster) {
     }
 
+    /** The claim page's details from claims-db (narrative, contact, policy, photo file names); never seen by the model. */
+    public record ClaimDetailsDto(String claimNumber, String eventTime, String location, String summary,
+                                  String clientEmail, String clientPhone, String policyNumber, String coverage,
+                                  String deductible, String coverageLimit, List<String> photos) {
+    }
+
     /** One timeline entry on the detail page. */
     public record TimelineEntry(String eventType, String note, String createdAt) {
     }

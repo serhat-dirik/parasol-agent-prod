@@ -47,7 +47,7 @@ Click *Approve* on the proposal card. What you should see: the card reads "Appro
 
 == Technical evidence: the chain, from the payout back to the release
 
-. *The claim.* In the *Portal secured* tab, open *CLM-1001*, tab *Timeline*.
+. *The claim.* In the *Portal secured* tab, open *CLM-1001*, tab *History*.
 +
 What you should see: *Approved* "Approved by marcus via parasol-claims-agent", then *PaymentIssued*, with their times. The note was written by claims-db from the token on the call (the user and the agent), not from anything the chat said. In the *Terminal* tab:
 +
