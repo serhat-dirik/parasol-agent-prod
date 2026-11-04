@@ -6,31 +6,41 @@
 #                                               digest on the Argo CD Application env-secured (no Git write)
 #   parasol-portal-release-candidate-shortened  the shortened candidate prompt (prompt alias candidate):
 #                                               gate fails (below 0.95), promote is skipped
-# Idempotent: an existing run is kept, except a production run that finished without promoting (re-run).
-# Usage: scripts/pipeline-runs.sh [--wait]     (~20-30 min per run; both run in parallel)
+# Idempotent: an existing run is kept, except a production run that did not promote what env-secured pins
+# (not Succeeded, no PROMOTED_DIGEST, or a digest other than the pin): that one is re-run.
+# Usage: [RERUN=1] scripts/pipeline-runs.sh [--wait]     (~20-30 min per run; both run in parallel)
+#   RERUN=1 re-runs both (after a change to the eval, the golden set or the pipeline)
 #   --wait  waits for both runs and exits non-zero unless the production run promoted.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 NS=parasol-build
 run() {  # run <candidate> <prompt alias> <prompt file in the repo>
-  local name="parasol-portal-release-$1" st
+  local name="parasol-portal-release-$1" st stale="" d pin
   st=$(oc get pipelinerun "$name" -n $NS -o jsonpath='{.status.conditions[0].reason}' 2>/dev/null || true)
   if [ -n "$st" ]; then
-    if [ "$1" = production ] && [ "$st" != Running ] && [ "$st" != Started ] && \
-       [ -z "$(oc get pipelinerun "$name" -n $NS -o jsonpath='{.status.results[?(@.name=="PROMOTED_DIGEST")].value}')" ]; then
-      echo "$name finished ($st) without promoting: re-running"
-      oc delete pipelinerun "$name" -n $NS --wait=true >/dev/null
-      # the re-run gets the SAME TaskRun and workspace PVC names: wait until the old ones are gone, or the
-      # new run adopts stale TaskRuns ("completed without ancestors") / loses its PVC to the GC
-      for i in $(seq 1 24); do
-        [ -z "$(oc get taskrun -n $NS -l tekton.dev/pipelineRun="$name" -o name)" ] || { sleep 5; continue; }
-        oc get pvc -n $NS -o json | python3 -c 'import json,sys; n=sys.argv[1]
-sys.exit(any(o.get("name")==n for p in json.load(sys.stdin)["items"] for o in p["metadata"].get("ownerReferences",[])))' "$name" && break
-        sleep 5
-      done
-    else
-      echo "$name already exists ($st)"; return 0
+    case "$st" in Running|Started) echo "$name is running"; return 0;; esac
+    if [ "${RERUN:-0}" = 1 ]; then stale="RERUN=1"
+    elif [ "$1" = production ]; then
+      # promoted means: Succeeded, a PROMOTED_DIGEST, and that digest is what env-secured actually pins
+      # (a run that adopted an old run's TaskRuns can time out at once and still carry a stale digest)
+      d=$(oc get pipelinerun "$name" -n $NS -o jsonpath='{.status.results[?(@.name=="PROMOTED_DIGEST")].value}')
+      pin=$(oc get application env-secured -n openshift-gitops -o jsonpath='{.spec.source.kustomize.images}' 2>/dev/null || true)
+      if [ "$st" != Succeeded ] || [ -z "$d" ]; then stale="finished ($st) without promoting"
+      elif [[ "$pin" != *"@$d"* ]]; then stale="promoted $d but env-secured pins ${pin:-nothing}"; fi
     fi
+    [ -n "$stale" ] || { echo "$name already exists ($st)"; return 0; }
+    echo "$name: $stale: re-running"
+    oc delete pipelinerun "$name" -n $NS --wait=true >/dev/null
+    # the re-run gets the SAME TaskRun and workspace PVC names: wait until the old ones are gone, or the
+    # new run adopts stale TaskRuns ("completed without ancestors") / loses its PVC to the GC
+    for i in $(seq 1 24); do
+      [ -z "$(oc get taskrun -n $NS -l tekton.dev/pipelineRun="$name" -o name)" ] || { sleep 5; continue; }
+      oc get pvc -n $NS -o json | python3 -c 'import json,sys; n=sys.argv[1]
+sys.exit(any(o.get("name")==n for p in json.load(sys.stdin)["items"] for o in p["metadata"].get("ownerReferences",[])))' "$name" && break
+      sleep 5
+    done
+    [ -z "$(oc get taskrun -n $NS -l tekton.dev/pipelineRun="$name" -o name)" ] || {
+      echo "$name: old TaskRuns still present after 2 min; not starting (re-run this script)"; return 1; }
   fi
   python3 -c 'import yaml,sys
 d=yaml.safe_load(open("gitops/platform/pipeline/pipelinerun.yaml"))

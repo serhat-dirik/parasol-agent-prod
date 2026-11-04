@@ -33,6 +33,7 @@ Full-run config comes from the environment (secrets never hard-coded):
   JUDGE_ENDPOINT        OpenAI-compatible base of the judge (alias MAAS_ENDPOINT, file "endpoint" of maas-eval-key)
   JUDGE_KEY             the judge's own key -- NEVER the agent key (alias MAAS_EVAL_KEY, file "key")
   JUDGE_MODEL           default gpt-oss-120b (file "model" of maas-eval-key, next to MAAS_EVAL_KEY_FILE)
+  JUDGE_PARALLEL        concurrent judge calls (default 4), each retried with backoff for about 2 minutes
   PROMPT_FILE           with --gate-version: the prompt text that version runs (default: the file in VERSION_META)
   PROMPT_REF            name@alias: register PROMPT_FILE as the version behind that alias (release runs only)
 
@@ -47,7 +48,7 @@ release that includes it is promoted. BASELINE_EXPERIMENT reads the baseline fro
 Per run: metrics system_pass_rate (= score), model_only_pass_rate, model_only_passed, model_only_baseline,
 model_only_passed_shared, model_only_shared_cases; tags gate_reason, golden_cases.
 """
-import argparse, hashlib, json, os, re, sys, pathlib, time, urllib.parse
+import argparse, hashlib, json, os, re, sys, pathlib, threading, time, urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -394,6 +395,7 @@ def majority(oks):
 
 
 # ---------- judge scorer (LLM) ----------
+JUDGE_SLOTS = threading.BoundedSemaphore(int(os.environ.get("JUDGE_PARALLEL", "4")))
 JUDGE_DIMS = ["ToolCallCorrectness", "ToolCallEfficiency", "RelevanceToQuery", "Safety", "Guidelines"]
 
 
@@ -421,17 +423,20 @@ def judge_case(client, model, case, out):
         + 'Return ONLY compact JSON: {"ToolCallCorrectness":{"pass":true,"score":1.0,"rationale":"..."}, ...}'
     )
     last = None
-    for attempt in range(4):
+    for attempt in range(5):   # backoff 5, 10, 20, 40 s: a short outage of the external judge endpoint is ridden out
         try:
-            resp = client.chat.completions.create(
-                model=model, messages=[{"role": "user", "content": user}], temperature=0,
-                max_tokens=int(os.environ.get("JUDGE_MAX_TOKENS", "1500")))
+            with JUDGE_SLOTS:
+                resp = client.chat.completions.create(
+                    model=model, messages=[{"role": "user", "content": user}], temperature=0,
+                    max_tokens=int(os.environ.get("JUDGE_MAX_TOKENS", "1500")))
             break
         except Exception as e:  # transient connection/5xx on the judge endpoint
             last = e
-            time.sleep(2 * (attempt + 1))
+            if attempt < 4:
+                time.sleep(min(60, 5 * 2 ** attempt))
     else:
-        raise last
+        cause = last.__cause__ or last.__context__
+        raise RuntimeError(f"{last}" + (f" ({type(cause).__name__}: {cause})" if cause else "")) from last
     txt = resp.choices[0].message.content or ""
     m = re.search(r"\{.*\}", txt, re.S)
     data = json.loads(m.group(0)) if m else {}
