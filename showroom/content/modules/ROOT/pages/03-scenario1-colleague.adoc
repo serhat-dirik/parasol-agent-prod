@@ -248,7 +248,7 @@ The unsecured tool knew it was rebecca and paid. Knowing who is asking is not th
 +
 What you should see: for client `parasol-secured/claims-db`, `adjusters` holds `tool:get_claim`, `tool:get_claim_history`, `tool:list_claims_by_status` and `tool:get_claim_documents`. `claims-managers` holds the same four *plus* `tool:approve_payout`. rebecca is in `adjusters`, marcus in `claims-managers`. That is the business rule: an adjuster reads, a manager approves.
 +
-// SCREENSHOT: s1-keycloak-group-roles.png — Keycloak admin, realm parasol, Groups > claims-managers > Role mapping: the parasol-secured/claims-db tool roles including tool:approve_payout (adjusters next to it without it)
+image::s1-keycloak-group-roles.png["Keycloak admin, realm parasol, group claims-managers, Role mapping: the tool roles per MCP server, including parasol-secured/claims-db tool:approve_payout"]
 
 . *The agent's ceiling.* Open *Clients*, `parasol-claims-agent`, tab *Client scopes*, `parasol-claims-agent-dedicated`, tab *Scope*.
 +
@@ -265,7 +265,7 @@ What you should see: the policy targets the `mcp-gateway` Gateway, trusts tokens
 +
 The `unauthorized` response turns each refusal into a readable reason: "*user* may not call *tool*" or "calls must come through an approved agent". The rule lives in the platform, as a Kubernetes resource in Git, not in the agent's code or its prompt.
 +
-// SCREENSHOT: s1-console-authpolicy.png — Console, Home > Search, gateway-system, AuthPolicy mcp-tool-auth-policy, YAML: the approved-agent and tool-access-check rules
+image::s1-console-authpolicy.png["OpenShift console, AuthPolicy mcp-tool-auth-policy in gateway-system, YAML: the Keycloak issuer, then the approved-agent and tool-access-check rules"]
 
 . *What the model is offered.* Same *Search*, project `parasol-secured`, resource `MCPVirtualServer`, open `claims-db`, tab *YAML*.
 +
@@ -312,7 +312,7 @@ image::s1-dashboard-rejections.png["Console, Observe > Dashboards (Perses), open
 +
 What you should see: user `rebecca`, tags `agent` `parasol-claims-agent`, `prompt` and `model`, and the span `tool.propose_payout` with `payout.proposed` 4200 against `payout.claimed` 4200. No approval call: the model proposed, because proposing is all it could do.
 +
-// SCREENSHOT: s1-mlflow-rebecca-propose.png — MLflow, parasol-secured, rebecca's "Approve the claim." turn: span tool.propose_payout selected, payout.proposed / payout.claimed 4200
+image::s1-mlflow-rebecca-propose.png["MLflow, parasol-secured, rebecca's Approve the claim turn: span tool.propose_payout selected, payout.proposed 4200 and payout.claimed 4200 on CLM-1001, no approval call"]
 
 . As marcus, click the `trace <id>` link under the approved card.
 +
