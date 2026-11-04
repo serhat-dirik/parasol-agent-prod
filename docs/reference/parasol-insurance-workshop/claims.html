@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claims - Parasol Insurance</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <div id="page-content">
+        <h1 class="page-title">Claims</h1>
+
+        <div class="table-controls">
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Search claims">
+                <span class="search-icon">&#128269;</span>
+            </div>
+            <div class="filter-group">
+                <select class="filter-select" id="filter-category">
+                    <option value="">Any category</option>
+                    <option value="Multiple vehicle">Multiple vehicle</option>
+                    <option value="Single vehicle">Single vehicle</option>
+                    <option value="Property damage">Property damage</option>
+                    <option value="Liability">Liability</option>
+                </select>
+                <select class="filter-select" id="filter-status">
+                    <option value="">Any status</option>
+                    <option value="New">New</option>
+                    <option value="In Process">In Process</option>
+                    <option value="Processed">Processed</option>
+                    <option value="Denied">Denied</option>
+                </select>
+            </div>
+        </div>
+
+        <table class="claims-table">
+            <thead>
+                <tr>
+                    <th>Claim Number <span class="sort-icon">&#8597;</span></th>
+                    <th>Category <span class="sort-icon">&#8597;</span></th>
+                    <th>Client Name <span class="sort-icon">&#8597;</span></th>
+                    <th>Policy Number <span class="sort-icon">&#8597;</span></th>
+                    <th>Status <span class="sort-icon">&#8597;</span></th>
+                </tr>
+            </thead>
+            <tbody id="claims-body"></tbody>
+        </table>
+    </div>
+
+    <script src="/js/layout.js"></script>
+    <script>
+        initLayout('claims');
+
+        let allClaims = [];
+
+        function getStatusClass(status) {
+            return status.toLowerCase().replace(/\s+/g, '-');
+        }
+
+        function renderClaims(claims) {
+            const tbody = document.getElementById('claims-body');
+            tbody.innerHTML = claims.map(c => `
+                <tr>
+                    <td><a href="/claim-detail.html?id=${c.claimNumber}" class="claim-link">${c.claimNumber}</a></td>
+                    <td>${c.category}</td>
+                    <td>${c.clientName}</td>
+                    <td>${c.policyNumber}</td>
+                    <td><span class="status-badge ${getStatusClass(c.status)}">${c.status}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function filterClaims() {
+            const search = document.getElementById('search-input').value.toLowerCase();
+            const category = document.getElementById('filter-category').value;
+            const status = document.getElementById('filter-status').value;
+
+            const filtered = allClaims.filter(c => {
+                const matchesSearch = !search ||
+                    c.claimNumber.toLowerCase().includes(search) ||
+                    c.clientName.toLowerCase().includes(search) ||
+                    c.policyNumber.toLowerCase().includes(search);
+                const matchesCategory = !category || c.category === category;
+                const matchesStatus = !status || c.status === status;
+                return matchesSearch && matchesCategory && matchesStatus;
+            });
+
+            renderClaims(filtered);
+        }
+
+        document.getElementById('search-input').addEventListener('input', filterClaims);
+        document.getElementById('filter-category').addEventListener('change', filterClaims);
+        document.getElementById('filter-status').addEventListener('change', filterClaims);
+
+        fetch('/api/claims')
+            .then(r => r.json())
+            .then(claims => {
+                allClaims = claims;
+                renderClaims(claims);
+            });
+    </script>
+</body>
+</html>
