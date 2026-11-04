@@ -17,10 +17,17 @@ spec:
           # Rate alone cannot tell the night shift (~9000/min for 2-3 min, nina.contractor) from staff
           # asking a few questions back to back (one turn is 4-8k tokens, so 8-12k/min over 2m); the
           # exhausted budget can. The portal tags both counters with the caller's username.
+          # The 429 counter is created at the user's first refusal with value 1, so increase() alone misses a
+          # first 429 (no earlier sample); "unless ... offset 10m" catches a counter born in the last 10 min.
           expr: |
             max_over_time((sum by (namespace, user, agent) (rate(parasol_agent_tokens_total[2m])) * 60)[10m:30s]) > 5000
             and on (namespace, user, agent)
-            sum by (namespace, user, agent) (increase(parasol_agent_rejections_total{reason="usage_limit"}[10m])) > 0
+            (
+              sum by (namespace, user, agent) (increase(parasol_agent_rejections_total{reason="usage_limit"}[10m])) > 0
+              or
+              sum by (namespace, user, agent) (parasol_agent_rejections_total{reason="usage_limit"}
+                unless parasol_agent_rejections_total{reason="usage_limit"} offset 10m) > 0
+            )
           for: 30s
           # keep it up long enough to be the morning report, not a blip
           keep_firing_for: 10m
