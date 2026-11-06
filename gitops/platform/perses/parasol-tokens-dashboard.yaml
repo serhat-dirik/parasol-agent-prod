@@ -120,6 +120,38 @@ spec:
                 spec:
                   query: sum by (user, agent, env) (parasol_agent_tokens_total{user=~"$user", agent=~"$agent"})
                   seriesNameFormat: ''
+      tierTable:
+        kind: Panel
+        spec:
+          display:
+            name: Tokens by tier and agent (since the portal started)
+            description: 'Cost per team: parasol_agent_tokens_total summed by MaaS tier (the subscription whose key the portal used) and agent. Contractors (the portal''s maas.contractor.users, default nina.contractor) spend on parasol-contractor, everyone else on parasol-stage. Per-team quality and cost per turn: MLflow traces tagged team'
+          plugin:
+            kind: Table
+            spec:
+              density: compact
+              columnSettings:
+              - name: timestamp
+                hide: true
+              - name: tier
+                header: tier (MaaS subscription)
+                width: 220
+              - name: agent
+                header: agent
+                width: 160
+              - name: value
+                header: tokens
+                width: 90
+                sort: desc
+                enableSorting: true
+          queries:
+          - kind: TimeSeriesQuery
+            spec:
+              plugin:
+                kind: PrometheusTimeSeriesQuery
+                spec:
+                  query: sum by (tier, agent) (label_replace(parasol_agent_tokens_total{user=~"nina.contractor", agent=~"$agent"}, "tier", "contractor (parasol-contractor)", "", "") or label_replace(parasol_agent_tokens_total{user!~"nina.contractor", agent=~"$agent"}, "tier", "staff (parasol-stage)", "", ""))
+                  seriesNameFormat: ''
       modelCalls:
         kind: Panel
         spec:
@@ -678,7 +710,13 @@ spec:
             $ref: '#/spec/panels/alertState'
           x: 0
           y: 9
-          width: 24
+          width: 16
+          height: 6
+        - content:
+            $ref: '#/spec/panels/tierTable'
+          x: 16
+          y: 9
+          width: 8
           height: 6
         - content:
             $ref: '#/spec/panels/modelCalls'

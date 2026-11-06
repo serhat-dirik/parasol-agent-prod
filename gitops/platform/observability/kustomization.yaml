@@ -12,3 +12,4 @@ resources:
   - podmonitor-portal.yaml
   - kuadrant-monitors.yaml
   - uiplugin.yaml
+  - agenticops

@@ -1,0 +1,23 @@
+# The AgenticOps job reads traces and writes feedback and tags in the MLflow workspace parasol-secured.
+# MLflow's kubernetes-auth checks the pod's ServiceAccount token with a SubjectAccessReview there.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agenticops
+  namespace: observability
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agenticops-mlflow-writer
+  namespace: parasol-secured
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: mlflow-operator-mlflow-edit
+subjects:
+  - kind: ServiceAccount
+    name: agenticops
+    namespace: observability

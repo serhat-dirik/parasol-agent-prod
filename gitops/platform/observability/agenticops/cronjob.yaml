@@ -1,0 +1,46 @@
+# Every 10 minutes: score the new agent turns in MLflow (workspace parasol-secured, experiment 1).
+# The image is OpenShift AI's own MLflow image (the version the MLflow server runs), so nothing is installed at run time.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: agenticops
+  namespace: observability
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 540
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: agenticops
+          containers:
+            - name: checks
+              image: registry.redhat.io/rhoai/odh-mlflow-rhel9@sha256:0be528dc82781989d7d3fcddbf1f9825946c5ae5693c88106037c931f0a7120f
+              command: ["/usr/bin/python3.12", "/config/agenticops.py"]
+              env:
+                - {name: MLFLOW_TRACKING_URI, value: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
+                - {name: MLFLOW_WORKSPACE, value: parasol-secured}
+                - {name: MLFLOW_TRACKING_INSECURE_TLS, value: "true"}
+                - {name: EXPERIMENT_ID, value: "1"}
+                - {name: LOOKBACK_MIN, value: "60"}
+                - {name: JUDGE_SAMPLE_PERCENT, value: "20"}
+                - {name: PII_FILE, value: /config/pii.json}
+                - {name: HOME, value: /tmp}
+                - {name: KNOWN_TOOLS, valueFrom: {configMapKeyRef: {name: agenticops, key: KNOWN_TOOLS}}}
+                - {name: USER_GROUPS, valueFrom: {configMapKeyRef: {name: agenticops, key: USER_GROUPS}}}
+              volumeMounts:
+                - {name: config, mountPath: /config, readOnly: true}
+                - {name: judge, mountPath: /judge, readOnly: true}
+              resources:
+                requests: {cpu: 50m, memory: 256Mi}
+                limits: {cpu: 500m, memory: 1Gi}
+          volumes:
+            - name: config
+              configMap: {name: agenticops}
+            - name: judge
+              secret: {secretName: agenticops-judge-key, optional: true}

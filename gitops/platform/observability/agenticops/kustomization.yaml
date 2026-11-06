@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# AgenticOps: checks on every agent turn in MLflow, a judge on a sample, the team on each trace (agenticops.py).
+# The judge key (Secret observability/agenticops-judge-key) is minted by scripts/maas-eval-key.sh, never in Git;
+# without it the job runs the checks only.
+resources:
+  - cronjob.yaml
+  - rbac.yaml
+configMapGenerator:
+  - name: agenticops
+    namespace: observability
+    files:
+      - agenticops.py
+      - pii.json   # same regexes as pii.json in gitops/platform/guardrails/guardrails-rules.yaml (the self-test compares)
+    literals:
+      # the agent's tool set: the MCP virtual servers in gitops/envs/secured (+ the registered currency converter)
+      # and the portal's own propose_payout. approve_payout is deliberately absent: only the manager's Approve calls it.
+      - KNOWN_TOOLS=["get_claim","list_claims_by_status","get_claim_history","get_claim_documents","search_policies","get_policy","list_policies","fraud_check","search_knowledge","convert_currency","propose_payout"]
+      # team fallback when no span carries enduser.groups: the users' groups in gitops/platform/keycloak/realm-import.yaml
+      - USER_GROUPS={"rebecca":["adjusters"],"marcus":["claims-managers"],"nina.contractor":["contractors"]}
