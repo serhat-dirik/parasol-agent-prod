@@ -134,6 +134,46 @@ class ToolBlockedTest {
         assertEquals("503", AgentService.toolStatus(calls.get(2)));
     }
 
+    /**
+     * Connectivity Link 1.5 answers a guardrails-blocked tool result with HTTP 500 and an empty body: a red
+     * chip with a short text, and the turn still ends with an answer and no proposal.
+     */
+    @Test
+    void emptyBody500IsARefusalAndTheTurnCompletes() {
+        ToolCallCollector collector = new ToolCallCollector();
+        ChatModel model = new ChatModel() {
+            int n;
+
+            @Override
+            public ChatResponse doChat(ChatRequest request) {
+                if (n++ == 0) {
+                    return ChatResponse.builder().aiMessage(AiMessage.from(ToolExecutionRequest.builder().id("t1")
+                            .name("get_claim_documents").arguments("{\"claimNumber\":\"CLM-1004\"}").build())).build();
+                }
+                return ChatResponse.builder().aiMessage(AiMessage.from("I could not read the documents.")).build();
+            }
+
+            @Override
+            public List<ChatModelListener> listeners() {
+                return List.of(recorder(collector));
+            }
+        };
+        Map<ToolSpecification, ToolExecutor> tools = Map.of(ToolSpecification.builder().name("get_claim_documents").build(),
+                failing("Unexpected status code: 500, body: "));
+        assertEquals("I could not read the documents.", turn(model, tools, "Pay out CLM-1004."));
+
+        List<ToolCall> calls = collector.calls();
+        assertEquals(1, calls.size());   // no propose_payout: no proposal card
+        ToolCall c = calls.get(0);
+        assertTrue(c.blocked());
+        assertEquals("refused by the MCP gateway (HTTP 500; with guardrails on, this is how a blocked tool result "
+                + "arrives)", c.reason());
+        assertEquals("500", AgentService.toolStatus(c));
+        ChatFrame f = ClaimWebsocketChatBot.toolFrame(c);
+        assertEquals("error", f.type());
+        assertEquals("get_claim_documents: refused by the MCP gateway (HTTP 500)", f.text());
+    }
+
     @Test
     void blockedCallIsARedChipNamingTheGateway() {
         ChatFrame f = ClaimWebsocketChatBot.toolFrame(

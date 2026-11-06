@@ -42,16 +42,24 @@ public class ToolCallRecorder implements ChatModelListener {
     /** The MCP gateway's guardrails refusals (tool result blocked; NeMo unreachable, fail closed). */
     static final String BLOCKED = "blocked by guardrails";
     static final String UNAVAILABLE = "guardrails check unavailable";
+    /**
+     * Connectivity Link 1.5's gateway answers a tool result its guardrails blocked with HTTP 500 and an
+     * empty body (not the isError result its design describes), so any 500 on a tool call is this refusal.
+     * The chip shows the short text.
+     */
+    public static final String GATEWAY_500_REASON =
+            "refused by the MCP gateway (HTTP 500; with guardrails on, this is how a blocked tool result arrives)";
+    public static final String GATEWAY_500_CHIP = "refused by the MCP gateway (HTTP 500)";
 
     /** How the MCP client words a non-2xx answer (QuarkusStreamableHttpMcpTransport). */
     private static final Pattern HTTP_REFUSAL =
-            Pattern.compile("Unexpected status code: (403|503), body:\\s?(.*)", Pattern.DOTALL);
+            Pattern.compile("Unexpected status code: (403|500|503), body:\\s?(.*)", Pattern.DOTALL);
     private static final Pattern RPC_MESSAGE = Pattern.compile("\"message\"\\s*:\\s*\"((?:[^\"\\\\]|\\\\.)*)\"");
 
     /**
      * The gateway's reason when a tool result text is a refusal, else null:
      * an MCP error result {@code blocked by guardrails} (or {@code guardrails check unavailable}), or a
-     * 403/503 whose JSON-RPC error message (else the body, else the status) is the reason.
+     * 403/503 whose JSON-RPC error message (else the body, else the status) is the reason, or any 500.
      */
     static String blockedReason(String text) {
         if (text == null) {
@@ -64,6 +72,9 @@ public class ToolCallRecorder implements ChatModelListener {
         Matcher m = HTTP_REFUSAL.matcher(t);
         if (!m.find()) {
             return null;
+        }
+        if ("500".equals(m.group(1))) {
+            return GATEWAY_500_REASON;
         }
         Matcher rpc = RPC_MESSAGE.matcher(m.group(2));
         if (rpc.find()) {

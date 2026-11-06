@@ -365,8 +365,8 @@ public class AgentService {
 
     /**
      * parasol_tool_calls_total{tool,user,agent,status}: one count per MCP tool the model invoked on this
-     * turn: 200 when it returned a result, 503 when the gateway's guardrails check was unavailable, 403 for
-     * any other gateway refusal (the Approve path in ClaimResource counts its own 403s).
+     * turn: 200 when it returned a result, 503 when the gateway's guardrails check was unavailable, 500 when
+     * the gateway refused a (guardrails-blocked) result with HTTP 500, 403 for any other gateway refusal (the Approve path in ClaimResource counts its own 403s).
      */
     private void recordToolCalls(List<ToolCall> toolCalls) {
         String user = caller.subject();
@@ -380,6 +380,9 @@ public class AgentService {
     static String toolStatus(ToolCall tc) {
         if (!tc.blocked()) {
             return "200";
+        }
+        if (ToolCallRecorder.GATEWAY_500_REASON.equals(tc.reason())) {
+            return "500";
         }
         return tc.reason() != null && tc.reason().startsWith(ToolCallRecorder.UNAVAILABLE) ? "503" : "403";
     }
