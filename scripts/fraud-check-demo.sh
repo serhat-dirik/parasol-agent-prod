@@ -4,7 +4,9 @@
 # with a token the claims agent obtained ON BEHALF OF the caller (scripts/agent-token.sh: sub = the user,
 # azp = parasol-claims-agent), so the same per-identity authz as every other tool applies. The fraud agent
 # then reads the claim through the gateway itself, re-exchanging that token as parasol-fraud-agent.
-#   rebecca (adjuster)        -> allowed -> HIGH-risk verdict flagging CLM-1004 AED 84,000 vs record 8,400
+#   rebecca (adjuster)        -> allowed -> REVIEW verdict: the gateway's guardrails refused CLM-1004's
+#                                documents (they carry an instruction to the assistant); record 8400.00 USD
+#                                (without guardrails on claims-db: HIGH, AED 84,000 vs record 8,400)
 #   marcus  (claims-manager)  -> allowed -> same verdict
 #   nina.contractor (contractor) -> 403 at the gateway (no tool:fraud_check role)
 # This reproduces exactly what the portal's fraud-check MCP client sends (initialize -> tools/call).

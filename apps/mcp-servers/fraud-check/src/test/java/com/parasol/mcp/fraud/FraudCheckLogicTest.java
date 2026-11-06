@@ -69,4 +69,29 @@ class FraudCheckLogicTest {
         assertEquals("HIGH", v.risk());
         assertTrue(FraudCheckTools.documents("No documents have been uploaded to claim CLM-1001.").isEmpty());
     }
+
+    /** Secured path: the gateway refuses the documents (guardrails, HTTP 500 empty body): REVIEW, not an error. */
+    @Test
+    void documentsRefusedByTheGatewayIsReview() {
+        FraudCheckTools tools = new FraudCheckTools();
+        tools.inflationThreshold = 1.5;
+        tools.gateway = new GatewayTools() {
+            @Override
+            public String onBehalfOf(String subjectToken) {
+                return "exchanged";
+            }
+
+            @Override
+            public String callClaimsDb(String token, String tool, String claimNumber) {
+                if ("get_claim".equals(tool)) {
+                    return "Claim CLM-1004: claimant Tom Becker, amount 8400.00 USD, status Denied.";
+                }
+                throw new IllegalStateException("gateway refused " + tool + " (HTTP 500): ");
+            }
+        };
+        assertEquals("FRAUD RISK: REVIEW. The claim's documents could not be read: the MCP gateway refused them "
+                + "(its guardrails block documents that carry instructions to an assistant). The claim amount on "
+                + "record is 8400.00 USD; a person must review the documents.",
+                tools.assessViaGateway("CLM-1004", "subject"));
+    }
 }

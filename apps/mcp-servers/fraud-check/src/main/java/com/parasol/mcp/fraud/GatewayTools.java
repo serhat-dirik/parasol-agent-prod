@@ -161,7 +161,8 @@ public class GatewayTools {
 
     /**
      * Call one claims-db tool through the MCP gateway (initialize, initialized, tools/call) and return
-     * its text result. A gateway refusal (403) or a tool error becomes an IllegalStateException.
+     * its text result. A gateway refusal (any non-2xx, e.g. 403, 503, or the 500 a guardrails-blocked result
+     * gets) or a tool error (JSON-RPC error, isError result) becomes an IllegalStateException.
      */
     public String callClaimsDb(String token, String tool, String claimNumber) {
         Span span = tracer.spanBuilder("tool." + tool).startSpan();
@@ -186,6 +187,9 @@ public class GatewayTools {
             StringBuilder text = new StringBuilder();
             for (JsonNode c : body.path("result").path("content")) {
                 text.append(c.path("text").asText());
+            }
+            if (body.path("result").path("isError").asBoolean()) {
+                throw new IllegalStateException(tool + ": " + text);
             }
             return text.toString();
         } catch (IOException | InterruptedException e) {

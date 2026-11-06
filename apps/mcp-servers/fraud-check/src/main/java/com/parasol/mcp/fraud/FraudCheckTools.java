@@ -97,7 +97,7 @@ public class FraudCheckTools {
         }
     }
 
-    private String assessViaGateway(String claimNumber, String subject) {
+    String assessViaGateway(String claimNumber, String subject) {
         String token = gateway.onBehalfOf(subject);
         if (token == null) {
             return "FRAUD RISK: UNKNOWN. The fraud-check agent could not act on behalf of "
@@ -110,8 +110,17 @@ public class FraudCheckTools {
         }
         ClaimsDbClient.ClaimRecord record = new ClaimsDbClient.ClaimRecord(claimNumber.trim().toUpperCase(),
                 null, null, null, amount.group(1), null, null);
-        return assess(record, documents(gateway.callClaimsDb(token, "get_claim_documents", claimNumber)),
-                inflationThreshold).format();
+        String docs;
+        try {
+            docs = gateway.callClaimsDb(token, "get_claim_documents", claimNumber);
+        } catch (RuntimeException refused) {
+            // The gateway's guardrails refuse a document carrying instructions to an assistant (Connectivity
+            // Link 1.5: HTTP 500, empty body; else 403/503 or an isError result). A verdict, not an error.
+            return "FRAUD RISK: REVIEW. The claim's documents could not be read: the MCP gateway refused them "
+                    + "(its guardrails block documents that carry instructions to an assistant). The claim amount "
+                    + "on record is " + amount.group(1) + " USD; a person must review the documents.";
+        }
+        return assess(record, documents(docs), inflationThreshold).format();
     }
 
     /** "... amount 8400.00 USD ..." in the get_claim sentence. */
