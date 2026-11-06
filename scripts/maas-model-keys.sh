@@ -28,12 +28,15 @@ mk parasol-build "$JUDGE_SECRET"              "${JUDGE_KEY:-}"
 mk parasol-eval  "$JUDGE_SECRET"              "${JUDGE_KEY:-}"
 # agent model (evaluated by the LMEvalJob)
 mk parasol-eval  maas-key-qwen3-14b           "${AGENT_KEY:-}"
-# MLflow judge in the Tekton agent-eval task (mounted as files /maas/endpoint + /maas/key + /maas/model)
-if oc get ns parasol-build >/dev/null 2>&1 && [ -n "${JUDGE_ENDPOINT:-}" ] && [ -n "${JUDGE_KEY:-}" ]; then
+# MLflow judge in the Tekton agent-eval task (mounted as files /maas/endpoint + /maas/key + /maas/model).
+# Only a first-install fallback: scripts/maas-eval-key.sh replaces it with a MaaS key (judge metered on
+# subscription parasol-eval) and this script never overwrites an existing one.
+if oc get ns parasol-build >/dev/null 2>&1 && [ -n "${JUDGE_ENDPOINT:-}" ] && [ -n "${JUDGE_KEY:-}" ] \
+   && ! oc get secret maas-eval-key -n parasol-build >/dev/null 2>&1; then
   oc create secret generic maas-eval-key -n parasol-build \
     --from-literal=endpoint="$JUDGE_ENDPOINT" --from-literal=key="$JUDGE_KEY" --from-literal=model="$JUDGE_MODEL" \
     --dry-run=client -o yaml | oc apply -f - >/dev/null
-  echo "secret parasol-build/maas-eval-key applied (judge endpoint + key + model $JUDGE_MODEL)"
+  echo "secret parasol-build/maas-eval-key applied (direct judge endpoint + key + model $JUDGE_MODEL, until maas-eval-key.sh)"
 fi
 
 echo "done: per-model Secrets applied where the consuming namespace exists."

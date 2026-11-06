@@ -1,5 +1,5 @@
 # MaaS tiers (demo item P1-MAAS-TIERS). Two named tiers, each a distinct external model + one API key:
-#   parasol-tier-prod   -> qwen3-14b                (prod; THE agent model both portals run)
+#   parasol-tier-prod   -> AGENT_MODEL_NAME         (prod; THE agent model both portals run; tested with qwen3-14b)
 #   parasol-tier-guard  -> GUARD_MODEL              (guard; detector for P1-GUARDIAN; tested with granite-guardian-3-1-8b)
 #                          + qwen3-14b              (the NeMo injection judge, guardrails-nemo)
 #
@@ -18,7 +18,7 @@
 # Isolated + additive: own namespace parasol-maas-tiers owns the subscriptions (owner group
 # system:serviceaccounts:parasol-maas-tiers), so scripts/maas-tier-keys.sh mints both keys from one pod
 # WITHOUT touching the shared operational subscriptions (parasol-stage/contractor). Applied by bootstrap.sh
-# (envsubst GUARD_HOST GUARD_MODEL GUARD_MODEL_NAME; not Argo-wired). Priorities (111/71) differ from the operational 50/10.
+# (envsubst GUARD_HOST GUARD_MODEL GUARD_MODEL_NAME AGENT_MODEL_NAME; not Argo-wired). Priorities (111/71) differ from the operational 50/10.
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -30,7 +30,7 @@ metadata:
   name: maas-tier-client
   namespace: parasol-maas-tiers
 ---
-# --- External model: the guard model (guard tier). qwen3-14b's ExternalModel lives in
+# --- External model: the guard model (guard tier). The agent model's ExternalModel lives in
 #     gitops/platform/rhoai/maas.yaml (platform-rhoai); only the guard model is declared here. ---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: ExternalModel
@@ -41,7 +41,7 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   provider: openai
-  endpoint: ${GUARD_HOST}    # FQDN of GUARD_ENDPOINT; apply with: kustomize build ... | envsubst '$GUARD_HOST $GUARD_MODEL $GUARD_MODEL_NAME' | oc apply -f -
+  endpoint: ${GUARD_HOST}    # FQDN of GUARD_ENDPOINT; apply with: kustomize build ... | envsubst '$GUARD_HOST $GUARD_MODEL $GUARD_MODEL_NAME $AGENT_MODEL_NAME' | oc apply -f -
   targetModel: ${GUARD_MODEL}
   credentialRef: {name: maas-upstream-granite-guardian}
 ---
@@ -68,7 +68,7 @@ spec:
     groups:
       - {name: "system:serviceaccounts:parasol-maas-tiers"}
   modelRefs:
-    - {name: qwen3-14b, namespace: models-as-a-service}
+    - {name: "${AGENT_MODEL_NAME}", namespace: models-as-a-service}
     - {name: "${GUARD_MODEL_NAME}", namespace: models-as-a-service}
 ---
 apiVersion: maas.opendatahub.io/v1alpha1
@@ -84,7 +84,7 @@ spec:
     groups: [{name: "system:serviceaccounts:parasol-maas-tiers"}]
   priority: 111
   modelRefs:
-    - name: qwen3-14b
+    - name: ${AGENT_MODEL_NAME}
       namespace: models-as-a-service
       tokenRateLimits:
         - {limit: 2000000, window: 24h}

@@ -11,6 +11,22 @@
 # Read-Propose-Act), not model luck, stop the payout. The Argo Application patches /spec/endpoint
 # with $AGENT_HOST and /spec/targetModel with $AGENT_MODEL; upstream key Secret maas-upstream-qwen3-14b (data key "api-key", label
 # inference.llm-d.ai/ipp-managed=true) created at run time, never committed.
+#
+# Object names follow the install settings: the agent model's objects are named AGENT_MODEL_NAME and the
+# judge's JUDGE_MODEL_NAME (DNS-1123 form of AGENT_MODEL / JUDGE_MODEL, as bootstrap.sh derives
+# GUARD_MODEL_NAME). Below, qwen3-14b and gpt-oss-120b are the tested defaults; kustomization.yaml copies
+# the names from this local ConfigMap (never applied) and the Argo Application patches its values.
+# Clients send the object name as "model" (MaaS maps it to targetModel).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: parasol-model-names
+  annotations:
+    config.kubernetes.io/local-config: "true"
+data:
+  agent: qwen3-14b      # AGENT_MODEL_NAME
+  judge: gpt-oss-120b   # JUDGE_MODEL_NAME
+---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: ExternalModel
 metadata:
@@ -33,6 +49,33 @@ metadata:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
   modelRef: {kind: ExternalModel, name: qwen3-14b}
+---
+# The evaluation judge (JUDGE_MODEL): release-gate judging and the AgenticOps sampled judge go through
+# MaaS on subscription parasol-eval, so they are metered like every other controlled model call.
+# The Argo Application patches /spec/endpoint with $JUDGE_HOST and /spec/targetModel with $JUDGE_MODEL;
+# upstream key Secret maas-upstream-judge (data key "api-key", from JUDGE_KEY) by scripts/maas-ext-model-secrets.sh.
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: ExternalModel
+metadata:
+  name: gpt-oss-120b
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  provider: openai
+  endpoint: maas.invalid.example    # FQDN only; the Argo Application patches /spec/endpoint with $JUDGE_HOST
+  targetModel: gpt-oss-120b
+  credentialRef: {name: maas-upstream-judge}
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: gpt-oss-120b
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  modelRef: {kind: ExternalModel, name: gpt-oss-120b}
 ---
 # Who may call what.
 apiVersion: maas.opendatahub.io/v1alpha1
@@ -92,6 +135,9 @@ spec:
 # Budget (measured): one prompt = 23 cases x 3 attempts x 2 modes (with the platform, model alone) = about
 # 0.6M tokens, 7-11 min; an install's seed (2 prompts) plus both release runs = about 2.4M, so 6M per hour leaves
 # room for a re-run without a 429. Key minted by scripts/maas-eval-key.sh (Secret parasol-build/maas-eval-agent-key).
+# The judge (JUDGE_MODEL) is on the same subscription with its own allowance and its own keys (Secrets
+# parasol-build/maas-eval-key for the release gate, observability/agenticops-judge-key for the AgenticOps job):
+# one judged prompt is about 70 calls, about 0.2M tokens.
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSAuthPolicy
 metadata:
@@ -104,6 +150,7 @@ spec:
     groups: [{name: "system:serviceaccounts:parasol-build"}]
   modelRefs:
     - {name: qwen3-14b, namespace: models-as-a-service}
+    - {name: gpt-oss-120b, namespace: models-as-a-service}
 ---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSSubscription
@@ -121,3 +168,7 @@ spec:
       namespace: models-as-a-service
       tokenRateLimits:
         - {limit: 6000000, window: 1h}
+    - name: gpt-oss-120b                  # the judge
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 3000000, window: 1h}

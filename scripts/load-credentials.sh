@@ -53,6 +53,10 @@ export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}"
 # agent endpoint/key follow AGENT_MODEL, so another model from the file can be chosen at source time
 _pair="$(printf '%s' "$_MODEL_PAIRS" | tr ';' '\n' | grep -i "^${AGENT_MODEL}=" | head -1)"
 [ -n "$_pair" ] && export AGENT_ENDPOINT="$(printf '%s' "$_pair" | cut -d= -f2- | cut -d'|' -f1)" AGENT_KEY="$(printf '%s' "$_pair" | cut -d'|' -f2)"
+# Kubernetes object names of the models (DNS-1123 forms, derived as in bootstrap.sh)
+_dns() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g' | cut -c1-63 | sed -E 's/^-+|-+$//g'; }
+export AGENT_MODEL_NAME="$(_dns "$AGENT_MODEL")" GUARD_MODEL_NAME="$(_dns "$GUARD_MODEL")" JUDGE_MODEL_NAME="$(_dns "$JUDGE_MODEL")"
+unset -f _dns
 # legacy names some scripts still read
 export MAAS_ENDPOINT="${AGENT_ENDPOINT:-}" MAAS_API_KEY="${AGENT_KEY:-}" MAAS_MODEL="$AGENT_MODEL"
 echo "loaded: api=${OCP_API:-<missing>} agent=$AGENT_MODEL@${AGENT_ENDPOINT:-<missing>} guard=$GUARD_MODEL judge=$JUDGE_MODEL models in file: $_MODELS (secrets not shown)"

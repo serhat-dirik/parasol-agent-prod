@@ -150,8 +150,8 @@ spec:
     both counted on the cases the two golden-set versions share (same id and fingerprint)
     (non-regression baseline: annotation parasol.example/model-only-baseline on env-secured, written by promote and
     cross-checked with its mirror, the MLflow run tagged released=true; missing or disagreeing fails closed; before
-    any promote, the seed's production run). The judge (gpt-oss-120b on its own key from secret maas-eval-key, never the agent key)
-    attaches per-attempt assessments. The MLflow run id is written as a result. The release registers the
+    any promote, the seed's production run). The judge (JUDGE_MODEL, default gpt-oss-120b, through MaaS on subscription parasol-eval with its own key
+    from secret maas-eval-key, never the agent key) attaches per-attempt assessments. The MLflow run id is written as a result. The release registers the
     prompt it ships first: prompt-file becomes the registry version prompt-ref's alias points to
     (append-only: an identical text reuses its version), and the released text is left in the workspace
     (release/released-prompt/) for the promote task to pin.
@@ -212,6 +212,10 @@ spec:
           export NO_JUDGE=1
           echo "maas-eval-key not mounted: running deterministic-only gate (no judge calls)."
         fi
+        # The judge goes through the in-cluster MaaS gateway (service CA); the bundle also keeps a direct
+        # provider endpoint (public CA) working. The judge client reads SSL_CERT_FILE.
+        cat "$(python3 -c 'import certifi; print(certifi.where())')" /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt > /tmp/judge-ca.pem
+        export SSL_CERT_FILE=/tmp/judge-ca.pem
         R="$(workspaces.source.path)/release"   # shared with promote: the released prompt text
         rm -rf "$R"; mkdir -p "$R"
         python3 "$E/agent_eval.py" --run --versions "$CAND" --gate-version "$CAND" --no-fail --results-dir "$R"

@@ -8,3 +8,26 @@ resources:
   - maas.yaml
   - maas-db.yaml
   - model-governance.yaml
+# MaaS object names follow the install settings (ConfigMap parasol-model-names in maas.yaml, patched by the
+# Argo Application). Patches run before replacements, so the Application's patches still select the defaults.
+replacements:
+  - source: {kind: ConfigMap, name: parasol-model-names, fieldPath: data.agent}
+    targets:
+      - select: {kind: ExternalModel, name: qwen3-14b}
+        fieldPaths: [metadata.name]
+      - select: {kind: MaaSModelRef, name: qwen3-14b}
+        fieldPaths: [metadata.name, spec.modelRef.name]
+      - select: {kind: MaaSAuthPolicy}
+        fieldPaths: ["spec.modelRefs.[name=qwen3-14b].name"]
+      - select: {kind: MaaSSubscription}
+        fieldPaths: ["spec.modelRefs.[name=qwen3-14b].name"]
+  - source: {kind: ConfigMap, name: parasol-model-names, fieldPath: data.judge}
+    targets:
+      - select: {kind: ExternalModel, name: gpt-oss-120b}
+        fieldPaths: [metadata.name]
+      - select: {kind: MaaSModelRef, name: gpt-oss-120b}
+        fieldPaths: [metadata.name, spec.modelRef.name]
+      - select: {kind: MaaSAuthPolicy, name: parasol-eval-access}
+        fieldPaths: ["spec.modelRefs.[name=gpt-oss-120b].name"]
+      - select: {kind: MaaSSubscription, name: parasol-eval}
+        fieldPaths: ["spec.modelRefs.[name=gpt-oss-120b].name"]

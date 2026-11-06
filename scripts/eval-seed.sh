@@ -41,6 +41,9 @@ spec:
               pip install --quiet --no-cache-dir "mlflow==3.4.0" openai requests >/tmp/pip.log 2>&1 || cat /tmp/pip.log
               mkdir -p /tmp/e && cp /src/* /tmp/e/
               if [ -f /maas/endpoint ]; then export MAAS_ENDPOINT_FILE=/maas/endpoint MAAS_EVAL_KEY_FILE=/maas/key; else export NO_JUDGE=1; fi
+              # judge through the in-cluster MaaS gateway (service CA) or straight to its provider (public CA)
+              cat "$(python3 -c 'import certifi; print(certifi.where())')" /var/run/secrets/kubernetes.io/serviceaccount/service-ca.crt > /tmp/judge-ca.pem
+              export SSL_CERT_FILE=/tmp/judge-ca.pem
               python3 /tmp/e/agent_eval.py --run --versions production,candidate-shortened --no-fail
           env:
             - {name: MLFLOW_TRACKING_URI, value: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}

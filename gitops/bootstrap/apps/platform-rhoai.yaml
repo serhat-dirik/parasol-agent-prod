@@ -22,6 +22,22 @@ spec:
             - op: replace
               path: /spec/targetModel
               value: ${AGENT_MODEL}
+        - target: {kind: ExternalModel, name: gpt-oss-120b}   # the judge: JUDGE_ENDPOINT's host + JUDGE_MODEL
+          patch: |-
+            - op: replace
+              path: /spec/endpoint
+              value: ${JUDGE_HOST}
+            - op: replace
+              path: /spec/targetModel
+              value: ${JUDGE_MODEL}
+        - target: {kind: ConfigMap, name: parasol-model-names}   # MaaS object names (DNS-1123 forms of the model ids)
+          patch: |-
+            - op: replace
+              path: /data/agent
+              value: ${AGENT_MODEL_NAME}
+            - op: replace
+              path: /data/judge
+              value: ${JUDGE_MODEL_NAME}
         - target: {kind: Gateway, name: maas-default-gateway}   # external listener = the MaaS API URL the dashboard uses
           patch: |-
             - op: replace

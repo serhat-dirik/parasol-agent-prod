@@ -34,18 +34,19 @@ python3 -c 'import yaml' 2>/dev/null || { echo "bootstrap.sh: python3 needs PyYA
 export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}"
 export GUARD_MODEL="${GUARD_MODEL:-granite-guardian-3-1-8b}" JUDGE_MODEL="${JUDGE_MODEL:-gpt-oss-120b}"
 # Kubernetes object names derived from a model id (DNS-1123: lower case, [a-z0-9-], max 63); the defaults map to themselves
-export GUARD_MODEL_NAME="$(printf '%s' "$GUARD_MODEL" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g' | cut -c1-63 | sed -E 's/^-+|-+$//g')"
+dns_name() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g' | cut -c1-63 | sed -E 's/^-+|-+$//g'; }
+export AGENT_MODEL_NAME="$(dns_name "$AGENT_MODEL")" GUARD_MODEL_NAME="$(dns_name "$GUARD_MODEL")" JUDGE_MODEL_NAME="$(dns_name "$JUDGE_MODEL")"
 export REPO_URL="${REPO_URL:-$(git remote get-url origin 2>/dev/null || echo https://github.com/CHANGEME/parasol-agent-prod.git)}"
 export REPO_REVISION="${REPO_REVISION:-main}"
 export CLUSTER_DOMAIN="$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')"
 host() { echo "$1" | sed -E 's#https?://([^/:]+).*#\1#'; }
 port() { local p; p="$(echo "$1" | sed -nE 's#https?://[^/:]+:([0-9]+).*#\1#p')"; echo "${p:-443}"; }
-export AGENT_HOST="$(host "$AGENT_ENDPOINT")" AGENT_PORT="$(port "$AGENT_ENDPOINT")" GUARD_HOST="$(host "$GUARD_ENDPOINT")"
+export AGENT_HOST="$(host "$AGENT_ENDPOINT")" AGENT_PORT="$(port "$AGENT_ENDPOINT")" GUARD_HOST="$(host "$GUARD_ENDPOINT")" JUDGE_HOST="$(host "$JUDGE_ENDPOINT")"
 
 log(){ printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 WARNS=""
 warn(){ printf '\033[1;33mWARN: %s\033[0m\n  re-run: %s\n' "$1" "$2"; WARNS="$WARNS\n  - $1: $2"; }
-APPS_ENV='$CLUSTER_DOMAIN $REPO_URL $REPO_REVISION $AGENT_ENDPOINT $AGENT_MODEL $AGENT_HOST $AGENT_PORT $KEYCLOAK_INTERNAL_URL'
+APPS_ENV='$CLUSTER_DOMAIN $REPO_URL $REPO_REVISION $AGENT_ENDPOINT $AGENT_MODEL $AGENT_MODEL_NAME $AGENT_HOST $AGENT_PORT $JUDGE_MODEL $JUDGE_MODEL_NAME $JUDGE_HOST $KEYCLOAK_INTERNAL_URL'
 
 log "Cluster $CLUSTER_DOMAIN, repo $REPO_URL@$REPO_REVISION, agent $AGENT_MODEL@$AGENT_HOST, guard $GUARD_MODEL@$GUARD_HOST, judge $JUDGE_MODEL"
 
@@ -79,7 +80,7 @@ for ns in parasol-free parasol-secured; do   # parasol-secured's is replaced by 
 done
 oc -n parasol-secured delete secret agent-service-identity --ignore-not-found >/dev/null   # retired dev/dev service identity
 scripts/knowledge-base-db.sh   # knowledge-base database credentials per environment (generated once, never printed)
-scripts/maas-ext-model-secrets.sh   # upstream keys: agent model <- AGENT_KEY, guard model <- GUARD_KEY
+scripts/maas-ext-model-secrets.sh   # upstream keys: agent model <- AGENT_KEY, guard model <- GUARD_KEY, judge <- JUDGE_KEY
 ns=redhat-ai-gateway-infra   # MaaS API database (gitops/platform/rhoai/maas-db.yaml): password generated once, never printed
 if ! oc get secret maas-postgres -n $ns >/dev/null 2>&1; then
   pw=$(openssl rand -hex 16)
@@ -148,7 +149,7 @@ for i in $(seq 1 40); do oc rollout status deploy/guardrails-proxy -n parasol-se
 scripts/kuadrant-ready.sh || warn "Kuadrant not Ready: no AuthPolicy is enforced (MaaS keys fail with 500)" scripts/kuadrant-ready.sh
 scripts/authorino-tls.sh || warn "Authorino TLS not applied (reverted); MaaS stays NotReady" scripts/authorino-tls.sh
 for i in $(seq 1 60); do [ "$(oc get datasciencecluster -o jsonpath='{.items[0].status.conditions[?(@.type=="ModelsAsAServiceReady")].status}')" = True ] && break; echo "$(date +%T) waiting for ModelsAsAServiceReady ($i/60)"; sleep 30; done
-kustomize build gitops/platform/maas-tiers | envsubst '$GUARD_HOST $GUARD_MODEL $GUARD_MODEL_NAME' | oc apply -f - \
+kustomize build gitops/platform/maas-tiers | envsubst '$GUARD_HOST $GUARD_MODEL $GUARD_MODEL_NAME $AGENT_MODEL_NAME' | oc apply -f - \
   || warn "MaaS tiers not applied (MaaS CRDs not ready?)" "./bootstrap.sh"
 scripts/maas-key.sh || warn "no MaaS key minted; parasol-secured keeps the upstream key" scripts/maas-key.sh
 scripts/maas-portal-keys.sh || warn "secured portal per-group MaaS keys (STAFF/CONTRACTOR) missing; the secured portal cannot start" scripts/maas-portal-keys.sh
