@@ -6,6 +6,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDate;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -86,7 +87,7 @@ public class AgentService {
     @ConfigProperty(name = "quarkus.langchain4j.openai.parasol-chat.chat-model.model-name", defaultValue = "parasol-chat")
     String modelName;
 
-    private String systemPrompt() {
+    String systemPrompt() {
         if (systemPromptFile.isEmpty()) {
             return ClaimsAssistant.LAPTOP_PROMPT;
         }
@@ -137,6 +138,15 @@ public class AgentService {
     /** The note to append when {@code answer} claims a payout action no tool performed, else null. */
     static String unbackedClaimNote(String answer, boolean proposed) {
         return !proposed && answer != null && CLAIMED_PAYOUT.matcher(answer).find() ? UNBACKED_NOTE : null;
+    }
+
+    /**
+     * The user message the model gets: today's date first, so "this week" or "how long ago" questions have
+     * a reference. It rides on the user message, not the system prompt, so the registered prompt text and
+     * its sha256 (which the release gate checks) stay unchanged.
+     */
+    static String dated(String question, LocalDate today) {
+        return "Today is " + today + ". " + question;
     }
 
     /** Ask the assistant. {@code conversationId} ties a chat session's turns together (A5 memory). */
@@ -191,8 +201,8 @@ public class AgentService {
                         who, env, AGENT_DISABLED, false, null, null, traceId);
             }
             Result<String> result = proposeEnabled
-                    ? assistant.askWithPropose(conversationId, prompt, question)
-                    : assistant.ask(conversationId, prompt, question);
+                    ? assistant.askWithPropose(conversationId, prompt, dated(question, LocalDate.now()))
+                    : assistant.ask(conversationId, prompt, dated(question, LocalDate.now()));
             count(result.tokenUsage());
             List<ToolCall> toolCalls = toolCallCollector.calls();
             Proposal proposal = proposalHolder.has()
