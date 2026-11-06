@@ -8,6 +8,7 @@ resources:
   - maas.yaml
   - maas-db.yaml
   - model-governance.yaml
+  - playground.yaml        # Gen AI studio playground: dashboard project + MaaS subscription for signed-in users
 # MaaS object names follow the install settings (ConfigMap parasol-model-names in maas.yaml, patched by the
 # Argo Application). Patches run before replacements, so the Application's patches still select the defaults.
 replacements:
@@ -30,4 +31,8 @@ replacements:
       - select: {kind: MaaSAuthPolicy, name: parasol-eval-access}
         fieldPaths: ["spec.modelRefs.[name=gpt-oss-120b].name"]
       - select: {kind: MaaSSubscription, name: parasol-eval}
+        fieldPaths: ["spec.modelRefs.[name=gpt-oss-120b].name"]
+      - select: {kind: MaaSAuthPolicy, name: parasol-playground-access}
+        fieldPaths: ["spec.modelRefs.[name=gpt-oss-120b].name"]
+      - select: {kind: MaaSSubscription, name: parasol-playground}
         fieldPaths: ["spec.modelRefs.[name=gpt-oss-120b].name"]

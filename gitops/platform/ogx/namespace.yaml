@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: parasol-ogx-playground
-  labels:
-    opendatahub.io/dashboard: "true"
-    parasol.example/environment: playground
-  annotations:
-    openshift.io/display-name: "Parasol GenAI Studio Playground"

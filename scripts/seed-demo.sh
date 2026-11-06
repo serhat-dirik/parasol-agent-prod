@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
-# The data the guide shows as already there (Scenario 2 playground, Scenario 4, supply chain). Run by
+# The data the guide shows as already there (Scenario 4, supply chain). Run by
 # bootstrap.sh after the platform is up; idempotent, and each step can be re-run alone (printed on WARN).
 #   1 MLflow experiment parasol-portal-chat (chat traces; must be experiment id 1, see otel-collector.yaml)
 #   2 MLflow Prompt Registry: system prompt, aliases production (version 1) and candidate (version 2)
 #   3 MLflow golden-set runs: production-prompt PASS, candidate-shortened-prompt BLOCK (judge = JUDGE model)
 #   4 Model Registry parasol-model-registry: parasol-claims-assistant versions production + candidate-shortened with those eval results
 #   5 EvalHub run parasol-agent-model-ifeval + LMEvalJob parasol-agent-model-eval (Evaluations pages)
-#   6 GenAI Studio playground (OGXServer on the agent model)
-#   7 release PipelineRuns candidate-shortened (blocked) and production (promoted; bootstrap.sh waits for it)
+#   6 release PipelineRuns candidate-shortened (blocked) and production (promoted; bootstrap.sh waits for it)
 # Needs the install contract env (AGENT_*, JUDGE_* ...), see bootstrap.sh.
 set -uo pipefail
 cd "$(dirname "$0")/.."
@@ -51,12 +50,7 @@ if oc get lmevaljob parasol-agent-model-eval -n parasol-eval >/dev/null 2>&1; th
 else envsubst '$AGENT_ENDPOINT $AGENT_MODEL' < gitops/platform/eval/lmevaljob-agent-model.yaml | oc apply -f - \
   || warn "LMEvalJob" "envsubst '\$AGENT_ENDPOINT \$AGENT_MODEL' < gitops/platform/eval/lmevaljob-agent-model.yaml | oc apply -f -"; fi
 
-echo "== 6 GenAI Studio playground"
-if wait_for 40 "OGXServer CRD (DSC ogx)" oc get crd ogxservers.ogx.io; then
-  : "${AGENT_KEY:?}"; scripts/ogx-playground.sh || warn "playground" scripts/ogx-playground.sh
-else warn "OGX CRD missing" scripts/ogx-playground.sh; fi
-
-echo "== 7 release pipeline runs"
+echo "== 6 release pipeline runs"
 scripts/pipeline-runs.sh || warn "pipeline runs" scripts/pipeline-runs.sh
 
 [ -z "$WARN" ] && echo "seed complete" || { printf "seed finished with warnings; re-run:%b\n" "$WARN"; exit 1; }

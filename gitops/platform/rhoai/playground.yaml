@@ -1,0 +1,53 @@
+# Gen AI studio playground on the dashboard's own OGX server. Nothing here runs a server: in the dashboard,
+# project parasol-playground, Gen AI studio > Playground > Create playground makes the dashboard create
+# OGXServer lsd-genai-playground (label opendatahub.io/dashboard=true) with the MaaS models the signed-in user
+# is subscribed to. What we declare is what that click needs:
+#   - a dashboard project without the parasol-secured LimitRange/quota/NetworkPolicies (the OGX pod and its calls
+#     to MaaS and the MCP gateway are the developer's, not the sandboxed agent's);
+#   - a MaaS subscription for signed-in OpenShift users (the models the playground lists come from the user's
+#     subscriptions), small, and switched off with the others by scripts/kill-switch.sh parasol;
+#   - the MCP servers: ConfigMap gen-ai-aa-mcp-servers (gitops/platform/mcp-catalog/gen-ai-mcp-servers.yaml).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: parasol-playground
+  labels:
+    opendatahub.io/dashboard: "true"
+  annotations:
+    openshift.io/display-name: Parasol playground
+    openshift.io/description: Gen AI studio playground with the Parasol models (MaaS) and the Parasol MCP gateway.
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSAuthPolicy
+metadata:
+  name: parasol-playground-access
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  subjects:
+    groups: [{name: "system:authenticated:oauth"}]   # people signed in to OpenShift, not service accounts
+  modelRefs:
+    - {name: qwen3-14b, namespace: models-as-a-service}
+    - {name: gpt-oss-120b, namespace: models-as-a-service}
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSSubscription
+metadata:
+  name: parasol-playground
+  namespace: models-as-a-service
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  owner:
+    groups: [{name: "system:authenticated:oauth"}]
+  priority: 5                             # lowest: anyone in another Parasol subscription keeps that one
+  modelRefs:
+    - name: qwen3-14b                     # the agent model
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 50000, window: 10m}
+    - name: gpt-oss-120b                  # the judge model
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 50000, window: 10m}
