@@ -1,0 +1,144 @@
+# Test OGX server for the checks in this folder (namespace parasol-ogx-lab, applied by setup.sh).
+# Responses API on, MaaS as the inference provider (in-cluster MaaS gateway, service CA trusted), MCP tool
+# runtime, SQLite state on the pod's emptyDir (a test server keeps nothing), traces to the OTel collector.
+# Provider "echo" answers like a model and logs the request's traceparent (check 4 only).
+# The MaaS key comes from Secret ogx-lab-maas, created by setup.sh; it is never in this file.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ogx-lab-config
+  labels: {ogx.io/watch: "true"}
+data:
+  config.yaml: |
+    version: 2
+    image_name: rh
+    apis: [inference, responses, tool_runtime, vector_io, files]
+    providers:
+      inference:
+      - provider_id: maas
+        provider_type: remote::openai
+        config:
+          api_key: ${env.OPENAI_API_KEY:=}
+          base_url: ${env.MAAS_URL}
+          network:
+            tls:
+              verify: /etc/service-ca/service-ca.crt
+      - provider_id: echo
+        provider_type: remote::openai
+        config:
+          api_key: none
+          base_url: http://ogx-echo:8080/v1
+      tool_runtime:
+      - provider_id: model-context-protocol
+        provider_type: remote::model-context-protocol
+        config: {}
+      files:
+      - provider_id: localfs
+        provider_type: inline::localfs
+        config:
+          storage_dir: /.ogx/files
+          metadata_store: {backend: sql_default, table_name: files_metadata}
+      responses:
+      - provider_id: builtin
+        provider_type: inline::builtin
+        config:
+          persistence:
+            agent_state: {backend: kv_default, namespace: agents}
+            responses: {backend: sql_default, table_name: responses}
+    storage:
+      backends:
+        kv_default: {type: kv_sqlite, db_path: /.ogx/kv.db}
+        sql_default: {type: sql_sqlite, db_path: /.ogx/sql.db}
+      stores:
+        metadata: {backend: kv_default, namespace: registry}
+        inference: {backend: sql_default, table_name: inference_store}
+        conversations: {backend: sql_default, table_name: openai_conversations}
+        prompts: {backend: kv_default, namespace: prompts}
+        connectors: {backend: sql_default, table_name: connectors}
+    registered_resources:
+      models:
+      - {model_id: qwen3-14b, provider_id: maas, provider_model_id: qwen3-14b, model_type: llm}
+      - {model_id: echo, provider_id: echo, provider_model_id: echo, model_type: llm}
+    server:
+      port: 8321
+---
+apiVersion: ogx.io/v1beta1
+kind: OGXServer
+metadata:
+  name: ogx-lab
+spec:
+  distribution: {name: rh}
+  overrideConfig: {name: ogx-lab-config, key: config.yaml}
+  workload:
+    replicas: 1
+    resources:
+      requests: {cpu: 100m, memory: 512Mi}
+      limits: {cpu: "1", memory: 1Gi}
+    overrides:
+      env:
+        - {name: MAAS_URL, value: "https://maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local/models-as-a-service/qwen3-14b/v1"}
+        - name: OPENAI_API_KEY
+          valueFrom: {secretKeyRef: {name: ogx-lab-maas, key: OPENAI_API_KEY}}
+        # tracing: the image's entrypoint wraps the server in opentelemetry-instrument when this is set
+        - {name: OTEL_SERVICE_NAME, value: ogx-lab}
+        - {name: OTEL_EXPORTER_OTLP_PROTOCOL, value: http/protobuf}
+        - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: "http://otel-collector.observability.svc.cluster.local:4318"}
+        - {name: OTEL_METRICS_EXPORTER, value: none}
+        - {name: OTEL_LOGS_EXPORTER, value: none}
+      volumes:
+        - name: service-ca
+          configMap: {name: openshift-service-ca.crt}
+      volumeMounts:
+        - {name: service-ca, mountPath: /etc/service-ca, readOnly: true}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ogx-echo
+data:
+  echo.py: |
+    import json
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("content-length", 0)))
+            print("POST", self.path, "traceparent=%s" % self.headers.get("traceparent"), flush=True)
+            body = json.dumps({"id": "echo", "object": "chat.completion", "created": 0, "model": "echo",
+                               "choices": [{"index": 0, "finish_reason": "stop",
+                                            "message": {"role": "assistant", "content": "echo"}}],
+                               "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2}}).encode()
+            self.send_response(200); self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(body))); self.end_headers(); self.wfile.write(body)
+        def do_GET(self):
+            self.send_response(404); self.end_headers()
+    HTTPServer(("", 8080), H).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ogx-echo
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: ogx-echo}}
+  template:
+    metadata:
+      labels: {app: ogx-echo}
+    spec:
+      containers:
+        - name: echo
+          image: registry.redhat.io/rhoai/odh-ogx-core-rhel9@sha256:a96caf4e5dfbe8ee9f1c342f2c1ab7200ce39d6ef464375718ac0313bc97dd5d
+          command: [python3, /echo/echo.py]
+          ports: [{containerPort: 8080}]
+          resources:
+            requests: {cpu: 10m, memory: 64Mi}
+            limits: {cpu: 100m, memory: 128Mi}
+          volumeMounts: [{name: echo, mountPath: /echo}]
+      volumes: [{name: echo, configMap: {name: ogx-echo}}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ogx-echo
+spec:
+  selector: {app: ogx-echo}
+  ports: [{port: 8080, targetPort: 8080}]
