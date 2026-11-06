@@ -261,11 +261,26 @@ tools)
   done ;;
 scan)
   echo "The tool scanner's latest verdict per MCP server (mcp-system/mcp-tool-scanner):"
-  logs=$(oc logs -n mcp-system deploy/mcp-tool-scanner --tail=500 2>/dev/null | grep 'tool-scan action=' || true)
-  grep -E 'action=(scanned|drift|cleared)' <<<"$logs" | awk '{for(i=1;i<=NF;i++) if($i ~ /^server=/) last[$i]=$0} END{for(s in last) print last[s]}' \
-    | sed -E 's/.*action=([a-z]+) server=([^ ]+) registered=([a-z]+) .*version=([^ ]+).*(pin=[a-z]+|pinned=[0-9a-f]{8}).*/  \2  registered=\3 version=\4 \1 \5/' | sort
-  echo "Descriptions with instructions for the assistant (the guardrails' phrases, last 500 lines):"
-  grep 'action=flag' <<<"$logs" | sed -E 's/.*server=([^ ]+).*tool=([^ ]+).*rule=(.*)/  \1  \2  \3/' | sort -u | tail -6 | grep . || echo "  none" ;;
+  # the scanner logs only changes: replay its log to the current state per server
+  oc logs -n mcp-system deploy/mcp-tool-scanner --tail=-1 2>/dev/null | python3 -c '
+import sys, re
+last, flags = {}, {}
+for l in sys.stdin:
+    m = re.search(r"tool-scan action=(\w+) server=(\S+) registered=(\S+)(.*)", l)
+    if not m: continue
+    act, srv, reg, rest = m.groups(); kv = dict(re.findall(r"(\w+)=(\x27[^\x27]*\x27|\S+)", rest))
+    if act == "scanned":
+        last[srv] = "registered=%s version=%s pin=%s" % (reg, kv.get("version"), kv.get("pin"))
+    elif act == "drift":
+        last[srv] = "registered=%s version=%s DRIFT pinned=%s current=%s" % (reg, kv.get("version"), kv.get("pinned", "")[:8], kv.get("current", "")[:8])
+    elif act == "flag":
+        flags[(srv, kv.get("tool"), kv.get("rule"))] = 1
+    elif act == "cleared":
+        flags.pop((srv, kv.get("tool"), kv.get("rule")), None)
+for s in sorted(last): print("  %-40s %s" % (s, last[s]))
+print("Descriptions with instructions for the assistant (open findings, the guardrails rules):")
+for s, t, r in sorted(flags): print("  %-40s %-18s %s" % (s, t, r))
+if not flags: print("  none")' ;;
 release)
   echo "1) The release run parasol-portal-release-production (parasol-build), its results:"
   oc get pipelinerun parasol-portal-release-production -n parasol-build -o json | python3 -c '
