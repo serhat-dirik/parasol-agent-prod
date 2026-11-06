@@ -25,6 +25,14 @@ spec:
             - {name: AGENT_MODEL, value: "${AGENT_MODEL}"}
             - {name: AGENT_ENDPOINT, value: "${AGENT_ENDPOINT}"}
             - {name: JUDGE_MODEL, value: "${JUDGE_MODEL}"}   # recorded as eval_judge_model
+            # The three external models, registered as served by MaaS (endpoint = MAAS_BASE_URL/models-as-a-service/<name>/v1).
+            - {name: MAAS_BASE_URL, value: "https://maas.apps.${CLUSTER_DOMAIN}"}
+            - {name: AGENT_MODEL_NAME, value: "${AGENT_MODEL_NAME}"}
+            - {name: GUARD_MODEL, value: "${GUARD_MODEL}"}
+            - {name: GUARD_MODEL_NAME, value: "${GUARD_MODEL_NAME}"}
+            - {name: GUARD_ENDPOINT, value: "${GUARD_ENDPOINT}"}
+            - {name: JUDGE_MODEL_NAME, value: "${JUDGE_MODEL_NAME}"}
+            - {name: JUDGE_ENDPOINT, value: "${JUDGE_ENDPOINT}"}
             - {name: HOME, value: "/tmp"}
             # This cluster's golden-set runs (scripts/eval-seed.sh); empty = the reference ids.
             - {name: MLFLOW_EXPERIMENT_ID, value: "${MLFLOW_EXPERIMENT_ID}"}

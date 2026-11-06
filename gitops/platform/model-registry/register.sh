@@ -9,7 +9,10 @@
 # --patch-eval to stamp a run's gate/score/mlflow-run-id onto the matching ModelVersion.
 set -euo pipefail
 : "${AGENT_ENDPOINT:?export the install contract (AGENT_ENDPOINT, AGENT_MODEL) or source scripts/load-credentials.sh}"
-export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}" JUDGE_MODEL="${JUDGE_MODEL:-gpt-oss-120b}"
+export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}" JUDGE_MODEL="${JUDGE_MODEL:-gpt-oss-120b}" GUARD_MODEL="${GUARD_MODEL:-granite-guardian-3-1-8b}"
+dns_name() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9]+/-/g' | cut -c1-63 | sed -E 's/^-+|-+$//g'; }
+export AGENT_MODEL_NAME="${AGENT_MODEL_NAME:-$(dns_name "$AGENT_MODEL")}" GUARD_MODEL_NAME="${GUARD_MODEL_NAME:-$(dns_name "$GUARD_MODEL")}" \
+  JUDGE_MODEL_NAME="${JUDGE_MODEL_NAME:-$(dns_name "$JUDGE_MODEL")}" GUARD_ENDPOINT="${GUARD_ENDPOINT:-}" JUDGE_ENDPOINT="${JUDGE_ENDPOINT:-}"
 NS=observability
 DIR="$(cd "$(dirname "$0")" && pwd)"
 
@@ -20,6 +23,6 @@ oc -n "$NS" create configmap parasol-model-registrar \
   --from-file="$DIR/../../envs/secured/system-prompt.txt" --from-file="$DIR/../pipeline/prompts/v2.txt"
 oc -n "$NS" delete job parasol-model-registrar --ignore-not-found
 CLUSTER_DOMAIN="${CLUSTER_DOMAIN:-$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')}" \
-  envsubst '$AGENT_MODEL $JUDGE_MODEL $AGENT_ENDPOINT $CLUSTER_DOMAIN $MLFLOW_EXPERIMENT_ID $RUN_ID_PRODUCTION $RUN_ID_CANDIDATE $SCORE_PRODUCTION $SCORE_CANDIDATE' < "$DIR/register-job.yaml" | oc apply -f -
+  envsubst '$AGENT_MODEL $JUDGE_MODEL $AGENT_ENDPOINT $AGENT_MODEL_NAME $GUARD_MODEL $GUARD_MODEL_NAME $GUARD_ENDPOINT $JUDGE_MODEL_NAME $JUDGE_ENDPOINT $CLUSTER_DOMAIN $MLFLOW_EXPERIMENT_ID $RUN_ID_PRODUCTION $RUN_ID_CANDIDATE $SCORE_PRODUCTION $SCORE_CANDIDATE' < "$DIR/register-job.yaml" | oc apply -f -
 oc -n "$NS" wait --for=condition=complete job/parasol-model-registrar --timeout=180s
 oc -n "$NS" logs job/parasol-model-registrar

@@ -8,6 +8,9 @@ The served model is an EXTERNAL MaaS model (AGENT_MODEL, default qwen3-14b), so 
 ModelVersion carries the eval score / pass-rate + the MLflow run id + the gate result + the
 prompt@version it was evaluated with, as customProperties the registry UI shows.
 
+It also registers the three external models (AGENT_MODEL, GUARD_MODEL, JUDGE_MODEL) as served by OpenShift AI
+Models-as-a-Service: labels external / MaaS / role, one version `maas` whose artifact URI is the MaaS endpoint.
+
 Stdlib only (urllib) so it runs in any python image without pip/egress.
 
 Two modes:
@@ -259,6 +262,73 @@ def patch_eval(name, gate, score, run_id, prompt_ref):
     print(f"patched eval onto {MODEL} version {name}: gate={gate} score={score} run_id={run_id}")
 
 
+def maas_models():
+    """The external models the demo uses, each served through OpenShift AI Models-as-a-Service (ExternalModel +
+    MaaSModelRef in models-as-a-service). Keyed by the MaaS object name; one model can serve several roles."""
+    base = os.environ.get("MAAS_BASE_URL", "").rstrip("/")  # https://maas.apps.<domain>
+    out = {}
+    for role, uses in (("agent", "claims assistant in both portals (secured: through the guardrails proxy)"),
+                       ("guard", "guardrails detector (NeMo rails) and the guard MaaS tier"),
+                       ("judge", "LLM judge of the release evaluation and the sampled online judge")):
+        model = os.environ.get(f"{role.upper()}_MODEL", "")
+        if not model:
+            continue
+        name = os.environ.get(f"{role.upper()}_MODEL_NAME") or model.lower()
+        m = out.setdefault(name, {"model": model, "roles": [], "uses": [],
+                                  "host": urllib.parse.urlparse(os.environ.get(f"{role.upper()}_ENDPOINT", "")).hostname or "unset"})
+        m["roles"].append(role)
+        m["uses"].append(f"{role}: {uses}")
+        m["endpoint"] = f"{base}/models-as-a-service/{name}/v1"
+    return out
+
+
+def ensure_external_models():
+    """Register each MaaS-served external model: RegisteredModel (labels external, MaaS, <role>) with one version
+    'maas' whose artifact URI is the model's MaaS endpoint. No weights: the provider serves the model, MaaS governs
+    access (subscription, rate limit, key), the registry records what runs and where."""
+    s, body = req("GET", "/registered_models?pageSize=200")
+    existing = {m["name"]: m for m in body.get("items", [])} if s == 200 else {}
+    for name, m in maas_models().items():
+        labels = {k: "" for k in ["external", "MaaS", *m["roles"]]}  # empty string values = labels in the UI
+        props = cp({**labels, "serving": "external", "served_by": "OpenShift AI Models-as-a-Service",
+                    "maas_model_ref": f"models-as-a-service/{name}", "maas_endpoint": m["endpoint"],
+                    "upstream_model": m["model"], "upstream_host": m["host"], "roles": ",".join(m["roles"]),
+                    "used_by": "; ".join(m["uses"])})
+        desc = (f"External model {m['model']} ({', '.join(m['roles'])}), served by OpenShift AI Models-as-a-Service "
+                f"at {m['endpoint']}. No weights in the cluster: MaaS holds the provider key and meters each subscription.")
+        if name in existing:
+            mid = existing[name]["id"]
+            req("PATCH", f"/registered_models/{mid}", {"description": desc, "customProperties": props})
+        else:
+            s, b = req("POST", "/registered_models", {"name": name, "state": "LIVE", "description": desc,
+                                                       "customProperties": props})
+            if s not in (200, 201):
+                sys.exit(f"create external model {name} failed {s}: {b}")
+            mid = b["id"]
+        ver = find_version(mid, "maas")
+        vbody = {"description": f"Served by MaaS: {m['endpoint']} (OpenAI-compatible).", "customProperties": props}
+        if ver:
+            req("PATCH", f"/model_versions/{ver['id']}", vbody)
+            vid = ver["id"]
+        else:
+            s, b = req("POST", f"/registered_models/{mid}/versions",
+                       {"name": "maas", "state": "LIVE", "author": "parasol-bootstrap", "registeredModelId": str(mid), **vbody})
+            if s not in (200, 201):
+                sys.exit(f"create version maas of {name} failed {s}: {b}")
+            vid = b["id"]
+        s, arts = req("GET", f"/model_versions/{vid}/artifacts?pageSize=100")
+        art = {"name": f"{name}-maas-endpoint", "artifactType": "model-artifact", "uri": m["endpoint"],
+               "modelFormatName": "openai-compatible-api", "modelFormatVersion": "v1",
+               "description": "External model endpoint on the MaaS gateway, no weights.",
+               "customProperties": cp({"maas_model_ref": f"models-as-a-service/{name}", "upstream_model": m["model"]})}
+        old = next((a for a in arts.get("items", []) if a.get("name") == art["name"]), None) if s == 200 else None
+        if old:
+            req("PATCH", f"/artifacts/{old['id']}", {k: v for k, v in art.items() if k != "name"})
+        else:
+            req("POST", f"/model_versions/{vid}/artifacts", art)
+        print(f"external model {name} ({','.join(m['roles'])}) -> {m['endpoint']}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--patch-eval", action="store_true")
@@ -276,6 +346,7 @@ def main():
     for name, v in VERSIONS.items():
         ensure_version(mid, name, v)
     archive_others(mid)
+    ensure_external_models()
     # read back
     s, body = req("GET", f"/registered_models/{mid}/versions?pageSize=200")
     print("VERSIONS NOW:", ", ".join(
