@@ -102,7 +102,7 @@ spec:
         - namespaceSelector:
             matchLabels: {network.openshift.io/policy-group: monitoring}
   egress:
-    - to:   # orchestrator <-> regex / prompt-injection detectors
+    - to:   # orchestrator <-> regex detector
         - podSelector: {}
     - to:   # the in-cluster MaaS gateway (maas-default-gateway in openshift-ingress)
         - namespaceSelector:
@@ -110,16 +110,3 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: observability}
----
-# The detector: only the orchestrator talks to it.
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: detector
-spec:
-  podSelector:
-    matchLabels: {serving.kserve.io/inferenceservice: prompt-injection-detector}
-  policyTypes: [Ingress]
-  ingress:
-    - from:
-        - podSelector: {}

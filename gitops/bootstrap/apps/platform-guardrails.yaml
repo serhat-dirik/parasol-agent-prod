@@ -30,11 +30,6 @@ spec:
                     service: {hostname: regex-detector, port: 8080}
                     chunker_id: whole_doc_chunker
                     default_threshold: 0.5
-                  prompt_injection:
-                    type: text_contents
-                    service: {hostname: prompt-injection-detector-predictor, port: 80}
-                    chunker_id: whole_doc_chunker
-                    default_threshold: 0.5
                 tls:   # a map; the orchestrator requires cert_path. No key_path = no client auth; CA = system bundle
                   maas-upstream:
                     cert_path: /etc/ssl/certs/ca-bundle.crt

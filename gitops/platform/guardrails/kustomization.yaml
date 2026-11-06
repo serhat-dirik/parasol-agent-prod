@@ -7,7 +7,6 @@ namespace: parasol-secured
 resources:
   - limitrange.yaml
   - regex-detector.yaml
-  - detector-prompt-injection.yaml
   - orchestrator-config.yaml
   - gateway-config.yaml
   - orchestrator.yaml

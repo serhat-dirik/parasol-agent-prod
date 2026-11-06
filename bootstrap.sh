@@ -50,7 +50,7 @@ APPS_ENV='$CLUSTER_DOMAIN $REPO_URL $REPO_REVISION $AGENT_ENDPOINT $AGENT_MODEL 
 
 log "Cluster $CLUSTER_DOMAIN, repo $REPO_URL@$REPO_REVISION, agent $AGENT_MODEL@$AGENT_HOST, guard $GUARD_MODEL@$GUARD_HOST, judge $JUDGE_MODEL"
 
-log "1/12 OpenShift GitOps"
+log "1/11 OpenShift GitOps"
 if oc get deploy openshift-gitops-server -n openshift-gitops >/dev/null 2>&1; then
   echo "already installed: OpenShift GitOps"
 else
@@ -66,11 +66,11 @@ fi
 oc rollout status deploy/openshift-gitops-server -n openshift-gitops --timeout=600s
 oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops >/dev/null
 
-log "2/12 Operators (each: already installed, or installing) and wait for all CSVs"
+log "2/11 Operators (each: already installed, or installing) and wait for all CSVs"
 kustomize build gitops/bootstrap/operators | scripts/ensure-operators.py \
   || { echo "An operator did not reach Succeeded (see FAILED above). Fix or wait, then re-run ./bootstrap.sh"; exit 1; }
 
-log "3/12 Secrets that never go to Git"
+log "3/11 Secrets that never go to Git"
 for ns in parasol-free parasol-secured parasol-build parasol-eval models-as-a-service redhat-ai-gateway-infra; do
   oc get ns $ns >/dev/null 2>&1 || oc create ns $ns >/dev/null
 done
@@ -89,7 +89,7 @@ if ! oc get secret maas-postgres -n $ns >/dev/null 2>&1; then
   unset pw; echo "MaaS database secrets created"
 fi
 
-log "4/12 Keycloak instance"
+log "4/11 Keycloak instance"
 KC_APP=0
 if oc get application platform-keycloak-instance -n openshift-gitops >/dev/null 2>&1; then
   echo "already installed: Keycloak (this demo's instance, Argo platform-keycloak-instance)"; KC_APP=1
@@ -114,10 +114,10 @@ if [ -z "${KEYCLOAK_INTERNAL_URL:-}" ]; then
 fi
 export KEYCLOAK_INTERNAL_URL; echo "Keycloak in-cluster: $KEYCLOAK_INTERNAL_URL"
 
-log "5/12 OpenShift AI platform (DSCInitialization, DataScienceCluster, dashboard config)"
+log "5/11 OpenShift AI platform (DSCInitialization, DataScienceCluster, dashboard config)"
 scripts/rhoai-enable.sh || warn "OpenShift AI platform objects not complete" scripts/rhoai-enable.sh
 
-log "6/12 Argo CD app-of-apps"
+log "6/11 Argo CD app-of-apps"
 # A promoted release lives on the Application, not in Git (spec.source.kustomize.images/replicas, set by
 # the pipeline's promote). Read it first and put it back, so a re-run never rolls the secured portal back.
 PIN=$(oc get application env-secured -n openshift-gitops -o jsonpath='{.spec.source.kustomize.images}' 2>/dev/null || true)
@@ -130,11 +130,11 @@ if [ -n "$PIN" ]; then
 fi
 [ $KC_APP = 1 ] && envsubst "$APPS_ENV" < gitops/bootstrap/optional/platform-keycloak-instance.yaml | oc apply -f -
 
-log "7/12 Images (built from this checkout; the secured portal is built by the release pipeline)"
+log "7/11 Images (built from this checkout; the secured portal is built by the release pipeline)"
 if [ "${SKIP_BUILDS:-0}" = 1 ]; then echo "SKIP_BUILDS=1"
 else scripts/build-images.sh || warn "an image build failed" scripts/build-images.sh; fi
 
-log "8/12 Keycloak realm, portal login client, agent identities"
+log "8/11 Keycloak realm, portal login client, agent identities"
 for i in $(seq 1 60); do curl -skf "https://sso.apps.$CLUSTER_DOMAIN/realms/parasol" >/dev/null && break
   echo "$(date +%T) waiting for realm parasol at https://sso.apps.$CLUSTER_DOMAIN ($i/60)"; sleep 15; done
 scripts/portal-oidc-client.sh || warn "portal OIDC client Secret missing; both portals cannot start" scripts/portal-oidc-client.sh
@@ -143,7 +143,7 @@ scripts/knowledge-base-client.sh || warn "knowledge-base client/role missing; se
 scripts/agent-clients.sh || warn "agent identities (parasol-claims-agent / parasol-fraud-agent) not ensured; secured tool calls fail" scripts/agent-clients.sh
 # before MaaS/Authorino: scripts/authorino-tls.sh checks the gateway with an agent's on-behalf-of token
 
-log "9/12 MaaS: Authorino TLS, tiers, keys"
+log "9/11 MaaS: Authorino TLS, tiers, keys"
 for i in $(seq 1 40); do oc rollout status deploy/guardrails-proxy -n parasol-secured --timeout=5s >/dev/null 2>&1 && break
   echo "$(date +%T) waiting for guardrails-proxy (Argo platform-guardrails) ($i/40)"; sleep 15; done
 scripts/kuadrant-ready.sh || warn "Kuadrant not Ready: no AuthPolicy is enforced (MaaS keys fail with 500)" scripts/kuadrant-ready.sh
@@ -157,13 +157,10 @@ scripts/maas-tier-keys.sh || warn "tier keys missing; NeMo (parasol-nemo-judge) 
 scripts/maas-model-keys.sh || warn "per-model Secrets not all created" scripts/maas-model-keys.sh
 scripts/maas-eval-key.sh || warn "release-eval MaaS key not minted yet (scripts/eval-seed.sh retries it)" scripts/maas-eval-key.sh
 
-log "10/12 Prompt-injection detector model"
-scripts/fetch-detector-model.sh || warn "detector model fetch failed (the regex detector still works)" scripts/fetch-detector-model.sh
-
-log "11/12 Supply chain (SPIRE, Trusted Artifact Signer, cosign key, admission)"
+log "10/11 Supply chain (SPIRE, Trusted Artifact Signer, cosign key, admission)"
 scripts/supply-chain.sh || warn "supply chain incomplete" scripts/supply-chain.sh
 
-log "12/12 Demo data, consoles, status"
+log "11/11 Demo data, consoles, status"
 if [ "${SKIP_SEED:-0}" = 1 ]; then echo "SKIP_SEED=1"
 else scripts/seed-demo.sh || warn "demo data incomplete (the lines above name each step)" scripts/seed-demo.sh; fi
 scripts/knowledge-base-ingest.sh || warn "knowledge base not loaded (search_knowledge returns nothing)" scripts/knowledge-base-ingest.sh

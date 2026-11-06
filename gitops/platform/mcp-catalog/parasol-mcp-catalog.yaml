@@ -3,7 +3,7 @@
 # servers already run behind the MCP gateway, so the catalog describes them, it does not deploy them.
 # Tool names, descriptions and parameters are taken verbatim from the gateway's tools/list.
 # mcp-catalog-sources is the user slot the model-catalog server mounts at /data/user-mcp-sources.
-# Applied by bootstrap.sh (step 12) with envsubst '$CLUSTER_DOMAIN'; not Argo-synced (operator namespace).
+# Applied by bootstrap.sh (step 11) with envsubst '$CLUSTER_DOMAIN'; not Argo-synced (operator namespace).
 apiVersion: v1
 kind: ConfigMap
 metadata:
