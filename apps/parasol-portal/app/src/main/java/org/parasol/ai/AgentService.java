@@ -268,6 +268,8 @@ public class AgentService {
         root.setAttribute("mlflow.traceTag.prompt", promptVersion);
         root.setAttribute("mlflow.traceTag.model", modelName);
         root.setAttribute("mlflow.traceTag.env", env);
+        // The trace's Request in MLflow: this span is the AGENT span of the turn (TraceContent).
+        TraceContent.question(root, question, proposeEnabled);
         // No trace without an exporting SDK (free): no id to show.
         String traceId = root.getSpanContext().isValid() ? root.getSpanContext().getTraceId() : null;
         // W3C baggage rides along with traceparent on the model call, so the guardrails proxy can log
@@ -285,6 +287,7 @@ public class AgentService {
                         mcpAuth.agentId(), who, traceId);
                 metrics.counter("parasol_agent_rejections_total", "reason", reason(AGENT_DISABLED), "user", who,
                         "agent", mcpAuth.agentId(), "env", env).increment();
+                TraceContent.answer(root, null, AGENT_DISABLED, proposeEnabled);
                 return new AgentAnswer(question, null, List.of(), modelName, null,
                         who, env, AGENT_DISABLED, false, null, null, traceId);
             }
@@ -324,6 +327,7 @@ public class AgentService {
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     guardrail == null ? "none" : guardrail.action(),
                     result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount(), traceId);
+            TraceContent.answer(root, answer, null, proposeEnabled);
             return new AgentAnswer(question, answer, toolCalls, modelName,
                     usage(result.tokenUsage()), caller.subject(), env, null, false, guardrail, proposal, traceId);
         } catch (Exception e) {
@@ -334,6 +338,7 @@ public class AgentService {
             // Rejections the platform answered for this user (usage limit 429, offline, key), by reason.
             metrics.counter("parasol_agent_rejections_total", "reason", reason(error), "user", who,
                     "agent", mcpAuth.agentId(), "env", env).increment();
+            TraceContent.answer(root, null, error, proposeEnabled);
             return new AgentAnswer(question, null, List.of(), modelName, null,
                     caller.subject(), env, error, auth, null, null, traceId);
         } finally {

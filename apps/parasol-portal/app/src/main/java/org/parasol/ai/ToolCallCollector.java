@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import io.opentelemetry.api.trace.SpanContext;
 import jakarta.enterprise.context.RequestScoped;
 
 /**
@@ -27,6 +28,8 @@ public class ToolCallCollector {
         final String arguments;
         String result;
         String reason;
+        /** The MCP client's span for this call (PortalSpanProcessor), so the result can be traced under it. */
+        SpanContext span;
 
         Entry(String id, String tool, String arguments) {
             this.id = id;
@@ -37,6 +40,17 @@ public class ToolCallCollector {
 
     synchronized void record(String id, String tool, String arguments) {
         calls.add(new Entry(id, tool, arguments));
+    }
+
+    /** The MCP client started the span of a call: the oldest call of that tool not yet started, else null. */
+    synchronized Entry started(String tool, SpanContext span) {
+        for (Entry e : calls) {
+            if (e.span == null && e.result == null && Objects.equals(tool, e.tool)) {
+                e.span = span;
+                return e;
+            }
+        }
+        return null;
     }
 
     /**

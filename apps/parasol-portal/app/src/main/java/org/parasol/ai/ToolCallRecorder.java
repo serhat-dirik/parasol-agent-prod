@@ -1,8 +1,12 @@
 package org.parasol.ai;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.data.message.AiMessage;
@@ -11,8 +15,13 @@ import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.model.chat.listener.ChatModelListener;
 import dev.langchain4j.model.chat.listener.ChatModelRequestContext;
 import dev.langchain4j.model.chat.listener.ChatModelResponseContext;
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.StatusCode;
+import io.opentelemetry.api.trace.Tracer;
+import io.opentelemetry.context.Context;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.spi.CDI;
+import jakarta.inject.Inject;
 
 /**
  * A {@link ChatModelListener} that records the tools the model asked to call and what each returned.
@@ -68,6 +77,12 @@ public class ToolCallRecorder implements ChatModelListener {
         return s.length() > 200 ? s.substring(0, 200) + "..." : s;
     }
 
+    @Inject
+    Tracer tracer;
+
+    @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
+    boolean secured;
+
     /** The collector of the current request; null when there is no active request context. */
     ToolCallCollector collector() {
         try {
@@ -95,10 +110,36 @@ public class ToolCallRecorder implements ChatModelListener {
             // only the trailing results: the ones answering the model's last tool requests (this turn)
             for (ChatMessage m : messages.subList(first, messages.size())) {
                 ToolExecutionResultMessage r = (ToolExecutionResultMessage) m;
-                collector.result(r.id(), r.toolName(), r.text());
+                traceResult(collector.result(r.id(), r.toolName(), r.text()));
             }
         } catch (RuntimeException contextNotActive) {
             // No active request context on this thread - skip recording, keep answering.
+        }
+    }
+
+    /**
+     * The tool's result on the trace: a child span {@code tool.<name>.result} of the call's TOOL span, with
+     * the result text the model saw as its outputs (masked on the secured side) and the refusal, if any.
+     */
+    void traceResult(ToolCallCollector.Entry call) {
+        if (call == null || call.span == null || tracer == null) {
+            return;
+        }
+        Span s = tracer.spanBuilder("tool." + call.tool + ".result")
+                .setParent(Context.root().with(Span.wrap(call.span))).startSpan();
+        try {
+            s.setAttribute("tool.name", call.tool);
+            Map<String, Object> out = new LinkedHashMap<>();
+            out.put("result", TraceContent.text(call.result, secured));
+            if (call.reason != null) {
+                out.put("blocked", call.reason);
+                s.setAttribute("tool.blocked", true);
+                s.setAttribute("tool.blocked.reason", call.reason);
+                s.setStatus(StatusCode.ERROR, call.reason);
+            }
+            s.setAttribute(TraceContent.OUTPUTS, TraceContent.json(out));
+        } finally {
+            s.end();
         }
     }
 
