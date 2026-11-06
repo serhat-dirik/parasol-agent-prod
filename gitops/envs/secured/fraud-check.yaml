@@ -142,7 +142,7 @@ spec:
       backendRefs:
         - {group: "", kind: Service, name: fraud-check, port: 8080, weight: 1}
 ---
-apiVersion: mcp.kuadrant.io/v1alpha1
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPServerRegistration
 metadata:
   name: fraud-check
@@ -160,7 +160,7 @@ spec:
 # The agent's fraud-check MCP client sends X-Mcp-Virtualserver: parasol-secured/fraud-check.
 # One tool, exposed to tools/list for every identity; the gateway AuthPolicy still gates tools/call
 # per identity (adjusters + claims-managers hold tool:fraud_check; contractors do not -> 403).
-apiVersion: mcp.kuadrant.io/v1alpha1
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPVirtualServer
 metadata:
   name: fraud-check

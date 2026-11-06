@@ -17,7 +17,7 @@ spec:
       backendRefs:
         - {group: "", kind: Service, name: claims-db, port: 8080, weight: 1}
 ---
-apiVersion: mcp.kuadrant.io/v1alpha1
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPServerRegistration
 metadata:
   name: claims-db
@@ -48,7 +48,7 @@ spec:
       backendRefs:
         - {group: "", kind: Service, name: policy-docs, port: 8080, weight: 1}
 ---
-apiVersion: mcp.kuadrant.io/v1alpha1
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPServerRegistration
 metadata:
   name: policy-docs
@@ -65,7 +65,7 @@ spec:
 ---
 # One gateway URL, two tool sets: the agent's claims-db and policy-docs clients each send
 # X-Mcp-Virtualserver: parasol-secured/<name> (agent-identity-patch.yaml). tools/list is still filtered per identity.
-apiVersion: mcp.kuadrant.io/v1alpha1
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPVirtualServer
 metadata:
   name: claims-db
@@ -81,7 +81,7 @@ spec:
   description: Claims tools
   tools: [get_claim, list_claims_by_status, get_claim_history, get_claim_documents]
 ---
-apiVersion: mcp.kuadrant.io/v1alpha1
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPVirtualServer
 metadata:
   name: policy-docs

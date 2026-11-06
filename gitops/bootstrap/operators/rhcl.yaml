@@ -1,4 +1,7 @@
-# Red Hat Connectivity Link (Kuadrant): AuthPolicy, RateLimitPolicy, TokenRateLimitPolicy.
+# Red Hat Connectivity Link (Kuadrant): AuthPolicy, RateLimitPolicy, TokenRateLimitPolicy and, from 1.5, the
+# GA MCP gateway (MCPGatewayExtension, MCPServerRegistration, MCPVirtualServer, mcp.kuadrant.io/v1). From 1.5
+# the operator deploys Authorino, Limitador, DNS and the MCP gateway controller itself (KuadrantControlPlane),
+# so there are no separate dependency Subscriptions and no separate mcp-gateway package.
 apiVersion: operators.coreos.com/v1
 kind: OperatorGroup
 metadata:
@@ -13,7 +16,7 @@ metadata:
   name: rhcl-operator
   namespace: kuadrant-system
 spec:
-  channel: stable
+  channel: stable-1.5
   installPlanApproval: Automatic
   name: rhcl-operator
   source: redhat-operators

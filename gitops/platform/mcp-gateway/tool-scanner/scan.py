@@ -71,7 +71,7 @@ def digest(tools):
 def targets():
     """(server, registered, url, pin) for every federated and every candidate MCP server."""
     out = []
-    for reg in kget("/apis/mcp.kuadrant.io/v1alpha1/mcpserverregistrations")["items"]:
+    for reg in kget("/apis/mcp.kuadrant.io/v1/mcpserverregistrations")["items"]:
         m, s = reg["metadata"], reg["spec"]
         ns = s["targetRef"].get("namespace", m["namespace"])
         route = kget(f"/apis/gateway.networking.k8s.io/v1/namespaces/{ns}/httproutes/{s['targetRef']['name']}")

@@ -1,9 +1,9 @@
 # Deploys the broker-router into mcp-system and attaches it to listener "mcp".
 # trustedHeadersKey: the public key Authorino's wristband (x-mcp-authorized) is verified with, so the
 # broker can filter tools/list per user. bootstrap.sh generates the key pair (scripts/gen-trusted-keys.sh).
-# apiVersion: the product docs show mcp.kuadrant.io/v1alpha1, upstream main shows v1. VERIFY with
-#   oc api-resources | grep mcp.kuadrant.io
-apiVersion: mcp.kuadrant.io/v1alpha1
+# apiVersion v1: Connectivity Link 1.5 ships the GA MCP gateway (upstream mcp-gateway v1.0.x); its CRDs serve
+# and store only v1 (v1alpha1 is listed but not served).
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPGatewayExtension
 metadata:
   name: mcp-gateway-extension

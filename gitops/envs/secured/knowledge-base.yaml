@@ -89,7 +89,7 @@ spec:
       backendRefs:
         - {group: "", kind: Service, name: knowledge-base, port: 8080, weight: 1}
 ---
-apiVersion: mcp.kuadrant.io/v1alpha1
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPServerRegistration
 metadata:
   name: knowledge-base
@@ -106,7 +106,7 @@ spec:
     namespace: parasol-secured
 ---
 # The portal's knowledge-base MCP client sends X-Mcp-Virtualserver: parasol-secured/knowledge-base.
-apiVersion: mcp.kuadrant.io/v1alpha1
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPVirtualServer
 metadata:
   name: knowledge-base

@@ -6,7 +6,6 @@ kind: Kustomization
 resources:
   - namespaces.yaml
   - rhcl.yaml
-  - mcp-gateway.yaml
   - keycloak.yaml
   - rhoai.yaml
   - observability.yaml

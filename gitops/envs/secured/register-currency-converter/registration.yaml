@@ -14,7 +14,7 @@ spec:
       backendRefs:   # the vendor's Service; parasol-thirdparty grants this with a ReferenceGrant
         - {group: "", kind: Service, name: currency-converter, namespace: parasol-thirdparty, port: 8080, weight: 1}
 ---
-apiVersion: mcp.kuadrant.io/v1alpha1
+apiVersion: mcp.kuadrant.io/v1
 kind: MCPServerRegistration
 metadata:
   name: currency-converter
