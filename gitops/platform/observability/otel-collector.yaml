@@ -1,7 +1,13 @@
 # One OTLP collector everybody points at (portal, agent, MCP servers, guardrails orchestrator, MCP gateway).
-# It fans traces out to two backends:
-#   - Tempo        -> OpenShift console Observe > Traces
-#   - MLflow (TP)  -> OpenShift AI MLflow UI (chat traces: prompt, tool calls, tokens)
+# It fans traces out to two backends, one pipeline each:
+#   - Tempo        -> OpenShift console Observe > Traces (every span from every service)
+#   - MLflow (TP)  -> OpenShift AI MLflow UI, agent turns only (prompt, tool calls, tokens)
+# The MLflow pipeline keeps a whole trace only if one of its spans is the portal's turn root
+# (ChatMessage) or carries gen_ai.agent.name (the claims agent's tool spans, the fraud-check agent).
+# Background traffic (MCP gateway polls, health checks, detector calls) stays in Tempo only.
+# The collector image has no groupbytrace processor; tail_sampling buffers each trace itself and
+# decides 5 s after the root span arrived, or after decision_wait for a trace whose root never
+# comes. Spans that arrive after the decision follow it (decision caches).
 # MLflow's OTLP endpoint (/v1/traces on the managed server) needs a Kubernetes bearer token, TLS,
 # and workspace/experiment headers. All three are sent as static headers (the otlphttp exporter does
 # not forward static headers when a client-auth extension is also set), with the token taken from the
@@ -39,6 +45,22 @@ spec:
           http: {endpoint: 0.0.0.0:4318}
     processors:
       batch: {}
+      tail_sampling/agent-turns:
+        decision_wait: 90s
+        decision_wait_after_root_received: 5s
+        num_traces: 20000
+        expected_new_traces_per_sec: 50
+        decision_cache:
+          sampled_cache_size: 20000
+          non_sampled_cache_size: 50000
+        policies:
+          - name: agent-turn
+            type: ottl_condition
+            ottl_condition:
+              error_mode: ignore
+              span:
+                - 'name == "ChatMessage"'
+                - 'attributes["gen_ai.agent.name"] != nil'
     exporters:
       otlp/tempo:
         endpoint: tempo-parasol:4317
@@ -60,4 +82,8 @@ spec:
         traces:
           receivers: [otlp]
           processors: [batch]
-          exporters: [otlp/tempo, otlphttp/mlflow]
+          exporters: [otlp/tempo]
+        traces/mlflow:
+          receivers: [otlp]
+          processors: [tail_sampling/agent-turns, batch]
+          exporters: [otlphttp/mlflow]
