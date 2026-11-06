@@ -1,17 +1,13 @@
-# Surface the Parasol MCP gateway in the OpenShift AI dashboard (Gen AI studio > Playground).
-# RHOAI 3.5 reads this ConfigMap (schema {url, description}, no header field) to list selectable
-# MCP servers in the playground; it does NOT deploy anything. The URL is the gateway's aggregate
-# "mcp" listener, which federates claims-db (get_claim, list_claims_by_status, get_claim_history,
-# approve_payout) and policy-docs (search_policies, get_policy, list_policies) as one server.
-#
-# Why not the AI hub "MCP catalog": that surface (ConfigMap mcp-catalog-sources in
-# rhoai-model-registries) describes DEPLOYABLE container MCP servers for the MCPLifecycleOperator to
-# run as a pod; it has no "register an already-running external URL" entry type on 3.5 (Developer
-# Preview). Our servers already run and federate through the Kuadrant gateway, so the playground
-# ConfigMap is the correct surface.
-# NOT applied by bootstrap: the playground calls the gateway without a Keycloak token issued to an
-# approved agent, so the gateway answers 401. The AI hub catalog entry (parasol-mcp-catalog.yaml) is the
-# applied surface. To try it: envsubst '$CLUSTER_DOMAIN' < this file | oc apply -f -
+# The Parasol MCP gateway as an AI asset of the OpenShift AI dashboard: Gen AI studio > AI asset endpoints >
+# MCP servers, and the MCP server picker of every project's playground. The gen-ai BFF (3.5) lists MCP servers
+# ONLY from this ConfigMap (name fixed, dashboard namespace; schema per key: url, transport, description, logo).
+# It deploys nothing. One entry: the gateway is a single aggregating endpoint (tools of claims-db, policy-docs,
+# knowledge-base and fraud-check), so per-server entries would all resolve to the same URL. The per-server
+# view (cards, tools, read/write) is the MCP catalog: AI hub > MCP servers > Catalog (parasol-mcp-catalog.yaml).
+# Tool calls need a token issued to an approved agent on behalf of a user (the gateway's AuthPolicy checks azp);
+# the playground's own OpenShift token is not one, so tools/list answers 401 until a token is pasted in the
+# playground's authorize dialog (scripts/agent-token.sh <user>). The listing itself needs no token.
+# Applied by bootstrap.sh (step 11): envsubst '$CLUSTER_DOMAIN' < this file | oc apply -f -
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -21,5 +17,6 @@ data:
   Parasol-MCP-Gateway: |
     {
       "url": "https://mcp.apps.$CLUSTER_DOMAIN/mcp",
-      "description": "Parasol federated MCP tools via the Kuadrant MCP gateway: claims-db (get_claim, list_claims_by_status, get_claim_history, approve_payout) and policy-docs (search_policies, get_policy, list_policies). Each call needs the user's token exchanged by an approved agent; the gateway shows and allows only the tools the user's roles grant."
+      "transport": "streamable-http",
+      "description": "Parasol MCP gateway (Red Hat Connectivity Link): claims-db, policy-docs, knowledge-base and fraud-check tools. Calls need a user's token exchanged by an approved agent; the gateway lists and allows only the tools that person's roles grant."
     }
