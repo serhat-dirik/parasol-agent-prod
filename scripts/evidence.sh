@@ -113,7 +113,7 @@ guardrails)
       | sed -n 's/^ *- \(parasol [a-z ]*[a-z]\).*/\1/p' | paste -sd, - | sed 's/,/, /g'; }
   echo "Guardrails run in NeMo Guardrails (NemoGuardrails parasol-nemo, parasol-secured); two configs, one rules file:"
   echo "  parasol-tool-results  run by the MCP GATEWAY on every claims-db tool result -> block: the agent gets"
-  echo "                        \"blocked by guardrails\" (red chip) and never reads the document"
+  echo "                        a refusal (HTTP 500; red chip \"refused by the MCP gateway\") and never reads the document"
   echo "      rails: $(rails nemo-parasol-tool-results || echo '?')"
   echo "  parasol-chat          run by the guardrails proxy on the secured assistant's model path"
   echo "      user input:  injection phrases -> block; off-topic -> block; personal data -> mask"

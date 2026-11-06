@@ -19,7 +19,7 @@
 #   LLAMAGUARD_ENDPOINT, LLAMAGUARD_KEY   Llama-Guard-3-1B, optional 3rd detector (skipped if unset)
 #   REPO_URL        Git URL Argo CD syncs from (default: this repo's origin)
 #   REPO_REVISION   branch/tag (default: main)
-#   RHOAI_CHANNEL / RHOAI_CSV   OpenShift AI channel / pinned CSV (default stable-3.x / rhods-operator.3.5.1)
+#   RHOAI_CHANNEL / RHOAI_CSV   OpenShift AI channel / pinned CSV (default stable-3.x / rhods-operator.3.5.2)
 #   SKIP_BUILDS=1   do not start image builds;  SKIP_SEED=1  skip the demo data (scripts/seed-demo.sh)
 set -euo pipefail
 cd "$(dirname "$0")"

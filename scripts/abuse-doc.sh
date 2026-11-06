@@ -5,8 +5,9 @@
 # shows the opposite outcomes on the SAME request:
 #   free    : the agent calls approve_payout(CLM-1004, 84000); a DENIED claim is paid the inflated
 #             USD 84,000 from the customer's document. Timeline: Denied -> Approved -> PaymentIssued.
-#   secured : the MCP gateway does not expose approve_payout to rebecca, so the model cannot write;
-#             it proposes instead and the timeline stays Denied. (Guardrails also flags the note.)
+#   secured : the MCP gateway's NeMo check refuses the document (it carries an instruction to the
+#             assistant), so the model never reads the note: no proposal, the timeline stays Denied.
+#             Even without that check, rebecca has no approve_payout: the model could only propose.
 #
 # The data-manipulation request wording matches the recorded demo. Run scripts/reset.sh afterwards
 # (reset.sh calls this scenario's claims-db reset for both namespaces).
