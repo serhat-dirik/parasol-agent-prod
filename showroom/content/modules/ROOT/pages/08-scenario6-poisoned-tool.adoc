@@ -115,7 +115,7 @@ What you should see: `claims-db`, `fraud-check`, `knowledge-base`, `policy-docs`
 for ns in parasol-secured parasol-free; do echo -n "$ns: "; oc exec -n $ns deploy/portal -- timeout 5 bash -c '</dev/tcp/currency-converter.parasol-thirdparty.svc/8080' 2>/dev/null && echo reachable || echo blocked; done
 ----
 +
-What you should see: `parasol-secured: blocked`, `parasol-free: reachable`. The secured namespace denies all egress except the MCP gateway, Keycloak, the model gateway and telemetry; an unregistered server is not on the way.
+What you should see: `parasol-secured: blocked`, `parasol-free: reachable`. The secured namespace denies all egress except the MCP gateway, Keycloak, the guardrails proxy (the only model path) and telemetry; an unregistered server is not on the way.
 +
 // SCREENSHOT: s6-terminal-registrations-egress.png — Terminal: oc get mcpserverregistration without currency-converter, and the egress check blocked from parasol-secured, reachable from parasol-free (Showroom terminal)
 
@@ -136,16 +136,65 @@ scripts/tool-rugpull.sh register
 scripts/abuse.sh secured rebecca 1 | grep -E 'tools visible|forced'
 ----
 +
-What you should see: `currency-converter` `READY True`, `TOOLS 1`: the gateway federates it. rebecca's `tools visible` list is unchanged, without `convert_currency` and without `approve_payout`, and the forced `approve_payout` call is still a 403 ("rebecca may not call approve_payout"). Registering a server grants nothing: a person sees a tool only with a `tool:<name>` role on that server's Keycloak client, inside the agent's ceiling, and `approve_payout` is in no chat agent's tool list for anyone. A description can ask for a payout; it cannot grant one. Switch the registration off again:
+What you should see: `currency-converter` `READY True`: the gateway federates it. rebecca's `tools visible` list is unchanged, without `convert_currency` and without `approve_payout`, and the forced `approve_payout` call is still a 403 ("rebecca may not call approve_payout"). Registering a server grants nothing: a person sees a tool only with a `tool:<name>` role on that server's Keycloak client, inside the agent's ceiling, and `approve_payout` is in no chat agent's tool list for anyone. A description can ask for a payout; it cannot grant one. Switch the registration off again:
 +
 [source,bash,role=execute]
 ----
 scripts/tool-rugpull.sh unregister
 ----
 
-== Technical evidence
+== Evidence demo
 
-The governance beat: which servers the agent can reach, what each tool tells the model, and who noticed the change. Same names on every screen: `parasol-thirdparty/currency-converter`, `convert_currency`, `approve_payout`.
+Five short steps, one command or one screen each: what happened, the rule, how the platform enforces it, and the record it leaves. Run them while the vendor's description is still poisoned (after `scripts/tool-rugpull.sh on`). Everything reads only; nothing is paid. The full walk through every screen is in <<Evidence details>> below.
+
+. *Same app, two outcomes.* The payout records the claims tool wrote on each portal:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh payouts CLM-1001
+----
++
+What you should see: `parasol-free: PAYOUT claim=CLM-1001 ...`, the payout nobody asked for, and for `parasol-secured` either no payout or only an earlier one made by a manager's click (`actor=marcus via parasol-claims-agent`).
++
+Say: the unsecured assistant paid because a tool's description told it to. The secured assistant never saw that description.
+
+. *The rule: only reviewed servers.* Which MCP servers the secured agent can reach:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh tools
+----
++
+What you should see: `claims-db`, `fraud-check`, `knowledge-base`, `policy-docs`, then `currency-converter: not registered`; and `parasol-secured: blocked`, `parasol-free: reachable`.
++
+Say: a tool reaches the agent only through a registration in Git, a reviewed change. A URL in a configuration is not enough, and the network refuses the shortcut.
+
+. *The platform reads every description.* The tool scanner's latest verdict per server:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh scan
+----
++
+What you should see: every registered server `pin=match`; `parasol-thirdparty/currency-converter` with `version=1.4.2 DRIFT pinned=d2912bb8 current=...`, then its open `convert_currency` findings, one per rule.
++
+Say: same name, same version, new words. The scanner pins the description itself, so a silent change is a finding, not a surprise.
+
+. *The alert.* Select the *OpenShift Console* tab, *Observe*, *Alerting*, project `mcp-system`.
++
+What you should see: `MCPToolDefinitionDrift` (critical) for `server=parasol-thirdparty/currency-converter`, and the `MCPToolDescriptionInjection` warnings for `convert_currency`.
+
+. *Watch it and trace it.* *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Tool supply chain*: the vendor's drift `1`, every registered server `0`.
++
+Then, in the *Portal secured* tab as rebecca, click the `trace <id>` link under her currency answer.
++
+What you should see: the *MLflow* trace with her question as *Request* and the answer as *Response*, and its tool spans: at most `get_claim`, never `convert_currency` or `approve_payout`.
++
+// SCREENSHOT: s6-mlflow-secured-turn.png — MLflow, parasol-secured, rebecca's currency question on CLM-1001: Request/Response and the tool spans, no convert_currency (MLflow sign-in)
+
+== Evidence details
+
+For curious minds: which servers the agent can reach, what each tool tells the model, and who noticed the change. Same names on every screen: `parasol-thirdparty/currency-converter`, `convert_currency`, `approve_payout`.
 
 . Select the *OpenShift Console* tab, *Observe*, *Alerting*, with the project set to `mcp-system` (where the tool scanner runs). Open `MCPToolDefinitionDrift`.
 +
@@ -183,7 +232,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |Claim |Where |Point at
 
 |The vendor tool is out of the secured agent's reach
-|*Terminal*, `mcpserverregistration` and the egress check
+|*Terminal*, `evidence.sh tools`
 |no `currency-converter`; `parasol-secured: blocked`
 
 |A description is reviewed before registration
@@ -191,8 +240,8 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |`FINDING` lines; `RESULT: FAIL - do not register`
 
 |A silent change is detected
-|*OpenShift Console*, *Observe*, *Alerting*, project `mcp-system`
-|`MCPToolDefinitionDrift` for `parasol-thirdparty/currency-converter`
+|*Terminal*, `evidence.sh scan`; *OpenShift Console*, *Observe*, *Alerting*, project `mcp-system`
+|`DRIFT` and `MCPToolDefinitionDrift` for `parasol-thirdparty/currency-converter`
 
 |Every description is scanned and pinned
 |Dashboard row *Tool supply chain*
