@@ -10,3 +10,5 @@ spec:
     limits.cpu: "10"      # + knowledge base (server, database, ingestion job)
     limits.memory: 16Gi
     pods: "15"
+# Headroom: steady state about 6.9 CPU limits (app pods 500m, knowledge-base and the orchestrator 1 CPU +
+# sidecar), so a rolling update of the largest Deployment (orchestrator, 1.5 CPU) still fits under 10.

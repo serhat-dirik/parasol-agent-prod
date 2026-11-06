@@ -128,8 +128,8 @@ spec:
             periodSeconds: 10
             failureThreshold: 6
           resources:
-            requests: {cpu: 250m, memory: 384Mi}
-            limits: {cpu: "1", memory: 1Gi}
+            requests: {cpu: 50m, memory: 384Mi}
+            limits: {cpu: 500m, memory: 1Gi}
       volumes:
         # Projected ServiceAccount token: the agent's credential at Keycloak (client assertion). Rotated by
         # the kubelet; the audience is set to the realm issuer by the env-secured Argo Application.
