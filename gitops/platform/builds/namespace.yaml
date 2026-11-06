@@ -2,3 +2,7 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: parasol-build
+  annotations:
+    # OpenShift Pipelines pruner (daily, TektonConfig): keep the last 4 PipelineRuns here instead of 100,
+    # enough for the production and candidate runs the Showroom pages open.
+    operator.tekton.dev/prune.keep: "4"

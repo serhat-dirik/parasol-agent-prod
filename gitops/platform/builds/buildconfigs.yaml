@@ -5,6 +5,8 @@ apiVersion: build.openshift.io/v1
 kind: BuildConfig
 metadata: {name: parasol-agent}
 spec:
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
   source: {type: Binary}
   strategy:
     type: Docker
@@ -18,6 +20,8 @@ apiVersion: build.openshift.io/v1
 kind: BuildConfig
 metadata: {name: claims-db}
 spec:
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
   source: {type: Binary}
   strategy:
     type: Docker
@@ -31,6 +35,8 @@ apiVersion: build.openshift.io/v1
 kind: BuildConfig
 metadata: {name: policy-docs}
 spec:
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
   source: {type: Binary}
   strategy:
     type: Docker
@@ -44,6 +50,8 @@ apiVersion: build.openshift.io/v1
 kind: BuildConfig
 metadata: {name: parasol-portal}
 spec:
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
   source: {type: Binary}
   strategy:
     type: Docker
@@ -58,6 +66,8 @@ apiVersion: build.openshift.io/v1
 kind: BuildConfig
 metadata: {name: fraud-check}
 spec:
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
   source: {type: Binary}
   strategy:
     type: Docker
@@ -72,6 +82,8 @@ apiVersion: build.openshift.io/v1
 kind: BuildConfig
 metadata: {name: knowledge-base}
 spec:
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
   source: {type: Binary}
   strategy:
     type: Docker
