@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: parasol-secured
+# NeMo Guardrails (TrustyAI) with the Parasol configs. Not part of the build: detector-test/ (how the
+# injection judge was chosen). actions.py is the one rules file, put into both config ConfigMaps.
+resources:
+  - config-chat.yaml
+  - config-tool-results.yaml
+  - nemoguardrails.yaml
+  - networkpolicy.yaml
+configMapGenerator:
+  - name: nemo-parasol-chat
+    behavior: merge
+    files: [actions.py]
+  - name: nemo-parasol-tool-results
+    behavior: merge
+    files: [actions.py]
+generatorOptions:
+  disableNameSuffixHash: true

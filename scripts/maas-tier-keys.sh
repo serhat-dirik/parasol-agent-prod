@@ -2,7 +2,8 @@
 # maas-tier-keys.sh : mint one OpenShift AI MaaS API key for each demo tier and store them as Secrets.
 #   parasol-tier-prod   -> Secret maas-tier-keys  key PROD_MAAS_KEY   (backs qwen3-14b, the agent model)
 #   parasol-tier-guard  -> Secret maas-tier-keys  key GUARD_MAAS_KEY  (backs the guard model, GUARD_MODEL;
-#                          + standalone Secret maas-guard-key for stream P1-GUARDIAN; data key GENAI_API_KEY)
+#                          + standalone Secret maas-guard-key for stream P1-GUARDIAN; data key GENAI_API_KEY;
+#                          + Secret parasol-nemo-judge in parasol-secured, key api-key: the NeMo injection judge)
 # The two tiers back the two external models the demo exercises (see gitops/platform/maas-tiers).
 # Keys belong to ServiceAccount parasol-maas-tiers/maas-tier-client, whose group each tier subscription
 # admits. The mint call runs from a throwaway pod in parasol-maas-tiers (the MaaS gateway is ClusterIP);
@@ -58,5 +59,9 @@ oc -n "$NS" create secret generic maas-tier-keys \
 oc -n "$NS" create secret generic maas-guard-key \
   --from-literal=GENAI_API_KEY="$guard" \
   --dry-run=client -o yaml | oc apply -f - >/dev/null
+# NeMo Guardrails' tool-result judge (gitops/platform/guardrails-nemo) calls MaaS on the guard tier.
+oc -n parasol-secured create secret generic parasol-nemo-judge \
+  --from-literal=api-key="$guard" \
+  --dry-run=client -o yaml | oc apply -f - >/dev/null
 unset prod guard
-echo "Secrets written in $NS: maas-tier-keys (PROD/GUARD_MAAS_KEY), maas-guard-key (GENAI_API_KEY)"
+echo "Secrets written in $NS: maas-tier-keys (PROD/GUARD_MAAS_KEY), maas-guard-key (GENAI_API_KEY); parasol-secured: parasol-nemo-judge"

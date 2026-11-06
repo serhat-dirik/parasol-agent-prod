@@ -1,0 +1,56 @@
+# NeMo config id `parasol-chat` (the server default): the content rules on the secured assistant's model path.
+# The guardrails proxy calls POST /v1/chat/completions "rails only" (no model call here):
+#   before the model: options.rails=["input"]  on the user's last message
+#   after the model:  options.rails=["output"] on the answer, guardrails.context.user_groups from the portal
+# A stop = blocked (the proxy answers with a refusal); a changed message = masked / redacted text.
+# Rail names are what the proxy logs and counts as detectors (guardrails-proxy.yaml, DETECTORS).
+# actions.py (the rules) is added to this ConfigMap by kustomization.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nemo-parasol-chat
+data:
+  config.yaml: |
+    models:
+      - type: main             # needed to load the config; replaced per request by the request's model
+        engine: openai
+        model: qwen3-14b
+        api_key_env_var: OPENAI_API_KEY
+    rails:
+      input:
+        flows:
+          - parasol injection input       # block: injection phrases the user typed
+          - parasol off topic             # block: essays, poems, stories
+          - parasol mask pii              # mask: email, Emirates ID, payment card
+      output:
+        flows:
+          - parasol confidential marker   # block: claims-managers-only marker, caller not in claims-managers
+          - parasol remove external links # redact: links and images outside parasol.example
+  rails.co: |
+    define subflow parasol injection input
+      $hit = execute parasol_injection_regex(text=$user_message)
+      if $hit
+        bot refuse to respond
+        stop
+
+    define subflow parasol off topic
+      $hit = execute parasol_off_topic(text=$user_message)
+      if $hit
+        bot refuse to respond
+        stop
+
+    define subflow parasol mask pii
+      $parasol_masked = execute parasol_pii_labels(text=$user_message)
+      if $parasol_masked
+        $user_message = execute parasol_mask_pii(text=$user_message)
+
+    define subflow parasol confidential marker
+      $hit = execute parasol_confidential_marker(text=$bot_message)
+      if $hit
+        bot refuse to respond
+        stop
+
+    define subflow parasol remove external links
+      $parasol_links = execute parasol_external_links(text=$bot_message)
+      if $parasol_links
+        $bot_message = execute parasol_strip_links(text=$bot_message)

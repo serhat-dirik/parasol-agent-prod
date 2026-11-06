@@ -12,6 +12,7 @@ resources:
   - platform-pipeline.yaml
   - platform-rhoai.yaml
   - platform-guardrails.yaml
+  - platform-guardrails-nemo.yaml
   - platform-perses.yaml
   - platform-showroom.yaml
   - env-free.yaml

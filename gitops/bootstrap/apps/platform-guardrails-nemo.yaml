@@ -1,0 +1,21 @@
+# NeMo Guardrails with the Parasol configs (parasol-chat, parasol-tool-results), in parasol-secured.
+# After platform-guardrails (wave 4: the namespace LimitRange that sizes the NeMo pods). The judge key
+# Secret parasol-nemo-judge is created by scripts/maas-tier-keys.sh (bootstrap step 9), never in Git;
+# until it exists the NeMo pods wait in CreateContainerConfigError and the MCP gateway fails closed.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform-guardrails-nemo
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: parasol
+  destination: {server: https://kubernetes.default.svc, namespace: parasol-secured}
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_REVISION}
+    path: gitops/platform/guardrails-nemo
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true]

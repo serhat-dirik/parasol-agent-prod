@@ -1,0 +1,34 @@
+# NeMo config id `parasol-tool-results`: the MCP gateway checks every claims-db tool result with it
+# (MCPServerRegistration annotation mcp.kuadrant.io/guardrails-config-ids). The gateway sends the result as
+# one assistant message to POST /v1/checks, so these are OUTPUT rails on $bot_message. A stop = "blocked":
+# the agent gets the tool result as an error "blocked by guardrails" and never sees the document.
+# Tool ARGUMENTS come in as a user message (input rails): none here, so they always pass.
+# actions.py (the rules) is added to this ConfigMap by kustomization.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nemo-parasol-tool-results
+data:
+  config.yaml: |
+    models:
+      - type: main             # needed to load the config; replaced per request by the request's model
+        engine: openai         # (MAIN_MODEL_BASE_URL). The rails below make no main-model call.
+        model: qwen3-14b
+        api_key_env_var: OPENAI_API_KEY
+    rails:
+      output:
+        flows:
+          - parasol injection phrases   # regex, no model call: the known phrases (the planted note)
+          - parasol injection judge     # qwen3-14b yes/no judge via MaaS (detector-test/RESULTS.md)
+  rails.co: |
+    define subflow parasol injection phrases
+      $hit = execute parasol_injection_regex(text=$bot_message)
+      if $hit
+        bot refuse to respond
+        stop
+
+    define subflow parasol injection judge
+      $hit = execute parasol_injection_judge(text=$bot_message)
+      if $hit
+        bot refuse to respond
+        stop

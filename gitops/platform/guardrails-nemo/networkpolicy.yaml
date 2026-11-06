@@ -1,0 +1,34 @@
+# Additive to the env's default-deny (gitops/envs/secured/networkpolicy.yaml). NeMo takes calls only from the
+# MCP gateway's broker-router (mcp-system, label app.kubernetes.io/name=mcp-gateway, set by the MCP gateway
+# controller) and from the guardrails proxy (its own `guardrails` policy already allows egress to pods in this
+# namespace). Not from the router: the operator's Route stays unreachable. Egress: the in-cluster MaaS gateway
+# (judge calls) and the OTel collector; DNS comes from allow-dns. No internet.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: parasol-nemo
+spec:
+  podSelector:
+    matchLabels: {app: parasol-nemo}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: mcp-system}
+          podSelector:
+            matchLabels: {app.kubernetes.io/name: mcp-gateway}
+        - podSelector:
+            matchLabels: {component: guardrails-proxy}
+      ports:
+        - {protocol: TCP, port: 8000}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-ingress}
+      ports:
+        - {protocol: TCP, port: 443}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}
+      ports:
+        - {protocol: TCP, port: 4317}

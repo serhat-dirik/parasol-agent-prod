@@ -1,6 +1,7 @@
 # MaaS tiers (demo item P1-MAAS-TIERS). Two named tiers, each a distinct external model + one API key:
 #   parasol-tier-prod   -> qwen3-14b                (prod; THE agent model both portals run)
 #   parasol-tier-guard  -> GUARD_MODEL              (guard; detector for P1-GUARDIAN; tested with granite-guardian-3-1-8b)
+#                          + qwen3-14b              (the NeMo injection judge, guardrails-nemo)
 #
 # These are the only two models the demo actually exercises, so the "Models as a Service" dashboard lists
 # exactly two external models, each on a tier with a budget and its own key. llama-scout-17b and
@@ -102,6 +103,11 @@ spec:
   priority: 71
   modelRefs:
     - name: ${GUARD_MODEL_NAME}
+      namespace: models-as-a-service
+      tokenRateLimits:
+        - {limit: 100000, window: 10m}
+    # the NeMo injection judge on claims-db tool results (gitops/platform/guardrails-nemo/detector-test)
+    - name: qwen3-14b
       namespace: models-as-a-service
       tokenRateLimits:
         - {limit: 100000, window: 10m}
