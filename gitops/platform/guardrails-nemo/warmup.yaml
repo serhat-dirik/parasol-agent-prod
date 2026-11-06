@@ -5,6 +5,8 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: parasol-nemo-warmup
+  annotations:
+    argocd.argoproj.io/compare-options: ServerSideDiff=true   # the API server's defaults are not drift
 spec:
   schedule: "*/2 * * * *"
   concurrencyPolicy: Forbid
