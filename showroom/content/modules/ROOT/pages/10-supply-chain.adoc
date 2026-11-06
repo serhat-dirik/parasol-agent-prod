@@ -30,7 +30,54 @@ What runs next to customer data must be the exact image the pipeline built, eval
 |The pipeline signs and verifies every release, admission refuses unsigned images in the secured namespace, and only approved models are reachable.
 |===
 
-== Technical evidence: the secure build pipeline
+== Evidence demo
+
+Five short steps, one command or one screen each: what runs, the rule, how the platform enforces it, and the record it leaves. Everything reads only, except step 3, which starts and removes two test pods in a demo namespace. The full walk through every screen is in <<Evidence details>> below.
+
+. *What runs in production.* The release run, the Argo CD pin, the running pod and the admission policy:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh release
+----
++
+What you should see: one `sha256:...` digest three times: `PROMOTED_DIGEST` of the release run (next to `EVAL_GATE passed` and `SIGNED_IMAGES` / `KEYLESS_SIGNED_IMAGES` listing `parasol-portal`), `promoted-digest` on `env-secured`, and the running portal's `image`.
++
+Say: the image that runs next to customer data is the one the pipeline built, evaluated and signed. Nothing else has a path to production.
+
+. *The rule.* The last lines of the same output: namespace `parasol-secured` with `policy.rhtas.com/include=true`, and the `ClusterImagePolicy` `parasol-portal-must-be-signed` for the portal images with two accepted signers, `keyless-tas` (Trusted Artifact Signer) and `cluster-cosign-key`.
++
+Say: the rule is a cluster resource. Admission checks the signature of every portal image before a pod starts, whoever deploys it.
+
+. *Admission enforces it.* Try an unsigned and a signed portal image:
++
+[source,bash,role=execute]
+----
+scripts/signing-demo.sh
+----
++
+What you should see: the unsigned image refused by the admission webhook, naming the missing signature; the signed one admitted. The script removes its test pods.
+
+. *Only approved models.* The model path of each portal and what each can reach:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh models
+----
++
+What you should see: the unsecured portal calls the provider's URL directly; the secured portal calls `http://guardrails-proxy.parasol-secured.svc:8080/v1`, the guardrails proxy, which alone reaches MaaS. Then the reachability table: `parasol-free` gets `401` from the public model API and from the MaaS route (it answered, and only wants a key); `parasol-secured` gets `000` for both (the connection never left the namespace).
++
+Say: no key would help the secured portal call a model around the platform. Its only model path is the guardrails proxy, then MaaS, which routes only registered models.
+
+. *Watch it.* Select the *OpenShift Console* tab, *Pipelines*, project `parasol-build`, run `parasol-portal-release-production`.
++
+What you should see: build, scan, the two signatures, Conforma, the evaluation gate, then `promote`. The run's *Details* tab lists the same `PROMOTED_DIGEST` as step 1.
+
+== Evidence details
+
+For curious minds: every screen behind the demo above.
+
+=== The secure build pipeline
 
 . Select the *Argo CD* tab and open application `platform-pipeline`.
 +
@@ -60,7 +107,7 @@ What you should see: under *Images*, the `parasol-portal` override with the prom
 +
 What you should see: the secured portal runs exactly that pinned digest; admission verified its signature when Argo CD rolled it out.
 
-== Technical evidence: admission refuses an unsigned image
+=== Admission refuses an unsigned image
 
 The `ClusterImagePolicy` `parasol-portal-must-be-signed` admits only portal images signed by the pipeline.
 
@@ -85,9 +132,9 @@ Signatures, the admission decision and the promote history on `env-secured` toge
 +
 // SCREENSHOT: sc-admission-refused.png — Terminal output of scripts/signing-demo.sh: the unsigned image refused by the admission webhook naming parasol-portal-must-be-signed, the signed one admitted (Showroom terminal)
 
-== Technical evidence: only approved models
+=== Only approved models
 
-Shadow AI: a developer is in a hurry, has a personal key for a public model API, and points a workload at it directly, around the platform's model gateway. Same model swap, different blast radius. On the secured side the image can be signed and the prompt gated, and still the question is: which models can this workload reach at all?
+Shadow AI: a developer is in a hurry, has a personal key for a public model API, and points a workload at it directly, around the platform's guardrails and budgets. Same model swap, different blast radius. On the secured side the image can be signed and the prompt gated, and still the question is: which models can this workload reach at all?
 
 . *Unsecured.* In the *Terminal* tab, from the unsecured portal pod, call a public model API without a key:
 +
@@ -109,9 +156,11 @@ What you should see: `000` and `curl: (28) Failed to connect to api.openai.com p
 
 . *Why.* Select the *OpenShift Console* tab, project `parasol-secured`, *Networking*, *NetworkPolicies*.
 +
-What you should see: `default-deny` (every pod, ingress and egress), then one allow-list per workload: `portal` and `parasol-agent` reach only the MCP gateway and Keycloak (by their in-cluster Services, not through the router), the model gateway (`parasol-model-gateway`) and the OTel collector; `guardrails` reaches only the detectors, the in-cluster MaaS gateway and OTel; the MCP servers reach only OTel (and Keycloak's signing keys). There is no rule to the internet.
+What you should see: `default-deny` (every pod, ingress and egress), then one allow-list per workload: `portal` and `parasol-agent` reach only the MCP gateway and Keycloak (by their in-cluster Services, not through the router), the guardrails proxy (pods `component: guardrails-proxy`, port 8080, their only model path) and the OTel collector; `guardrails` (the guardrails proxy) reaches only pods in its own namespace (NeMo Guardrails, the detectors), the in-cluster MaaS gateway and OTel; `parasol-nemo` takes calls only from the MCP gateway and the guardrails proxy; the MCP servers reach only OTel (and Keycloak's signing keys). There is no rule to the internet.
 +
-image::sc-networkpolicies-secured.png["Console, project parasol-secured, NetworkPolicy portal: egress only to the MCP gateway, Keycloak, the model gateway, OTel and claims-db"]
+image::sc-networkpolicies-secured.png["Console, project parasol-secured, NetworkPolicy portal: egress only to the MCP gateway, Keycloak, the guardrails proxy, OTel and claims-db"]
++
+// SCREENSHOT: sc-networkpolicies-secured.png (recapture) — Console, project parasol-secured, NetworkPolicy portal: the model egress is the guardrails-proxy pods on port 8080, no parasol-model-gateway rule (console sign-in)
 
 . *The drop is on record.* The namespace carries `k8s.ovn.org/acl-logging: {"deny": "alert"}`, so OVN logs every connection a NetworkPolicy drops on the pod's node. From a workstation as an administrator (the Terminal's identity may not read node logs):
 +
@@ -123,9 +172,11 @@ oc adm node-logs $node --path=ovn/acl-audit-log.log | grep 'NP:parasol-secured:E
 +
 What you should see: `name="NP:parasol-secured:Egress", verdict=drop, severity=alert, ... nw_src=<the portal pod IP>, nw_dst=<the public address>, tp_dst=443`. Without the annotation, NetworkPolicy drops are not logged at all; the namespace in this demo opts in.
 
-. *Only registered models, only MaaS keys.* Select the *OpenShift Console* tab, project `models-as-a-service`, *Home*, *Search*, resource `MaaSModelRef`: the models the platform serves (the assistant's model and the guard model chosen at setup; tested with `qwen3-14b` and `granite-guardian-3-1-8b`), each *Ready* behind `maas-default-gateway` and backed by an `ExternalModel` whose upstream provider key lives in that project only. In the *OpenShift AI* tab, *Settings*, *MaaS governance* lists the subscriptions that may use each one. Then, in the *OpenShift Console* tab, project `parasol-secured`, *Secrets*: `maas-credentials` and `maas-portal-keys` hold *MaaS* keys, each bound to a subscription with its own token limit (xref:06-scenario4-night-shift.adoc[06. Showcase 4]); no provider key is in the namespace. Every model call goes portal -> model gateway -> guardrails proxy -> MaaS, and MaaS routes only to the models registered in it: a request for any other model name finds no route.
+. *Only registered models, only MaaS keys.* Select the *OpenShift Console* tab, project `models-as-a-service`, *Home*, *Search*, resource `MaaSModelRef`: the models the platform serves (the assistant's model, the guard model and the evaluation's judge model, chosen at setup; tested with `qwen3-14b`, `granite-guardian-3-1-8b` and `gpt-oss-120b`), each *Ready* behind `maas-default-gateway` and backed by an `ExternalModel` whose upstream provider key lives in that project only. In the *OpenShift AI* tab, *Settings*, *MaaS governance* lists the subscriptions that may use each one. Then, in the *OpenShift Console* tab, project `parasol-secured`, *Secrets*: `maas-credentials` and `maas-portal-keys` hold *MaaS* keys, each bound to a subscription with its own token limit (xref:06-scenario4-night-shift.adoc[06. Showcase 4]); no provider key is in the namespace. Every model call goes portal -> guardrails proxy -> MaaS, and MaaS routes only to the models registered in it: a request for any other model name finds no route.
 +
-image::sc-maas-models.png["Console, project models-as-a-service, MaaSModelRefs: the two models the platform serves, each Ready behind maas-default-gateway"]
+image::sc-maas-models.png["Console, project models-as-a-service, MaaSModelRefs: the models the platform serves, each Ready behind maas-default-gateway"]
++
+// SCREENSHOT: sc-maas-models.png (recapture) — Console, project models-as-a-service, MaaSModelRefs: agent, guard and judge models, each Ready behind maas-default-gateway (console sign-in)
 
 . *No path around the guardrails.* The secured portal reaches Keycloak and the MCP gateway by their in-cluster Services, so its policy has no rule to the cluster's router, and with it none to the platform's own MaaS route. In the *Terminal* tab:
 +
@@ -134,7 +185,7 @@ image::sc-maas-models.png["Console, project models-as-a-service, MaaSModelRefs: 
 oc exec -n parasol-secured deploy/portal -- curl -sS -o /dev/null -w '%{http_code}\n' --max-time 8 https://maas.apps.$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')/v1/models
 ----
 +
-What you should see: `000`, `curl: (28) Connection timed out`. Even with a MaaS key the portal cannot skip the model gateway and the guardrails proxy: the only model path it has is portal -> model gateway -> guardrails proxy -> MaaS.
+What you should see: `000`, `curl: (28) Connection timed out`. Even with a MaaS key the portal cannot skip the guardrails proxy: the only model path it has is portal -> guardrails proxy -> MaaS.
 
 == Evidence checklist
 
@@ -148,21 +199,25 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |*OpenShift Console*, *Pipelines*, the production run
 |`scan-image`, `sign-images`, `keyless-sign`, `verify-enterprise-contract`, `agent-eval`, then `promote`
 
+|What runs is what was released
+|*Terminal*, `evidence.sh release`
+|one digest: release run, `env-secured` pin, running pod
+
 |Unsigned images cannot run
 |*Terminal*, `signing-demo.sh`
 |denied by `parasol-portal-must-be-signed`; the promoted digest admitted
 
 |No path to an unapproved model
-|*Terminal*, `curl` from both portals
-|unsecured `401`; secured `000`, connection timed out
+|*Terminal*, `evidence.sh models`
+|unsecured `401`; secured `000`; secured endpoint = the guardrails proxy
 
 |Egress is an allow-list
 |*OpenShift Console*, *NetworkPolicies*, `portal`
-|`gateway-system`, `keycloak`, `parasol-model-gateway`, `observability`, claims-db
+|`gateway-system`, `keycloak`, the guardrails proxy, `observability`, claims-db
 
 |Only registered models are served
 |*OpenShift Console*, `models-as-a-service`, `MaaSModelRef`
-|two models, *Ready*, behind `maas-default-gateway`
+|agent, guard and judge models, *Ready*, behind `maas-default-gateway`
 |===
 
 == Conclusion
@@ -171,11 +226,11 @@ The showcases and the incident made one argument. The unsecured and the secured 
 
 * Identity on every tool call: Keycloak and the MCP gateway.
 * Identity on data: retrieval runs as the user, down to row-level security in the database.
-* A document is data, not a command: guardrails and the Read-Propose-Act gate.
+* A document is data, not a command: NeMo Guardrails on the MCP gateway and on the model path, and the Read-Propose-Act gate.
 * Budgets and alerts with a name: OpenShift AI Models-as-a-Service, Connectivity Link, and the OpenShift console.
 * Only approved models: egress only to the platform's gateways, provider keys only in MaaS, only registered models routed.
 * Quality and provenance enforced: the evaluation gate, signing and admission.
 * A tool is a supply chain too: the MCP gateway federates only reviewed registrations, and the tool scanner pins and reads every tool description.
-* The sandbox has a front door: access is identity-bound, and the operator can switch one agent off in Keycloak or every agent off at the gateways, each with one command.
+* The sandbox has a front door: access is identity-bound, and the operator has a layered kill switch, from one user or one agent in Keycloak, through one MaaS tier or all of Parasol, to every tool and model call on the cluster, each level one command.
 
 Continue with xref:11-reset-troubleshooting.adoc[11. Reset and troubleshooting].
