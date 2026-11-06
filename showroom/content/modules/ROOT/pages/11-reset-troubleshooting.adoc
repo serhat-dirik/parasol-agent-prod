@@ -30,20 +30,18 @@ What you should see: CLM-1001 *UnderReview*, CLM-1004 *Denied*.
 
 . Repeat on the *Portal secured* tab.
 
-. If you used an operator response in Showcase 4, `scripts/reset.sh` has already switched both agents and the gateways back on. Always make sure, before a recording (each command is a no-op when the switch is already on):
+. If you used the kill switch in Showcase 4, `scripts/reset.sh` has already switched every level back on. Always make sure, before a recording:
 +
 [source,bash,role=execute]
 ----
-scripts/kill-switch.sh on
-scripts/agent-switch.sh claims-agent on
-scripts/agent-switch.sh fraud-agent on
+scripts/kill-switch.sh status
 ----
 +
-If you disabled `nina.contractor`, re-enable her in the Keycloak admin *private window* (page 02).
+What you should see: no user disabled, both agents `enabled=true`, every MaaS subscription `on`, the gateways at their normal replicas. Anything still off: `scripts/kill-switch.sh <level> ... on` (for example `scripts/kill-switch.sh agent claims-agent on`; the `tier` and `parasol` levels from an administrator's workstation).
 
 === What a reset clears, and what it keeps
 
-`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every per-user token budget and zeroes Limitador's own 429 count. It also puts the Showcase 6 vendor tool back: clean description, unplugged from the unsecured portal (which restarts if it was plugged in), not registered on the secured gateway. And it undoes the Showcase 4 switches: the MCP and model gateways back at 2 replicas, `parasol-claims-agent` and `parasol-fraud-agent` enabled in Keycloak. It does not clear the governance record, on purpose:
+`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every per-user token budget and zeroes Limitador's own 429 count. It also puts the Showcase 6 vendor tool back: clean description, unplugged from the unsecured portal (which restarts if it was plugged in), not registered on the secured gateway. And it undoes the Showcase 4 kill switch at every level: the gateways back up, Parasol's MaaS subscriptions back on, every disabled user of realm `parasol` enabled again, `parasol-claims-agent` and `parasol-fraud-agent` enabled in Keycloak. It does not clear the governance record, on purpose:
 
 * the dashboard counters are cumulative since their process started: token spend, tool calls and per-user 429s live in the secured portal (cleared when the portal pod restarts, for example after a release), guardrail hits in the guardrails proxy, gateway refusals in Authorino. Between runs, read the *change* on a panel, not the absolute number;
 * MLflow traces, Keycloak events (kept 7 days) and the Authorino log stay, so a later run can still be traced back;
@@ -215,7 +213,7 @@ It drives each check the way the browser does: the persona logs in through the p
 |The agent switch is off. `scripts/agent-switch.sh claims-agent status` shows `enabled=false` and the refusals; `scripts/agent-switch.sh claims-agent on` (or `scripts/reset.sh`) restores it. The portal checks once per chat turn, so the next question is answered.
 
 |The secured assistant says "The assistant is offline." with every pod Running
-|The platform switch is off: `scripts/kill-switch.sh status` shows the gateways at 0 replicas. `scripts/kill-switch.sh on` brings them back (the HPA does not do it on its own: it does not act on a Deployment at 0).
+|The break-glass switch is off: `scripts/kill-switch.sh status` shows the gateways at `replicas=0`. `scripts/kill-switch.sh break-glass on` brings them back (the HPA does not do it on its own: it does not act on a Deployment at 0).
 
 |A fraud check "could not be completed", nothing assessed
 |The fraud agent is switched off (`scripts/agent-switch.sh fraud-agent status` shows `enabled=false`): `scripts/agent-switch.sh fraud-agent on`.
