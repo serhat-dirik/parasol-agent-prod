@@ -102,13 +102,15 @@ if want S5; then
   echo "== S5 the release gate (latest release runs)"
   for c in production candidate-shortened; do
     pr=parasol-portal-release-$c
-    gl=$(oc logs -n parasol-build -l "tekton.dev/pipelineRun=$pr,tekton.dev/pipelineTask=agent-eval" --tail=-1 2>/dev/null | grep '^gate=' | tail -1)
-    dg=$(oc get pipelinerun "$pr" -n parasol-build -o jsonpath='{.status.results[?(@.name=="PROMOTED_DIGEST")].value}' 2>/dev/null)
+    # the run's own results: they stay with the PipelineRun (the agent-eval pod log is lost when a node restarts)
+    res=$(oc get pipelinerun "$pr" -n parasol-build -o jsonpath='{range .status.results[*]}{.name}={.value}{"\n"}{end}' 2>/dev/null)
+    gate=$(sed -n 's/^EVAL_GATE=//p' <<<"$res") dg=$(sed -n 's/^PROMOTED_DIGEST=//p' <<<"$res") img=$(sed -n 's/^IMAGE_DIGEST=//p' <<<"$res")
+    ev="gate=${gate:-?} score=$(sed -n 's/^EVAL_SCORE=//p' <<<"$res") image=${img:7:12} mlflow=$(sed -n 's/^MLFLOW_RUN_ID=//p' <<<"$res" | cut -c1-12)"
     sk=$(oc get pipelinerun "$pr" -n parasol-build -o jsonpath='{.status.skippedTasks[*].name}' 2>/dev/null)
     if [ "$c" = production ]; then
-      [[ "$gl" == gate=passed* ]] && [ -n "$dg" ]; check S5-production-promoted $? "promoted ${dg:0:19} | $(cut -c1-110 <<<"$gl")"
+      [ "$gate" = passed ] && [ -n "$dg" ] && [ "$dg" = "$img" ]; check S5-production-promoted $? "promoted ${dg:0:19} | $ev"
     else
-      [[ "$gl" == gate=failed* ]] && [[ " $sk " == *" promote "* ]]; check S5-candidate-skipped $? "skipped=[$sk] | $(cut -c1-110 <<<"$gl")"
+      [ "$gate" = failed ] && [ -z "$dg" ] && [[ " $sk " == *" promote "* ]]; check S5-candidate-skipped $? "skipped=[$sk] | $ev"
     fi
   done
 fi
