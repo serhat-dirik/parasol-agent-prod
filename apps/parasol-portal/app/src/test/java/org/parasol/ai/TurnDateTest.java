@@ -18,7 +18,7 @@ class TurnDateTest {
 
     @Test
     void userMessageStartsWithTodaysDate() {
-        assertEquals("Today is 2026-11-06. What is the status of CLM-1001?",
+        assertEquals("What is the status of CLM-1001?\n\n(Today is 2026-11-06.)",
                 AgentService.dated("What is the status of CLM-1001?", LocalDate.of(2026, 11, 6)));
     }
 

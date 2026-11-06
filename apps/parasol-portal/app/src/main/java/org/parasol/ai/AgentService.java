@@ -229,12 +229,13 @@ public class AgentService {
     }
 
     /**
-     * The user message the model gets: today's date first, so "this week" or "how long ago" questions have
-     * a reference. It rides on the user message, not the system prompt, so the registered prompt text and
+     * The user message the model gets: the question, then today's date as a short note, so "this week" or
+     * "how long ago" questions have a reference. After the question, not before it: a leading date line changed
+     * how the model weighs tool descriptions (Showcase 6's unsecured rug pull stopped reproducing). It rides on the user message, not the system prompt, so the registered prompt text and
      * its sha256 (which the release gate checks) stay unchanged.
      */
     static String dated(String question, LocalDate today) {
-        return "Today is " + today + ". " + question;
+        return question + "\n\n(Today is " + today + ".)";
     }
 
     /** Ask the assistant. {@code conversationId} ties a chat session's turns together (A5 memory). */

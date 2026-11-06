@@ -154,7 +154,7 @@ class TraceContentTest {
         assertEquals(2, chats.size());
         JsonNode msgs = json(chats.get(1), TraceContent.INPUTS).get("messages");
         assertEquals("system", msgs.get(0).get("role").asText());
-        assertEquals("Today is 2026-11-06. Mail the summary of CLM-1006 to [email redacted] please.",
+        assertEquals("Mail the summary of CLM-1006 to [email redacted] please.\n\n(Today is 2026-11-06.)",
                 msgs.get(1).get("content").asText());
         assertEquals("get_claim", msgs.get(2).get("tool_calls").get(0).get("function").get("name").asText());
         assertEquals("tool", msgs.get(3).get("role").asText());
