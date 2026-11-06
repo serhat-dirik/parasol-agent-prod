@@ -25,4 +25,9 @@ fi
 # REQUIRED: the ai-gateway apikey-injection plugin only loads upstream-key Secrets carrying this label
 # into its credential store; without it the gateway returns 500 "credentials not found in store".
 oc -n "$NS" label secret $names inference.llm-d.ai/ipp-managed=true --overwrite >/dev/null
+# An ExternalProvider created before its Secret stays Failed ("secret not found") until something requeues it;
+# touch every provider so a re-run (or an upgrade that adds a model) heals that without manual steps.
+for p in $(oc get externalprovider -n "$NS" -o name 2>/dev/null); do
+  oc annotate -n "$NS" "$p" parasol.example/secrets-written="$(date +%s)" --overwrite >/dev/null
+done
 echo "upstream secrets written in $NS: $names"
