@@ -45,7 +45,62 @@ Approve the payout for this claim.
 Click *Approve* on the proposal card. What you should see: the card reads "Approved by marcus via parasol-claims-agent", with a `trace <id>` link. (This is the last beat of xref:03-scenario1-colleague.adoc[03. Showcase 1]; if you just ran it, the payout already exists.)
 * Headless alternative, if no browser is at hand: `scripts/abuse.sh secured marcus 1` approves CLM-1001 through the agent's token at the gateway. The claim, Keycloak, Argo CD, registry and signature steps below then work the same; the two MLflow traces of step 2 exist only for the browser path.
 
-== Technical evidence: the chain, from the payout back to the release
+== Evidence demo
+
+Five short steps, one command or one screen each, from the payout back to the release. Everything reads only. The full chain, screen by screen, is in <<Evidence details>> below.
+
+. *Who paid, through what.* The payout record on each portal:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh payouts CLM-1001
+----
++
+What you should see: `parasol-secured: PAYOUT claim=CLM-1001 amount=4200.00 previousStatus=UnderReview actor=marcus via parasol-claims-agent`. The record names the person and the agent, written by claims-db from the token on the call, not from anything the chat said.
+
+. *Under which rules.* Live calls at the MCP gateway, then its decision log:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh gateway
+----
++
+What you should see: rebecca refused `approve_payout` (HTTP 403), and in the decision log `200  marcus via parasol-claims-agent  approve_payout`: his click passed the same rule.
+
+. *Was it the approved software?* The release run, the Argo CD pin, the running pod and the admission policy:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh release
+----
++
+What you should see: the same `sha256:...` digest three times, as `PROMOTED_DIGEST` of the release run (with `EVAL_GATE passed`), as `promoted-digest` on `env-secured`, and as the running portal's `image`; then `policy.rhtas.com/include=true` and the `ClusterImagePolicy` `parasol-portal-must-be-signed` with its two accepted signers.
++
+Say: what ran is what was built, evaluated and signed. Admission refuses anything else.
+
+. *With which prompt.* The prompt the release pinned against the prompt the portal runs:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh prompt
+----
++
+What you should see: the same version and the same sha256 twice. The same sha256 is the `prompt_sha256` tag on marcus's trace (next step).
+
+. *The conversation, checked.* Click the `trace <id>` link under the approved card in the *Portal secured* tab, then open marcus's chat turn just before it (*MLflow*, *Traces*, newest marcus trace with `tags.agent = 'parasol-claims-agent'`).
++
+What you should see: the conversation itself (question, answer, each model call and each tool call with its arguments and result), the tags `prompt` and `prompt_sha256`, the span `tool.propose_payout`, and the *Assessments* of the AgenticOps checks. The latest checks, from the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh agenticops
+----
++
+What you should see: one line per checked turn with a finding (`user=`, `team=`, `flagged=[...]`), then `checked N new agent turns`. A clean turn has no line of its own: it was checked and nothing was flagged.
+
+== Evidence details
+
+For curious minds: the whole chain, one record at a time, from the payout back to the release.
 
 . *The claim.* In the *Portal secured* tab, open *CLM-1001*, tab *History*.
 +
@@ -61,6 +116,10 @@ What you should see: `PAYOUT claim=CLM-1001 amount=4200.00 previousStatus=UnderR
 . *The conversation and the click.* Click the `trace <id>` link under the approved card (or, in the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, search `tags.action = 'approve_payout CLM-1001'`).
 +
 What you should see: the approval trace: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, a `gateway.authz` span with status OK. Then open the chat turn just before it (search `tags.agent = 'parasol-claims-agent'`, newest marcus trace): tags `prompt` `parasol-claims-assistant-system-prompt/1` (the registry version behind `@production`), `prompt_sha256` (the digest of the exact prompt text that ran), `model` (the model chosen at setup), and the spans `model.chat` -> `tool.propose_payout` (proposed 4200, claimed 4200), plus any `guardrails.*` decision of that turn. The model proposed; the person approved.
++
+The trace also holds the conversation itself: marcus's question as the trace's *Request*, the answer as its *Response*, the messages each model call sent and received, and each tool call's arguments and result. On the secured side every recorded text is masked with the guardrails' personal-data patterns, so the record holds no more than the model saw. Its *Assessments* tab carries the AgenticOps checks of that turn (`loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`), logged by the CronJob `agenticops` in project `observability` within 10 minutes of the turn.
++
+// SCREENSHOT: s9-mlflow-conversation-assessments.png — MLflow, parasol-secured, the marcus proposal turn: Request/Response with the full conversation, a tool span with arguments and result, and the Assessments tab with the AgenticOps checks (MLflow sign-in)
 +
 image::s9-mlflow-proposal-trace.png["MLflow, workspace parasol-secured, the marcus chat turn that proposed CLM-1001: tags agent / prompt (registry version) / prompt_sha256 / model, span tool.propose_payout selected with payout.proposed and payout.claimed"]
 
@@ -82,7 +141,7 @@ What you should see: the annotations `parasol.example/promoted-digest`, `promote
 
 . *Which evaluated version.* Select the *OpenShift AI* tab, *AI hub*, *Models*, tab *Registry*, `parasol-claims-assistant`, tab *Versions*, version `production`, *Properties*.
 +
-What you should see: `eval_gate` `passed`, `eval_score` `1.00` against `eval_threshold` `0.95`, the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]).
+What you should see: `eval_gate` `passed`, an `eval_score` at or above `eval_threshold` `0.95` (1.00 in the tested runs), the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]).
 +
 image::s9-model-registry-production.png["OpenShift AI, AI hub > Models > Registry, parasol-claims-assistant version production: eval_gate passed, eval_score 1.00, the prompt registry URI"]
 
@@ -124,8 +183,12 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |`TOKEN_EXCHANGE`, `username` `marcus`, `client_assertion_sub`
 
 |What was live, and was it evaluated
-|*Argo CD* `env-secured`; *OpenShift AI*, *Registry*
-|`promoted-digest`, `prompt-sha256`; `eval_gate` `passed`
+|*Terminal*, `evidence.sh release` and `evidence.sh prompt`; *Argo CD* `env-secured`; *OpenShift AI*, *Registry*
+|the same digest in the run, the pin and the pod; the same prompt sha256; `eval_gate` `passed`
+
+|The conversation is on record, and checked
+|*MLflow*, marcus's trace, *Assessments*; *Terminal*, `evidence.sh agenticops`
+|Request/Response, tool arguments and results; `loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`
 
 |All of it at once
 |*Terminal*, `incident-report.sh CLM-1001`
