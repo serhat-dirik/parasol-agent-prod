@@ -1,4 +1,4 @@
-import { formatAED } from '@app/utils/money';
+import { formatUSD } from '@app/utils/money';
 import { Card, Label, Page, PageSection, Text, TextContent, TextVariants } from '@patternfly/react-core';
 import { Table, Tbody, Td, Th, Thead, Tr } from '@patternfly/react-table';
 import * as React from 'react';
@@ -46,7 +46,7 @@ const Annuities: React.FunctionComponent = () => (
                 <Td dataLabel="Type"><Label color={typeColors[a.type] || 'grey'}>{a.type}</Label></Td>
                 <Td dataLabel="Rate">{a.rate}</Td>
                 <Td dataLabel="Term">{a.term}</Td>
-                <Td dataLabel="Minimum">{formatAED(a.minContribution)}</Td>
+                <Td dataLabel="Minimum">{formatUSD(a.minContribution)}</Td>
                 <Td dataLabel="Availability">
                   <Label color={a.status === 'Open' ? 'green' : 'orange'}>{a.status}</Label>
                 </Td>

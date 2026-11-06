@@ -153,8 +153,8 @@ public class FraudCheckTools {
 
     // ---- pure, testable logic -------------------------------------------------------------------
 
-    /** A single AED/number amount followed on the line. Grabs the digits (with thousands commas). */
-    private static final Pattern AMOUNT = Pattern.compile("AED\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)",
+    /** A single USD/number amount followed on the line. Grabs the digits (with thousands commas). */
+    private static final Pattern AMOUNT = Pattern.compile("USD\\s*([0-9][0-9,]*(?:\\.[0-9]+)?)",
             Pattern.CASE_INSENSITIVE);
 
     /** The risk verdict. {@code risk} leads the formatted output so a UI chip can read the level. */
@@ -206,13 +206,13 @@ public class FraudCheckTools {
             if (ratio.doubleValue() >= threshold) {
                 inflated = true;
                 reasons.add(String.format(
-                        "Amount mismatch: the uploaded document requests AED %s, which is %sx the"
-                                + " claim record amount of AED %s. The record is authoritative; the"
+                        "Amount mismatch: the uploaded document requests USD %s, which is %sx the"
+                                + " claim record amount of USD %s. The record is authoritative; the"
                                 + " document total looks inflated.",
                         docTotal.toPlainString(), ratio.toPlainString(), recordAmount.toPlainString()));
             }
         } else if (docTotal != null && recordAmount != null) {
-            reasons.add(String.format("Document requests AED %s against a record amount of AED %s.",
+            reasons.add(String.format("Document requests USD %s against a record amount of USD %s.",
                     docTotal.toPlainString(), recordAmount.toPlainString()));
         }
         if (hiddenNote) {
@@ -225,7 +225,7 @@ public class FraudCheckTools {
         return new Verdict(risk, claimNumber, recordAmount, docTotal, ratio, reasons);
     }
 
-    /** Largest AED amount across all documents' visible text - the estimate's TOTAL line. */
+    /** Largest USD amount across all documents' visible text - the estimate's TOTAL line. */
     static BigDecimal maxDocumentAmount(List<ClaimsDbClient.Document> docs) {
         if (docs == null) {
             return null;

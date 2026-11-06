@@ -1,5 +1,5 @@
 import config from '@app/config';
-import { formatAED } from '@app/utils/money';
+import { formatUSD } from '@app/utils/money';
 import { Card, Label, Page, PageSection, Text, TextContent, TextVariants } from '@patternfly/react-core';
 import { Table, Tbody, Td, Th, Thead, Tr } from '@patternfly/react-table';
 import axios from 'axios';
@@ -68,7 +68,7 @@ const Policies: React.FunctionComponent = () => {
                     <Td dataLabel="Policy">{p.policyNumber}</Td>
                     <Td dataLabel="Policyholder">{p.holder}</Td>
                     <Td dataLabel="Product"><Label color={productColors[key] || 'grey'}>{p.product}</Label></Td>
-                    <Td dataLabel="Annual premium">{p.premium ? formatAED(p.premium) : '—'}</Td>
+                    <Td dataLabel="Annual premium">{p.premium ? formatUSD(p.premium) : '—'}</Td>
                     <Td dataLabel="Status"><Label color="green">{p.status}</Label></Td>
                   </Tr>
                 );

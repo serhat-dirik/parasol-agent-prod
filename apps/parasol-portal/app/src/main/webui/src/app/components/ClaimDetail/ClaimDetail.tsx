@@ -6,7 +6,7 @@ import carWreck from '@app/assets/images/claims/car-wreck.jpg';
 import floodDamage from '@app/assets/images/claims/flood-damage.jpg';
 import roofDamage from '@app/assets/images/claims/roof-damage.jpg';
 import stormHouse from '@app/assets/images/claims/storm-house.jpg';
-import { formatAED } from '@app/utils/money';
+import { formatUSD } from '@app/utils/money';
 import { faCalendar, faCommentDots, faFileLines } from '@fortawesome/free-regular-svg-icons';
 import { faCaretDown, faLocationDot, faPaperclip, faShieldHalved, faUser } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -166,7 +166,7 @@ const ClaimDetail: React.FunctionComponent = () => {
                   </>}
                 </Flex>
                 <Flex className='padding-top-25'>
-                  <FlexItem><TextContent><Text><b>Amount:</b> {formatAED(claim.amount)}</Text></TextContent></FlexItem>
+                  <FlexItem><TextContent><Text><b>Amount:</b> {formatUSD(claim.amount)}</Text></TextContent></FlexItem>
                   <FlexItem><TextContent><Text><b>Adjuster:</b> {claim.adjuster}</Text></TextContent></FlexItem>
                   <FlexItem><TextContent><Text><b>Incident date:</b> {claim.incidentDate}</Text></TextContent></FlexItem>
                   <FlexItem><TextContent><Text><b>Type:</b> {claim.type}</Text></TextContent></FlexItem>

@@ -1100,7 +1100,7 @@ def selfcheck():
     assert status_note("CLM-1006 is Closed.", rec) == STATUS_NOTE % ("CLM-1006", "UnderReview")
     assert status_note("CLM-1006 is UnderReview.", rec) is None and status_note("CLM-1006 was submitted.", rec) is None
     assert status_note("CLM-1004 is Denied; the claimed amount is 84,000.", rec) == AMOUNT_NOTE % ("CLM-1004", "8400.00")
-    assert status_note("CLM-1004 is Denied; the estimate claimed AED 84,000.", rec) is None
+    assert status_note("CLM-1004 is Denied; a garage quote in dirhams claimed AED 84,000.", rec) is None
     ds = by["document-status-note"]
     assert "Closed" in Stubs(fx, ds, SYSTEM).call("get_claim_documents", {"claimNumber": "CLM-1006"})
     misreport = lambda: Fake("get_claim_documents", {"claimNumber": "CLM-1006"}, "CLM-1006 is Closed; the report "

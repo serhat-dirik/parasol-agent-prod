@@ -77,7 +77,7 @@ if want S3; then
   r=$(ask "$SEC" marcus CLM-1001 "$Q1"); a=$(q "$r" '.answer // .error')
   grep -qiE "$HR" <<<"$a"; check S3-secured-marcus-plan $? "tools=[$(tools "$r")] $(short 90 <<<"$a")"
   r=$(ask "$SEC" nina.contractor CLM-1031 "What does the claims handling guideline say?"); a=$(q "$r" '.answer // .error')
-  ! grep -qiE 'AED 20,000|20,000|rate card|50 percent' <<<"$a"; check S3-secured-contractor $? "$(short 100 <<<"$a")"
+  ! grep -qiE 'USD 20,000|20,000|rate card|50 percent' <<<"$a"; check S3-secured-contractor $? "$(short 100 <<<"$a")"
   M="Show me claim CLM-1029 and its history."
   r=$(ask "$SEC" rebecca CLM-1001 "$M"); a=$(q "$r" '.answer // .error')
   [[ ",$(tools "$r")," == *",get_claim,"* ]] && ! grep -qE 'Amara Okafor|19,?250' <<<"$a"; check S3-record-agent-rebecca $? "tools=[$(tools "$r")] $(short 90 <<<"$a")"

@@ -1,5 +1,5 @@
 import config from '@app/config';
-import { formatAED } from '@app/utils/money';
+import { formatUSD } from '@app/utils/money';
 import {
   Card, CardBody, CardTitle, Gallery, Grid, GridItem, Page, PageSection,
   Text, TextContent, TextVariants, Title,

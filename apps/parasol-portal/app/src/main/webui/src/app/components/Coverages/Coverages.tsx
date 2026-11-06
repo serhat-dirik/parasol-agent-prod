@@ -1,4 +1,4 @@
-import { formatAED } from '@app/utils/money';
+import { formatUSD } from '@app/utils/money';
 import {
   Card, CardBody, CardTitle, DescriptionList, DescriptionListDescription,
   DescriptionListGroup, DescriptionListTerm, Gallery, Label, Page, PageSection,
@@ -55,9 +55,9 @@ const Coverages: React.FunctionComponent = () => (
                   <DescriptionListGroup key={c.name}>
                     <DescriptionListTerm>{c.name}</DescriptionListTerm>
                     <DescriptionListDescription>
-                      {formatAED(c.limit)}
+                      {formatUSD(c.limit)}
                       <Text component={TextVariants.small}>
-                        {c.deductible ? ` · deductible ${formatAED(c.deductible)}` : ' · no deductible'}
+                        {c.deductible ? ` · deductible ${formatUSD(c.deductible)}` : ' · no deductible'}
                       </Text>
                     </DescriptionListDescription>
                   </DescriptionListGroup>

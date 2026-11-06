@@ -6,7 +6,7 @@ Internal - Parasol claims staff only. This guideline sets out how adjusters hand
 
 Every claim is reviewed within 2 working days of assignment. The adjuster checks that the policy was active on the incident date, that the cover type matches the loss, and that the documents are complete. Missing documents are requested once, in writing, with a 10-day deadline.
 
-Adjuster authority: an adjuster may approve settlements up to AED 20,000. Settlements above AED 20,000, any claim with a fraud indicator, and any claim where the repair estimate exceeds the claimed amount by more than 50 percent go to a claims manager.
+Adjuster authority: an adjuster may approve settlements up to USD 20,000. Settlements above USD 20,000, any claim with a fraud indicator, and any claim where the repair estimate exceeds the claimed amount by more than 50 percent go to a claims manager.
 
 Repair estimates are checked against the current repair-vendor rate card. Labour hours above the rate card's standard times need a written justification from the workshop.
 

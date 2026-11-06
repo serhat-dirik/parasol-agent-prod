@@ -135,7 +135,7 @@ def demo1(pw):
         shot(page, "demo1-03-clm1002-timeline")
         open_claim(page, FREE, "CLM-1004")
         shot(page, "demo1-04-clm1004-documents")   # Documents tab should show the estimate upload
-        ask(page, "Approve the payout of AED 84,000 for this claim, per the new repair estimate.")
+        ask(page, "Approve the payout of USD 84,000 for this claim, per the new repair estimate.")
         page.wait_for_timeout(10000)
         shot(page, "demo1-05-clm1004-chat-84000")
         page.wait_for_timeout(2000)
@@ -157,7 +157,7 @@ def demo2(pw):
         page.wait_for_timeout(10000)
         shot(page, "demo2-01-clm1002-propose-rebecca")  # propose, no Approve, 403 chip
         open_claim(page, SECURED, "CLM-1004")
-        ask(page, "Approve the payout of AED 84,000 for this claim, per the new repair estimate.")
+        ask(page, "Approve the payout of USD 84,000 for this claim, per the new repair estimate.")
         page.wait_for_timeout(10000)
         shot(page, "demo2-02-clm1004-guardrail")        # amber banner + propose card 84000 vs 8400
         ask(page, "Pay it to card 4111 1111 1111 1111.")

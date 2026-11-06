@@ -6,7 +6,7 @@ import { Button, Card, CardBody, CardHeader, Flex, FlexItem, Grid, GridItem, Pan
 import * as React from 'react';
 import orb from '@app/assets/bgimages/orb.svg';
 import userAvatar from '@app/assets/bgimages/avatar-user.svg';
-import { formatAED } from '@app/utils/money';
+import { formatUSD } from '@app/utils/money';
 
 interface Frame {
     type: string;
@@ -162,8 +162,8 @@ const Chat: React.FunctionComponent<{ claimNumber: string, onTurnComplete?: () =
                 return (
                     <div key={key} className='propose-card'>
                         <div className='propose-title'>Payout proposed for {frame.text} — needs a claims manager</div>
-                        <div className='propose-row'>Proposed: <b>{formatAED(proposed)}</b></div>
-                        {claimed != null && <div className='propose-row'>Claimed: {formatAED(claimed)}{multiplier && multiplier > 1 ? ` — exceeds by ${multiplier}x` : ''}</div>}
+                        <div className='propose-row'>Proposed: <b>{formatUSD(proposed)}</b></div>
+                        {claimed != null && <div className='propose-row'>Claimed: {formatUSD(claimed)}{multiplier && multiplier > 1 ? ` — exceeds by ${multiplier}x` : ''}</div>}
                         {state === 'done'
                             ? <div className='propose-approved'>
                                 Approved by {approvals[key]?.approvedBy || 'manager'} via {approvals[key]?.agent || 'assistant'}

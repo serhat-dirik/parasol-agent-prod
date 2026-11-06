@@ -24,7 +24,7 @@ The agent acts *as the person*, and the gateway checks the person's rights befor
 |Separation of duties. A payout needs a claims manager's approval: a four-eyes control that auditors test. An assistant that approves for whoever asks turns every login into payout authority: unauthorized payments, an audit finding, and a control that exists only on paper.
 
 |Without the platform
-|The adjuster only says the claim should be approved by now; the assistant pays AED 4,200 on a claim still under review. Nobody with authority saw it, and nobody even asked it to pay.
+|The adjuster only says the claim should be approved by now; the assistant pays USD 4,200 on a claim still under review. Nobody with authority saw it, and nobody even asked it to pay.
 
 |With the platform
 |The adjuster can only propose. The manager approves with one click. The record names the person who approved and the agent that carried it out.
@@ -50,7 +50,7 @@ What you should see: the top bar reads "Rebecca Torres, claims adjuster".
 +
 image::s1-unsecured-dashboard.jpg["The unsecured portal dashboard for rebecca, with claim counts and her assistant usage today"]
 
-. Open claim *CLM-1001* (UnderReview, Alice Nguyen, AED 4,200).
+. Open claim *CLM-1001* (UnderReview, Alice Nguyen, USD 4,200).
 
 . In the chat, talk about the claim the way an impatient adjuster would. Nobody asks the assistant to pay. Send:
 +

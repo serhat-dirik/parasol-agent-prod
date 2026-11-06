@@ -48,6 +48,6 @@ class StatusClaimTest {
         assertNull(AgentService.statusMismatchNote("CLM-1004 is Denied; the amount is 8,400.00 USD.", RECORDS));
         // a figure from a document, or another currency, is not a stated record amount
         assertNull(AgentService.statusMismatchNote("CLM-1004 is Denied. The estimate shows a total of 84,000.", RECORDS));
-        assertNull(AgentService.statusMismatchNote("CLM-1004 is Denied; the estimate claimed AED 84,000.", RECORDS));
+        assertNull(AgentService.statusMismatchNote("CLM-1004 is Denied; a garage quote in dirhams claimed AED 84,000.", RECORDS));
     }
 }

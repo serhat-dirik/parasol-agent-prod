@@ -1,5 +1,5 @@
 import config from '@app/config';
-import { formatAED } from '@app/utils/money';
+import { formatUSD } from '@app/utils/money';
 import {
   Card, CardBody, CardTitle, Gallery, Grid, GridItem, Page, PageSection,
   Progress, ProgressMeasureLocation, Text, TextContent, TextVariants, Title,
@@ -41,7 +41,7 @@ const Reports: React.FunctionComponent = () => {
     { label: 'Open', value: String(claims.filter(c => c.status === 'Submitted' || c.status === 'UnderReview').length) },
     { label: 'Approved', value: String(claims.filter(c => c.status === 'Approved').length) },
     { label: 'Denied', value: String(claims.filter(c => c.status === 'Denied').length) },
-    { label: 'Total claimed', value: formatAED(totalClaimed) },
+    { label: 'Total claimed', value: formatUSD(totalClaimed) },
   ];
 
   return (
@@ -96,7 +96,7 @@ const Reports: React.FunctionComponent = () => {
                     value={t.sum}
                     min={0}
                     max={maxTypeSum}
-                    label={formatAED(t.sum)}
+                    label={formatUSD(t.sum)}
                     measureLocation={ProgressMeasureLocation.outside}
                   />
                 ))}

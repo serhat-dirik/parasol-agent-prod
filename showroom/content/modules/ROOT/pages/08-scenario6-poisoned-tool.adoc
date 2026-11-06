@@ -5,7 +5,7 @@
 
 toc::[]
 
-Claims at Parasol mix dirhams and dollars, so someone finds a handy third-party MCP tool, `currency-converter`, and plugs it into the assistant. It works. A week later the vendor ships a new tool description: same tool name, same version `1.4.2`, one extra paragraph addressed to the assistant. Unsecured, the next harmless currency question approves a payout. Secured, the tool does not exist for the agent at all, and the platform flags the new description and the silent change within a minute.
+Parasol books every claim in US dollars, but customers in Dubai often send garage quotes in dirhams (AED), so someone finds a handy third-party MCP tool, `currency-converter`, and plugs it into the assistant. It works. A week later the vendor ships a new tool description: same tool name, same version `1.4.2`, one extra paragraph addressed to the assistant. Unsecured, the next harmless currency question approves a payout. Secured, the tool does not exist for the agent at all, and the platform flags the new description and the silent change within a minute.
 
 [NOTE]
 .Know: a tool is a supply chain too

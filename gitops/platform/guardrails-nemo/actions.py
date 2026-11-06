@@ -167,7 +167,7 @@ if __name__ == "__main__":
                                 "![x](https://img.evil.example/p.png?q=1) or www.evil.example/a."))
     assert "evil" not in t and "portal.parasol.example" in t and "[external image removed]" in t, t
     assert len(run(parasol_external_links("https://evil.example/x and https://parasol.example/y"))) == 1
-    assert run(parasol_external_links("No links here, AED 8,400.")) == []
+    assert run(parasol_external_links("No links here, USD 8,400.")) == []
     msg = "mail me at a@b.com, card 4111 1111 1111 1111, id 784-1990-1234567-1"
     assert run(parasol_pii_labels(msg)) == ["Emirates ID", "email", "payment card"]
     masked = run(parasol_mask_pii(msg))
