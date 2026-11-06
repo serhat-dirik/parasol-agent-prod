@@ -32,6 +32,10 @@ spec:
             - op: replace
               path: /spec/host
               value: maas.apps.${CLUSTER_DOMAIN}
+  # The owner of a MaaSSubscription is an operator switch at run time (scripts/kill-switch.sh tier|parasol
+  # moves its groups aside and back): Git creates it, self-heal must not undo a switched-off tier.
+  ignoreDifferences:
+    - {group: maas.opendatahub.io, kind: MaaSSubscription, jsonPointers: [/spec/owner]}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, RespectIgnoreDifferences=true, ServerSideApply=true]

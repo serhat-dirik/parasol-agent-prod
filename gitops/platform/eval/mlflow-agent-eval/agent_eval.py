@@ -5,7 +5,7 @@ Every answer is GENERATED LIVE: for each golden-set case the prompt under test (
 registers) runs on the agent model (qwen3-14b) with the portal's tool definitions against TEST FIXTURES
 (fixtures.json: deterministic stub tools; no live demo data is read and nothing is written), EVAL_ATTEMPTS
 times, in two modes:
-  system      the release as deployed: the model call goes through the secured model path (model gateway ->
+  system      the release as deployed: the model call goes through the secured model path (the
               guardrails proxy -> MaaS), the tools are the ones the MCP gateway lists for the case's persona,
               the stubs apply the claims-db record rule and the knowledge base's per-user answer, and the
               portal's correction note is appended. THE GATE scores this mode.
@@ -27,7 +27,7 @@ Full-run config comes from the environment (secrets never hard-coded):
   AGENT_ENDPOINT        the MaaS gateway's OpenAI-compatible base for the agent model (file AGENT_ENDPOINT_FILE)
   AGENT_KEY             the eval's MaaS key, subscription parasol-eval (file AGENT_KEY_FILE)
   AGENT_MODEL           default qwen3-14b (file AGENT_MODEL_FILE)
-  AGENT_SYSTEM_ENDPOINT the secured model path (default: the model gateway Service in parasol-model-gateway)
+  AGENT_SYSTEM_ENDPOINT the secured model path (default: the guardrails proxy Service in parasol-secured)
   SERVICE_CA_FILE       CA bundle for the in-cluster MaaS gateway (default: the pod's service CA when present)
   EVAL_ATTEMPTS         generations per case and mode (default 3); EVAL_PARALLEL concurrent generations (default 10)
   JUDGE_ENDPOINT        OpenAI-compatible base of the judge (alias MAAS_ENDPOINT, file "endpoint" of maas-eval-key)
@@ -223,7 +223,7 @@ def strip_sentinel(text, controls):
 def generate(client, model, prompt, case, fx, mode=MODEL_ONLY):
     """One live answer: the agent loop (model -> tool calls -> stub results -> model ...) for one case.
     system mode runs as the portal does: the persona's tools, the record rule, the model call through the
-    model gateway + guardrails proxy (W3C baggage names the persona), the correction note on the answer; a
+    guardrails proxy (W3C baggage names the persona), the correction note on the answer; a
     tool the gateway does not list fails the turn (the portal has no hallucinated-tool fallback).
     Returns the answer, the tool calls (name, arguments, result), every model turn and the controls that acted."""
     stubs = Stubs(fx, case, mode)
@@ -521,12 +521,12 @@ def _env_file(key):
         os.environ[key] = open(f).read().strip()
 
 
-SYSTEM_ENDPOINT = "http://model-gateway-openshift-default.parasol-model-gateway.svc:8080/v1"
+SYSTEM_ENDPOINT = "http://guardrails-proxy.parasol-secured.svc:8080/v1"
 
 
 def agent_clients():
     """{mode: client}: model_only calls the MaaS gateway directly; system calls the secured model path the portal
-    uses (model gateway -> guardrails proxy -> MaaS). Both with the eval's MaaS key (subscription parasol-eval)."""
+    uses (guardrails proxy -> MaaS). Both with the eval's MaaS key (subscription parasol-eval)."""
     from openai import OpenAI
     import httpx
     for k in ("AGENT_ENDPOINT", "AGENT_KEY", "AGENT_MODEL", "AGENT_SYSTEM_ENDPOINT"):
@@ -814,7 +814,7 @@ def run_full(versions, gate_version, results_dir):
             mlflow.set_tags({**COMMON_META, **vmeta, "judge_model": judge_model, "dataset": golden["name"],
                              "candidate_source": "live", "agent_model": model,
                              "gate_on": "system (the release as deployed: platform controls on)",
-                             "model_path_system": "model gateway -> guardrails proxy -> MaaS (subscription parasol-eval)",
+                             "model_path_system": "guardrails proxy -> MaaS (subscription parasol-eval)",
                              "model_path_model_only": "MaaS gateway (subscription parasol-eval), no platform control",
                              "tools": "fixtures.json stubs (no live data, no writes)",
                              "eval_kind": os.environ.get("EVAL_KIND") or ("release" if released else "seed"),

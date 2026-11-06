@@ -35,7 +35,7 @@ spec:
             severity: warning
           annotations:
             summary: "Assistant token spend high for user {{ $labels.user }} via agent {{ $labels.agent }} in {{ $labels.namespace }}"
-            description: "Agent {{ $labels.agent }} on behalf of user {{ $labels.user }} is spending {{ $value | humanize }} tokens/min, far above normal interactive load. Possible runaway loop or denial-of-wallet. Disable the user in Keycloak, switch the agent off (scripts/agent-switch.sh), or take every agent offline (scripts/kill-switch.sh off); the traces are in MLflow (workspace parasol-secured, filter by user)."
+            description: "Agent {{ $labels.agent }} on behalf of user {{ $labels.user }} is spending {{ $value | humanize }} tokens/min, far above normal interactive load. Possible runaway loop or denial-of-wallet. Switch the user off (scripts/kill-switch.sh user <name> off), the agent (scripts/kill-switch.sh agent <agent> off), or every Parasol model key (scripts/kill-switch.sh parasol off); the traces are in MLflow (workspace parasol-secured, filter by user)."
         - alert: ParasolAssistantToolDenied
           expr: increase(http_server_requests_seconds_count{job=~"parasol.*", status="403"}[5m]) > 3
           for: 0m

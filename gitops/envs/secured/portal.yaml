@@ -1,6 +1,6 @@
 # The Parasol claims portal, secured: same image as parasol-free, with the controls around it.
 #  - login with Keycloak (quarkus-oidc web-app) from Secret parasol-portal-oidc
-#  - the model call goes to the rate-limited model-gateway -> guardrails-proxy -> MaaS (agent-config endpoint)
+#  - the model call goes to the guardrails-proxy -> MaaS (agent-config endpoint; MaaS meters and rate-limits)
 #  - the MCP tools are reached ONLY through the MCP gateway, carrying the caller's token (per-tool AuthPolicy)
 #  - the system prompt is the RELEASED prompt (ConfigMap agent-prompt-release, pinned by the release); traces go to the OTel collector
 # The pod spec references the image by NAME ONLY: the kustomize images digest pin (below, patched by the
@@ -29,7 +29,7 @@ spec:
           image: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal
           imagePullPolicy: Always
           env:
-            # --- model path: the rate-limited model gateway, not the upstream MaaS directly ---
+            # --- model path: the guardrails proxy, then MaaS; never the upstream model directly ---
             - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_BASE_URL
               valueFrom: {configMapKeyRef: {name: agent-config, key: endpoint}}
             - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_CHAT_MODEL_MODEL_NAME

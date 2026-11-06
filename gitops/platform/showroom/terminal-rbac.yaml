@@ -272,8 +272,9 @@ metadata: {name: showroom-terminal-gateway-log, namespace: gateway-system}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-gateway-log}
 subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
 ---
-# Showcase 4, platform kill switch (scripts/kill-switch.sh off|on): scale this gateway to 0 and back.
-# Only this Deployment; the cluster-wide MaaS gateway (--all) stays an admin-workstation action.
+# Showcase 4, break glass (scripts/kill-switch.sh break-glass off|on): scale the MCP gateway to 0 and back.
+# Only this Deployment. The cluster-wide MaaS gateway, the MaaS subscriptions (tier, parasol) and Keycloak
+# users stay admin-workstation actions; from here the script reports those steps as refused.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata: {name: showroom-terminal-kill-switch, namespace: gateway-system}
@@ -290,26 +291,5 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata: {name: showroom-terminal-kill-switch, namespace: gateway-system}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-kill-switch}
-subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
----
-# Showcase 4, platform kill switch (scripts/kill-switch.sh off|on): scale this gateway to 0 and back.
-# Only this Deployment; the cluster-wide MaaS gateway (--all) stays an admin-workstation action.
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: {name: showroom-terminal-kill-switch, namespace: parasol-model-gateway}
-rules:
-  - apiGroups: [apps]
-    resources: [deployments, deployments/scale]
-    resourceNames: [model-gateway-openshift-default]
-    verbs: [get, list, watch, patch, update]
-  - apiGroups: [autoscaling]
-    resources: [horizontalpodautoscalers]
-    resourceNames: [model-gateway-openshift-default]
-    verbs: [get]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: {name: showroom-terminal-kill-switch, namespace: parasol-model-gateway}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-kill-switch}
 subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]

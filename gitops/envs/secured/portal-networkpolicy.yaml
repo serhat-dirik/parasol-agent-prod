@@ -21,12 +21,14 @@ spec:
             matchLabels: {kubernetes.io/metadata.name: gateway-system}
     - to:   # login (code -> token, keys) and the on-behalf-of token exchange: Keycloak's in-cluster Service.
             # No openshift-ingress: the router (and the MaaS gateway behind it) is not reachable, so the
-            # model is reachable only through the model gateway below; the browser's redirects need no egress.
+            # model is reachable only through the guardrails proxy below; the browser's redirects need no egress.
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: keycloak}
-    - to:   # the model, ONLY through the rate-limited model gateway (layer 5)
-        - namespaceSelector:
-            matchLabels: {kubernetes.io/metadata.name: parasol-model-gateway}
+    - to:   # the model, ONLY through the guardrails proxy, which alone reaches MaaS (layer 5)
+        - podSelector:
+            matchLabels: {component: guardrails-proxy}
+      ports:
+        - {protocol: TCP, port: 8080}
     - to:   # traces to the OTel collector
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: observability}

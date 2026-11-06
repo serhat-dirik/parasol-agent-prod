@@ -91,7 +91,7 @@ patches:
 configMapGenerator:
   - name: agent-config
     literals:
-      - endpoint=http://model-gateway-openshift-default.parasol-model-gateway.svc:8080/v1   # rate-limited model gateway -> guardrails-proxy -> MaaS
+      - endpoint=http://guardrails-proxy.parasol-secured.svc:8080/v1   # guardrails-proxy -> MaaS (key, subscription, token budget)
       - model=MAAS_MODEL
       # the MCP gateway by its in-cluster Service (the gateway's private host): no route through the cluster ingress
       - claimsDbMcpUrl=http://mcp-gateway-openshift-default.gateway-system.svc.cluster.local:8080/mcp

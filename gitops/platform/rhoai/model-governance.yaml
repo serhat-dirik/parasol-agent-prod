@@ -1,58 +1,14 @@
-# Layer 5, model governance. The secured agent reaches the model only through this Gateway, then the
-# guardrails proxy, then OpenShift AI MaaS (maas-default-gateway): MaaS checks the agent's MaaS API key,
-# picks its subscription (parasol-stage) and meters tokens (429 when the allowance is spent). The agent
-# never holds the upstream key; only MaaS does (Secret maas-upstream-api-key).
-# Path: agent -> model-gateway (this ns) -> guardrails-proxy (parasol-secured) -> MaaS -> upstream.
-# The model-gateway hop is what the platform kill switch cuts (scripts/kill-switch.sh scales it to 0).
+# Layer 5, model governance. The secured agent reaches the model only through the guardrails proxy, then
+# OpenShift AI MaaS (maas-default-gateway): MaaS checks the agent's MaaS API key, picks its subscription
+# (parasol-stage) and meters tokens (429 when the allowance is spent). The agent never holds the upstream
+# key; only MaaS does (Secret maas-upstream-api-key).
+# Path: agent -> guardrails-proxy (parasol-secured) -> MaaS -> upstream. The kill switches act on MaaS
+# itself (scripts/kill-switch.sh tier|parasol|break-glass), so there is no separate model gateway hop.
+# The parasol-model-gateway namespace is empty and nothing depends on it; it goes in a later cleanup.
 apiVersion: v1
 kind: Namespace
 metadata:
   name: parasol-model-gateway
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: model-gateway-config
-  namespace: parasol-model-gateway
-data:
-  service: |
-    spec:
-      type: ClusterIP
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: model-gateway
-  namespace: parasol-model-gateway
-  annotations:
-    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
-spec:
-  gatewayClassName: openshift-default
-  infrastructure:
-    parametersRef: {group: "", kind: ConfigMap, name: model-gateway-config}
-  listeners:
-    - name: http
-      port: 8080
-      protocol: HTTP
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels: {kubernetes.io/metadata.name: parasol-secured}
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: parasol-model
-  namespace: parasol-secured
-spec:
-  parentRefs:
-    - {group: gateway.networking.k8s.io, kind: Gateway, name: model-gateway, namespace: parasol-model-gateway}
-  rules:
-    - matches:
-        - path: {type: PathPrefix, value: /v1}
-      backendRefs:
-        - {group: "", kind: Service, name: guardrails-proxy, port: 8080, weight: 1}
 ---
 # Identity the agent's MaaS API key is minted for (scripts/maas-key.sh). Its token carries the group
 # system:serviceaccounts:parasol-secured, which MaaSAuthPolicy parasol-access and MaaSSubscription
@@ -63,11 +19,12 @@ metadata:
   name: parasol-model-client
   namespace: parasol-secured
 ---
-# Additive to the env's `guardrails` policy: the proxy also accepts the model gateway.
+# Additive to the env's `guardrails` policy (ingress from the agent only): the proxy is the model endpoint
+# of the portal and the agent, and of the release evaluation's "system" mode (parasol-build). Port 8080 only.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: guardrails-proxy-from-model-gateway
+  name: guardrails-proxy-clients
   namespace: parasol-secured
 spec:
   podSelector:
@@ -75,5 +32,10 @@ spec:
   policyTypes: [Ingress]
   ingress:
     - from:
+        - podSelector:
+            matchExpressions:
+              - {key: app, operator: In, values: [portal, parasol-agent]}
         - namespaceSelector:
-            matchLabels: {kubernetes.io/metadata.name: parasol-model-gateway}
+            matchLabels: {kubernetes.io/metadata.name: parasol-build}
+      ports:
+        - {protocol: TCP, port: 8080}

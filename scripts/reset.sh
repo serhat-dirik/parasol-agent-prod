@@ -15,8 +15,11 @@ if oc get ns parasol-thirdparty >/dev/null 2>&1; then
   "$(dirname "$0")/tool-rugpull.sh" unplug
   "$(dirname "$0")/tool-rugpull.sh" unregister
 fi
-# Showcase 4 operator switches: gateways back up, both agents enabled (no-ops when already so).
-"$(dirname "$0")/kill-switch.sh" on >/dev/null && echo " gateways: on" || echo " gateways: kill-switch.sh on failed"
+# Showcase 4 operator switches: gateways back up, Parasol's MaaS subscriptions and users back on, both agents
+# enabled (each a no-op when already so).
+"$(dirname "$0")/kill-switch.sh" break-glass on >/dev/null && echo " gateways: on" || echo " gateways: kill-switch.sh break-glass on failed"
+"$(dirname "$0")/kill-switch.sh" parasol on >/dev/null && echo " MaaS subscriptions: on" || echo " MaaS subscriptions: kill-switch.sh parasol on failed"
+"$(dirname "$0")/kill-switch.sh" user --all on >/dev/null && echo " users: enabled" || echo " users: kill-switch.sh user --all on failed"
 for a in claims-agent fraud-agent; do
   "$(dirname "$0")/agent-switch.sh" $a on >/dev/null && echo " $a: enabled" || echo " $a: agent-switch.sh on failed"
 done

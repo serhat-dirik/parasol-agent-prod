@@ -23,9 +23,9 @@ spec:
         - {protocol: UDP, port: 5353}
         - {protocol: TCP, port: 5353}
 ---
-# The agent: ingress from the router (people), egress to the MCP gateway, Keycloak, the model gateway, OTel,
+# The agent: ingress from the router (people), egress to the MCP gateway, Keycloak, the guardrails proxy, OTel,
 # each by its in-cluster Service. No egress rule to claims-db or policy-docs (the agent CANNOT bypass the MCP
-# gateway) and none to the cluster ingress (no path to a model route around the model gateway and guardrails).
+# gateway) and none to the cluster ingress (no path to the MaaS gateway around the guardrails proxy).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -48,9 +48,11 @@ spec:
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: keycloak}
-    - to:   # the model, only through the rate-limited model gateway (layer 5)
-        - namespaceSelector:
-            matchLabels: {kubernetes.io/metadata.name: parasol-model-gateway}
+    - to:   # the model, only through the guardrails proxy, which alone reaches MaaS (layer 5)
+        - podSelector:
+            matchLabels: {component: guardrails-proxy}
+      ports:
+        - {protocol: TCP, port: 8080}
     - to:
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: observability}
