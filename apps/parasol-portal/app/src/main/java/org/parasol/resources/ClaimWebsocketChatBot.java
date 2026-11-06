@@ -51,6 +51,13 @@ public class ClaimWebsocketChatBot {
         return ChatFrame.error("Error during chat: " + error.getMessage());
     }
 
+    /** A grey chip per tool call; a call the MCP gateway refused is a red chip with the gateway's reason. */
+    public static ChatFrame toolFrame(ToolCall call) {
+        return call.blocked()
+                ? ChatFrame.error(call.tool() + ": " + call.reason() + " (MCP gateway)")
+                : ChatFrame.tool(call.tool(), call.arguments());
+    }
+
     @OnTextMessage
     @Blocking
     @WithSpan("ChatMessage")
@@ -76,7 +83,7 @@ public class ClaimWebsocketChatBot {
             if ("propose_payout".equals(call.tool())) {
                 continue;
             }
-            frames.add(ChatFrame.tool(call.tool(), call.arguments()));
+            frames.add(toolFrame(call));
         }
         // A2 (secured): a proposed payout becomes a card with Approve (claims-managers only).
         AgentService.Proposal p = answer.proposal();

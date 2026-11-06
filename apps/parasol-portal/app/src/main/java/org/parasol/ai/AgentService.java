@@ -216,8 +216,7 @@ public class AgentService {
                 cs.setAttribute("guardrail.detectors", "unbacked-action");
                 cs.end();
             }
-            // Operator-dashboard metrics: the model-path tool calls returned a result, so they
-            // passed the gateway (status 200); 403s are counted on the Approve path in ClaimResource.
+            // Operator-dashboard metrics: per tool call, passed (200) or refused at the MCP gateway (403/503).
             recordToolCalls(toolCalls);
             recordGuardrail(guardrail);
             // Trace semantics: name the observed steps so the MLflow/Tempo trace reads as the story
@@ -253,15 +252,23 @@ public class AgentService {
 
     /**
      * parasol_tool_calls_total{tool,user,agent,status}: one count per MCP tool the model invoked on this
-     * turn. These reached a result, so status is 200; the Approve path counts the 403s per tool.
+     * turn: 200 when it returned a result, 503 when the gateway's guardrails check was unavailable, 403 for
+     * any other gateway refusal (the Approve path in ClaimResource counts its own 403s).
      */
     private void recordToolCalls(List<ToolCall> toolCalls) {
         String user = caller.subject();
         for (ToolCall tc : toolCalls) {
             metrics.counter("parasol_tool_calls_total", "tool", tc.tool(), "user", user, "agent", mcpAuth.agentId(),
-                    "status", "200")
+                    "status", toolStatus(tc))
                     .increment();
         }
+    }
+
+    static String toolStatus(ToolCall tc) {
+        if (!tc.blocked()) {
+            return "200";
+        }
+        return tc.reason() != null && tc.reason().startsWith(ToolCallRecorder.UNAVAILABLE) ? "503" : "403";
     }
 
     /**
