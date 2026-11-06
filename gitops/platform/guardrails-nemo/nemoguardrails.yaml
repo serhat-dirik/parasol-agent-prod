@@ -9,7 +9,7 @@
 #   http://parasol-nemo.parasol-secured.svc.cluster.local
 # networkpolicy.yaml limits callers to the MCP gateway and the proxy (the Route is unreachable from the router).
 # The CR has no resources field: the namespace LimitRange (gitops/platform/guardrails/limitrange.yaml) sizes
-# the pods (100m/256Mi requested, 500m/512Mi limit; NeMo 0.24 with these configs used ~110 MiB locally).
+# the pods (100m/640Mi requested, 500m/1Gi limit; about 500 MiB RSS per pod on the cluster).
 # Judge calls go to MaaS with the guard-tier key in Secret parasol-nemo-judge (key api-key), created
 # out-of-band by scripts/maas-tier-keys.sh, never in Git. After a rule change in the ConfigMaps:
 #   oc rollout restart deploy/parasol-nemo -n parasol-secured   (NeMo caches each config in memory)

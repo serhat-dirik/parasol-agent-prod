@@ -1,5 +1,6 @@
-# The operator-generated orchestrator pod has sidecars (gateway, built-in detectors) without
-# resources, and the namespace ResourceQuota rejects such pods. Defaults for containers that omit them.
+# Defaults for containers that omit resources (the namespace ResourceQuota rejects such pods): the NeMo
+# Guardrails pods (the NemoGuardrails CR has no resources field) and the orchestrator's gateway sidecar.
+# Memory sized for NeMo: about 500 MiB RSS per pod once both configs are loaded.
 apiVersion: v1
 kind: LimitRange
 metadata:
@@ -7,5 +8,5 @@ metadata:
 spec:
   limits:
     - type: Container
-      defaultRequest: {cpu: 100m, memory: 256Mi}
-      default: {cpu: 500m, memory: 512Mi}
+      defaultRequest: {cpu: 100m, memory: 640Mi}
+      default: {cpu: 500m, memory: 1Gi}
