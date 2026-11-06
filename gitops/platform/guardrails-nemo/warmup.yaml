@@ -1,0 +1,59 @@
+# NeMo loads a config on its first request (about 17 s on this image), longer than the MCP gateway's 8 s check
+# timeout, and the NemoGuardrails CR exposes no lifecycle hook. This job sends one cheap check per config, a few
+# times through the Service so every replica is hit, so a restarted pod is warm within two minutes.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: parasol-nemo-warmup
+spec:
+  schedule: "*/2 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 110
+      template:
+        metadata:
+          labels: {component: nemo-warmup}
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          containers:
+            - name: warmup
+              image: registry.access.redhat.com/ubi9/python-312:latest
+              resources:
+                requests: {cpu: 10m, memory: 32Mi}
+                limits: {cpu: 100m, memory: 64Mi}
+              command: [python3, -c]
+              args:
+                - |
+                  import json, time, urllib.request
+                  url = "http://parasol-nemo.parasol-secured.svc.cluster.local/v1/checks"
+                  checks = {"parasol-chat": {"role": "user", "content": "What is the status of my claim?"},
+                            "parasol-tool-results": {"role": "assistant", "name": "get_claim", "content": "Claim status: UnderReview."}}
+                  for i in range(6):
+                      for cid, msg in checks.items():
+                          body = json.dumps({"model": "warmup", "messages": [msg], "guardrails": {"config_ids": [cid]}}).encode()
+                          t = time.time()
+                          try:
+                              r = urllib.request.urlopen(urllib.request.Request(url, body, {"Content-Type": "application/json"}), timeout=60)
+                              print(cid, json.load(r).get("status"), round(time.time() - t, 2), "s", flush=True)
+                          except Exception as e:
+                              print(cid, "error", e, flush=True)
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: parasol-nemo-warmup
+spec:
+  podSelector:
+    matchLabels: {component: nemo-warmup}
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels: {app: parasol-nemo}
+      ports:
+        - {protocol: TCP, port: 8000}

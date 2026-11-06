@@ -19,6 +19,8 @@ spec:
             matchLabels: {app.kubernetes.io/name: mcp-gateway}
         - podSelector:
             matchLabels: {component: guardrails-proxy}
+        - podSelector:
+            matchLabels: {component: nemo-warmup}
       ports:
         - {protocol: TCP, port: 8000}
   egress:

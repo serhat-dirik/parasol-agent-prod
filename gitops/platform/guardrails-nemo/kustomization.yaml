@@ -8,6 +8,7 @@ resources:
   - config-tool-results.yaml
   - nemoguardrails.yaml
   - networkpolicy.yaml
+  - warmup.yaml
 configMapGenerator:
   - name: nemo-parasol-chat
     behavior: merge
