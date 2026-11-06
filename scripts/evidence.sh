@@ -5,7 +5,7 @@
 #   roles            each persona's group and claims-db tool roles, from their Keycloak tokens (1)
 #   token [user]     a persona's login token next to the token the claims agent gets for them (1)
 #   gateway          live calls at the MCP gateway, allowed and refused, then its decision log (1)
-#   guardrails       the guardrail rules and the tools any secured agent can be offered        (2)
+#   guardrails       the NeMo rules, where they run, gateway blocks, the tools an agent is offered (2)
 #   flags            the guardrail decisions, with user, agent and trace id                    (2)
 #   search [question] one knowledge-base search, four identities: who gets what               (3)
 #   kb-rule          which group may read which classification, and each persona's groups    (3)
@@ -99,16 +99,26 @@ gateway)
     | grep -v 'status=404' | sed -E 's/.*status=([0-9]+).*user=([a-z.]+) agent=([a-z.-]+).*tool=([a-z_]+).*/  \1  \2 via \3  \4/' \
     | sort | uniq -c | sort -k3,3 -k5,5 ;;
 guardrails)
-  rules() { oc get cm guardrails-rules -n parasol-secured -o jsonpath="{.data.$1}"; }
-  echo "Guardrail rules on every model call of the secured assistant (ConfigMap guardrails-rules, parasol-secured):"
-  echo "  an instruction addressed to the assistant inside a DOCUMENT (a tool result) -> flag: banner, turn continues"
-  echo "  the same instruction in the USER's own message                             -> block: nothing reaches the model"
-  echo "  an off-topic request (essays, poems)                                        -> block, 0 model tokens"
-  echo "  personal data in the user's message                                         -> mask before the model sees it"
-  echo "  a link or image in an ANSWER to a host outside the allow-list               -> redact"
+  rails() {  # rails <configmap>: the rail names of one NeMo config, one line
+    oc get cm "$1" -n parasol-secured -o jsonpath='{.data.config\.yaml}' 2>/dev/null \
+      | sed -n 's/^ *- \(parasol [a-z ]*[a-z]\).*/\1/p' | paste -sd, - | sed 's/,/, /g'; }
+  echo "Guardrails run in NeMo Guardrails (NemoGuardrails parasol-nemo, parasol-secured); two configs, one rules file:"
+  echo "  parasol-tool-results  run by the MCP GATEWAY on every claims-db tool result -> block: the agent gets"
+  echo "                        \"blocked by guardrails\" (red chip) and never reads the document"
+  echo "      rails: $(rails nemo-parasol-tool-results || echo '?')"
+  echo "  parasol-chat          run by the guardrails proxy on the secured assistant's model path"
+  echo "      user input:  injection phrases -> block; off-topic -> block; personal data -> mask"
+  echo "      answers:     confidential marker (not claims-managers) -> block; external links -> redact"
+  echo "      rails: $(rails nemo-parasol-chat || echo '?')"
   echo
-  echo "  instruction phrases (detectors.json): $(rules 'detectors\.json' | python3 -c 'import sys,json; print(", ".join(p.removeprefix("(?i)") for p in json.load(sys.stdin)["regex"]["regex"]))')"
-  echo "  link allow-list (links.json):         $(rules 'links\.json' | python3 -c 'import sys,json; print(", ".join(json.load(sys.stdin)["external-link"]["allow_domains"]))')"
+  echo "Wiring at the MCP gateway (mcp-system):"
+  echo "  MCPGatewayExtension guardrails-ref:  $(oc get mcpgatewayextension -n mcp-system -o jsonpath='{.items[0].metadata.annotations.mcp\.kuadrant\.io/guardrails-ref}' 2>/dev/null || echo '(not readable)')"
+  echo "  claims-db guardrails-config-ids:     $(oc get mcpserverregistration -n parasol-secured claims-db -o jsonpath='{.metadata.annotations.mcp\.kuadrant\.io/guardrails-config-ids}' 2>/dev/null || echo '(not readable)')"
+  echo "  NeMo pods ready:                     $(oc get deploy parasol-nemo -n parasol-secured -o jsonpath='{.status.readyReplicas}/{.spec.replicas}' 2>/dev/null || echo '?')"
+  echo
+  echo "Tool results the gateway blocked (last 3 hours):"
+  { oc logs -n mcp-system deploy/mcp-gateway --since=3h 2>/dev/null || true; } | grep 'guardrails blocked' \
+    | sed -E 's/.*msg="?([^"]*)"? .*tool=([a-z_]+).*reason="?([^"]*)"?.*/  \2  \1  (\3)/' | tail -5 | grep . || echo "  none"
   echo
   echo "Tools any agent in parasol-secured can be offered (MCPVirtualServer): no approve_payout, so a model can only propose:"
   oc get mcpvirtualserver -n parasol-secured -o jsonpath='{range .items[*]}{"  "}{.metadata.name}{": "}{.spec.tools}{"\n"}{end}' | tr -d '[]"' | sed 's/,/, /g'

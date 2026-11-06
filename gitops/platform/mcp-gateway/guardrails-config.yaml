@@ -1,0 +1,25 @@
+# Guardrails for MCP tool calls (Connectivity Link 1.5 MCP gateway): the gateway sends each tool call's arguments
+# and each tool result to NeMo Guardrails (POST <url>/v1/checks) with the config ids of that server and blocks
+# on "blocked" (the result becomes an error "blocked by guardrails"). Wiring, both annotations:
+#   MCPGatewayExtension mcp-gateway-extension:  mcp.kuadrant.io/guardrails-ref: parasol-guardrails
+#   MCPServerRegistration claims-db:            mcp.kuadrant.io/guardrails-config-ids: parasol-tool-results
+# configIDs empty = no global check: only servers that name a config are checked (today claims-db).
+# failMode deny: NeMo unreachable, a 5xx or the 8 s check timeout -> the call is refused, never let through.
+# url: plain HTTP to the in-cluster Service (the operator serves HTTPS only behind its token proxy, and the
+# gateway sends no token); a DNS name, as the gateway rejects literal IPs. model: the name NeMo puts in its
+# main-model slot for the request (gitops/platform/guardrails-nemo/nemoguardrails.yaml); the rails make no
+# main-model call. No credential in here.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: parasol-guardrails
+  namespace: mcp-system
+  labels:
+    mcp.kuadrant.io/secret: "true"
+type: guardrails/external/nemo
+stringData:
+  config.yaml: |
+    url: http://parasol-nemo.parasol-secured.svc.cluster.local
+    model: qwen3-14b
+    configIDs: []
+    failMode: deny
