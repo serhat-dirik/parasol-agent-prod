@@ -12,7 +12,7 @@ The script `scripts/night-shift.sh` plays the scripted account. It logs in as `n
 [NOTE]
 .Know: budgets and alerts with a name
 ====
-An agent on a shared key is an open invoice: anyone who can reach the chat can spend the budget, and nobody can say who did. On the platform, spend is attributed to a user, so the right account is throttled, everyone else keeps working, and the alert says who.
+An agent on a shared key is an open invoice: anyone who can reach the chat can spend the budget, and nobody can say who did. On the platform, each tier has its own budget, so the contractors are throttled while everyone else keeps working, and spend is attributed to a user and an agent, so the alert says who.
 ====
 
 == The business case
@@ -78,7 +78,7 @@ What you should see:
 +
 * the off-topic requests get a polite refusal from the topic guardrail at *0 tokens*;
 * the on-topic loop keeps hammering, and the per-user spend climbs;
-* after the per-user limit, the response reads "you have reached your usage limit (429)" and the script stops.
+* after the contractor tier's token limit (Nina is its only member), the response reads "you have reached your usage limit (429)" and the script stops.
 
 . Select the *Portal secured* tab, sign in as `nina.contractor`, open her claim *CLM-1031* and ask a question.
 +
@@ -341,7 +341,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 
 == Reset after this showcase
 
-Refill the per-user token budgets, put the claims back, and switch every level back on (users, agents, MaaS subscriptions, gateways):
+Refill the token budgets, put the claims back, and switch every level back on (users, agents, MaaS subscriptions, gateways):
 
 [source,bash,role=execute]
 ----

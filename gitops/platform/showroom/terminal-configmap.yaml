@@ -11,10 +11,11 @@ data:
     export HOME=/home/lab-user USER=lab-user
     REPO=https://github.com/serhat-dirik/parasol-agent-prod
     DIR="$HOME/parasol-agent-prod"
+    # Bounded: a slow GitHub must never keep the terminal from opening (the pull keeps the old copy).
     if [ -d "$DIR/.git" ]; then
-      git -C "$DIR" pull -q --ff-only 2>/dev/null || true
+      timeout 20 git -C "$DIR" pull -q --ff-only 2>/dev/null || echo "repository not updated (git pull failed or took over 20 s)"
     else
-      git clone -q --depth 1 "$REPO" "$DIR"
+      timeout 120 git clone -q --depth 1 "$REPO" "$DIR" || { echo "git clone failed or took over 120 s; open a new terminal to retry"; rm -rf "$DIR"; }
     fi
     cd "$DIR" || cd "$HOME"
     echo "Parasol demo terminal: repository at $DIR, oc as $(oc whoami 2>/dev/null)"

@@ -11,6 +11,8 @@ An adjuster has no authority to approve a payout. Unsecured, the agent does it a
 .Know: identity on every tool call
 ====
 The agent acts *as the person*, and the gateway checks the person's rights before any tool runs. Unsecured, nobody asks who is asking: a chat window becomes a payout button for anyone who can log in.
+
+This showcase is also the proof that a fooled model cannot pay: whoever pushes it, a person here or a document in Showcase 2, the model can only *propose*. Only a person with the right role writes.
 ====
 
 == The business case

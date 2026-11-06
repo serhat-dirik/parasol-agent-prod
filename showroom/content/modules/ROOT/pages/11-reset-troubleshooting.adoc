@@ -17,7 +17,7 @@ Reset between every run of the demo, and scan the troubleshooting table once bef
 
 The showcases change data: Showcase 1 approves CLM-1001, Showcase 2 pays CLM-1004 on the unsecured portal, and Showcase 4 spends `nina.contractor`'s budget. Showcase 3 only reads: the knowledge base is not changed by any showcase, and the reset leaves it as it is. Showcase 6 plugs the vendor tool into the unsecured portal, poisons its description, may register it on the secured gateway, and pays CLM-1001 on the unsecured portal. The incident page (09) needs marcus's approval of CLM-1001 on the secured portal.
 
-. In the *Terminal* tab, reset both portals and the per-user token budgets:
+. In the *Terminal* tab, reset both portals and the token budgets:
 +
 [source,bash,role=execute]
 ----
@@ -41,9 +41,9 @@ What you should see: no user disabled, both agents `enabled=true`, every MaaS su
 
 === What a reset clears, and what it keeps
 
-`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every per-user token budget and zeroes Limitador's own 429 count. It also puts the Showcase 6 vendor tool back: clean description, unplugged from the unsecured portal (which restarts if it was plugged in), not registered on the secured gateway. And it undoes the Showcase 4 kill switch at every level: the gateways back up, Parasol's MaaS subscriptions back on, every disabled user of realm `parasol` enabled again, `parasol-claims-agent` and `parasol-fraud-agent` enabled in Keycloak. It does not clear the governance record, on purpose:
+`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every tier's token budget and zeroes Limitador's own 429 count. It also puts the Showcase 6 vendor tool back: clean description, unplugged from the unsecured portal (which restarts if it was plugged in), not registered on the secured gateway. And it undoes the Showcase 4 kill switch at every level: the gateways back up, Parasol's MaaS subscriptions back on, every disabled user of realm `parasol` enabled again, `parasol-claims-agent` and `parasol-fraud-agent` enabled in Keycloak. It does not clear the governance record, on purpose:
 
-* the dashboard counters are cumulative since their process started: token spend, tool calls and per-user 429s live in the secured portal (cleared when the portal pod restarts, for example after a release), guardrail hits in the guardrails proxy, gateway refusals in Authorino. Between runs, read the *change* on a panel, not the absolute number;
+* the dashboard counters are cumulative since their process started: token spend, tool calls and 429s per user live in the secured portal (cleared when the portal pod restarts, for example after a release), guardrail hits in the guardrails proxy, gateway refusals in Authorino. Between runs, read the *change* on a panel, not the absolute number;
 * MLflow traces, Keycloak events (kept 7 days) and the Authorino log stay, so a later run can still be traced back;
 * the `ParasolAssistantTokenSpendHigh` alert stays firing for about 20 minutes after the spend stops, then resolves on its own.
 
@@ -65,7 +65,7 @@ Every question the audience asks has one screen that answers it with the same na
 
 |What did this chat turn do?
 |The `trace <id>` link under the answer, in the *Portal secured* tab (opens *MLflow*, workspace `parasol-secured`)
-|user, tags `agent`, `prompt`, `model`, token count; spans `model.chat`, `tool.*`, `guardrails.tool_result`, `tool.propose_payout`
+|user, tags `agent`, `prompt`, `model`, token count; spans `model.chat`, `tool.*` (with `tool.<name>.result`, marked `tool.blocked` when the gateway refused it), `tool.propose_payout`
 
 |Who approved a payout?
 |Claim *History* tab; the approved card's `trace <id>` link

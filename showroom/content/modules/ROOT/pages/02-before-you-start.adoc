@@ -54,7 +54,7 @@ The portals and the Keycloak admin console share *one sign-in per browser*, beca
 Every secured beat is visible on the platform, not only in the portal chat.
 
 * *Argo CD* tab: every component Synced and Healthy. `scripts/status.sh` summarizes it.
-* *OpenShift AI* tab: *Settings*, *MaaS governance* (the subscriptions and their token limits), *Gen AI studio* (playground, API keys, prompts), *AI hub*, *Models*, *Registry* (the evaluated agent versions) and *Evaluations* (TrustyAI).
+* *OpenShift AI* tab: *Settings*, *MaaS governance* (the subscriptions and their token limits), *Gen AI studio* (playground, API keys, prompts), *AI hub* (*Models* > *Registry*: the MaaS models and the evaluated agent versions; *MCP servers* and *Agents* catalogs) and *Evaluations* (TrustyAI). Module 01 lists the click paths.
 * *MLflow* tab: chat traces (workspace `parasol-secured`, experiment `parasol-portal-chat`; each secured chat turn links to its own trace), and the `parasol-agent-eval` golden-set runs.
 * *OpenShift Console* tab:
 ** Observe, Dashboards (Perses), project `openshift-operators`, dashboard *Parasol Assistant Token Spend*: token spend per user and agent, the spend alert, tool calls, gateway rejections by reason and guardrail hits, filterable by user and agent;
@@ -64,11 +64,17 @@ Every secured beat is visible on the platform, not only in the portal chat.
 ** Networking, Gateways: the MCP and MaaS gateways and their AuthPolicies (Enforced).
 * *Keycloak* (admin console in a private window, see above): realm `parasol`, users, groups, events and the `tool:*` roles.
 * *Terminal* tab, live logs to confirm a beat at the component level:
-** guardrails flag or block:
+** guardrails on the model path (the user's message, the answer):
 +
 [source,bash,role=execute]
 ----
 oc logs -n parasol-secured deploy/guardrails-proxy --tail=50
+----
+** guardrails on tool results (a document refused at the MCP gateway, with the rule that fired):
++
+[source,bash,role=execute]
+----
+oc logs -n mcp-system deploy/mcp-gateway --since=1h | grep 'guardrails blocked'
 ----
 ** gateway refusals, naming the person and the agent (`not via an approved agent: <user> azp=<client>`, `tool <tool> denied for <user> azp=<agent>`):
 +
@@ -76,7 +82,7 @@ oc logs -n parasol-secured deploy/guardrails-proxy --tail=50
 ----
 oc logs -n kuadrant-system deploy/authorino --tail=500 | grep -E 'approved agent|denied for'
 ----
-** per-user 429:
+** token-budget 429s (per MaaS subscription, that is per tier):
 +
 [source,bash,role=execute]
 ----
@@ -85,7 +91,7 @@ oc logs -n kuadrant-system deploy/limitador-limitador --tail=50
 
 == Reset the demo data
 
-. In the *Terminal* tab, reset both portals' claims and refill the per-user token budgets:
+. In the *Terminal* tab, reset both portals' claims and refill the token budgets:
 +
 [source,bash,role=execute]
 ----

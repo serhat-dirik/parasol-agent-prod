@@ -13,7 +13,7 @@ An agent that can move money is an agent worth abusing.
 The same portal image runs twice on one cluster, over separate, identically seeded claims databases:
 
 * *Portal unsecured* (`portal-free`): the laptop setup lifted into a namespace. Nothing sits between the agent and its tools, and nothing between the agent and the model but an API key in a Secret.
-* *Portal secured* (`portal`): the same image behind a layered sandbox: namespace isolation, Keycloak identity on every tool call, per-identity tool authorization at an MCP gateway, content guardrails, Models-as-a-Service governance with per-user token budgets, tracing and token metrics, kill switches for one agent (Keycloak) or every agent (the gateways), and a signed-image supply chain with admission control.
+* *Portal secured* (`portal`): the same image behind a layered sandbox: namespace isolation, Keycloak identity on every tool call, per-identity tool authorization at an MCP gateway, content guardrails (NeMo Guardrails, applied by the gateways), Models-as-a-Service governance with per-tier token budgets, tracing, token metrics and AgenticOps checks, a kill switch in layers (one user, one agent, one tier, all of Parasol, break glass), and a signed-image supply chain with admission control.
 
 You demo the *same claim* with the *same request* on each portal. The only variable is the platform.
 
@@ -62,7 +62,7 @@ The guide is on the left. Every step tells you which tab on the right to use:
 |Realm `parasol`: users, groups and the `tool:*` roles.
 
 |*OpenShift AI*
-|Models-as-a-Service, the GenAI Studio playground, Model evaluation runs, the Model registry.
+|Models-as-a-Service, the Gen AI studio playground and AI asset endpoints, the MCP server and agent catalogs, the Model registry, Model evaluation runs.
 
 |*OpenShift Console*
 |Observe (Dashboards, Alerting, Metrics, Traces), Networking (Gateways), Pipelines.

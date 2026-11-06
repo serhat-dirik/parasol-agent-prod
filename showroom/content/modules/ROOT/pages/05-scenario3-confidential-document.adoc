@@ -295,9 +295,9 @@ What you should see: `(0 rows)`. Even a bug in the server's own filter could not
 +
 image::s3-terminal-rls.png["Terminal: \d+ chunks showing the chunks_by_group policy, and the kb_app query returning 0 rows"]
 
-. Defence in depth on the answer itself: select the *OpenShift Console* tab, project `parasol-secured`, *ConfigMaps*, `guardrails-rules`, key `output.json`.
+. Defence in depth on the answer itself: select the *OpenShift Console* tab, project `parasol-secured`, *ConfigMaps*, `nemo-parasol-chat`: the output rail `parasol confidential marker` in `config.yaml`, its rule in `actions.py`.
 +
-What you should see: the rule `confidential-marker`: if an answer to anyone outside `claims-managers` contains "CONFIDENTIAL — Claims managers only" (any dash, any case), the guardrails proxy withholds the answer (`action=block`, detector `confidential-marker`), logged with user and agent and counted in the *Guardrails* row. It does not fire in this showcase, because the knowledge base never returned the document to rebecca or nina.contractor; it is there for the day a document is misclassified.
+What you should see: if an answer to anyone outside `claims-managers` contains "CONFIDENTIAL — Claims managers only" (any dash, any case), NeMo Guardrails blocks it and the guardrails proxy withholds the answer (`action=block`, detector `confidential-marker`), logged with user and agent and counted in the *Guardrails* row. It does not fire in this showcase, because the knowledge base never returned the document to rebecca or nina.contractor; it is there for the day a document is misclassified.
 
 == Evidence checklist
 
