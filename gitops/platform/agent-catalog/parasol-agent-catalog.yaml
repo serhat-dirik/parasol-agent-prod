@@ -1,0 +1,118 @@
+# Parasol's agents in the OpenShift AI catalog (AI hub > Agents > Catalog, dashboard flag agentsCatalog):
+# the claims agent and the fraud-check agent, what they run on, which tools they reach and how.
+# agent-catalog-sources is the user slot the model-catalog server mounts at /data/user-agent-sources
+# (--catalogs-path=/data/user-agent-sources/sources.yaml), the same pattern as mcp-catalog-sources.
+# Schema: model-registry catalog/internal/catalog/agentcatalog (yamlAgentCatalog), as in the shipped
+# /shared-data/redhat-agents-catalog.yaml. The catalog describes; it deploys nothing.
+# Applied by bootstrap.sh (step 11) next to the MCP catalog; not Argo-synced (operator namespace).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-catalog-sources
+  namespace: rhoai-model-registries
+data:
+  sources.yaml: |
+    agent_catalogs:
+    - name: Parasol Agents
+      id: parasol_agents
+      type: yaml
+      enabled: true
+      properties:
+        yamlCatalogPath: /data/user-agent-sources/parasol-agents.yaml
+      labels:
+      - Parasol Agents
+    labels:
+    - name: Parasol Agents
+      assetType: agents
+      displayName: Parasol agents
+      description: Parasol Insurance's own agents. Tools through the Parasol MCP gateway, models through
+        OpenShift AI Models-as-a-Service, each agent with its own workload identity.
+  parasol-agents.yaml: |
+    source: Parasol Agents
+    agents:
+    - name: parasol-claims-agent
+      displayName: Parasol claims agent
+      description: Claims assistant for adjusters and claims managers. Quarkus with LangChain4j; tools via the
+        Parasol MCP gateway on behalf of the signed-in user; model via OpenShift AI Models-as-a-Service.
+      readme: |
+        # Parasol claims agent
+
+        The claims assistant behind the Parasol claims portal chat (and the headless `parasol-agent` service).
+
+        ## How it runs
+        - **Framework:** Quarkus with LangChain4j (`@RegisterAiService`, MCP client).
+        - **Model:** the agent model through OpenShift AI Models-as-a-Service (subscription, token rate limit,
+          kill switch per key); in the secured environment every call passes the guardrails proxy first.
+        - **Tools:** one MCP endpoint, the Parasol MCP gateway (Red Hat Connectivity Link). The agent exchanges
+          the user's token at Keycloak as `parasol-claims-agent` (its ServiceAccount is the credential, no client
+          secret) and calls tools on behalf of the user; the gateway lists and allows only the tools the person's
+          roles grant: claims-db, policy-docs, knowledge-base, fraud-check.
+        - **Writes:** `approve_payout` is proposed in chat and performed by a claims manager's Approve click.
+        - **Observability:** OpenTelemetry traces to MLflow and Tempo, token metrics per user.
+
+        ## Environments
+        `parasol-free` runs the same code with no controls; `parasol-secured` adds isolation, identity, tool
+        authorization, guardrails, MaaS governance and signed images.
+      repositoryUrl: https://github.com/serhat-dirik/parasol-agent-prod/tree/main/apps/parasol-agent
+      framework: langchain4j
+      labels:
+      - tool-calling
+      - mcp
+      - quarkus
+      logo: ""
+      env:
+      - {name: GENAI_ENDPOINT, required: true}
+      - {name: GENAI_MODEL, required: true}
+      - {name: GENAI_API_KEY, required: true}
+      - {name: CLAIMS_DB_MCP_URL, required: true}
+      - {name: POLICY_DOCS_MCP_URL, required: true}
+      - {name: AGENT_SAFETY_RULES, required: false}
+      - {name: OTEL_EXPORTER_OTLP_ENDPOINT, required: false}
+      artifacts:
+      - uri: image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-agent:latest
+      templates:
+      - name: agent.yaml
+        content: '{"description":"Claims assistant for adjusters and claims managers. Quarkus with LangChain4j; tools via the Parasol MCP gateway on behalf of the signed-in user; model via OpenShift AI Models-as-a-Service.","displayName":"Parasol claims agent","env":{"optional":["AGENT_SAFETY_RULES","OTEL_EXPORTER_OTLP_ENDPOINT"],"required":["GENAI_ENDPOINT","GENAI_MODEL","GENAI_API_KEY","CLAIMS_DB_MCP_URL","POLICY_DOCS_MCP_URL"]},"framework":"langchain4j","labels":["tool-calling","mcp","quarkus"],"logo":"","name":"parasol-claims-agent"}'
+      customProperties:
+        identity: {metadataType: MetadataStringValue, string_value: "Keycloak client parasol-claims-agent (ServiceAccount claims-agent in parasol-secured)"}
+        tools: {metadataType: MetadataStringValue, string_value: "Parasol MCP gateway: claims-db, policy-docs, knowledge-base, fraud-check"}
+        model: {metadataType: MetadataStringValue, string_value: "AGENT_MODEL via OpenShift AI Models-as-a-Service"}
+    - name: parasol-fraud-check-agent
+      displayName: Parasol fraud-check agent
+      description: Scores a claim's fraud risk before any payout. Called by the claims agent as the MCP tool
+        fraud_check through the gateway; reads the claim through the gateway as parasol-fraud-agent.
+      readme: |
+        # Parasol fraud-check agent
+
+        A second agent, callable agent-to-agent: the claims agent calls the `fraud_check` tool through the
+        Parasol MCP gateway with the user's token, so the same per-identity authorization applies
+        (adjusters and claims managers, not contractors).
+
+        ## How it runs
+        - **Verdict:** a numeric rule over the claim record and the uploaded documents (HIGH, MEDIUM or LOW with
+          the figures and the reasons). A money decision is a rule, not a model opinion.
+        - **Identity:** it re-exchanges the incoming token at Keycloak as `parasol-fraud-agent` (read-only
+          ceiling), authenticated by its ServiceAccount `fraud-agent`, and reads the claim through the gateway.
+        - **Tools exposed:** `fraud_check(claimNumber)`, read-only.
+      repositoryUrl: https://github.com/serhat-dirik/parasol-agent-prod/tree/main/apps/mcp-servers/fraud-check
+      framework: quarkus
+      labels:
+      - mcp
+      - agent-to-agent
+      - quarkus
+      logo: ""
+      env:
+      - {name: FRAUD_GATEWAY_URL, required: true}
+      - {name: FRAUD_TOKEN_URL, required: true}
+      - {name: FRAUD_AGENT_ID, required: true}
+      - {name: FRAUD_ASSERTION_FILE, required: true}
+      - {name: CLAIMS_DB_API_URL, required: false}
+      - {name: OTEL_EXPORTER_OTLP_ENDPOINT, required: false}
+      artifacts:
+      - uri: image-registry.openshift-image-registry.svc:5000/parasol-build/fraud-check:latest
+      templates:
+      - name: agent.yaml
+        content: '{"description":"Scores a claim''s fraud risk before any payout. Called by the claims agent as the MCP tool fraud_check through the gateway; reads the claim through the gateway as parasol-fraud-agent.","displayName":"Parasol fraud-check agent","env":{"optional":["CLAIMS_DB_API_URL","OTEL_EXPORTER_OTLP_ENDPOINT"],"required":["FRAUD_GATEWAY_URL","FRAUD_TOKEN_URL","FRAUD_AGENT_ID","FRAUD_ASSERTION_FILE"]},"framework":"quarkus","labels":["mcp","agent-to-agent","quarkus"],"logo":"","name":"parasol-fraud-check-agent"}'
+      customProperties:
+        identity: {metadataType: MetadataStringValue, string_value: "Keycloak client parasol-fraud-agent (ServiceAccount fraud-agent in parasol-secured)"}
+        tools: {metadataType: MetadataStringValue, string_value: "exposes fraud_check (read-only) behind the Parasol MCP gateway"}

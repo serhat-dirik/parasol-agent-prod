@@ -168,6 +168,8 @@ scripts/showroom-framing.sh || warn "console framing headers not applied; Showro
 scripts/console-plugins.sh || warn "console plugins not enabled; the PipelineRun graph will be missing" scripts/console-plugins.sh
 envsubst '$CLUSTER_DOMAIN' < gitops/platform/mcp-catalog/parasol-mcp-catalog.yaml | oc apply -f - >/dev/null \
   || warn "Parasol MCP servers missing from the OpenShift AI catalog" "./bootstrap.sh"
+oc apply -f gitops/platform/agent-catalog/parasol-agent-catalog.yaml >/dev/null \
+  || warn "Parasol agents missing from the OpenShift AI catalog" "oc apply -f gitops/platform/agent-catalog/parasol-agent-catalog.yaml"
 echo "first release: the production prompt is promoted onto env-secured, the shortened candidate is blocked by the gate (~20-30 min)"
 scripts/pipeline-runs.sh --wait || warn "production release not promoted; the secured portal stays at 0 replicas" "scripts/pipeline-runs.sh --wait"
 scripts/status.sh || true
