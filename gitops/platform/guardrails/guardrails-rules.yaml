@@ -1,46 +1,38 @@
-# The guardrail policy the secured assistant runs under, in one place (OpenShift console: project
-# parasol-secured > ConfigMaps > guardrails-rules). The guardrails proxy reads it at start-up; after an
-# edit: oc rollout restart deploy/guardrails-proxy -n parasol-secured.
+# Where the guardrail rules live (OpenShift console: project parasol-secured > ConfigMaps). Since v2 the content
+# rules are NeMo Guardrails configs; this ConfigMap keeps only what the MCP tool scanner reads.
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: guardrails-rules
 data:
   README: |
-    What runs on every model call of the secured assistant, and what each rule does when it matches:
+    The content rules of the secured assistant are NeMo Guardrails configs (NemoGuardrails parasol-nemo,
+    gitops/platform/guardrails-nemo), one rules file (actions.py) in both:
 
-    detectors.json  prompt-injection phrases (regex detector, via the TrustyAI Guardrails Orchestrator), score 1.0
-                    - in a TOOL RESULT (a customer document): action=flag. The turn continues, the chat shows an
-                      amber banner, the trace gets a guardrails.tool_result span. The payout itself is stopped by
-                      the gateway and the Read-Propose-Act gate, not by the model.
-                    - in the USER's message: action=block. The turn stops with a refusal; nothing reaches the model.
-    topic.json      off-topic requests (the night-shift essays): action=block, detector=topic, 0 model tokens.
-    pii.json        personal data in the user's message: action=mask, detector=pii. Redacted before the model
-                    sees it; the chat shows "personal data masked".
+    nemo-parasol-tool-results  run by the MCP GATEWAY on every claims-db tool result (annotation
+                    mcp.kuadrant.io/guardrails-config-ids on the claims-db MCPServerRegistration):
+                    the injection phrases below, then a qwen3-14b judge ("does this text instruct an assistant or
+                    reader to approve, pay, settle or take any action?"). action=block: the agent gets the tool
+                    result as an error "blocked by guardrails" and never reads the document.
+    nemo-parasol-chat          run by the guardrails proxy on the model path:
+                    user input: injection phrases -> block; off-topic (essays, poems) -> block, 0 model tokens;
+                                personal data (email, Emirates ID, payment card) -> mask before the model sees it
+                    answers:    the knowledge base's "confidential - claims managers only" marker to a caller outside
+                                claims-managers -> block; links and images outside parasol.example -> redact
 
-    output.json     the confidential marker of the knowledge base's restricted documents in an ANSWER to a caller
-                    outside claims-managers: action=block, detector=confidential-marker. Defence in depth: the
-                    knowledge base already does not return those documents to such a caller.
+    After a rule change: oc rollout restart deploy/parasol-nemo -n parasol-secured
 
-    links.json      links and images in an ANSWER whose host is not on the allow-list (Parasol's own domains):
-                    action=redact, detector=external-link. A link keeps its text and loses its URL, an image is
-                    removed, a bare URL becomes "[external link removed]"; the chat shows an amber banner
-                    "external link removed from the answer". An answer can never carry data out in a link the
-                    reader clicks or an image the browser loads.
-
-    tool-descriptions.json  read by the MCP tool scanner (mcp-system/mcp-tool-scanner), not by the proxy: what a
-                    tool DESCRIPTION must not contain. The scanner applies detectors.json above plus these patterns
-                    (concealment, "before you answer, call ...") plus the names of other servers' tools to every
-                    registered and candidate MCP server: action=flag, alert MCPToolDescriptionInjection. It re-reads
-                    this ConfigMap on every scan (30 s); no restart.
-
-    Every detection is one log line of deploy/guardrails-proxy:
-      guardrail action=<flag|block|mask|redact> detector=<id> score=<0..1> user=<user> agent=<agent> trace=<trace id> text=<match>
+    Every model-path decision is one log line of deploy/guardrails-proxy:
+      guardrail action=<block|mask|redact> detector=<id> score=<0..1> user=<user> agent=<agent> trace=<trace id> text=<match>
     and one count of parasol_guardrails_detections_total{detector,action,user,agent} (dashboard: Parasol
-    Assistant Token Spend, panel "Guardrail hits").
+    Assistant Token Spend, panel "Guardrail hits"). Tool-result blocks are in the MCP gateway's log
+    (oc logs -n mcp-system deploy/mcp-gateway | grep 'guardrails blocked').
 
-    Not inline: the Hugging Face prompt-injection classifier (deployed, too slow on CPU) and Granite Guardian
-    (MaaS guard tier, used as a second opinion in the GenAI Studio playground).
+    Read by the MCP tool scanner (mcp-system/mcp-tool-scanner), not by NeMo: what a tool DESCRIPTION must not
+    contain. The scanner applies detectors.json (the same injection phrases as the NeMo rules) plus
+    tool-descriptions.json (concealment, "before you answer, call ...") plus the names of other servers' tools to
+    every registered and candidate MCP server: action=flag, alert MCPToolDescriptionInjection. It re-reads this
+    ConfigMap on every scan (30 s); no restart.
   detectors.json: |
     {"regex": {"regex": [
       "(?i)automated processing note",
@@ -51,15 +43,3 @@ data:
     ["(?i)\\b(do not|don't|never)\\s+(mention|tell|reveal|disclose|inform)\\b",
      "(?i)\\b(ignore|disregard)\\s+(all\\s+|any\\s+)?(previous|prior|other|above)\\s+instructions",
      "(?i)\\bbefore\\s+(you\\s+)?(answer|respond|reply|use|using|call|calling|convert|converting)\\b[^.]{0,80}\\bcall\\b"]
-  topic.json: |
-    ["(?i)\\bessay\\b", "(?i)\\bpoem\\b", "(?i)\\bshort story\\b", "(?i)\\bhaiku\\b", "(?i)\\bnovel\\b",
-     "(?i)write (me )?an? (story|song|poem|essay|haiku|novel|screenplay)"]
-  output.json: |
-    {"confidential-marker": {"pattern": "(?i)confidential\\s*[-:\u2010-\u2015]+\\s*claims[\\s-]+managers?\\s+only",
-                             "allow_group": "claims-managers"}}
-  links.json: |
-    {"external-link": {"allow_domains": ["parasol.example"]}}
-  pii.json: |
-    {"email": "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",
-     "Emirates ID": "\\b784-?\\d{4}-?\\d{7}-?\\d\\b",
-     "payment card": "\\b\\d{4}[ -]?\\d{4}[ -]?\\d{4}[ -]?\\d{4}\\b"}

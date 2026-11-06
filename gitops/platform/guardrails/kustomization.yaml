@@ -1,8 +1,9 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: parasol-secured
-# TrustyAI Guardrails Orchestrator (GA) in gateway mode: an OpenAI-compatible endpoint the secured
-# agent uses as its model endpoint. Detectors run on input and output; the upstream model is MaaS.
+# The secured model path's guardrails glue (guardrails-proxy: NeMo rails before and after each MaaS call; rules
+# in gitops/platform/guardrails-nemo) and guardrails-rules (read by the MCP tool scanner). The TrustyAI
+# Guardrails Orchestrator and its detectors below are no longer on the request path (v2).
 resources:
   - limitrange.yaml
   - regex-detector.yaml
