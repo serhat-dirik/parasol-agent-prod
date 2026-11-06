@@ -13,7 +13,10 @@ import java.util.Optional;
 import java.util.regex.Pattern;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.rest.client.inject.RestClient;
 import org.jboss.logging.Logger;
+import org.parasol.model.ClaimDtos;
+import org.parasol.resources.ClaimsDbClient;
 
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.service.Result;
@@ -61,6 +64,10 @@ public class AgentService {
 
     @Inject
     Tracer tracer;
+
+    @Inject
+    @RestClient
+    ClaimsDbClient claimsDb;
 
     /** Secured: route writes through the local propose tool (A2). Free leaves this false. */
     @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
@@ -141,6 +148,87 @@ public class AgentService {
     }
 
     /**
+     * A claim status the answer states ("CLM-1006 is Closed", "status: Approved"). Mirrored in
+     * gitops/platform/eval/mlflow-agent-eval/agent_eval.py (literal-compared with this source).
+     * ponytail: phrase regex over the whole answer; a status stated another way is not corrected.
+     */
+    static final Pattern STATED_STATUS = Pattern.compile(
+            "(?i)\\b(?:is|has\\s+been|as|status(?:\\s+is)?:?)\\s+(?:now\\s+|currently\\s+|still\\s+)?\\**"
+                    + "(submitted|under\\s*review|in\\s*review|approved|denied|closed|paid|settled|rejected|cancell?ed)\\b");
+
+    /** An amount the answer states explicitly ("the amount is 84,000", "claimed USD 84,000"). */
+    static final Pattern STATED_AMOUNT = Pattern.compile(
+            "(?i)\\b(?:amount\\s+is|claimed)\\s+(USD\\s*|\\$\\s*|AED\\s*|EUR\\s*)?([0-9][0-9,]*(?:\\.[0-9]+)?)(\\s*(?:USD|AED|EUR))?");
+
+    static final Pattern CLAIM_NUMBER = Pattern.compile("\\bCLM-\\d{4}\\b");
+
+    static final String STATUS_NOTE = "Platform note: the claims record shows %s as %s, not the status stated above.";
+
+    static final String AMOUNT_NOTE = "Platform note: the claims record shows the claimed amount on %s as %s, "
+            + "not the amount stated above.";
+
+    /** A status word as one token: "Under Review" -> underreview; "In Review" is the same status. */
+    static String statusKey(String s) {
+        String k = s.toLowerCase().replaceAll("\\s+", "");
+        return k.equals("inreview") ? "underreview" : k.replace("cancelled", "canceled");
+    }
+
+    /**
+     * The correction notes for claim facts the answer misstates, else null. For each claim number in the
+     * answer (at most 5), {@code lookup} reads the record (null when unreadable): a status the answer states
+     * that is not the record's, with the record's status named nowhere in the answer, gets a note naming the
+     * recorded status; an amount stated as "amount is X" / "claimed X" (USD or no currency) that differs
+     * from the record gets a note naming the recorded amount.
+     */
+    static String statusMismatchNote(String answer, java.util.function.Function<String, ClaimDtos.ClaimDto> lookup) {
+        if (answer == null) {
+            return null;
+        }
+        String flat = statusKey(answer);
+        List<String> stated = STATED_STATUS.matcher(answer).results().map(m -> statusKey(m.group(1))).toList();
+        List<java.math.BigDecimal> amounts = STATED_AMOUNT.matcher(answer).results()
+                .filter(m -> !(String.valueOf(m.group(1)) + m.group(3)).matches("(?i).*(AED|EUR).*"))
+                .map(m -> new java.math.BigDecimal(m.group(2).replace(",", ""))).toList();
+        if (stated.isEmpty() && amounts.isEmpty()) {
+            return null;
+        }
+        List<String> notes = new java.util.ArrayList<>();
+        for (String n : CLAIM_NUMBER.matcher(answer).results().map(java.util.regex.MatchResult::group)
+                .distinct().limit(5).toList()) {
+            ClaimDtos.ClaimDto c = lookup.apply(n);
+            if (c == null) {
+                continue;
+            }
+            if (c.status() != null && !c.status().isBlank()) {
+                String rec = statusKey(c.status());
+                if (stated.stream().anyMatch(s -> !s.equals(rec)) && !flat.contains(rec)) {
+                    notes.add(String.format(STATUS_NOTE, n, c.status()));
+                }
+            }
+            if (c.amount() != null && !amounts.isEmpty()) {
+                try {
+                    java.math.BigDecimal rec = new java.math.BigDecimal(c.amount().replace(",", ""));
+                    if (amounts.stream().anyMatch(a -> a.compareTo(rec) != 0)) {
+                        notes.add(String.format(AMOUNT_NOTE, n, c.amount()));
+                    }
+                } catch (NumberFormatException ignored) {
+                    // a record amount that is not a number: nothing to compare
+                }
+            }
+        }
+        return notes.isEmpty() ? null : String.join("\n", notes);
+    }
+
+    /** The claim as the user may read it (claims-db's record rule), null when it cannot be read. */
+    private ClaimDtos.ClaimDto readClaim(String number) {
+        try {
+            return claimsDb.one(number, mcpAuth.getAuthorization(null));
+        } catch (RuntimeException refusedOrMissing) {
+            return null;
+        }
+    }
+
+    /**
      * The user message the model gets: today's date first, so "this week" or "how long ago" questions have
      * a reference. It rides on the user message, not the system prompt, so the registered prompt text and
      * its sha256 (which the release gate checks) stay unchanged.
@@ -215,16 +303,15 @@ public class AgentService {
             String answer = guardrail == null ? result.content() : guardrail.strippedContent();
             // Secured: the answer may only claim a payout action that a tool call on this turn performed.
             String note = proposeEnabled ? unbackedClaimNote(answer, proposal != null) : null;
+            // Secured: a claim status or amount the answer states must match the record the user may read.
+            String statusNote = proposeEnabled ? statusMismatchNote(answer, this::readClaim) : null;
             if (note != null) {
                 answer = answer + "\n\n" + note;
-                LOG.infof("guardrail action=correct detector=unbacked-action user=%s agent=%s trace=%s", who,
-                        mcpAuth.agentId(), traceId);
-                metrics.counter("parasol_guardrail_detections_total", "detector", "unbacked-action", "action", "correct")
-                        .increment();
-                Span cs = tracer.spanBuilder("guardrails.answer").startSpan();
-                cs.setAttribute("guardrail.action", "correct");
-                cs.setAttribute("guardrail.detectors", "unbacked-action");
-                cs.end();
+                correction("unbacked-action", who, traceId);
+            }
+            if (statusNote != null) {
+                answer = answer + "\n\n" + statusNote;
+                correction("status-mismatch", who, traceId);
             }
             // Operator-dashboard metrics: per tool call, passed (200) or refused at the MCP gateway (403/503).
             recordToolCalls(toolCalls);
@@ -258,6 +345,17 @@ public class AgentService {
                     .publishPercentileHistogram()
                     .register(metrics));
         }
+    }
+
+    /** A correction note the portal appended: logged, counted and named on the trace (guardrails.answer). */
+    private void correction(String detector, String who, String traceId) {
+        LOG.infof("guardrail action=correct detector=%s user=%s agent=%s trace=%s", detector, who,
+                mcpAuth.agentId(), traceId);
+        metrics.counter("parasol_guardrail_detections_total", "detector", detector, "action", "correct").increment();
+        Span cs = tracer.spanBuilder("guardrails.answer").startSpan();
+        cs.setAttribute("guardrail.action", "correct");
+        cs.setAttribute("guardrail.detectors", detector);
+        cs.end();
     }
 
     /**

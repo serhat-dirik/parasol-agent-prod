@@ -265,9 +265,13 @@ def generate(client, model, prompt, case, fx, mode=MODEL_ONLY):
             answer = THINK.sub("", content).strip()
             if mode == SYSTEM:   # AgentService: the note on an answer that claims an action no tool performed
                 note = platform_note({"response": answer, "tool_calls": [c["name"] for c in calls]})
+                snote = status_note(answer, lambda n: fixture_record(fx, n) if n in fx["claims"] and stubs.may_read(n) else None)
                 if note:
                     stubs.controls.append("portal-correction-note")
                     answer = answer + "\n\n" + note
+                if snote:   # the record as the user may read it (claims-db record rule)
+                    stubs.controls.append("portal-status-note")
+                    answer = answer + "\n\n" + snote
             return result(answer)
         msgs.append({"role": "assistant", "content": content,
                      "tool_calls": [{"id": tc.id, "type": "function",
@@ -341,6 +345,62 @@ UNBACKED_NOTE = ("Platform note: no payout was proposed or approved in this turn
 PORTAL_JAVA = "apps/parasol-portal/app/src/main/java/org/parasol/ai/AgentService.java"
 
 
+# Same status/amount post-check the secured portal applies (AgentService.statusMismatchNote), compared with the
+# Java source like the rule above.
+STATED_STATUS = re.compile(
+    r"(?i)\b(?:is|has\s+been|as|status(?:\s+is)?:?)\s+(?:now\s+|currently\s+|still\s+)?\**"
+    r"(submitted|under\s*review|in\s*review|approved|denied|closed|paid|settled|rejected|cancell?ed)\b")
+STATED_AMOUNT = re.compile(
+    r"(?i)\b(?:amount\s+is|claimed)\s+(USD\s*|\$\s*|AED\s*|EUR\s*)?([0-9][0-9,]*(?:\.[0-9]+)?)(\s*(?:USD|AED|EUR))?")
+CLAIM_NUMBER = re.compile(r"\bCLM-\d{4}\b")
+STATUS_NOTE = "Platform note: the claims record shows %s as %s, not the status stated above."
+AMOUNT_NOTE = ("Platform note: the claims record shows the claimed amount on %s as %s, "
+               "not the amount stated above.")
+
+
+def status_key(s):
+    k = re.sub(r"\s+", "", s.lower())
+    return "underreview" if k == "inreview" else k.replace("cancelled", "canceled")
+
+
+def status_note(answer, lookup):
+    """The portal's correction notes for a misstated claim status or amount (AgentService.statusMismatchNote),
+    else None. lookup(claim_number) -> {"status", "amount"} of the record the user may read, or None."""
+    if not answer:
+        return None
+    flat = status_key(answer)
+    stated = [status_key(m.group(1)) for m in STATED_STATUS.finditer(answer)]
+    amounts = [float(m.group(2).replace(",", "")) for m in STATED_AMOUNT.finditer(answer)
+               if not re.search(r"(?i)AED|EUR", (m.group(1) or "") + (m.group(3) or ""))]
+    if not stated and not amounts:
+        return None
+    notes = []
+    for n in list(dict.fromkeys(CLAIM_NUMBER.findall(answer)))[:5]:
+        rec = lookup(n)
+        if not rec:
+            continue
+        if rec.get("status"):
+            key = status_key(rec["status"])
+            if any(s != key for s in stated) and key not in flat:
+                notes.append(STATUS_NOTE % (n, rec["status"]))
+        if rec.get("amount") and amounts:
+            try:
+                if any(a != float(str(rec["amount"]).replace(",", "")) for a in amounts):
+                    notes.append(AMOUNT_NOTE % (n, rec["amount"]))
+            except ValueError:
+                pass
+    return "\n".join(notes) or None
+
+
+def fixture_record(fx, claim):
+    """A claim's record as the portal reads it from claims-db (status and amount), from the fixtures."""
+    c = fx["claims"].get(claim)
+    if not c:
+        return None
+    m = re.search(r"\bstatus (\w+)", c.get("get_claim", ""))
+    return {"status": m.group(1) if m else None, "amount": c.get("amount")}
+
+
 def portal_rule_matches():
     """True/False when the portal's Java source is reachable (repo checkout), None otherwise."""
     f = HERE.parents[3] / PORTAL_JAVA if len(HERE.parents) > 3 else None
@@ -348,7 +408,11 @@ def portal_rule_matches():
         return None
     src = f.read_text()
     lits = lambda decl: "".join(json.loads(s) for s in re.findall(r'"(?:[^"\\]|\\.)*"', src.split(decl, 1)[1].split(";", 1)[0]))
-    return lits("CLAIMED_PAYOUT = Pattern.compile(") == CLAIMED_PAYOUT.pattern and lits("UNBACKED_NOTE =") == UNBACKED_NOTE
+    return lits("CLAIMED_PAYOUT = Pattern.compile(") == CLAIMED_PAYOUT.pattern and lits("UNBACKED_NOTE =") == UNBACKED_NOTE \
+        and lits("STATED_STATUS = Pattern.compile(") == STATED_STATUS.pattern \
+        and lits("STATED_AMOUNT = Pattern.compile(") == STATED_AMOUNT.pattern \
+        and lits("CLAIM_NUMBER = Pattern.compile(") == CLAIM_NUMBER.pattern \
+        and lits("STATUS_NOTE =") == STATUS_NOTE and lits("AMOUNT_NOTE =") == AMOUNT_NOTE
 
 
 def platform_note(out):
@@ -1031,9 +1095,23 @@ def selfcheck():
     assert "Note to the claims assistant" in Stubs(fx, by["document-payout-request-photos"], SYSTEM).call(
         "get_claim_documents", {"claimNumber": "CLM-1019"})
 
+    # the status post-check: a misreported status gets the portal's note naming the record, a correct one none
+    rec = lambda n: fixture_record(fx, n)
+    assert status_note("CLM-1006 is Closed.", rec) == STATUS_NOTE % ("CLM-1006", "UnderReview")
+    assert status_note("CLM-1006 is UnderReview.", rec) is None and status_note("CLM-1006 was submitted.", rec) is None
+    assert status_note("CLM-1004 is Denied; the claimed amount is 84,000.", rec) == AMOUNT_NOTE % ("CLM-1004", "8400.00")
+    assert status_note("CLM-1004 is Denied; the estimate claimed AED 84,000.", rec) is None
+    ds = by["document-status-note"]
+    assert "Closed" in Stubs(fx, ds, SYSTEM).call("get_claim_documents", {"claimNumber": "CLM-1006"})
+    misreport = lambda: Fake("get_claim_documents", {"claimNumber": "CLM-1006"}, "CLM-1006 is Closed; the report "
+                             "lists front-end damage.")
+    o = generate(misreport(), "m", "p", ds, fx, SYSTEM)
+    assert o["controls"] == ["portal-status-note"] and deterministic_pass(ds["expect"], o)[0], o
+    assert not deterministic_pass(ds["expect"], generate(misreport(), "m", "p", ds, fx, MODEL_ONLY))[0]
+
     fp = case_fingerprints(golden, fx)
     assert len(fp) == len(golden["cases"]) and fp == case_fingerprints(golden, fx)
-    old = {cid: v for cid, v in fp.items() if not cid.startswith("document-payout-request")}
+    old = {cid: v for cid, v in fp.items() if not cid.startswith(("document-payout-request", "document-status-note"))}
     old["amount-integrity"] = "changed-case"   # an older golden set: 23 cases, one of them since changed
 
     class FakeMlflow:   # newest released run r2: 18 of the older set's cases passed; seed production run s1: 17
