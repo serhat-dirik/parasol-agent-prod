@@ -4,12 +4,6 @@
 # key; only MaaS does (Secret maas-upstream-api-key).
 # Path: agent -> guardrails-proxy (parasol-secured) -> MaaS -> upstream. The kill switches act on MaaS
 # itself (scripts/kill-switch.sh tier|parasol|break-glass), so there is no separate model gateway hop.
-# The parasol-model-gateway namespace is empty and nothing depends on it; it goes in a later cleanup.
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: parasol-model-gateway
----
 # Identity the agent's MaaS API key is minted for (scripts/maas-key.sh). Its token carries the group
 # system:serviceaccounts:parasol-secured, which MaaSAuthPolicy parasol-access and MaaSSubscription
 # parasol-stage admit.
