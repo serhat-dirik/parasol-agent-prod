@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# evidence.sh <command> : the evidence demos of Showcases 1 to 3, one short read-only view per step
+# evidence.sh <command> : the evidence demos of Showcases 1 to 8, one short read-only view per step
 # (nothing is paid or changed). Runs from the Showroom Terminal with its own identity.
 #   payouts [claim]  the latest claims-db payout record of both portals, side by side       (1, 2)
 #   roles            each persona's group and claims-db tool roles, from their Keycloak tokens (1)
@@ -11,6 +11,15 @@
 #   kb-rule          which group may read which classification, and each persona's groups    (3)
 #   rls              the database's row-level policy, and a claim record read as two people   (3)
 #   kb-audit         the knowledge-base and claims-db access records                           (3)
+#   spend            model tokens and refusals per user and agent, from the secured portal     (4)
+#   tiers            the MaaS subscriptions: who may use which model, with which token budget  (4, 5)
+#   gate             both release runs: the evaluation verdict, the score, promoted or not    (5)
+#   prompt           the prompt the release pinned against the prompt the portal runs          (5, 7)
+#   tools            which MCP servers the secured agent can reach, and which it cannot        (6)
+#   scan             the tool scanner's latest verdict per server: pinned, drifted, flagged     (6)
+#   release          what runs in production: release run, Argo CD pin, running pod, admission (7, 8)
+#   agenticops       the latest AgenticOps checks on the agent turns in MLflow                (7)
+#   models           the model path of each portal and what it can reach                       (8)
 set -euo pipefail
 here="$(dirname "$0")"
 DOMAIN=$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')
@@ -179,6 +188,120 @@ kb-audit)
   echo "Claim-record refusals, last 3 hours (deploy/claims-db, parasol-secured):"
   oc logs -n parasol-secured deploy/claims-db --since=3h | grep 'CLAIMS ACL denied' | grep -v 'user=- ' \
     | sed -E 's/^[0-9-]+ ([0-9:]+),[0-9]+ .*CLAIMS ACL denied /  \1 /' | tail -6 | grep . || echo "  none in the last 3 hours" ;;
+spend)
+  echo "Model spend and refusals per user and agent (the secured portal's own counters, since its pod started):"
+  oc exec -n parasol-secured deploy/portal -- curl -s localhost:8080/q/metrics | python3 -c '
+import sys, re, collections
+tok, rej = collections.Counter(), collections.Counter()
+for l in sys.stdin:
+    m = re.match(r"parasol_agent_(tokens|rejections)_total\{([^}]*)\} ([0-9.eE+]+)", l)
+    if not m: continue
+    lb = dict(re.findall(r"(\w+)=\"([^\"]*)\"", m.group(2)))
+    who = "%s via %s" % (lb.get("user"), lb.get("agent"))
+    if m.group(1) == "tokens": tok[who] += float(m.group(3))
+    else: rej[(who, lb.get("reason"))] += float(m.group(3))
+print("  tokens:")
+for who, n in tok.most_common(): print("    %-42s %8d" % (who, n))
+print("  refused by the platform:")
+for (who, why), n in sorted(rej.items()): print("    %-42s %-16s %d" % (who, why, n))
+if not rej: print("    none")'
+  echo "usage_limit = the MaaS token budget of the user's tier answered 429; the model was not called." ;;
+tiers)
+  echo "MaaS subscriptions (models-as-a-service): who may use which model, with which token budget:"
+  oc get maassubscription -n models-as-a-service -o json | python3 -c '
+import sys, json
+for s in json.load(sys.stdin)["items"]:
+    sp, an = s["spec"], s["metadata"].get("annotations", {})
+    owners = ", ".join(g["name"] for g in sp.get("owner", {}).get("groups", []))
+    off = "  SWITCHED OFF (kill switch)" if "parasol.example/kill-switch-owner" in an else ""
+    print("  %-20s owners: %s%s" % (s["metadata"]["name"], owners, off))
+    for m in sp.get("modelRefs", []):
+        lim = ", ".join("%s tokens / %s" % (r["limit"], r["window"]) for r in m.get("tokenRateLimits", [])) or "no token limit"
+        print("  %-20s   %-26s %s" % ("", m["name"], lim))' ;;
+gate)
+  echo "The two release runs (parasol-build), from each run's own results:"
+  for c in production candidate-shortened; do
+    oc get pipelinerun "parasol-portal-release-$c" -n parasol-build -o json | python3 -c '
+import sys, json
+p = json.load(sys.stdin); r = {x["name"]: x["value"] for x in p.get("status", {}).get("results", [])}
+sk = [t["name"] for t in p.get("status", {}).get("skippedTasks", [])]
+print("  %-20s gate=%-6s score=%-5s promote=%-7s image=%s promoted=%s mlflow_run=%s" % (sys.argv[1], r.get("EVAL_GATE", "?"),
+      r.get("EVAL_SCORE", "?"), "skipped" if "promote" in sk else "ran", r.get("IMAGE_DIGEST", "-")[7:19],
+      r.get("PROMOTED_DIGEST", "-")[7:19] or "-", r.get("MLFLOW_RUN_ID", "-")[:12]))' "$c" \
+      || echo "  $c: no run (scripts/pipeline-runs.sh starts it)"
+  done
+  g="$here/../gitops/platform/eval/mlflow-agent-eval/golden-set.json"
+  [ -f "$g" ] && python3 -c 'import sys, json; d = json.load(open(sys.argv[1]))
+print("The bar (golden set in Git): %d cases, pass at least %.2f with the platform." % (len(d["cases"]), d["gate_threshold"]))' "$g"
+  echo "The evaluation's own MaaS subscription (agent model, and the judge model when it is listed):"
+  oc get maassubscription parasol-eval -n models-as-a-service -o jsonpath='{range .spec.modelRefs[*]}{"  "}{.name}{"\n"}{end}' 2>/dev/null \
+    || echo "  (not readable here: OpenShift AI, Settings, MaaS governance)" ;;
+prompt)
+  echo "The prompt the release pinned (Argo CD Application env-secured) and the prompt the secured portal runs:"
+  pin=$(oc get application env-secured -n openshift-gitops -o json | python3 -c '
+import sys, json; a = json.load(sys.stdin)["metadata"]["annotations"]
+print(a.get("parasol.example/prompt-version", "-"), a.get("parasol.example/prompt-sha256", "-"))')
+  run=$(oc get cm agent-prompt-release -n parasol-secured -o json | python3 -c '
+import sys, json, hashlib; d = json.load(sys.stdin)["data"]
+print(d.get("promptVersion", "-"), hashlib.sha256(d.get("systemPrompt", "").encode()).hexdigest())')
+  echo "  pinned by the release:  $pin"
+  echo "  running (agent-prompt-release): $run"
+  [ "${pin#* }" = "${run#* }" ] && echo "  same sha256: the portal runs exactly the text the gate evaluated." \
+    || echo "  DIFFERENT: the running prompt is not the released one." ;;
+tools)
+  echo "MCP servers the gateway federates for the secured agent (MCPServerRegistration, parasol-secured):"
+  oc get mcpserverregistration -n parasol-secured | sed 's/^/  /'
+  oc get mcpserverregistration currency-converter -n parasol-secured >/dev/null 2>&1 \
+    && echo "  currency-converter IS registered (reviewed change switched on)" || echo "  currency-converter: not registered"
+  echo
+  echo "Can a portal reach the vendor's server directly (currency-converter.parasol-thirdparty)?"
+  for ns in parasol-secured parasol-free; do
+    oc exec -n "$ns" deploy/portal -- timeout 5 bash -c '</dev/tcp/currency-converter.parasol-thirdparty.svc/8080' 2>/dev/null \
+      && echo "  $ns: reachable" || echo "  $ns: blocked"
+  done ;;
+scan)
+  echo "The tool scanner's latest verdict per MCP server (mcp-system/mcp-tool-scanner):"
+  logs=$(oc logs -n mcp-system deploy/mcp-tool-scanner --tail=500 2>/dev/null | grep 'tool-scan action=' || true)
+  grep -E 'action=(scanned|drift|cleared)' <<<"$logs" | awk '{for(i=1;i<=NF;i++) if($i ~ /^server=/) last[$i]=$0} END{for(s in last) print last[s]}' \
+    | sed -E 's/.*action=([a-z]+) server=([^ ]+) registered=([a-z]+) .*version=([^ ]+).*(pin=[a-z]+|pinned=[0-9a-f]{8}).*/  \2  registered=\3 version=\4 \1 \5/' | sort
+  echo "Descriptions with instructions for the assistant (the guardrails' phrases, last 500 lines):"
+  grep 'action=flag' <<<"$logs" | sed -E 's/.*server=([^ ]+).*tool=([^ ]+).*rule=(.*)/  \1  \2  \3/' | sort -u | tail -6 | grep . || echo "  none" ;;
+release)
+  echo "1) The release run parasol-portal-release-production (parasol-build), its results:"
+  oc get pipelinerun parasol-portal-release-production -n parasol-build -o json | python3 -c '
+import sys, json
+r = {x["name"]: x["value"] for x in json.load(sys.stdin).get("status", {}).get("results", [])}
+for k in ("EVAL_GATE", "EVAL_SCORE", "SIGNED_IMAGES", "KEYLESS_SIGNED_IMAGES", "PROMOTED_DIGEST"): print("  %-22s %s" % (k, r.get(k, "-")))'
+  echo "2) The pin on Argo CD Application env-secured:"
+  oc get application env-secured -n openshift-gitops -o json | python3 -c '
+import sys, json; a = json.load(sys.stdin)["metadata"]["annotations"]
+for k in ("promoted-digest", "promoted-by", "prompt-version", "model-ref"): print("  %-22s %s" % (k, a.get("parasol.example/" + k, "-")))'
+  echo "3) The running secured portal:"
+  echo "  $(oc get pods -n parasol-secured -l app=portal -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' | sed 's/.*@/image                  /')"
+  echo "4) Admission: namespace parasol-secured policy.rhtas.com/include=$(oc get ns parasol-secured -o jsonpath='{.metadata.labels.policy\.rhtas\.com/include}')"
+  oc get clusterimagepolicies.policy.sigstore.dev parasol-portal-must-be-signed -o json | python3 -c '
+import sys, json; s = json.load(sys.stdin)["spec"]
+print("  ClusterImagePolicy parasol-portal-must-be-signed: images %s, accepted signers %s" % (
+      ", ".join(i["glob"].rsplit("/", 1)[-1] for i in s["images"]), ", ".join(a["name"] for a in s["authorities"])))' ;;
+agenticops)
+  echo "AgenticOps (CronJob agenticops, observability, every 10 minutes): the checks on new agent turns, last runs:"
+  pods=$(oc get pods -n observability -o name --sort-by=.metadata.creationTimestamp 2>/dev/null | grep '/agenticops-' | tail -3 || true)
+  [ -n "$pods" ] || { echo "  no run found (not readable here, or not deployed: MLflow tab, a trace, Assessments)"; exit 0; }
+  for p in $pods; do oc logs -n observability "$p" 2>/dev/null; done \
+    | grep -E 'flagged=|checked ' | grep -v 'flagged=none' | tail -8 | sed 's/^/  /'
+  echo "Each turn gets loop, excess_steps, unknown_tool, pii_in_tool_args; a sample also goal_achieved (the judge model through MaaS)." ;;
+models)
+  echo "The model endpoint each portal calls (ConfigMap agent-config, key endpoint):"
+  for ns in parasol-free parasol-secured; do
+    echo "  $ns: $(oc get cm agent-config -n "$ns" -o jsonpath='{.data.endpoint}')"
+  done
+  echo "What each portal pod can reach (HTTP code; 000 = the connection never left the namespace):"
+  for ns in parasol-free parasol-secured; do
+    for u in https://api.openai.com/v1/models "https://maas.apps.$DOMAIN/v1/models"; do
+      printf '  %-16s %-24s %s\n' "$ns" "$(cut -d/ -f3 <<<"$u" | cut -d. -f1-2)" \
+        "$(oc exec -n "$ns" deploy/portal -- curl -s -o /dev/null -w '%{http_code}' --max-time 8 "$u" 2>/dev/null || true)"
+    done
+  done ;;
 *)
-  sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+  awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$0"; exit 1 ;;
 esac
