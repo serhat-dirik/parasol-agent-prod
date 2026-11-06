@@ -11,6 +11,9 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     argocd.argoproj.io/sync-wave: "3"
+    # NeMo Guardrails checks on tools/call requests and results (Secret parasol-guardrails, guardrails-config.yaml).
+    # No global config IDs: only servers that name their own (mcp.kuadrant.io/guardrails-config-ids) are checked.
+    mcp.kuadrant.io/guardrails-ref: parasol-guardrails
 spec:
   targetRef:
     group: gateway.networking.k8s.io
