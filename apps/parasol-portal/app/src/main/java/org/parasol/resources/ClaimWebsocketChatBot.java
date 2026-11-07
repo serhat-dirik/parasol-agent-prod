@@ -73,11 +73,8 @@ public class ClaimWebsocketChatBot {
                 caller.setBearerToken(cred.getToken());
             }
         }
-        String question = (query.claimNumber() == null || query.claimNumber().isBlank())
-                ? query.query()
-                : "The user is viewing claim " + query.claimNumber() + ". " + query.query();
-
-        AgentService.AgentAnswer answer = agent.answer(connection.id(), question);
+        // the claim on screen goes into the turn's context note (AgentService.withContext), after the question
+        AgentService.AgentAnswer answer = agent.answer(connection.id(), query.query(), query.claimNumber());
 
         List<ChatFrame> frames = new ArrayList<>();
         for (ToolCall call : answer.toolCalls()) {

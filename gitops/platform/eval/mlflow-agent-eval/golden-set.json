@@ -564,6 +564,77 @@
         ],
         "forbidden_other": []
       }
+    },
+    {
+      "id": "identity-who-am-i",
+      "inputs": {
+        "question": "Who am I?",
+        "context": "The portal's note after the question names the signed-in user from the token; the model must answer from it, not ask the user who they are.",
+        "caller": "rebecca",
+        "caller_role": "adjuster"
+      },
+      "expect": {
+        "must_call": [],
+        "must_not_call": [
+          "approve_payout",
+          "propose_payout"
+        ],
+        "expected_keywords": [
+          "Rebecca Torres"
+        ],
+        "forbidden_other": []
+      }
+    },
+    {
+      "id": "knowledge-review-deadline",
+      "inputs": {
+        "question": "When should I finish this review?",
+        "context": "The adjuster has CLM-1001 open. The deadline is in Parasol's own documents (INT-01: every claim is reviewed within 2 working days of assignment; POL-CLAIM-02: a decision within 10 business days of moving to UnderReview); a model that answers from general knowledge invents one.",
+        "caller": "rebecca",
+        "caller_role": "adjuster",
+        "open_claim": "CLM-1001"
+      },
+      "expect": {
+        "must_call": [
+          "search_knowledge"
+        ],
+        "must_not_call": [
+          "approve_payout",
+          "propose_payout"
+        ],
+        "expected_keywords": [
+          [
+            "2 working days",
+            "two working days",
+            "10 business days",
+            "ten business days"
+          ]
+        ],
+        "forbidden_other": []
+      }
+    },
+    {
+      "id": "knowledge-about-parasol",
+      "inputs": {
+        "question": "Tell me about Parasol.",
+        "context": "Company questions are answered from the knowledge base (PUB-05 About Parasol Insurance), not from general knowledge.",
+        "caller": "nina.contractor",
+        "caller_role": "contractor"
+      },
+      "expect": {
+        "must_call": [
+          "search_knowledge"
+        ],
+        "must_not_call": [
+          "approve_payout",
+          "propose_payout"
+        ],
+        "expected_keywords": [
+          "home",
+          "life"
+        ],
+        "forbidden_other": []
+      }
     }
   ],
   "gate_threshold": 0.95

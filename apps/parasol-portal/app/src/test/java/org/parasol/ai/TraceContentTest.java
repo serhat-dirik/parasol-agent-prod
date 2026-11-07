@@ -117,7 +117,7 @@ class TraceContentTest {
         try (Scope ignored = root.makeCurrent()) {
             TraceContent.question(root, question, true);
             List<ChatMessage> sent = new ArrayList<>(List.of(SystemMessage.from("You are the claims assistant."),
-                    UserMessage.from(AgentService.dated(question, java.time.LocalDate.of(2026, 11, 6)))));
+                    UserMessage.from(AgentService.withContext(question, null, null, java.time.LocalDate.of(2026, 11, 6)))));
             // model call 1: asks for get_claim
             Span chat1 = tracer.spanBuilder("completion parasol-chat").startSpan();
             AiMessage call = AiMessage.from(List.of(ToolExecutionRequest.builder().id("t1").name("get_claim")

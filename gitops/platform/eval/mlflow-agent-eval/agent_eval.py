@@ -48,7 +48,7 @@ release that includes it is promoted. BASELINE_EXPERIMENT reads the baseline fro
 Per run: metrics system_pass_rate (= score), model_only_pass_rate, model_only_passed, model_only_baseline,
 model_only_passed_shared, model_only_shared_cases; tags gate_reason, golden_cases.
 """
-import argparse, hashlib, json, os, re, sys, pathlib, threading, time, urllib.parse
+import argparse, datetime, hashlib, json, os, re, sys, pathlib, threading, time, urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 
 HERE = pathlib.Path(__file__).resolve().parent
@@ -220,6 +220,21 @@ def strip_sentinel(text, controls):
     return text[m.end():]
 
 
+def turn(case, persona, today=None):
+    """The user message exactly as the portal sends it (AgentService.withContext): the question, then a note with
+    who is signed in, the claim open on screen (inputs.open_claim) and today's date. Both modes get it: the note is
+    information the portal always sends, not a platform control."""
+    notes = []
+    user = case["inputs"].get("caller")
+    if user and persona.get("name"):
+        groups = persona.get("groups", [])
+        notes.append(f"Signed in: {persona['name']} ({user})" + (f", groups {', '.join(groups)}" if groups else ""))
+    if (case["inputs"].get("open_claim") or "").strip():
+        notes.append(f"Open claim: {case['inputs']['open_claim'].strip()}")
+    notes.append(f"Today is {(today or datetime.date.today()).isoformat()}")
+    return case["inputs"]["question"] + "\n\n(" + ". ".join(notes) + ".)"
+
+
 def generate(client, model, prompt, case, fx, mode=MODEL_ONLY):
     """One live answer: the agent loop (model -> tool calls -> stub results -> model ...) for one case.
     system mode runs as the portal does: the persona's tools, the record rule, the model call through the
@@ -228,7 +243,7 @@ def generate(client, model, prompt, case, fx, mode=MODEL_ONLY):
     Returns the answer, the tool calls (name, arguments, result), every model turn and the controls that acted."""
     stubs = Stubs(fx, case, mode)
     tools = stubs.definitions()
-    msgs = [{"role": "system", "content": prompt}, {"role": "user", "content": case["inputs"]["question"]}]
+    msgs = [{"role": "system", "content": prompt}, {"role": "user", "content": turn(case, stubs.persona)}]
     extra = {}
     if mode == SYSTEM:
         bag = {"enduser.id": stubs.user, "gen_ai.agent.name": "parasol-release-eval",
@@ -1043,6 +1058,10 @@ def selfcheck():
     assert "Team B" in Stubs(fx, by["knowledge-restricted-hr"], MODEL_ONLY).call("search_knowledge", {"query": "x"})
     assert "1,143.64 USD" in s.call("convert_currency", {"amount": 4200, "from_currency": "AED", "to_currency": "USD"})
     assert Stubs(fx, by["tool-description-injection"], SYSTEM).listed("convert_currency") and not s.listed("convert_currency")
+    # the portal's turn note (AgentService.withContext, TurnDateTest pins the same text)
+    assert turn({"inputs": {"question": "who am i", "caller": "rebecca", "open_claim": "CLM-1001"}},
+                fx["personas"]["rebecca"], datetime.date(2026, 11, 7)) == \
+        "who am i\n\n(Signed in: Rebecca Torres (rebecca), groups adjusters. Open claim: CLM-1001. Today is 2026-11-07.)"
     for c in golden["cases"]:   # every case's expected tools are offered in both modes
         for m in (SYSTEM, MODEL_ONLY):
             st = Stubs(fx, c, m)
@@ -1111,7 +1130,9 @@ def selfcheck():
 
     fp = case_fingerprints(golden, fx)
     assert len(fp) == len(golden["cases"]) and fp == case_fingerprints(golden, fx)
-    old = {cid: v for cid, v in fp.items() if not cid.startswith(("document-payout-request", "document-status-note"))}
+    old = {cid: v for cid, v in fp.items() if not cid.startswith(("document-payout-request", "document-status-note",
+                                                                   "identity-who-am-i", "knowledge-review-deadline",
+                                                                   "knowledge-about-parasol"))}
     old["amount-integrity"] = "changed-case"   # an older golden set: 23 cases, one of them since changed
 
     class FakeMlflow:   # newest released run r2: 18 of the older set's cases passed; seed production run s1: 17

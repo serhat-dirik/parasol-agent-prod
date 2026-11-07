@@ -42,7 +42,7 @@ public class AgentResource {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(new ErrorBody("question is required")).build();
         }
-        AgentService.AgentAnswer answer = agent.answer(UUID.randomUUID().toString(), request.question());
+        AgentService.AgentAnswer answer = agent.answer(UUID.randomUUID().toString(), request.question(), null);
         if (answer.error() != null) {
             return Response.status(Response.Status.BAD_GATEWAY).entity(answer).build();
         }

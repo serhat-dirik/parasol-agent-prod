@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Optional;
@@ -229,17 +230,31 @@ public class AgentService {
     }
 
     /**
-     * The user message the model gets: the question, then today's date as a short note, so "this week" or
-     * "how long ago" questions have a reference. After the question, not before it: a leading date line changed
-     * how the model weighs tool descriptions (Showcase 6's unsecured rug pull stopped reproducing). It rides on the user message, not the system prompt, so the registered prompt text and
-     * its sha256 (which the release gate checks) stay unchanged.
+     * The user message the model gets: the question, then a short note with who is signed in (name, username,
+     * groups from the token), the claim open on screen and today's date. The model needs these to answer "who am I",
+     * "this claim" or "how long ago". The note is information, not authority: the MCP gateway still decides every
+     * call from the verified token. After the question, not before it: a leading line changed how the model weighs
+     * tool descriptions (Showcase 6's unsecured rug pull stopped reproducing). It rides on the user message, not the
+     * system prompt, so the registered prompt text and its sha256 (which the release gate checks) stay unchanged.
      */
-    static String dated(String question, LocalDate today) {
-        return question + "\n\n(Today is " + today + ".)";
+    static String withContext(String question, String authorization, String claimNumber, LocalDate today) {
+        List<String> notes = new ArrayList<>();
+        String username = JwtPeek.preferredUsername(authorization);
+        if (username != null) {
+            String name = JwtPeek.name(authorization);
+            List<String> groups = JwtPeek.groups(authorization);
+            notes.add("Signed in: " + (name == null ? username : name + " (" + username + ")")
+                    + (groups.isEmpty() ? "" : ", groups " + String.join(", ", groups)));
+        }
+        if (claimNumber != null && !claimNumber.isBlank()) {
+            notes.add("Open claim: " + claimNumber.trim());
+        }
+        notes.add("Today is " + today);
+        return question + "\n\n(" + String.join(". ", notes) + ".)";
     }
 
     /** Ask the assistant. {@code conversationId} ties a chat session's turns together (A5 memory). */
-    public AgentAnswer answer(String conversationId, String question) {
+    public AgentAnswer answer(String conversationId, String question, String claimNumber) {
         Timer.Sample latency = Timer.start(metrics);
         // MLflow 3.14 OTLP ingest reads these span attributes into trace metadata: session.id ->
         // mlflow.trace.session and user.id -> mlflow.trace.user. Keying both on the caller makes
@@ -292,9 +307,10 @@ public class AgentService {
                 return new AgentAnswer(question, null, List.of(), modelName, null,
                         who, env, AGENT_DISABLED, false, null, null, traceId);
             }
+            String turn = withContext(question, caller.authorization(), claimNumber, LocalDate.now());
             Result<String> result = proposeEnabled
-                    ? assistant.askWithPropose(conversationId, prompt, dated(question, LocalDate.now()))
-                    : assistant.ask(conversationId, prompt, dated(question, LocalDate.now()));
+                    ? assistant.askWithPropose(conversationId, prompt, turn)
+                    : assistant.ask(conversationId, prompt, turn);
             count(result.tokenUsage());
             List<ToolCall> toolCalls = toolCallCollector.calls();
             Proposal proposal = proposalHolder.has()

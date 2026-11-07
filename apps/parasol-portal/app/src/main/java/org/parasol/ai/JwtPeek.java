@@ -40,6 +40,18 @@ final class JwtPeek {
         return out;
     }
 
+    private static final Pattern NAME = Pattern.compile("\"name\"\\s*:\\s*\"([^\"]+)\"");
+
+    /** The token's "name" claim (full name, unvalidated peek), or null. */
+    static String name(String authorization) {
+        String payload = payload(authorization);
+        if (payload == null) {
+            return null;
+        }
+        Matcher m = NAME.matcher(payload);
+        return m.find() ? m.group(1) : null;
+    }
+
     private static String payload(String authorization) {
         if (authorization == null) {
             return null;
