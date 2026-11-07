@@ -355,7 +355,7 @@ of the stack is that a *different* layer catches each scenario:
 
 | # | Layer | Defends | Component | In this repo |
 |---|---|---|---|---|
-| 1 | Isolation | blast radius of all scenarios; only approved models | Namespace, ResourceQuota, NetworkPolicy (egress only to the platform gateways and the guardrails proxy; every drop in the OVN ACL audit log), restricted PSA, no SA token, (Kata via `runtimeClassName`) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch}.yaml` |
+| 1 | Isolation | blast radius of all scenarios; only approved models | Namespace, ResourceQuota, NetworkPolicy (egress only to the platform gateways and the guardrails proxy; every drop in the OVN ACL audit log), restricted PSA, no SA token, (Kata via `runtimeClassName`); an AdminNetworkPolicy lets only the MCP gateway reach the MCP servers the OpenShift AI lifecycle operator runs (policy-docs) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch,policy-docs-mcpserver}.yaml`, `gitops/platform/mcp-gateway/adminnetworkpolicy.yaml` |
 | 2 | Identity | Scenarios 1 and 3 (documents and claim records) | Agent identities (`parasol-claims-agent`, `parasol-fraud-agent`: ServiceAccount token as client assertion) acting on behalf of the user via token exchange, with per-agent role ceilings | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak`, `scripts/agent-clients.sh`, `apps/mcp-servers/knowledge-base`, `gitops/envs/secured/knowledge-base.yaml` |
 | 3 | Tool authorization | Scenario 1 | MCP gateway (Connectivity Link 1.5, GA): federation, per-identity tool list, per-tool AuthPolicy | `gitops/platform/mcp-gateway`, `gitops/envs/secured/mcp-registrations.yaml` |
 | 4 | Guardrails | Scenarios 2, 3 and 4 | NeMo Guardrails (TrustyAI `NemoGuardrails` `parasol-nemo`, 2 replicas), one rules file in two configs, applied by the gateways. **Tool results:** the MCP gateway checks every `claims-db` result with `parasol-tool-results` (phrases, then the `qwen3-14b` judge through MaaS on the guard tier) and fails closed (`failMode: deny`). **Model path:** the guardrails proxy, now only glue, calls `parasol-chat` before the model (injection phrases and off-topic refused, personal data masked) and after it (confidential marker withheld from non-managers, outside links and images removed); each detection is logged and counted with user, agent and trace id. Granite Guardian is **not** on the live path: it lost the injection test (`gitops/platform/guardrails-nemo/detector-test/RESULTS.md`) | `gitops/platform/guardrails-nemo`, `gitops/platform/guardrails`, `gitops/platform/mcp-gateway/guardrails-config.yaml` |
@@ -411,6 +411,8 @@ live `oc patch`es, so change synced resources via Git, not `oc`.
 **Product status (Nov 2026).** Connectivity Link 1.5 ships the MCP gateway as GA, with guardrails checks on
 tool calls and results. There is no published support statement yet for it with OpenShift AI 3.5.2. Still
 Technology Preview in OpenShift AI 3.5: MaaS external-model egress, the MCP catalog and lifecycle operator.
+The lifecycle operator gives each MCP server a NetworkPolicy open to every namespace and restores it when changed,
+so policy-docs is fenced by a cluster-scoped AdminNetworkPolicy (evaluated before NetworkPolicies, and able to deny).
 Gateway-native guardrails on the *model* path exist in 3.5 only as an early, disabled, block-only plugin, so a
 thin proxy calls NeMo there. Manifests mark field names to check against the installed CRDs with `VERIFY`
 comments (`oc explain`).

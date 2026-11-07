@@ -1,0 +1,33 @@
+# MCP servers run by the OpenShift AI MCP lifecycle operator (pods labelled mcp-server) take calls ONLY from the MCP
+# gateway. The operator gives each server a NetworkPolicy that allows its port from every namespace and puts it back
+# when it is changed; NetworkPolicies only add allowed traffic, so a narrower one next to it changes nothing. An
+# AdminNetworkPolicy is cluster-scoped and evaluated BEFORE NetworkPolicies, and it can deny: the same allow-list as
+# the hand-written mcp-servers NetworkPolicy (gitops/envs/secured/networkpolicy.yaml), then deny everyone else,
+# including pods in the same namespace (the agent and the portal must go through the gateway).
+apiVersion: policy.networking.k8s.io/v1alpha1
+kind: AdminNetworkPolicy
+metadata:
+  name: parasol-mcp-servers
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  priority: 10
+  subject:
+    pods:
+      namespaceSelector:
+        matchLabels: {kubernetes.io/metadata.name: parasol-secured}
+      podSelector:
+        matchExpressions:
+          - {key: mcp-server, operator: Exists}
+  ingress:
+    - name: allow-mcp-gateway
+      action: Allow
+      from:
+        - namespaces: {matchLabels: {kubernetes.io/metadata.name: gateway-system}}   # the Gateway (Envoy) data plane
+        - namespaces: {matchLabels: {kubernetes.io/metadata.name: mcp-system}}       # MCP broker (tools/list)
+        - namespaces: {matchLabels: {kubernetes.io/metadata.name: openshift-ingress}}
+        - namespaces: {matchLabels: {network.openshift.io/policy-group: monitoring}}
+    - name: deny-everyone-else
+      action: Deny
+      from:
+        - namespaces: {}

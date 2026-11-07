@@ -14,6 +14,7 @@ resources:
   - authpolicy-tools.yaml
   - tool-scanner.yaml   # tool-description scanner + drift pins (Scenario 6)
   - decision-log-envoyfilter.yaml   # attributed gateway decisions in the gateway's access log (incident report)
+  - adminnetworkpolicy.yaml   # operator-run MCP servers: only the gateway may call them (cluster-scoped)
 configMapGenerator:
   - name: mcp-tool-scanner
     namespace: mcp-system

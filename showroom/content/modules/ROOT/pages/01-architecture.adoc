@@ -103,7 +103,7 @@ What enforces it is the gateway's role check on every call, not the tool set: th
 
 |1 Isolation
 |the blast radius of all showcases
-|Namespace, ResourceQuota, NetworkPolicy, restricted pod security, no Kubernetes API token
+|Namespace, ResourceQuota, NetworkPolicy, restricted pod security, no Kubernetes API token; an AdminNetworkPolicy so only the MCP gateway reaches policy-docs, which the OpenShift AI MCP lifecycle operator runs
 
 |2 Identity
 |Showcases 1 and 3

@@ -1,0 +1,56 @@
+# policy-docs run by the OpenShift AI MCP lifecycle operator (MCPServer, mcp.x-k8s.io). The operator creates the
+# Deployment, the Service (policy-docs:8080, the HTTPRoute backend) and a NetworkPolicy that allows port 8080 from
+# every namespace. That NetworkPolicy cannot be narrowed: the operator puts it back within a second. The
+# AdminNetworkPolicy parasol-mcp-servers (platform/mcp-gateway) is evaluated before it and denies every caller but
+# the MCP gateway. The free environment keeps the plain Deployment from base.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: policy-docs
+automountServiceAccountToken: false   # the MCPServer API has no automount field; the ServiceAccount carries it
+---
+apiVersion: mcp.x-k8s.io/v1alpha1
+kind: MCPServer
+metadata:
+  name: policy-docs
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  source:
+    type: ContainerImage
+    # a tag: the signing admission webhook pins the digest on the Deployment (the operator keeps it)
+    containerImage: {ref: image-registry.openshift-image-registry.svc:5000/parasol-build/policy-docs:latest}
+  config:
+    port: 8080
+    path: /mcp
+    env:
+      - {name: QUARKUS_OTEL_SDK_DISABLED, value: "false"}
+      - {name: OTEL_EXPORTER_OTLP_ENDPOINT, value: http://otel-collector.observability.svc.cluster.local:4317}
+    storage:   # the operator mounts the root filesystem read-only; Quarkus needs a writable /tmp
+      - {path: /tmp, permissions: ReadWrite, source: {type: EmptyDir, emptyDir: {}}}
+  extraLabels: {app.kubernetes.io/part-of: parasol-agent}
+  runtime:
+    replicas: 1
+    security:
+      serviceAccountName: policy-docs
+    health:
+      readinessProbe: {httpGet: {path: /q/health/ready, port: 8080}, initialDelaySeconds: 5, periodSeconds: 10}
+      livenessProbe: {httpGet: {path: /q/health/live, port: 8080}, initialDelaySeconds: 20, periodSeconds: 15}
+    resources:
+      requests: {cpu: 50m, memory: 256Mi}
+      limits: {cpu: 500m, memory: 512Mi}
+---
+# Egress for the operator's pods (label mcp-server, set by the operator; it overrides app=): OTel only.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mcp-lifecycle-servers-egress
+spec:
+  podSelector:
+    matchExpressions:
+      - {key: mcp-server, operator: Exists}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: observability}

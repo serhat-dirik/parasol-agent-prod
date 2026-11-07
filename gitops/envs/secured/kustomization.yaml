@@ -18,6 +18,7 @@ resources:
   - serviceaccounts.yaml   # the agents' workload identities (federated client auth at Keycloak, no secrets)
   - fraud-check.yaml       # V3: the fraud-check agent (2nd MCP server behind the gateway, agent-to-agent)
   - claims-db-records.yaml # record-level access: adjusters read only the claims assigned to them
+  - policy-docs-mcpserver.yaml   # policy-docs run by the OpenShift AI MCP lifecycle operator (replaces base's Deployment)
   - knowledge-base.yaml    # RAG: the knowledge base behind the gateway, retrieval as the user (groups + row-level security)
   - portal.yaml            # Stream P: the secured claims portal (login, gated writes, guardrails)
   - portal-networkpolicy.yaml  # Stream P: the portal's layer-1 egress
@@ -38,6 +39,17 @@ replicas:
 # Components are added on the Application, not here (Scenario 6: register-currency-converter).
 components: []
 patches:
+  # policy-docs comes from the MCPServer (policy-docs-mcpserver.yaml) here; free keeps base's Deployment
+  - patch: |-
+      $patch: delete
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata: {name: policy-docs}
+  - patch: |-
+      $patch: delete
+      apiVersion: v1
+      kind: Service
+      metadata: {name: policy-docs}
   - path: agent-identity-patch.yaml
     target: {kind: Deployment, name: parasol-agent}
   - path: sandbox-patch.yaml
