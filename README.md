@@ -495,9 +495,12 @@ comments (`oc explain`).
 * **The injection judge's model is fixed** to `qwen3-14b` in `gitops/platform/guardrails-nemo` (and the
   gateway's guardrails settings); it does not follow `AGENT_MODEL`. Set `JUDGE_MODEL` there to empty to
   run the phrase rules only.
-* **The fraud-check agent is not built with OGX yet.** OGX 1.2.5.1 ends the whole Responses turn (HTTP 500)
-  on any refused tool call, including a guardrails block, so a refusal could not be shown as a red chip
-  (`apps/mcp-servers/fraud-check/ogx-tests/RESULTS.md`). The agent stays as it is until OGX ships the fix.
+* **No agent is built with OGX.** OGX 1.2.5.1 (OpenShift AI 3.5) ends the whole Responses turn (HTTP 500) on any
+  refused tool call, including a guardrails block. Upstream OGX 1.5.0 (MCP client 2.x) keeps the turn and reports
+  the refusal as one failed tool call, but only as "Server returned an error response": the gateway's 403 reason is
+  plain text and a guardrails block is an empty HTTP 500. What's coming: OGX 1.5 in an OpenShift AI release, then
+  the per-tool 403 as a JSON-RPC error so the reason reaches the model. Checks and both runs:
+  `apps/mcp-servers/fraud-check/ogx-tests/RESULTS.md`. OGX is used where it is solid: the Gen AI studio playground.
 * **Agent identity with SPIFFE is on hold.** The agents keep the ServiceAccount-token federation with
   Keycloak; Keycloak's SPIFFE client authentication is still a preview. SPIFFE stays where it already
   works (the release pipeline's keyless signer).

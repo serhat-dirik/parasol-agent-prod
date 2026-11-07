@@ -140,6 +140,11 @@ The platform's own screens list what the demo runs. In the *OpenShift AI* tab:
 * *Gen AI studio* > *AI asset endpoints* > *MCP servers*: the Parasol MCP gateway, one endpoint for all four servers.
 * Project `parasol-playground` > *Gen AI studio* > *Playground*: the dashboard's own OGX server with the agent and judge models (through MaaS) and the Parasol MCP gateway. The gateway lists tools only for a token an approved agent obtained for a person (`scripts/agent-token.sh rebecca`), pasted in the playground's authorize dialog; the playground's own sign-in token is not one.
 
+NOTE: The Parasol agents are Quarkus LangChain4j applications, not OGX agents. In OGX 1.2.5 (OpenShift AI 3.5) a
+tool call the gateway refuses ends the whole turn; upstream OGX 1.5 turns it into one failed tool call the agent can
+report, but without the gateway's reason yet. When an OpenShift AI release ships it, the same gateway controls apply
+to an OGX-built agent unchanged: the controls are in the platform, not in the agent framework.
+
 // SCREENSHOT: oai-model-registry.png — OpenShift AI, AI hub > Models > Registry: the three MaaS models and the claims-assistant versions
 // SCREENSHOT: oai-mcp-catalog.png — OpenShift AI, AI hub > MCP servers > Catalog, source Parasol MCP servers
 // SCREENSHOT: oai-agent-catalog.png — OpenShift AI, AI hub > Agents > Catalog, source Parasol agents: the two agent cards

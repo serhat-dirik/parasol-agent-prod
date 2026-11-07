@@ -40,3 +40,28 @@ as a red chip from an OGX-built agent: the turn just fails.
 * openai-java sees one event type it does not know (`_unknown`) and OGX streams MCP arguments as
   `function_call_arguments.delta`; neither breaks the stream.
 * MaaS lists no models at `/v1/models` on the per-model URL (404 at start-up, harmless: the model is registered).
+
+## Rerun on upstream OGX 1.5.0 (2026-11-07)
+
+Same scripts, upstream image `docker.io/ogxai/distribution-starter:1.5.0` (mcp client 2.3.0) through the same operator
+(`spec.distribution.image`). Config changes: `image_name: rh` becomes `distro_name: starter`, no
+`persistence.agent_state`, the `prompts` store moves from kv to sql.
+
+| # | Check | 1.2.5.1 | 1.5.0 |
+|---|---|---|---|
+| 1 | Responses API, MaaS | PASS | PASS |
+| 2 | Gateway refusal is one failed `mcp_call` | FAIL (HTTP 500) | PASS (HTTP 200, `response.mcp_call.failed`, the model answers) |
+| 3 | Gateway token via `authorization` | PASS | PASS |
+| 4 | traceparent | PASS | PASS (the model-call span carries `http.url`, not `server.address`; the script checks the latter) |
+| 5 | openai-java streaming | PASS | PASS |
+| 6 | Per-request MaaS key | PASS | PASS |
+
+Check 2 on 1.5.0: both refusals (2a: 403 per-tool AuthPolicy, 2b: guardrails block) reach the model as
+`"error": "Server returned an error response"`. mcp 2.x keeps the server's message only from an `application/json`
+JSON-RPC error body; the gateway's 403 body is plain text ("rebecca may not call ...") and its guardrails block is
+an empty HTTP 500, so the reason is lost.
+
+**Decision:** the fraud-check agent is not rebuilt on OGX. 1.2.5.1 (the product) breaks the turn on any refusal;
+1.5.0 (upstream only, not in an OpenShift AI release yet) keeps the turn but cannot say why a call was refused.
+Revisit when OpenShift AI ships OGX 1.5 or later, and then answer the per-tool 403 as a JSON-RPC error (the
+AuthPolicy's `unauthorized` body and a `content-type: application/json` header) so the reason survives.
