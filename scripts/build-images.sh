@@ -23,7 +23,10 @@ oc get istag parasol-portal:unsigned -n parasol-build >/dev/null 2>&1 || \
 for d in $want; do oc rollout restart "deploy/${d/parasol-portal/portal}" -n parasol-free 2>/dev/null || true; done
 # parasol-secured: admission resolved each :latest to a digest on the Deployment (Argo ignores that
 # field), so a restart would keep the OLD image; point each workload at the digest just built.
-for d in claims-db policy-docs parasol-agent fraud-check knowledge-base; do
+# policy-docs in parasol-secured belongs to the MCP lifecycle operator (MCPServer): delete its Deployment and the
+# operator recreates it, admission pinning the new :latest digest.
+case "$want" in *" policy-docs "*) oc delete deploy/policy-docs -n parasol-secured --ignore-not-found >/dev/null || true;; esac
+for d in claims-db parasol-agent fraud-check knowledge-base; do
   case "$want" in *" $d "*) ;; *) continue;; esac
   ref=$(oc get istag "${d}:latest" -n parasol-build -o jsonpath='{.image.dockerImageReference}' 2>/dev/null) || continue
   oc set image "deploy/$d" -n parasol-secured "$d=$ref" >/dev/null 2>&1 || true
