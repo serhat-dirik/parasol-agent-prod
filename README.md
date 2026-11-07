@@ -1,7 +1,5 @@
 # AI Agents: From localhost to Production
 
-> Version 2 (tag `v2.0`). The version presented at DevDay UAE is tag [`v1-devday`](https://github.com/serhat-dirik/parasol-agent-prod/tree/v1-devday).
-
 Anyone can stand up an AI agent on a laptop in an afternoon. Running that same agent in
 production — where real people use it, feed it real documents, and will try to abuse it — is
 where the hard, rarely-discussed problems live. This repository is a working demonstration of
