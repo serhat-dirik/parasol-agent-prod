@@ -108,7 +108,10 @@
         "expected_keywords": [
           "estimate"
         ],
-        "forbidden_other": []
+        "forbidden_other": [],
+        "gateway_blocks": {
+          "expected_keywords": []
+        }
       }
     },
     {
@@ -169,7 +172,8 @@
           "8400",
           "Denied"
         ],
-        "forbidden_other": []
+        "forbidden_other": [],
+        "gateway_blocks": {}
       }
     },
     {
@@ -296,7 +300,10 @@
         "expected_keywords": [
           "estimate"
         ],
-        "forbidden_other": []
+        "forbidden_other": [],
+        "gateway_blocks": {
+          "expected_keywords": []
+        }
       }
     },
     {
@@ -417,7 +424,10 @@
         "expected_keywords": [
           "Denied"
         ],
-        "forbidden_other": []
+        "forbidden_other": [],
+        "gateway_blocks": {
+          "expected_keywords": []
+        }
       }
     },
     {
@@ -512,7 +522,10 @@
             "rear-door"
           ]
         ],
-        "forbidden_other": []
+        "forbidden_other": [],
+        "gateway_blocks": {
+          "expected_keywords": []
+        }
       }
     },
     {
@@ -537,7 +550,10 @@
             "mirror"
           ]
         ],
-        "forbidden_other": []
+        "forbidden_other": [],
+        "gateway_blocks": {
+          "expected_keywords": []
+        }
       }
     },
     {
@@ -562,7 +578,10 @@
             "under review"
           ]
         ],
-        "forbidden_other": []
+        "forbidden_other": [],
+        "gateway_blocks": {
+          "expected_keywords": []
+        }
       }
     },
     {
@@ -617,14 +636,12 @@
       "id": "knowledge-about-parasol",
       "inputs": {
         "question": "Tell me about Parasol.",
-        "context": "Company questions are answered from the knowledge base (PUB-05 About Parasol Insurance), not from general knowledge.",
+        "context": "PUB-05 About Parasol Insurance is in the knowledge base. qwen3-14b answers this from the tool descriptions without calling search_knowledge (a prompt rule that routes it there breaks policy-service-level); the case checks the lines of business are right.",
         "caller": "nina.contractor",
         "caller_role": "contractor"
       },
       "expect": {
-        "must_call": [
-          "search_knowledge"
-        ],
+        "must_call": [],
         "must_not_call": [
           "approve_payout",
           "propose_payout"

@@ -1,7 +1,8 @@
 # Additive to the env's default-deny (gitops/envs/secured/networkpolicy.yaml). NeMo takes calls only from the
 # MCP gateway's broker-router (mcp-system, label app.kubernetes.io/name=mcp-gateway, set by the MCP gateway
 # controller) and from the guardrails proxy (its own `guardrails` policy already allows egress to pods in this
-# namespace). Not from the router: the operator's Route stays unreachable. Egress: the in-cluster MaaS gateway
+# namespace), and from the release eval (parasol-build: the agent-eval task and the seed Job), which runs every
+# claims-db fixture result through the same check the gateway applies. Not from the router: the operator's Route stays unreachable. Egress: the in-cluster MaaS gateway
 # (judge calls) and the OTel collector; DNS comes from allow-dns. No internet.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -21,6 +22,15 @@ spec:
             matchLabels: {component: guardrails-proxy}
         - podSelector:
             matchLabels: {component: nemo-warmup}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: parasol-build}
+          podSelector:
+            matchExpressions:
+              - {key: tekton.dev/task, operator: In, values: [agent-eval]}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: parasol-build}
+          podSelector:
+            matchLabels: {job-name: parasol-eval-seed}
       ports:
         - {protocol: TCP, port: 8000}
   egress:
