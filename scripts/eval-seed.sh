@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scenario 5 data: the golden-set evaluation of the production prompt (run production-prompt, passes the gate)
-# and the shortened candidate (run candidate-shortened-prompt, below the gate: BLOCK) in MLflow
+# and the shortened candidate (run candidate-shortened-prompt, BLOCK: its model alone loses cases production passes) in MLflow
 # experiment parasol-agent-eval (workspace parasol-secured). Every answer is generated live (qwen3-14b on the
 # MaaS subscription parasol-eval, key from scripts/maas-eval-key.sh) against the test fixtures, EVAL_ATTEMPTS
 # times per case (majority decides), and judged by the JUDGE model.
