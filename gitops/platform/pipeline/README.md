@@ -29,12 +29,13 @@ assistant with that prompt, generating every golden-set answer live (agent model
 on the eval's own subscription `parasol-eval`, key in secret `maas-eval-agent-key`; stub tools from `fixtures.json`, so
 no live data is read and nothing is written; 3 attempts per case, majority). Each case runs with the platform (the
 secured model path through the guardrails proxy, the persona's gateway tool list, the claims-db record rule, the
-portal's correction note: what the gate scores) and model alone (for comparison; a case only the platform saves names
-the control on the run as `platform_control`). The gate also fails when the model alone passes fewer cases than the last released production: `promote` writes
-that number as annotation `parasol.example/model-only-baseline` (+ `-run`) on `env-secured`, next to the pinned
+MCP gateway's NeMo check on claims-db results, the portal's correction note: what the gate scores) and model alone (for comparison; a case only the platform saves names
+the control on the run as `platform_control`). The gate also fails when the model alone loses a case of the last released production: a shared case its
+model alone passed on every attempt and now passes on none (a count misses a prompt that trades cases). `promote` writes
+the released run's model-alone count as annotation `parasol.example/model-only-baseline` (+ `-run`) on `env-secured`, next to the pinned
 digest, and mirrors it as tag `released=true` on the MLflow run; a missing or disagreeing record fails the gate
 closed; before any promote the seed's production run is the bar. A prompt that got weaker fails even when the
-platform still masks it. Production passes 25 of 25 with the platform (21 alone); the comparison counts only the cases both golden-set versions share; the judge is
+platform still masks it. The comparison uses only the cases both golden-set versions share (same id and fingerprint); the judge is
 `JUDGE_MODEL` (default gpt-oss-120b) on its own key in secret `maas-eval-key` (data keys endpoint, key, model). Below the 0.95 pass-rate gate the gate is `failed` and `promote` is skipped. `verify-enterprise-contract` is the Conforma gate: the image must carry a valid
 signature AND a signed SLSA provenance attestation (Tekton Chains). The SBOM ships as a signed
 cosign attestation (`cosign verify-attestation --type cyclonedx`). `promote` pins the released prompt
