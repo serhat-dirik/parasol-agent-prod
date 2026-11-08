@@ -160,13 +160,13 @@ Say: the refusal is the platform's record, not the assistant's. The gateway deci
 +
 What you should see: *Tool calls by tool, user, agent and status* with `get_claim_documents`, `rebecca`, `parasol-claims-agent`, `500`.
 +
-// SCREENSHOT: s2-dashboard-tool-calls.png — Console, Parasol Assistant Token Spend, row 'Gateway decisions': tool-calls table with get_claim_documents / rebecca / parasol-claims-agent / 500
+image::s2-dashboard-tool-calls.png["Console, Parasol Assistant Token Spend, row Gateway decisions: the tool-calls table with get_claim_documents / rebecca / parasol-claims-agent / 500, next to the rejections by reason"]
 +
 Then, in the *Portal secured* tab, click the `trace <id>` link under rebecca's answer (the turn with the red chip).
 +
-What you should see: the *MLflow* trace, user `rebecca`, agent `parasol-claims-agent`: `model.chat` -> `tool.get_claim_documents` -> `tool.get_claim_documents.result` with status error, `tool.blocked` `true` and the refusal as the reason; *no* `tool.propose_payout` and *no* `approve_payout` span. The model never saw the document, so it had nothing to obey.
+What you should see: the *MLflow* trace, user `rebecca`, agent `parasol-claims-agent`: `model.chat` -> `tool.get_claim_documents` (error) -> `tool.get_claim_documents.result` with the result `Unexpected status code: 500, body:` and `blocked` naming the refusal by the MCP gateway; *no* `tool.propose_payout` and *no* `approve_payout` span. The model never saw the document, so it had nothing to obey.
 +
-// SCREENSHOT: s2-mlflow-trace.png (recapture) — MLflow trace from the chat's trace link (rebecca, CLM-1004 secured turn): user rebecca, tags agent/prompt/model, span tree model.chat > tool.get_claim_documents > tool.get_claim_documents.result (error, tool.blocked true) selected, no propose_payout
+image::s2-mlflow-trace.png["MLflow trace of rebecca's CLM-1004 secured turn: span tool.get_claim_documents in error, span tool.get_claim_documents.result selected with Unexpected status code: 500 and blocked: refused by the MCP gateway; no propose_payout span"]
 
 == Evidence details
 
@@ -189,7 +189,7 @@ What you should see: the rule the gateway runs, on one screen: `config.yaml` (tw
 +
 Then, in the same project, *Search*, resource `MCPServerRegistration`, `claims-db`, *YAML*: the annotation `mcp.kuadrant.io/guardrails-config-ids: parasol-tool-results`. That one line puts every claims-db result through the check. The gateway's guardrails settings (Secret `parasol-guardrails` in `mcp-system`) say `failMode: deny`: if NeMo cannot answer in time, the call is refused, never let through.
 +
-// SCREENSHOT: s2-nemo-config.png — Console, project parasol-secured, ConfigMaps > nemo-parasol-tool-results, Data section showing config.yaml and rails.co
+image::s2-nemo-config.png["Console, project parasol-secured, ConfigMap nemo-parasol-tool-results, Data: config.yaml with the two output flows (injection phrases, injection judge) and rails.co defining them"]
 +
 The judge was chosen by a test, not by taste: `gitops/platform/guardrails-nemo/detector-test/RESULTS.md` compares Granite Guardian and a `qwen3-14b` judge on the planted note, four rewordings and ten ordinary claim documents. The judge caught 5 of 5 with 0 false alarms, in about 1 s. It runs through MaaS on the guard tier.
 
@@ -197,7 +197,7 @@ The judge was chosen by a test, not by taste: `gitops/platform/guardrails-nemo/d
 +
 What you should see: *one* trace across two agents: `tool.fraud_check` (agent `parasol-claims-agent`, user `rebecca`) -> `agent.fraud_check` (agent `parasol-fraud-agent`) -> `tool.get_claim` and `tool.get_claim_documents`, each span with `enduser.id` `rebecca` and the agent that made the call. The fraud agent read the claim through the same gateway, on rebecca's behalf, with its own narrower ceiling, and met the same guardrails check on the documents.
 +
-// SCREENSHOT: s2-mlflow-fraud-trace.png (recapture) — MLflow trace of the 'Run a fraud check on CLM-1004.' turn: tool.fraud_check > agent.fraud_check > tool.get_claim / tool.get_claim_documents (refused), gen_ai.agent.name parasol-fraud-agent and enduser.id rebecca on a child span
+image::s2-mlflow-fraud-trace.png["MLflow trace of rebecca's 'Run a fraud check on CLM-1004.' turn: tool.fraud_check > agent.fraud_check > tool.get_claim and tool.get_claim_documents, the documents span selected with enduser.id rebecca and gen_ai.agent.name parasol-fraud-agent"]
 
 == Go deeper: nothing leaves through the answer (optional)
 

@@ -190,7 +190,7 @@ Then, in the *Portal secured* tab as rebecca, click the `trace <id>` link under 
 +
 What you should see: the *MLflow* trace with her question as *Request* and the answer as *Response*, and its tool spans: at most `get_claim`, never `convert_currency` or `approve_payout`.
 +
-// SCREENSHOT: s6-mlflow-secured-turn.png — MLflow, parasol-secured, rebecca's currency question on CLM-1001: Request/Response and the tool spans, no convert_currency (MLflow sign-in)
+image::s6-mlflow-secured-turn.png["MLflow trace of rebecca's currency question on CLM-1001 (secured): user rebecca, span tree model.chat > tool.get_claim > claims-db.get_claim, no convert_currency span; the answer keeps USD 4,200"]
 
 == Evidence details
 

@@ -158,9 +158,8 @@ What you should see: `000` and `curl: (28) Failed to connect to api.openai.com p
 +
 What you should see: `default-deny` (every pod, ingress and egress), then one allow-list per workload: `portal` and `parasol-agent` reach only the MCP gateway and Keycloak (by their in-cluster Services, not through the router), the guardrails proxy (pods `component: guardrails-proxy`, port 8080, their only model path) and the OTel collector; `guardrails` (the guardrails proxy) reaches only pods in its own namespace (NeMo Guardrails, the detectors), the in-cluster MaaS gateway and OTel; `parasol-nemo` takes calls only from the MCP gateway and the guardrails proxy; the MCP servers reach only OTel (and Keycloak's signing keys). There is no rule to the internet.
 +
-image::sc-networkpolicies-secured.png["Console, project parasol-secured, NetworkPolicy portal: egress only to the MCP gateway, Keycloak, the guardrails proxy, OTel and claims-db"]
+image::sc-networkpolicies-secured.png["Console, project parasol-secured, NetworkPolicy portal: egress only to the MCP gateway, Keycloak, the guardrails-proxy pods on port 8080, OTel and claims-db"]
 +
-// SCREENSHOT: sc-networkpolicies-secured.png (recapture) — Console, project parasol-secured, NetworkPolicy portal: the model egress is the guardrails-proxy pods on port 8080, no parasol-model-gateway rule (console sign-in)
 
 . *The drop is on record.* The namespace carries `k8s.ovn.org/acl-logging: {"deny": "alert"}`, so OVN logs every connection a NetworkPolicy drops on the pod's node. From a workstation as an administrator (the Terminal's identity may not read node logs):
 +
@@ -174,9 +173,8 @@ What you should see: `name="NP:parasol-secured:Egress", verdict=drop, severity=a
 
 . *Only registered models, only MaaS keys.* Select the *OpenShift Console* tab, project `models-as-a-service`, *Home*, *Search*, resource `MaaSModelRef`: the models the platform serves (the assistant's model, the guard model and the evaluation's judge model, chosen at setup; tested with `qwen3-14b`, `granite-guardian-3-1-8b` and `gpt-oss-120b`), each *Ready* behind `maas-default-gateway` and backed by an `ExternalModel` whose upstream provider key lives in that project only. In the *OpenShift AI* tab, *Settings*, *MaaS governance* lists the subscriptions that may use each one. Then, in the *OpenShift Console* tab, project `parasol-secured`, *Secrets*: `maas-credentials` and `maas-portal-keys` hold *MaaS* keys, each bound to a subscription with its own token limit (xref:06-scenario4-night-shift.adoc[06. Showcase 4]); no provider key is in the namespace. Every model call goes portal -> guardrails proxy -> MaaS, and MaaS routes only to the models registered in it: a request for any other model name finds no route.
 +
-image::sc-maas-models.png["Console, project models-as-a-service, MaaSModelRefs: the models the platform serves, each Ready behind maas-default-gateway"]
+image::sc-maas-models.png["Console, project models-as-a-service, MaaSModelRefs: gpt-oss-120b (judge), granite-guardian-3-1-8b (guard) and qwen3-14b (agent), each Ready behind maas-default-gateway"]
 +
-// SCREENSHOT: sc-maas-models.png (recapture) — Console, project models-as-a-service, MaaSModelRefs: agent, guard and judge models, each Ready behind maas-default-gateway (console sign-in)
 
 . *No path around the guardrails.* The secured portal reaches Keycloak and the MCP gateway by their in-cluster Services, so its policy has no rule to the cluster's router, and with it none to the platform's own MaaS route. In the *Terminal* tab:
 +

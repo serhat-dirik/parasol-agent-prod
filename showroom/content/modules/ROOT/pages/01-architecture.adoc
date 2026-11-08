@@ -145,11 +145,11 @@ tool call the gateway refuses ends the whole turn; upstream OGX 1.5 turns it int
 report, but without the gateway's reason yet. When an OpenShift AI release ships it, the same gateway controls apply
 to an OGX-built agent unchanged: the controls are in the platform, not in the agent framework.
 
-// SCREENSHOT: oai-model-registry.png — OpenShift AI, AI hub > Models > Registry: the three MaaS models and the claims-assistant versions
-// SCREENSHOT: oai-mcp-catalog.png — OpenShift AI, AI hub > MCP servers > Catalog, source Parasol MCP servers
-// SCREENSHOT: oai-agent-catalog.png — OpenShift AI, AI hub > Agents > Catalog, source Parasol agents: the two agent cards
-// SCREENSHOT: oai-asset-endpoints.png — OpenShift AI, Gen AI studio > AI asset endpoints > MCP servers: Parasol-MCP-Gateway
-// SCREENSHOT: oai-playground.png — OpenShift AI, project parasol-playground, Gen AI studio > Playground with a MaaS model and the Parasol MCP gateway
+image::oai-model-registry.png["OpenShift AI, AI hub > Models > Registry, parasol-model-registry: gpt-oss-120b (judge), granite-guardian-3-1-8b (guard) and qwen3-14b (agent) as MaaS models, and parasol-claims-assistant with its evaluated versions"]
+image::oai-mcp-catalog.png["OpenShift AI, AI hub > MCP servers > Catalog, source Parasol MCP servers: claims-db, policy-docs, fraud-check and knowledge-base"]
+image::oai-agent-catalog.png["OpenShift AI, AI hub > Agents > Catalog, source Parasol agents: the Parasol claims agent and the Parasol fraud-check agent"]
+image::oai-asset-endpoints.png["OpenShift AI, Gen AI studio > AI asset endpoints, project Parasol playground, MCP servers: Parasol-MCP-Gateway, Token Required"]
+image::oai-playground.png["OpenShift AI, Gen AI studio > Playground, project Parasol playground: a MaaS model and, under MCP, the Parasol-MCP-Gateway locked until a token is given"]
 
 [NOTE]
 .Product status

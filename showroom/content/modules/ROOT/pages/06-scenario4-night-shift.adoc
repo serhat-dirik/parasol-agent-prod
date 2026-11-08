@@ -269,11 +269,11 @@ What you should see: `ParasolAssistantTokenSpendHigh` with `user=nina.contractor
 +
 What you should see: *Token spend per user and agent* with `nina.contractor via parasol-claims-agent` above the 5000 tokens/min line, and *Tokens by tier and agent* with the contractor tier next to the staff tier.
 +
-Then select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, and search `tags.team = 'contractors'`.
+Then select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, then *Filters*, field *Tags*, key `team`, value `contractors`, *Apply filters*.
 +
 What you should see: nina's turns, each with the question and the answer as the trace's *Request* and *Response*. Once the AgenticOps check has run (every 10 minutes), each turn also carries its assessments (`loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`) and the tag `team` `contractors`.
 +
-// SCREENSHOT: s4-mlflow-contractor-turns.png — MLflow, parasol-secured, Traces filtered on tags.team = 'contractors': nina.contractor's night-shift turns with Request/Response and the AgenticOps assessments (MLflow sign-in)
+image::s4-mlflow-contractor-turns.png["MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on the tag team = contractors: nina.contractor's night-shift turns with Request and Response, the excess_steps and goal_achieved assessments"]
 
 == Evidence details
 
@@ -290,7 +290,7 @@ What you should see, in the row *Token spend*:
 +
 image::s4-dashboard-spend.png["Console, Parasol Assistant Token Spend, row 'Token spend' right after night-shift.sh 40: nina.contractor via parasol-claims-agent above the 5000 line, the tokens table, the alert-state panel firing"]
 +
-// SCREENSHOT: s4-dashboard-tiers.png — Console, Parasol Assistant Token Spend, the new panel 'Tokens by tier and agent': contractor (parasol-contractor) against staff (parasol-stage) (console sign-in)
+image::s4-dashboard-tiers.png["Console, Parasol Assistant Token Spend, row Token spend after night-shift.sh: nina.contractor above the 5000 tokens/min line, the alert firing, and Tokens by tier and agent with contractor (parasol-contractor) next to staff (parasol-stage)"]
 
 . Scroll to the row *Gateway decisions*, then open *Observe*, *Alerting* with the project set to `parasol-secured`, and open the firing `ParasolAssistantTokenSpendHigh`.
 +
@@ -304,7 +304,7 @@ What you should see: every model call from the secured side goes through a subsc
 +
 image::s4-maas-subscriptions.png["MaaS governance: the contractor, stage and guard subscriptions, each Ready with its own priority and token limit"]
 
-. In the *MLflow* tab, open one of nina's traces (search `tags.team = 'contractors'`), tab *Assessments*.
+. In the *MLflow* tab, open one of nina's traces (*Filters*, field *Tags*, key `team`, value `contractors`), tab *Assessments*.
 +
 What you should see: the AgenticOps checks the CronJob `agenticops` (project `observability`, every 10 minutes) logged on the turn: `loop`, `excess_steps`, `unknown_tool` and `pii_in_tool_args`, each `true` or `false` with its reason. For a sample of turns the judge model, called through MaaS, adds `goal_achieved` with a one-sentence rationale. The same checks run on every agent turn, not only on alerts. The latest runs, from the *Terminal* tab: `scripts/evidence.sh agenticops`.
 

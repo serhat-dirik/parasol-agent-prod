@@ -87,7 +87,7 @@ Say: the portal reads its prompt only from what the release pinned. Editing the 
 
 . *Trace it.* In the *MLflow* tab, open a `candidate-shortened-prompt` run, *Traces*, case `role-authorization`, mode `model_only`.
 +
-What you should see: the model alone called `approve_payout` in every attempt. In mode `system` the same case shows what the platform did instead: the gateway does not offer an adjuster `approve_payout`. Where the judge model answered, the attempt carries its rationale. The judge is called through OpenShift AI MaaS on the evaluation's own subscription, like the agent model:
+What you should see: the model alone called `approve_payout` in every attempt. In mode `system` the same case shows what the platform did instead: the gateway does not offer an adjuster `approve_payout`. The judge model scores the `system` attempts, the ones the gate decides on, and leaves its rationale on each. The judge is called through OpenShift AI MaaS on the evaluation's own subscription, like the agent model:
 +
 [source,bash,role=execute]
 ----
@@ -96,7 +96,7 @@ scripts/evidence.sh tiers
 +
 What you should see: `parasol-eval`, owned by the pipeline's ServiceAccounts (`system:serviceaccounts:parasol-build`), with the models it may call and its token budget.
 +
-// SCREENSHOT: s5-mlflow-judge-rationale.png — MLflow, parasol-agent-eval, a candidate-shortened-prompt run, Traces, case role-authorization mode model_only: approve_payout called, the judge's rationale on the attempt (MLflow sign-in)
+image::s5-mlflow-role-authorization.png["MLflow, a candidate-shortened-prompt evaluation trace of case role-authorization, mode model_only: caller rebecca (adjuster), approve_payout called, the payout reported approved, assessments case_pass and no_payout_without_approval False"]
 
 == Evidence details
 
@@ -140,11 +140,11 @@ The two reports that ask the assistant to submit the payout, `document-payout-re
 +
 image::s5-mlflow-platform-control.png["MLflow, a production-prompt evaluation trace of case other-claimant-leak, mode system: rebecca is refused CLM-1016 (claims-db record rule), tag controls_acted claims-db-acl"]
 
-. Open *Training runs* (the run list of the same experiment), select one `production-prompt` run and one `candidate-shortened-prompt` run, choose *Compare*, and turn on *Show diff only* under *Parameters* and *Metrics*.
+. Open *Training runs* (the run list of the same experiment), select one `production-prompt` run and one `candidate-shortened-prompt` run, choose *Compare*, and turn on *Show diff only* under *Parameters*, *Metrics* and *Tags*.
 +
 What you should see: `variant` production against candidate-shortened (`prompt_version` 1 against 2 on a fresh install: the prompt registry version numbers, 2 being the candidate), `system_pass_rate` equal or nearly (0.97 against 0.97), `model_only_lost` 0 against 1 or more, `gate_passed` 1 against 0.
 +
-image::s5-mlflow-v1-vs-v2.png["MLflow run comparison, differences only: prompt_version 1 against 2, variant production against candidate-shortened"]
+image::s5-mlflow-v1-vs-v2.png["MLflow run comparison, Tags, differences only: gate_reason and model_only_lost (none against role-authorization), prompt_version 4 against 2 on the lab cluster, only production released"]
 
 . Open a `candidate-shortened-prompt` run, *Traces*, case `role-authorization`, mode `model_only`, then the same case in mode `system`.
 +
@@ -170,7 +170,7 @@ What you should see: version `production` with `eval_gate` `passed` and an `eval
 
 The link back from the gate to production: every live chat turn names the prompt it ran with.
 
-. Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*. Open any recent chat trace (for example the CLM-1004 turn from Showcase 2), or search with `tags.agent = 'parasol-claims-agent'`.
+. Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*. Open any recent chat trace (for example the CLM-1004 turn from Showcase 2), or filter with *Filters*, field *Tags*, key `agent`, value `parasol-claims-agent`.
 +
 What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt/1` (the version behind `@production`), next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the registry version behind `@production` that the production release gated and pinned (`prompt-ref` and `prompt-version` on the `env-secured` Application, xref:10-supply-chain.adoc[10. Supply chain]); the shortened candidate never appears here, because it was never promoted.
 +
