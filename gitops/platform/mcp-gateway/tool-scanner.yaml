@@ -80,6 +80,10 @@ spec:
           env:
             - {name: SCAN_INTERVAL, value: "30"}
             - {name: RULES_CONFIGMAP, value: parasol-secured/guardrails-rules}
+            # Vendor servers only: Parasol's own descriptions (approve_payout says "approve ... pay") are
+            # reviewed in Git, and the description judge flags them.
+            - {name: NEMO_URL, value: "http://parasol-nemo.parasol-secured.svc.cluster.local"}
+            - {name: NEMO_SERVERS, value: "parasol-thirdparty/,parasol-secured/currency-converter"}
           ports:
             - {name: http, containerPort: 8080}
           readinessProbe:

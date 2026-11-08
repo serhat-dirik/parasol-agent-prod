@@ -9,6 +9,8 @@ and checks each tool definition for
   * instructions addressed to the assistant: the guardrails policy (ConfigMap parasol-secured/
     guardrails-rules): the prompt-injection patterns of detectors.json plus tool-descriptions.json;
   * cross-tool references: a description that names another server's tool (asks the model to call it);
+  * vendor servers only (NEMO_SERVERS, server-name prefixes): each description through NeMo Guardrails
+    (config parasol-tool-descriptions, the check onboarding runs), once per description text;
   * drift: the sha256 of the tool definitions (name, description, input schema) against the pin
     reviewed in Git (annotation parasol.example/tools-sha256 on the registration or the Service).
     Same name, same version, new description = a rug pull.
@@ -19,6 +21,8 @@ One-shot pre-registration check (exit 1 on a finding, prints the sha256 to pin):
   python3 scan.py --check http://<service>.<namespace>.svc.cluster.local:8080/mcp
 """
 import hashlib, json, os, re, ssl, sys, threading, time, urllib.parse, urllib.request
+
+_urlopen = urllib.request.urlopen
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 API = "https://kubernetes.default.svc"
@@ -26,6 +30,10 @@ SA = "/var/run/secrets/kubernetes.io/serviceaccount"
 PIN = "parasol.example/tools-sha256"
 INTERVAL = int(os.environ.get("SCAN_INTERVAL", "60"))
 RULES_CM = os.environ.get("RULES_CONFIGMAP", "parasol-secured/guardrails-rules")
+NEMO_URL = os.environ.get("NEMO_URL", "").rstrip("/")
+NEMO_SERVERS = tuple(p for p in os.environ.get("NEMO_SERVERS", "").split(",") if p)
+NEMO_CONFIG = "parasol-tool-descriptions"
+NEMO_SEEN = {}  # sha256 of (tool name, description) -> blocked; a failed call is not cached (retried next scan)
 
 
 def kget(path):
@@ -110,6 +118,26 @@ def findings(tools, rules, foreign_tools):
     return out
 
 
+def nemo_findings(tools):
+    """(tool, "nemo", config) for each description NeMo blocks. Unreachable: a warning, the rules still apply."""
+    out = []
+    for t in tools:
+        key = hashlib.sha256((t["name"] + "\0" + t.get("description", "")).encode()).hexdigest()
+        if key not in NEMO_SEEN:
+            body = json.dumps({"model": "qwen3-14b", "guardrails": {"config_ids": [NEMO_CONFIG]},
+                               "messages": [{"role": "assistant", "name": t["name"], "content": t.get("description", "")}]})
+            try:
+                with urllib.request.urlopen(urllib.request.Request(NEMO_URL + "/v1/checks", body.encode(),
+                                            {"Content-Type": "application/json"}), timeout=90) as r:
+                    NEMO_SEEN[key] = json.load(r).get("status") == "blocked"
+            except Exception as e:
+                print(f"tool-scan warn=nemo-unavailable tool={t['name']} error={e!r}", flush=True)
+                continue
+        if NEMO_SEEN[key]:
+            out.append((t["name"], "nemo", NEMO_CONFIG))
+    return out
+
+
 # ---- state for /metrics: server -> dict ----
 STATE, LOCK = {}, threading.Lock()
 
@@ -153,7 +181,8 @@ def scan_once():
             h = digest(tools)
             new = {"server": server, "registered": registered, "up": True, "tools": len(tools), "version": version,
                    "sha256": h, "pin": pin, "drift": bool(pin) and pin != h,
-                   "findings": findings(tools, rules, foreign)}
+                   "findings": findings(tools, rules, foreign)
+                   + (nemo_findings(tools) if NEMO_URL and server.startswith(NEMO_SERVERS) else [])}
         with LOCK:
             old = STATE.get(key)
             STATE[key] = new
@@ -235,6 +264,12 @@ if __name__ == "__main__":
                          "drift": False, "findings": _f}
     assert 'parasol_mcp_tool_scan_tools{server="a/b",registered="true",version="1"} 1' in metrics_text(), metrics_text()
     STATE.clear()
+    _calls = []
+    urllib.request.urlopen = lambda req, timeout: (_calls.append(req), __import__("io").BytesIO(b'{"status":"blocked"}'))[1]
+    NEMO_URL = "http://nemo"
+    assert nemo_findings(_t) == [("convert_currency", "nemo", NEMO_CONFIG)] and nemo_findings(_t) and len(_calls) == 1
+    NEMO_SEEN.clear(); NEMO_URL = os.environ.get("NEMO_URL", "").rstrip("/")
+    urllib.request.urlopen = _urlopen
     assert digest(_t) == digest(list(reversed(_t))) and digest(_t) != digest([dict(_t[0], description="x")])
     if len(sys.argv) == 3 and sys.argv[1] == "--check":
         sys.exit(check(sys.argv[2]))
