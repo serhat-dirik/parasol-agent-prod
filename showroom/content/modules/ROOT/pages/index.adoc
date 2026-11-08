@@ -62,7 +62,7 @@ The guide is on the left. Every step tells you which tab on the right to use:
 |Realm `parasol`: users, groups and the `tool:*` roles.
 
 |*OpenShift AI*
-|Models-as-a-Service, the Gen AI studio playground and AI asset endpoints, the MCP server and agent catalogs, the Model registry, Model evaluation runs.
+|Models-as-a-Service, the Gen AI studio playground and AI asset endpoints, the MCP server and agent catalogs, the model registry (the three models), model evaluation runs; MLflow agent versions.
 
 |*OpenShift Console*
 |Observe (Dashboards, Alerting, Metrics, Traces), Networking (Gateways), Pipelines.

@@ -16,7 +16,7 @@ are created by hand from `pipelinerun.yaml`, which is not part of the synced kus
 ```
 init → clone-repository → build-container ─┬→ scan-image (Trivy) ──────────────────────────┐
                                            ├→ generate-sbom (syft CycloneDX, cosign attest)  │
-                                           ├→ agent-eval (gate) → register-model-version    ├→ promote
+                                           ├→ agent-eval (gate) → register-agent-version    ├→ promote
                                            ├→ sign-images (cluster key) ─┐                  │  (pin on Argo app)
                                            └→ keyless-sign (TAS) ────────┴→ verify-enterprise-contract
 finally: show-sbom, show-summary

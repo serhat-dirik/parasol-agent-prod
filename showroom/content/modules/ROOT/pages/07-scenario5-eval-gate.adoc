@@ -162,9 +162,9 @@ What you should see: two release runs of the same pipeline. In `parasol-portal-r
 +
 image::sc-pipeline-v2-blocked.png["The candidate-shortened release run: every stage ran, and promote was skipped by the evaluation gate"]
 
-. Select the *OpenShift AI* tab, *AI hub*, *Models*, tab *Registry*, then `parasol-claims-assistant`, tab *Versions*, and open each version's *Properties* (*Show more properties* for the rest).
+. Select the *MLflow* tab, experiment `parasol-agent-eval`, *Agent versions*.
 +
-What you should see: version `production` with `eval_gate` `passed` and an `eval_score` at or above 0.95 (0.97 in the tested runs), and version `candidate-shortened` with `eval_gate` `failed` and about the same `eval_score` (stamped by its release run), both against `eval_threshold` 0.95: each verdict tied to the agent version the pipeline would promote. The score alone does not decide; the verdict does.
+What you should see: one agent version `parasol-claims-agent` per release run (`1.0.0`, `1.1.0`, ...), each with its tags `variant`, `eval_gate`, `eval_score` and `eval_run_id`, and its parameters: the prompt version and sha256, the tool policy sha256, the model and the portal image digest. The production release reads `eval_gate` `passed` (0.97 in the tested runs); the candidate reads `failed` with about the same score. Each verdict is tied to the exact agent configuration the pipeline would promote, so the score alone does not decide; the verdict does. The agent is not a model, so it is not in the OpenShift AI model registry, which lists the three models it uses.
 
 === The gated prompt at runtime
 

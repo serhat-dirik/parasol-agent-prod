@@ -134,7 +134,7 @@ What enforces it is the gateway's role check on every call, not the tool set: th
 
 The platform's own screens list what the demo runs. In the *OpenShift AI* tab:
 
-* *AI hub* > *Models* > *Registry*: the three models, each registered as served by MaaS (agent, guard and judge), next to the evaluated claims-assistant versions.
+* *AI hub* > *Models* > *Registry*: the three models, each registered as served by MaaS (agent `qwen3-14b` 3.0.0, guard `granite-guardian-3-1-8b` 3.1.0, judge `gpt-oss-120b` 1.0.0). Models only: the claims agent is not a model, and its versions are MLflow agent versions (experiment `parasol-agent-eval`, *Agent versions*), one per release with its prompt, tool policy, model and evaluation.
 * *AI hub* > *MCP servers* > *Catalog*, source *Parasol MCP servers*: claims-db, policy-docs and the others, with their tools and which ones write.
 * *AI hub* > *Agents* > *Catalog*, source *Parasol agents*: the claims agent and the fraud-check agent, what they run on and which tools they reach.
 * *Gen AI studio* > *AI asset endpoints* > *MCP servers*: the Parasol MCP gateway, one endpoint for all four servers.
@@ -145,7 +145,7 @@ tool call the gateway refuses ends the whole turn; upstream OGX 1.5 turns it int
 report, but without the gateway's reason yet. When an OpenShift AI release ships it, the same gateway controls apply
 to an OGX-built agent unchanged: the controls are in the platform, not in the agent framework.
 
-image::oai-model-registry.png["OpenShift AI, AI hub > Models > Registry, parasol-model-registry: gpt-oss-120b (judge), granite-guardian-3-1-8b (guard) and qwen3-14b (agent) as MaaS models, and parasol-claims-assistant with its evaluated versions"]
+image::oai-model-registry.png["OpenShift AI, AI hub > Models > Registry, parasol-model-registry: gpt-oss-120b 1.0.0 (judge), granite-guardian-3-1-8b 3.1.0 (guard) and qwen3-14b 3.0.0 (agent), each served by MaaS"]
 image::oai-mcp-catalog.png["OpenShift AI, AI hub > MCP servers > Catalog, source Parasol MCP servers: claims-db, policy-docs, fraud-check and knowledge-base"]
 image::oai-agent-catalog.png["OpenShift AI, AI hub > Agents > Catalog, source Parasol agents: the Parasol claims agent and the Parasol fraud-check agent"]
 image::oai-asset-endpoints.png["OpenShift AI, Gen AI studio > AI asset endpoints, project Parasol playground, MCP servers: Parasol-MCP-Gateway, Token Required"]

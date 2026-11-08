@@ -135,13 +135,13 @@ What you should see: *Tool calls by tool, user, agent and status* with `approve_
 
 . *What was live.* Select the *Argo CD* tab, application `env-secured`, *Details*, *Summary*, then *History and rollback*.
 +
-What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-version` (the registry version the release pinned), `prompt-sha256` and `model-ref` `parasol-claims-assistant:production`. The `prompt-sha256` is the same value as the trace's `prompt_sha256` tag: the release refuses to promote when the prompt the portal runs is not the registered one, so the prompt the trace names is literally the gated text. *History and rollback* shows the sync that rolled that digest out, before the approval time.
+What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-version` (the registry version the release pinned), `prompt-sha256` and `agent-version` (for example `parasol-claims-agent@1.1.0`, with its MLflow id in `agent-version-id`). The `prompt-sha256` is the same value as the trace's `prompt_sha256` tag: the release refuses to promote when the prompt the portal runs is not the registered one, so the prompt the trace names is literally the gated text. *History and rollback* shows the sync that rolled that digest out, before the approval time.
 +
-image::sc-argo-env-secured-promote.png["Argo CD, application env-secured, Summary: the annotations parasol.example/model-only-baseline, model-ref, promoted-by, promoted-digest, prompt-ref, prompt-sha256 and prompt-version written by the promote step; Synced, Healthy"]
+image::sc-argo-env-secured-promote.png["Argo CD, application env-secured, Summary: the annotations parasol.example/agent-version, model-only-baseline, promoted-by, promoted-digest, prompt-ref, prompt-sha256 and prompt-version written by the promote step; Synced, Healthy"]
 
-. *Which evaluated version.* Select the *OpenShift AI* tab, *AI hub*, *Models*, tab *Registry*, `parasol-claims-assistant`, tab *Versions*, version `production`, *Properties*.
+. *Which evaluated version.* Select the *MLflow* tab, experiment `parasol-agent-eval`, *Agent versions*, the version named in the annotation `agent-version`.
 +
-What you should see: `eval_gate` `passed`, an `eval_score` at or above `eval_threshold` `0.95` (0.97 in the tested runs), the `mlflow_run_id` of the golden-set evaluation and the same `prompt_sha256` again. The version `candidate-shortened` next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]).
+What you should see: `eval_gate` `passed`, an `eval_score` at or above 0.95 (0.97 in the tested runs), the `eval_run_id` of the golden-set evaluation, and as parameters the same `prompt_sha256`, the tool policy sha256, the model and the portal image digest. The candidate's version next to it failed the gate and was never promoted (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]).
 +
 image::s9-model-registry-production.png["OpenShift AI, AI hub > Models > Registry, parasol-claims-assistant version production: eval_gate passed, eval_score 0.97, the prompt registry URI"]
 
