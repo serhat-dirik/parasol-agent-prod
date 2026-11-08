@@ -134,7 +134,7 @@ def run():
 
     # ponytail: one page of the newest turns per run; more than MAX_TRACES turns in LOOKBACK_MIN need paging
     traces = client.search_traces(locations=[os.environ.get("EXPERIMENT_ID", "1")],
-                                  filter_string=f"span.name = 'ChatMessage' AND trace.timestamp_ms > {since}",
+                                  filter_string=f"span.name = 'model.chat' AND trace.timestamp_ms > {since}",  # every agent turn: chat (ChatMessage) and REST (/agent/ask)
                                   max_results=int(os.environ.get("MAX_TRACES", "200")), order_by=["timestamp_ms DESC"])
     done = skipped = 0
     for t in traces:
