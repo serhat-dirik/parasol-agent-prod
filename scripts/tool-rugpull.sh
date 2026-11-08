@@ -53,7 +53,8 @@ case "${1:-status}" in
   onboard)
     v="${2:?usage: $0 onboard <version> [--wait]}"
     name="parasol-tool-onboarding-currency-converter-${v//./-}"
-    oc delete pipelinerun "$name" -n $B --ignore-not-found >/dev/null
+    # foreground: the old run's TaskRuns (same names) must be gone before the new run creates its own
+    oc delete pipelinerun "$name" -n $B --ignore-not-found --cascade=foreground --wait=true >/dev/null
     sed -e "s/^  generateName: parasol-tool-onboarding-$/  name: $name/" -e "s/value: \"1.4.2\"/value: \"$v\"/" \
       gitops/platform/pipeline/onboarding/pipelinerun-onboarding.yaml | oc create -f - >/dev/null
     echo " $name started (onboarding currency-converter $v)"
