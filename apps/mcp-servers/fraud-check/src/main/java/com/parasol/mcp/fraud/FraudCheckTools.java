@@ -97,8 +97,15 @@ public class FraudCheckTools {
         }
     }
 
+    /** Fixed text, the same wording the portal uses when the claims agent is switched off. */
+    static final String DISABLED = "FRAUD RISK: UNKNOWN. The fraud-check agent has been disabled by an operator; "
+            + "nothing assessed.";
+
     String assessViaGateway(String claimNumber, String subject) {
         String token = gateway.onBehalfOf(subject);
+        if (GatewayTools.DISABLED.equals(token)) {
+            return DISABLED;
+        }
         if (token == null) {
             return "FRAUD RISK: UNKNOWN. The fraud-check agent could not act on behalf of "
                     + GatewayTools.user(subject) + "; nothing assessed.";

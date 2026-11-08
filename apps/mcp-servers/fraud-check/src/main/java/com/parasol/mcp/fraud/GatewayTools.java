@@ -122,7 +122,13 @@ public class GatewayTools {
                 .startSpan();
     }
 
-    /** Exchange the caller's token as this agent (cached per incoming token), or null on failure. */
+    /**
+     * Returned by {@link #onBehalfOf} when Keycloak refuses this agent's client (401 invalid_client): the agent
+     * switch turned it off (scripts/agent-switch.sh fraud-agent off).
+     */
+    public static final String DISABLED = "";
+
+    /** Exchange the caller's token as this agent (cached per incoming token), {@link #DISABLED}, or null on failure. */
     public String onBehalfOf(String subjectToken) {
         Cached c = exchanged.get(subjectToken);
         if (c != null && Instant.now().isBefore(c.until())) {
@@ -143,7 +149,7 @@ public class GatewayTools {
             if (res.statusCode() != 200 || !t.find()) {
                 Matcher e = ERROR.matcher(res.body());
                 LOG.warnf("token exchange as %s failed: HTTP %d %s", agentId, res.statusCode(), e.find() ? e.group(1) : "");
-                return null;
+                return res.statusCode() == 401 && res.body().contains("\"invalid_client\"") ? DISABLED : null;
             }
             Matcher e = EXPIRES_IN.matcher(res.body());
             long expires = e.find() ? Long.parseLong(e.group(1)) : 300;

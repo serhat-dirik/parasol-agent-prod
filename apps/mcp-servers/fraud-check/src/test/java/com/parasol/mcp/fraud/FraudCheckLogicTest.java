@@ -94,4 +94,18 @@ class FraudCheckLogicTest {
                 + "record is 8400.00 USD; a person must review the documents.",
                 tools.assessViaGateway("CLM-1004", "subject"));
     }
+
+    /** Secured path: the agent switch turned the fraud agent off (Keycloak 401 invalid_client): fixed text. */
+    @Test
+    void disabledAgentGivesTheOperatorMessage() {
+        FraudCheckTools tools = new FraudCheckTools();
+        tools.gateway = new GatewayTools() {
+            @Override
+            public String onBehalfOf(String subjectToken) {
+                return GatewayTools.DISABLED;
+            }
+        };
+        assertEquals("FRAUD RISK: UNKNOWN. The fraud-check agent has been disabled by an operator; nothing assessed.",
+                tools.assessViaGateway("CLM-1004", "subject"));
+    }
 }
