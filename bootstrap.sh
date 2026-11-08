@@ -7,28 +7,34 @@
 # No manual step: the first release (the production prompt) is promoted by the pipeline onto the Argo CD Application env-secured
 # (the Git repo is read-only for releases) and bootstrap waits for it.
 #
+# Settings: copy install.env.example to install.env and fill it in (INSTALL_ENV=<file> reads another file); bootstrap
+# reads it first. The same names can also be exported instead.
 # Each model may come from a DIFFERENT OpenAI-compatible endpoint (base URL ending in /v1) with its own key.
-# Required env:
+# Required:
 #   AGENT_ENDPOINT, AGENT_KEY   the agent model both portals run (AGENT_MODEL)
 #   GUARD_ENDPOINT, GUARD_KEY   the guard-tier detector + playground external model (GUARD_MODEL)
 #   JUDGE_ENDPOINT, JUDGE_KEY   the evaluation judge (JUDGE_MODEL)
-# Optional env:
+# Optional:
 #   AGENT_MODEL     upstream model id of the agent (default qwen3-14b)
 #   GUARD_MODEL     upstream model id of the guard detector, must return logprobs (default granite-guardian-3-1-8b)
 #   JUDGE_MODEL     upstream model id of the evaluation judge (default gpt-oss-120b)
-#   LLAMAGUARD_ENDPOINT, LLAMAGUARD_KEY   Llama-Guard-3-1B, optional 3rd detector (skipped if unset)
 #   REPO_URL        Git URL Argo CD syncs from (default: this repo's origin)
 #   REPO_REVISION   branch/tag (default: main)
 #   RHOAI_CHANNEL / RHOAI_CSV   OpenShift AI channel / pinned CSV (default stable-3.x / rhods-operator.3.5.2)
 #   SKIP_BUILDS=1   do not start image builds;  SKIP_SEED=1  skip the demo data (scripts/seed-demo.sh)
 set -euo pipefail
 cd "$(dirname "$0")"
+ENVF="${INSTALL_ENV:-install.env}"
+if [ -f "$ENVF" ]; then
+  set -a; . "./${ENVF#./}"; set +a
+  echo "settings read from $ENVF"
+fi
 
 missing=""
 for v in AGENT_ENDPOINT AGENT_KEY GUARD_ENDPOINT GUARD_KEY JUDGE_ENDPOINT JUDGE_KEY; do
-  [ -n "${!v:-}" ] || missing="$missing $v"
+  case "${!v:-}" in ""|*"<"*">"*) missing="$missing $v";; esac   # unset, or still the example placeholder
 done
-[ -z "$missing" ] || { echo "bootstrap.sh: missing required env:$missing (each model needs <ROLE>_ENDPOINT and <ROLE>_KEY; see the header of bootstrap.sh)" >&2; exit 1; }
+[ -z "$missing" ] || { echo "bootstrap.sh: missing required settings:$missing (copy install.env.example to install.env and fill it in)" >&2; exit 1; }
 for t in oc kustomize envsubst openssl python3 curl jq; do command -v $t >/dev/null || { echo "bootstrap.sh: $t is required" >&2; exit 1; }; done
 python3 -c 'import yaml' 2>/dev/null || { echo "bootstrap.sh: python3 needs PyYAML" >&2; exit 1; }
 export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}"

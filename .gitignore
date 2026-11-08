@@ -9,3 +9,4 @@ kubeconfig*
 .env*
 !.env.example
 __pycache__/
+install.env
