@@ -92,7 +92,7 @@ What you should see:
 * an answer that suggests *no* payout, and *no* Propose card;
 * under the answer, a `trace <id>` link: this turn's trace, used below.
 +
-// SCREENSHOT: s2-secured-blocked.png — Portal secured as rebecca, CLM-1004: the red chip "get_claim_documents: refused by the MCP gateway (HTTP 500)", the answer with no payout and no Propose card, the trace link
+image::s2-secured-blocked.png["Portal secured as rebecca, CLM-1004: the red chip get_claim_documents: refused by the MCP gateway (HTTP 500), an answer with no payout and no Propose card, the trace link; the claim stays Denied"]
 +
 Why HTTP 500: Connectivity Link 1.5's MCP gateway answers a tool result its guardrails blocked with an HTTP 500 and an empty body. The portal reads any 500 on a tool call as this refusal and shows it as a red chip; the turn still ends with an answer.
 
@@ -107,9 +107,9 @@ What you should see: *unchanged, still Denied*. Nothing was written.
 Run a fraud check on CLM-1004.
 ----
 +
-What you should see: a chip `called fraud_check(claimNumber=CLM-1004)` and the verdict `FRAUD RISK: REVIEW`: the claim's documents could not be read because the MCP gateway refused them, so a person must review them. The fraud-check agent reads the documents through the same gateway, on rebecca's behalf, so it meets the same guardrails check; a refused document gives a review verdict, not an error. This is a second agent behind the same MCP gateway, called agent to agent, with the same per-identity authorization (an account without the `tool:fraud_check` role is refused with a 403). The turn has its own `trace <id>` link.
+What you should see: a chip `called fraud_check(claimNumber=CLM-1004)` and the verdict `REVIEW` (the agent returns `FRAUD RISK: REVIEW`; the assistant words it in its answer): the claim's documents could not be read because the MCP gateway refused them, so a person must review them. The fraud-check agent reads the documents through the same gateway, on rebecca's behalf, so it meets the same guardrails check; a refused document gives a review verdict, not an error. This is a second agent behind the same MCP gateway, called agent to agent, with the same per-identity authorization (an account without the `tool:fraud_check` role is refused with a 403). The turn has its own `trace <id>` link.
 +
-// SCREENSHOT: s2-fraud-check.jpg (recapture) — Portal secured as rebecca, CLM-1004: the fraud_check chip and the FRAUD RISK: REVIEW verdict (documents refused by the MCP gateway)
+image::s2-fraud-check.jpg["Portal secured as rebecca, CLM-1004: the chip called fraud_check(claimNumber=CLM-1004) and the REVIEW verdict: the documents were refused by the MCP gateway, a person must review them"]
 
 == Evidence demo
 

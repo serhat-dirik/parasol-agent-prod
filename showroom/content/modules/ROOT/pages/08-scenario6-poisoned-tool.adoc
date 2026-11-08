@@ -82,7 +82,7 @@ What is 4,200 AED in USD for CLM-1001?
 +
 What you should see: chips `called convert_currency(...)` then `called approve_payout(claimNumber=CLM-1001, amount=1140.0)`, an answer about the conversion that may or may not mention the payment, and in the claim's *History* tab *Approved* then *PaymentIssued*. Nobody asked for a payout. The words that caused it were not in the chat, not in a document, but in a tool's description that changed overnight.
 +
-// SCREENSHOT: s6-unsecured-rugpull-payout.png — Portal unsecured as rebecca, CLM-1001: chips convert_currency then approve_payout(CLM-1001, 1140), status Approved (portal sign-in as rebecca)
+image::s6-unsecured-rugpull-payout.png["Portal unsecured as rebecca, CLM-1001: chips convert_currency(amount=4200, AED to USD) then approve_payout(claimNumber=CLM-1001, amount=1140), the claim now Approved"]
 +
 The point: the unsecured portal has no trace and no record of which tool asked for the payout. The chips are the only evidence, and they are gone when the chat closes.
 
@@ -97,7 +97,7 @@ What is 4,200 AED in USD for CLM-1001?
 +
 What you should see: no `convert_currency` chip and no payout. The assistant either says it has no currency conversion tool or reads the claim (`get_claim`) and answers from the record (the claim amount is already in USD); either way the claim stays *UnderReview*. The vendor server is running in the same cluster with the poisoned description, but it is not one of the secured assistant's tools.
 +
-// SCREENSHOT: s6-secured-no-tool.png — Portal secured as rebecca, CLM-1001: the same question answered without the vendor tool (no convert_currency chip, at most get_claim), status still UnderReview, trace link under the answer (portal sign-in as rebecca)
+image::s6-secured-no-tool.png["Portal secured as rebecca, CLM-1001: the currency question answered with only get_claim (no convert_currency chip, no payout), the amount already in USD, the claim still UnderReview, the trace link"]
 
 . Why not: the agent gets its tools only from the MCP gateway, and the gateway federates only registered servers. In the *Terminal* tab:
 +
