@@ -17,6 +17,10 @@ What runs next to customer data must be the exact image the pipeline built, eval
 
 What runs next to customer data must be exactly what was built, scanned, evaluated and approved. A tampered or unsigned image, or a workload calling an unapproved model, bypasses every other control. Without the platform any image can run, and any workload can call any model endpoint it has a key for. Here the pipeline signs and verifies every release, admission refuses unsigned images in the secured namespace, and only approved models are reachable.
 
+How a release reaches production. Build, scan and SBOM, the evaluation gate, two signatures and Conforma run in one pipeline; only a release that passed is promoted, and admission checks the signature again when Argo CD rolls it out:
+
+image::s5-release-flow.png["The release pipeline: Git, build, then scan and SBOM, the evaluation gate (with an MLflow agent version) and two signatures verified by Conforma; promote pins the digest and prompt on Argo CD env-secured; Argo CD syncs; admission checks the signature; the portal runs the exact digest. A failed gate skips promote; an unsigned image is refused at admission"]
+
 == Run it
 
 Five short steps, one command or one screen each: what runs, the rule, how the platform enforces it, and the record it leaves. Everything reads only, except step 3, which starts and removes two test pods in a demo namespace. The full walk through every screen is in <<Look closer>> below.
@@ -36,7 +40,11 @@ Say: the image that runs next to customer data is the one the pipeline built, ev
 +
 Say: the rule is a cluster resource. Admission checks the signature of every portal image before a pod starts, whoever deploys it.
 
-. *Admission enforces it.* Try an unsigned and a signed portal image:
+. *Admission enforces it.* What the policy controller checks on every pod in `parasol-secured`:
++
+image::s5-admission.png["Admission: any deploy, then namespace in scope (policy.rhtas.com/include=true), then image matches a policy (portal, vendor tools), then a valid signature: admitted, or denied; namespaces out of scope are not enforced"]
++
+Try an unsigned and a signed portal image:
 +
 [source,bash,role=execute]
 ----

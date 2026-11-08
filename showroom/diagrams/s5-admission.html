@@ -1,0 +1,23 @@
+<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;background:#fff;font-family:"Red Hat Text","Helvetica Neue",Arial,sans-serif}
+svg text{font-family:inherit}
+.box{fill:#fff;stroke:#4d4d4d;stroke-width:1.5}
+.ctl{fill:#fff4e5;stroke:#c46100;stroke-width:1.5}
+.ext{fill:#f2f2f2;stroke:#8a8d90;stroke-width:1.5;stroke-dasharray:6 4}
+.run{fill:#e7f1fa;stroke:#0066cc;stroke-width:2}
+.bad{fill:#fdecea;stroke:#c9190b;stroke-width:1.5}
+.ok{fill:#f3faf2;stroke:#3e8635;stroke-width:1.5}
+.t{font-size:16px;font-weight:700;fill:#151515}
+.s{font-size:13px;fill:#3c3f42}
+.c{font-size:13px;fill:#8a4100}
+.r{font-size:13px;fill:#a30000;font-weight:700}
+.g{font-size:13px;fill:#2a6a22;font-weight:700}
+.lane{font-size:13px;font-weight:700;fill:#6a6e73;letter-spacing:.06em}
+.arr{stroke:#4d4d4d;stroke-width:2;fill:none;marker-end:url(#a)}
+.no{stroke:#c9190b;stroke-width:2;fill:none;stroke-dasharray:6 4;marker-end:url(#n)}
+.yes{stroke:#3e8635;stroke-width:2;fill:none;marker-end:url(#y)}
+</style></head><body><svg width="1240" height="370" viewBox="0 0 1240 370" xmlns="http://www.w3.org/2000/svg"><defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4d4d4d"/></marker>
+<marker id="n" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#c9190b"/></marker>
+<marker id="y" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#3e8635"/></marker>
+</defs>
+<rect width="1240" height="370" fill="#fff"/><text class="lane" x="20" y="34">WHAT ADMISSION CHECKS  (Trusted Artifact Signer policy controller, every pod create or update)</text><rect class="ext" x="20" y="60" width="200" height="110" rx="10"/><text class="t" x="120.0" y="86" text-anchor="middle">Any deploy</text><text class="s" x="120.0" y="107" text-anchor="middle">Argo CD sync, kubectl,</text><text class="s" x="120.0" y="128" text-anchor="middle">a pipeline, a person</text><rect class="box" x="260" y="60" width="200" height="110" rx="10"/><text class="t" x="360.0" y="86" text-anchor="middle">Namespace in scope?</text><text class="s" x="360.0" y="107" text-anchor="middle">label</text><text class="c" x="360.0" y="128" text-anchor="middle">policy.rhtas.com/include=true</text><text class="s" x="360.0" y="149" text-anchor="middle">(parasol-secured)</text><rect class="box" x="500" y="60" width="220" height="110" rx="10"/><text class="t" x="610.0" y="86" text-anchor="middle">Image matches a policy?</text><text class="c" x="610.0" y="107" text-anchor="middle">parasol-portal-must-be-signed</text><text class="c" x="610.0" y="128" text-anchor="middle">parasol-vendor-tools-</text><text class="c" x="610.0" y="149" text-anchor="middle">must-be-onboarded</text><rect class="ctl" x="760" y="60" width="250" height="110" rx="10"/><text class="t" x="885.0" y="86" text-anchor="middle">Valid signature?</text><text class="s" x="885.0" y="107" text-anchor="middle">portal: keyless (pipeline SPIFFE</text><text class="s" x="885.0" y="128" text-anchor="middle">identity) or the cluster key</text><text class="s" x="885.0" y="149" text-anchor="middle">vendor tools: Parasol's onboarding key</text><rect class="ok" x="1050" y="60" width="170" height="110" rx="10"/><text class="t" x="1135.0" y="86" text-anchor="middle">Admitted</text><text class="g" x="1135.0" y="107" text-anchor="middle">the pod starts</text><text class="s" x="1135.0" y="128" text-anchor="middle">on the digest</text><rect class="bad" x="760" y="220" width="250" height="90" rx="10"/><text class="t" x="885.0" y="246" text-anchor="middle">Denied</text><text class="r" x="885.0" y="267" text-anchor="middle">no signatures found / not</text><text class="r" x="885.0" y="288" text-anchor="middle">signed by an accepted signer</text><rect class="ext" x="260" y="220" width="200" height="90" rx="10"/><text class="t" x="360.0" y="246" text-anchor="middle">Not enforced here</text><text class="s" x="360.0" y="267" text-anchor="middle">other namespaces</text><text class="s" x="360.0" y="288" text-anchor="middle">(parasol-free runs :latest)</text><path class="arr" d="M220,115 L256,115"/><path class="arr" d="M460,115 L496,115"/><path class="arr" d="M720,115 L756,115"/><path class="yes" d="M1010,115 L1046,115"/><path class="no" d="M885,170 L885,216"/><path class="no" d="M360,170 L360,216"/><text class="s" x="20" y="350">no-match-policy=allow: images no policy names (the platform's own, the MCP servers built in-cluster) are admitted; the portal and onboarded vendor tools must be signed.</text></svg></body></html>

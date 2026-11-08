@@ -1,0 +1,91 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>arch</title>
+<style>
+body{margin:0;background:#fff;font-family:"Red Hat Text","Helvetica Neue",Arial,sans-serif}
+svg text{font-family:inherit}
+.box{fill:#fff;stroke:#4d4d4d;stroke-width:1.5}
+.ctl{fill:#fff4e5;stroke:#c46100;stroke-width:1.5}
+.ext{fill:#f2f2f2;stroke:#8a8d90;stroke-width:1.5;stroke-dasharray:6 4}
+.portal{fill:#e7f1fa;stroke:#0066cc;stroke-width:2}
+.t{font-size:17px;font-weight:700;fill:#151515}
+.s{font-size:13.5px;fill:#3c3f42}
+.c{font-size:13.5px;fill:#8a4100}
+.lane{font-size:14px;font-weight:700;fill:#6a6e73;letter-spacing:.06em}
+.arr{stroke:#4d4d4d;stroke-width:2;fill:none;marker-end:url(#a)}
+.kc{stroke:#6753ac;stroke-width:1.8;fill:none;stroke-dasharray:5 4;marker-end:url(#b)}
+</style></head><body>
+<svg id="d" width="1280" height="540" viewBox="0 0 1280 540" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#4d4d4d"/></marker>
+<marker id="b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6753ac"/></marker>
+</defs>
+<rect x="0" y="0" width="1280" height="540" fill="#fff"/>
+
+<!-- portal -->
+<rect class="portal" x="30" y="185" width="190" height="170" rx="10"/>
+<text class="t" x="125" y="228" text-anchor="middle">Secured portal</text>
+<text class="s" x="125" y="252" text-anchor="middle">claims assistant</text>
+<text class="s" x="125" y="272" text-anchor="middle">(Quarkus, LangChain4j)</text>
+<text class="s" x="125" y="300" text-anchor="middle">signed-in user's</text>
+<text class="s" x="125" y="320" text-anchor="middle">Keycloak token</text>
+
+<!-- lane labels -->
+<text class="lane" x="260" y="58">MODEL PATH</text>
+<text class="lane" x="600" y="318">TOOL PATH</text>
+
+<!-- model path -->
+<rect class="ctl" x="260" y="72" width="290" height="140" rx="10"/>
+<text class="t" x="405" y="102" text-anchor="middle">Guardrails proxy</text>
+<text class="c" x="405" y="126" text-anchor="middle">NeMo Guardrails, config parasol-chat</text>
+<text class="s" x="405" y="150" text-anchor="middle">before: injection, off-topic, PII masked</text>
+<text class="s" x="405" y="172" text-anchor="middle">after: confidential marker, outside links</text>
+<text class="s" x="405" y="194" text-anchor="middle">the only egress to a model</text>
+
+<rect class="ctl" x="600" y="72" width="290" height="140" rx="10"/>
+<text class="t" x="745" y="102" text-anchor="middle">OpenShift AI MaaS</text>
+<text class="c" x="745" y="126" text-anchor="middle">maas-default-gateway</text>
+<text class="s" x="745" y="150" text-anchor="middle">key per tier (staff, contractor)</text>
+<text class="s" x="745" y="172" text-anchor="middle">subscription + token budget</text>
+<text class="s" x="745" y="194" text-anchor="middle">holds the upstream model key</text>
+
+<rect class="ext" x="940" y="72" width="300" height="140" rx="10"/>
+<text class="t" x="1090" y="110" text-anchor="middle">Hosted model</text>
+<text class="s" x="1090" y="136" text-anchor="middle">qwen3-14b (agent)</text>
+<text class="s" x="1090" y="158" text-anchor="middle">external OpenAI-compatible endpoint</text>
+<text class="s" x="1090" y="180" text-anchor="middle">no GPU in the cluster</text>
+
+<path class="arr" d="M220,225 C240,225 240,142 258,142"/>
+<path class="arr" d="M550,142 L598,142"/>
+<path class="arr" d="M890,142 L938,142"/>
+
+<!-- tool path -->
+<rect class="box" x="260" y="440" width="290" height="72" rx="10" style="stroke:#6753ac"/>
+<text class="t" x="405" y="469" text-anchor="middle">Keycloak, realm parasol</text>
+<text class="s" x="405" y="493" text-anchor="middle">token exchange: user + approved agent</text>
+
+<rect class="ctl" x="600" y="332" width="290" height="180" rx="10"/>
+<text class="t" x="745" y="362" text-anchor="middle">MCP gateway</text>
+<text class="c" x="745" y="386" text-anchor="middle">Connectivity Link, one URL /mcp</text>
+<text class="s" x="745" y="412" text-anchor="middle">identity: user and agent on every call</text>
+<text class="s" x="745" y="434" text-anchor="middle">per-tool AuthPolicy (Keycloak roles)</text>
+<text class="s" x="745" y="456" text-anchor="middle">NeMo parasol-tool-results on every</text>
+<text class="s" x="745" y="476" text-anchor="middle">claims-db result (blocked = HTTP 500)</text>
+<text class="s" x="745" y="498" text-anchor="middle">decision log per tools/call</text>
+
+<rect class="box" x="940" y="332" width="300" height="180" rx="10"/>
+<text class="t" x="1090" y="362" text-anchor="middle">MCP servers</text>
+<text class="s" x="1090" y="388" text-anchor="middle">claims-db (record rule per user)</text>
+<text class="s" x="1090" y="410" text-anchor="middle">policy-docs</text>
+<text class="s" x="1090" y="432" text-anchor="middle">fraud-check (agent-to-agent)</text>
+<text class="s" x="1090" y="454" text-anchor="middle">knowledge-base (rows the user's</text>
+<text class="s" x="1090" y="476" text-anchor="middle">groups may read, PostgreSQL RLS)</text>
+<text class="s" x="1090" y="498" text-anchor="middle">registered + description pinned</text>
+
+<path class="arr" d="M220,300 C430,300 420,372 598,372"/>
+<path class="kc" d="M180,355 C180,476 200,476 258,476"/>
+<text class="s" x="190" y="430" style="fill:#6753ac">1 exchange</text>
+<text class="s" x="300" y="336">2 tools/call with</text>
+<text class="s" x="300" y="354">the exchanged token</text>
+<path class="arr" d="M890,422 L938,422"/>
+</svg>
+</body></html>

@@ -32,6 +32,8 @@ The model reads every tool description as instructions. Whoever writes a descrip
 
 In the demo, both of the bank's images are built in project `parasol-build` at install (`currency-converter:1.4.2` and `:1.4.3`), standing in for the bank's registry. In real life the onboarding pipeline pulls the version from the bank's registry (or an ImageStream imports it); everything after that step is the same.
 
+image::s7-onboarding-flow.png["The bank's releases go two ways. Unsecured: parasol-thirdparty runs the bank's latest image and the assistant pays on 1.4.3. Secured: the onboarding pipeline resolves the digest, scans, runs the tool check (sidecar, pin, Parasol tool names, NeMo, contract), signs and attests, promotes to env-secured-tools; parasol-secured runs only Parasol-signed images through the MCP gateway. 1.4.3 is refused; a direct run is denied by admission; the runtime scanner is the second line"]
+
 == Before you start
 
 This showcase runs on its own, in any order with the others.
