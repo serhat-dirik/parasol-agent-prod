@@ -192,11 +192,11 @@ then the decision log, with marcus's Approve click from the walkthrough: `200  m
 +
 Say: two checks at the gateway on every tool call. The call must come through an approved agent, and the person must hold the tool's role. Even going around the agent, rebecca cannot pay; marcus's click passed the same check. The rule is applied by the platform, one place for every agent and every tool.
 
-. *Watch it and trace it.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
+. *Watch it and trace it.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `parasol-secured`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
 +
 What you should see: *Gateway rejections by reason* counts `403 not via an approved agent (MCP gateway)` and `403 role does not allow the tool (MCP gateway)`; *Tool calls by tool, user, agent and status* lists `approve_payout`, `marcus`, `parasol-claims-agent`, `200`.
 +
-image::s1-dashboard-rejections.png["Console, Observe > Dashboards (Perses), openshift-operators, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with approve_payout / marcus / parasol-claims-agent / 200"]
+image::s1-dashboard-rejections.png["Console, Observe > Dashboards (Perses), parasol-secured, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with approve_payout / marcus / parasol-claims-agent / 200"]
 +
 Then, in the *Portal secured* tab as marcus, click the `trace <id>` link under the approved card.
 +
@@ -302,11 +302,11 @@ What you should see: one row per chat turn, client `parasol-claims-agent`, `user
 +
 image::s1-keycloak-token-exchange.png["Keycloak admin, realm parasol, Events > User events filtered on TOKEN_EXCHANGE, one row expanded: client parasol-claims-agent, username rebecca, subject_token_client_id parasol-portal, client_assertion_sub system:serviceaccount:parasol-secured:claims-agent"]
 
-. *The dashboard.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*, row *Gateway decisions*.
+. *The dashboard.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `parasol-secured`, dashboard *Parasol Assistant Token Spend*, row *Gateway decisions*.
 +
 What you should see: *Gateway rejections by reason* counts `403 not via an approved agent (MCP gateway)` and `403 role does not allow the tool (MCP gateway)`; *Tool calls by tool, user, agent and status* lists `approve_payout`, `marcus`, `parasol-claims-agent`, `200`. The same decisions as the log, counted per person and agent, ready for an alert.
 +
-image::s1-dashboard-rejections.png["Console, Observe > Dashboards (Perses), openshift-operators, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with approve_payout / marcus / parasol-claims-agent / 200"]
+image::s1-dashboard-rejections.png["Console, Observe > Dashboards (Perses), parasol-secured, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with approve_payout / marcus / parasol-claims-agent / 200"]
 
 === The trace
 

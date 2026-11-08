@@ -72,7 +72,7 @@ Every question the audience asks has one screen that answers it with the same na
 |"Approved by marcus via parasol-claims-agent"; the MLflow trace with user `marcus`, tag `action` `approve_payout <claim>`
 
 |Who was refused at the gateway, and why?
-|*OpenShift Console*, *Observe*, *Dashboards (Perses)*, `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*; Authorino log
+|*OpenShift Console*, *Observe*, *Dashboards (Perses)*, `parasol-secured`, *Parasol Assistant Token Spend*, row *Gateway decisions*; Authorino log
 |rejections by reason (not via an approved agent, role, usage limit); `not via an approved agent: <user> azp=<client>`, `tool <tool> denied for <user> azp=<agent>`
 
 |Which claims may a person read through the assistant?

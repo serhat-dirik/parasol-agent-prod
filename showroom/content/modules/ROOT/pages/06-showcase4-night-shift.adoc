@@ -85,7 +85,7 @@ scripts/evidence.sh spend
 +
 What you should see: `nina.contractor via parasol-claims-agent` with a large token count, and under `refused by the platform` the line `nina.contractor via parasol-claims-agent  usage_limit` with a count. No `usage_limit` line for `rebecca`. Every token is booked to a person and an agent; that is why the platform can stop one account and leave the others alone.
 
-. Watch it. *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*; set *User* to `nina.contractor` and `rebecca`, so the earlier showcases' chats do not crowd the view.
+. Watch it. *Observe*, *Dashboards (Perses)*, project `parasol-secured`, *Parasol Assistant Token Spend*; set *User* to `nina.contractor` and `rebecca`, so the earlier showcases' chats do not crowd the view.
 +
 What you should see, in the row *Token spend*:
 +

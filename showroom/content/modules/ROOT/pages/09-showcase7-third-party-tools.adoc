@@ -184,7 +184,7 @@ Say: same name, same version, new words. The scanner pins the description itself
 +
 What you should see: `MCPToolDefinitionDrift` (critical) for `server=parasol-thirdparty/currency-converter`, and the `MCPToolDescriptionInjection` warnings for `convert_currency`.
 
-. *Watch it and trace it.* *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Tool supply chain*: the vendor's drift `1`, every registered server `0`.
+. *Watch it and trace it.* *Observe*, *Dashboards (Perses)*, project `parasol-secured`, *Parasol Assistant Token Spend*, row *Tool supply chain*: the vendor's drift `1`, every registered server `0`.
 +
 Then, in the *Portal secured* tab as rebecca, click the `trace <id>` link under her currency answer.
 +
@@ -202,7 +202,7 @@ What you should see: `MCPToolDefinitionDrift` (critical) for `server=parasol-thi
 +
 image::s6-console-alerts.png["Console, Observe > Alerting, project mcp-system: MCPToolDefinitionDrift (critical) for parasol-thirdparty/currency-converter, its tool definitions no longer match the reviewed pin"]
 
-. *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Tool supply chain*.
+. *Observe*, *Dashboards (Perses)*, project `parasol-secured`, *Parasol Assistant Token Spend*, row *Tool supply chain*.
 +
 What you should see: *MCP servers seen by the tool scanner* with the four registered servers (`registered=true`) and the vendor's candidate (`registered=false`, version `1.4.2`, 1 tool); *Tool definitions against the pin* with `1` for `parasol-thirdparty/currency-converter` and `0` for every pinned registered server; *Tool descriptions with instructions for the assistant* with one row per rule for `convert_currency`.
 +

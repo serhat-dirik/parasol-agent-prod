@@ -1,0 +1,27 @@
+# The Prometheus datasource the token dashboard's queries use in project parasol-secured (Perses resolves a
+# dashboard's default datasource in the dashboard's own project). Same thanos-querier endpoint and service CA as
+# the monitoring UIPlugin's datasource in openshift-operators; the console proxies the queries with the viewer's
+# own token, so a viewer still sees only the metrics their RBAC allows.
+apiVersion: perses.dev/v1alpha2
+kind: PersesDatasource
+metadata:
+  name: parasol-thanos-querier
+  namespace: parasol-secured
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  client:
+    tls:
+      enable: true
+      caCert: {type: file, certPath: /ca/service-ca.crt}
+  config:
+    default: true
+    display: {name: Thanos querier (cluster metrics)}
+    plugin:
+      kind: PrometheusDatasource
+      spec:
+        proxy:
+          kind: HTTPProxy
+          spec:
+            url: https://thanos-querier.openshift-monitoring.svc.cluster.local:9091
+            secret: parasol-thanos-querier-secret

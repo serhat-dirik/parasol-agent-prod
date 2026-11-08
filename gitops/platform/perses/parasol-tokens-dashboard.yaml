@@ -1,15 +1,14 @@
 # Perses dashboard "Parasol Assistant Token Spend": the governance evidence of the Showroom scenarios.
 # Every row is "agent X on behalf of user Y". Rendered by the Cluster Observability Operator's console
-# Perses backend (UIPlugin "monitoring"), which lives in openshift-operators: the perses-operator pushes
-# each PersesDashboard to perses.<its-namespace>.svc, so this CR must sit there. OpenShift console:
-# Observe > Dashboards, project openshift-operators. Queries use the project default datasource
-# (thanos-querier, UWM-aware). Counters are cumulative since their process started (portal, guardrails
+# Perses backend (UIPlugin "monitoring", in openshift-operators); dashboards in any project are served by it. It sits
+# in parasol-secured, next to the workloads it watches. OpenShift console: Observe > Dashboards, project
+# parasol-secured. Queries use that project's default datasource, parasol-thanos-querier (parasol-datasource.yaml). Counters are cumulative since their process started (portal, guardrails
 # proxy, Authorino, Limitador); see the guide's reset page for what resets them.
 apiVersion: perses.dev/v1alpha2
 kind: PersesDashboard
 metadata:
   name: parasol-assistant-tokens
-  namespace: openshift-operators
+  namespace: parasol-secured
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
   labels:

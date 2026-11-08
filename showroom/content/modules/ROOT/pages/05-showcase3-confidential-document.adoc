@@ -231,7 +231,7 @@ What you should see: `RAG withheld doc=RST-01 classification=restricted ... from
 +
 Say: who was refused and who read the restricted plan, by name and agent, without anyone having to ask the model what it saw.
 
-. *Watch it and trace it.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Knowledge base*.
+. *Watch it and trace it.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `parasol-secured`, *Parasol Assistant Token Spend*, row *Knowledge base*.
 +
 What you should see: *Passages withheld by classification, user and agent* with `restricted` for `rebecca` and `internal` for `nina.contractor`; *Restricted documents read* with `RST-01` for `marcus`, all via `parasol-claims-agent`.
 +
@@ -256,7 +256,7 @@ What you should see: the *MLflow* trace of the turn, workspace `parasol-secured`
 +
 image::s3-mlflow-retrieval-span.png["MLflow trace of rebecca's secured turn: span tool.search_knowledge (knowledge-base) selected, attributes rag.returned_doc_ids INT-01/INT-03, rag.withheld_count 4, rag.withheld_classifications restricted, enduser.id rebecca, gen_ai.agent.name parasol-claims-agent"]
 
-. Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Knowledge base*.
+. Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `parasol-secured`, *Parasol Assistant Token Spend*, row *Knowledge base*.
 +
 What you should see: *Knowledge-base searches* per user and agent; *Passages withheld by classification, user and agent* with `restricted` for `rebecca` and `internal` for `nina.contractor`, both via `parasol-claims-agent`; *Restricted documents read* with `RST-01` (and the other restricted documents the search matched) for `marcus` via `parasol-claims-agent`.
 +

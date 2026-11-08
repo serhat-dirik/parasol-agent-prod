@@ -156,7 +156,7 @@ image::s2-gateway-blocked-log.png["Terminal: the mcp-gateway log lines guardrail
 +
 Say: the refusal is the platform's record, not the assistant's. The gateway decided, and it names the rule.
 
-. *Watch it and trace it.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
+. *Watch it and trace it.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `parasol-secured`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
 +
 What you should see: *Tool calls by tool, user, agent and status* with `get_claim_documents`, `rebecca`, `parasol-claims-agent`, `500`.
 +
