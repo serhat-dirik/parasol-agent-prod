@@ -8,3 +8,4 @@ credentials*
 kubeconfig*
 .env*
 !.env.example
+__pycache__/
