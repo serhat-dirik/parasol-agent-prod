@@ -80,9 +80,9 @@ What you should see: the release process is code too. Argo CD keeps the `parasol
 
 . Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-release-production`.
 +
-What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Showcase 6 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom`; `register-agent-version` records the evaluated agent configuration as an MLflow agent version before `promote` runs. (On this console version the graph can show a red marker on `promote`'s step once the run is old; the run's status line, *Tasks Completed: 13 (Failed: 0)*, and the `promote` log are the record.)
+What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Showcase 6 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom`; `register-agent-version` records the evaluated agent configuration as an MLflow agent version before `promote` runs. The red marker on `promote` is a console display issue for completed runs; the run status *Succeeded* and the `promote` log are the record.
 +
-image::sc-pipeline-v1-promoted.png["The release run: build, scan, keyed and keyless signing, Conforma, the evaluation gate, then promote"]
+image::sc-pipeline-v1-promoted.png["The release run: clone and build; scan-image, sign-images, keyless-sign and agent-eval in parallel; verify-enterprise-contract and register-agent-version; generate-sbom and promote; finally show-summary and show-sbom",link=self,window=_blank]
 
 . Open the `keyless-sign` task log.
 +
