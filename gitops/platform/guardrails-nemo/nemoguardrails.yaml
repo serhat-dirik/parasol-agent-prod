@@ -1,7 +1,8 @@
 # NeMo Guardrails server (TrustyAI operator, Red Hat image odh-trustyai-nemo-guardrails-server): one place
-# for every content rule. Two configs (config-chat.yaml, config-tool-results.yaml), each a directory
+# for every content rule. Three configs (config-chat.yaml, config-tool-results.yaml, config-tool-descriptions.yaml), each a directory
 # /app/config/<name>; config id = name. Callers:
 #   MCP gateway  POST /v1/checks             config parasol-tool-results (claims-db tool results)
+#   onboarding tool-check POST /v1/checks    config parasol-tool-descriptions (vendor tool descriptions; Showcase 7)
 #   guardrails-proxy POST /v1/chat/completions config parasol-chat, rails only (user input, answers)
 # The operator creates Deployment, Service and Route "parasol-nemo". Without the auth annotation
 # (security.opendatahub.io/enable-auth) the Service is plain HTTP, port 80 -> 8000: the MCP gateway sends no
@@ -27,6 +28,8 @@ spec:
       configMaps: [nemo-parasol-chat]
     - name: parasol-tool-results
       configMaps: [nemo-parasol-tool-results]
+    - name: parasol-tool-descriptions
+      configMaps: [nemo-parasol-tool-descriptions]
   env:
     # Main model of every config = the request's "model" on this base URL (server _inject_model). The rails
     # make no main-model call; the judge action (actions.py) uses the same URL, key and JUDGE_MODEL.

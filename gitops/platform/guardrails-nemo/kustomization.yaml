@@ -6,6 +6,7 @@ namespace: parasol-secured
 resources:
   - config-chat.yaml
   - config-tool-results.yaml
+  - config-tool-descriptions.yaml
   - nemoguardrails.yaml
   - networkpolicy.yaml
   - warmup.yaml
@@ -14,6 +15,9 @@ configMapGenerator:
     behavior: merge
     files: [actions.py]
   - name: nemo-parasol-tool-results
+    behavior: merge
+    files: [actions.py]
+  - name: nemo-parasol-tool-descriptions
     behavior: merge
     files: [actions.py]
 generatorOptions:

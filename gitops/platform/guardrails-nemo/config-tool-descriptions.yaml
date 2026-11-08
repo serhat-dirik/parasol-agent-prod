@@ -1,0 +1,34 @@
+# NeMo config id `parasol-tool-descriptions`: the onboarding pipeline's tool-check (Showcase 7) checks each tool
+# DESCRIPTION of a third-party MCP server with it, sent as one assistant message to POST /v1/checks (output rails on
+# $bot_message), before the image may run. The same phrases as parasol-tool-results, and the judge with a question
+# for descriptions (a description is addressed to the assistant by design; it may not ask for anything beyond the
+# tool's own use). The contract-call RESULTS go through parasol-tool-results, as at runtime.
+# actions.py (the rules) is added to this ConfigMap by kustomization.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nemo-parasol-tool-descriptions
+data:
+  config.yaml: |
+    models:
+      - type: main             # needed to load the config; replaced per request by the request's model
+        engine: openai         # (MAIN_MODEL_BASE_URL). The rails below make no main-model call.
+        model: qwen3-14b
+        api_key_env_var: OPENAI_API_KEY
+    rails:
+      output:
+        flows:
+          - parasol injection phrases   # regex, no model call: the known phrases
+          - parasol description judge   # qwen3-14b yes/no judge via MaaS, description question
+  rails.co: |
+    define subflow parasol injection phrases
+      $hit = execute parasol_injection_regex(text=$bot_message)
+      if $hit
+        bot refuse to respond
+        stop
+
+    define subflow parasol description judge
+      $hit = execute parasol_description_judge(text=$bot_message)
+      if $hit
+        bot refuse to respond
+        stop

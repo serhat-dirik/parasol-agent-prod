@@ -6,9 +6,10 @@ on localhost and decides whether Parasol may run it. It reviews what can be seen
   2 the tool definitions (name, description, input schema) match the pin a person reviewed for that version in
     Git (onboarding.json); a version with no pin is not promoted, the run prints the sha256 a reviewer would add;
   3 no description names one of Parasol's own tools (a currency tool has no reason to mention approve_payout);
-  4 each description passes the MCP gateway's own guardrails: NeMo, config parasol-tool-results, the check the gateway
-    runs on every tool result at runtime;
-  5 the contract: known calls return the expected answer, and each result passes the same NeMo check.
+  4 each description passes NeMo, config parasol-tool-descriptions (the same phrases as the gateway's check, and the
+    judge asked whether the description wants anything beyond the tool's own use);
+  5 the contract: known calls return the expected answer, and each result passes NeMo parasol-tool-results, the
+    check the MCP gateway runs on every tool result at runtime.
 What it cannot see (behaviour only on some inputs, later, or only for some callers) is left to the runtime controls:
 the gateway's guardrails on every result, least privilege, no egress, the runtime scanner.
 
@@ -46,13 +47,13 @@ def digest(tools):
     return hashlib.sha256(json.dumps(canon, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
-def nemo_blocks(tool, text):
-    """NeMo as the MCP gateway calls it on a tool result (config parasol-tool-results). None = check skipped."""
+def nemo_blocks(tool, text, config="parasol-tool-results"):
+    """NeMo /v1/checks as the MCP gateway calls it (one assistant message). None = check skipped."""
     url = os.environ.get("NEMO_URL", "http://parasol-nemo.parasol-secured.svc.cluster.local").rstrip("/")
     if url == "off":
         return None
     body = json.dumps({"model": "qwen3-14b", "messages": [{"role": "assistant", "name": tool, "content": text}],
-                       "guardrails": {"config_ids": ["parasol-tool-results"]}}).encode()
+                       "guardrails": {"config_ids": [config]}}).encode()
     req = urllib.request.Request(url + "/v1/checks", body, {"Content-Type": "application/json"})
     with urllib.request.urlopen(req, timeout=90) as r:   # unreachable = exception = the run fails (fail closed)
         return json.load(r).get("status") == "blocked"
@@ -84,10 +85,10 @@ def check(policy, server, version, url):
         for n in sorted(own):
             if re.search(rf"\b{re.escape(n)}\b", text):
                 findings.append(f"description: {t['name']} names Parasol's tool {n}")
-        blocked = nemo_blocks(t["name"], t.get("description", ""))
+        blocked = nemo_blocks(t["name"], t.get("description", ""), "parasol-tool-descriptions")
         if blocked:
-            findings.append(f"guardrails: {t['name']}'s description blocked by NeMo parasol-tool-results "
-                            "(it addresses the assistant)")
+            findings.append(f"guardrails: {t['name']}'s description blocked by NeMo parasol-tool-descriptions "
+                            "(it asks the assistant for more than using the tool)")
         notes.append(f"guardrails on {t['name']} description: " + {None: "skipped", True: "BLOCKED", False: "pass"}[blocked])
     for c in cfg.get("contract", []):
         res, _ = rpc(url, {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
