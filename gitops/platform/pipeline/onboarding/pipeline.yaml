@@ -68,7 +68,7 @@ spec:
   sidecars:
     - name: tool-under-test
       image: $(params.image)@$(params.digest)
-      resources:
+      computeResources:
         requests: {cpu: 10m, memory: 32Mi}
         limits: {cpu: 200m, memory: 128Mi}
   steps:
@@ -191,7 +191,6 @@ spec:
     - {name: server, type: string, default: "currency-converter"}
     - {name: version, type: string}
   results:
-    - {name: VERSION, value: "$(params.version)"}
     - {name: IMAGE_DIGEST, value: "$(tasks.resolve.results.digest)"}
     - {name: TOOLS_SHA256, value: "$(tasks.tool-check.results.tools-sha256)"}
     - {name: FINDINGS, value: "$(tasks.tool-check.results.findings)"}
