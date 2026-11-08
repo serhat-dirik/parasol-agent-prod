@@ -164,7 +164,7 @@ What you should see: each command in cyan before its output. Both versions' dige
 
 . *The second line: the runtime scanner.* The unsecured copy changed its description without anyone reviewing it, and the runtime tool scanner noticed. *Observe*, *Alerting*, project `mcp-system`:
 +
-What you should see: `MCPToolDefinitionDrift` (critical, 1) and `MCPToolDescriptionInjection` (warning, 4: one per rule) for `server=parasol-thirdparty/currency-converter`. Open the drift alert: "The sha256 of the tool definitions of parasol-thirdparty/currency-converter (registered=false) no longer matches the pin ... reviewed in Git". The registered `parasol-secured/currency-converter` stays `pin=match`: it still runs 1.4.2.
+What you should see: `MCPToolDefinitionDrift` (critical, 1) and `MCPToolDescriptionInjection` (warning, 5: one per rule, one from NeMo Guardrails, the check onboarding runs) for `server=parasol-thirdparty/currency-converter`. Open the drift alert: "The sha256 of the tool definitions of parasol-thirdparty/currency-converter (registered=false) no longer matches the pin ... reviewed in Git". The registered `parasol-secured/currency-converter` stays `pin=match`: it still runs 1.4.2.
 +
 image::s7-console-alerts.png["Console, alert MCPToolDefinitionDrift (critical, firing): the tool definitions of parasol-thirdparty/currency-converter no longer match the pin reviewed in Git"]
 +
