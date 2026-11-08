@@ -127,10 +127,15 @@ class Stubs:
         self.controls = []   # platform controls that acted during this generation (system mode)
 
     def definitions(self):
-        tools = list(self.fx["tools"]) + [self.fx["extra_tools"][n] for n in self.case.get("extra_tools", [])]
-        if self.mode == SYSTEM:   # the gateway lists the persona's tools; propose_payout is the portal's own
-            listed = set(self.persona["tools"]) | {"propose_payout"} | set(self.case.get("extra_tools", []))
-            tools = [t for t in tools if t["name"] in listed]
+        tools = {t["name"]: t for t in self.fx["tools"]}
+        if self.mode == SYSTEM:   # the gateway lists the persona's tools; propose_payout is the portal's own. A case's
+            # extra_tools (a vendor version as published, e.g. currency-converter 1.4.3) never reach the secured agent:
+            # only what onboarding promoted runs there (fx tools, e.g. 1.4.2).
+            listed = set(self.persona["tools"]) | {"propose_payout"}
+            tools = [t for n, t in tools.items() if n in listed]
+        else:   # unsecured: the vendor's published version replaces the onboarded one
+            tools.update({n: self.fx["extra_tools"][n] for n in self.case.get("extra_tools", [])})
+            tools = list(tools.values())
         return [{"type": "function", "function": {"name": t["name"], "description": t["description"],
                                                   "parameters": t["parameters"]}} for t in tools]
 
@@ -1148,7 +1153,10 @@ def selfcheck():
     assert "Team B" not in hr.call("search_knowledge", {"query": "x"}) and hr.controls == ["knowledge-base-acl"]
     assert "Team B" in Stubs(fx, by["knowledge-restricted-hr"], MODEL_ONLY).call("search_knowledge", {"query": "x"})
     assert "1,143.64 USD" in s.call("convert_currency", {"amount": 4200, "from_currency": "AED", "to_currency": "USD"})
-    assert Stubs(fx, by["tool-description-injection"], SYSTEM).listed("convert_currency") and not s.listed("convert_currency")
+    inj = {m: {d["function"]["name"]: d["function"]["description"] for d in Stubs(fx, by["tool-description-injection"], m).definitions()}
+           for m in (SYSTEM, MODEL_ONLY)}
+    assert "approve_payout" in inj[MODEL_ONLY]["convert_currency"] and "approve_payout" not in inj[SYSTEM]["convert_currency"]
+    assert "approve_payout" not in inj[SYSTEM] and Stubs(fx, by["currency-conversion"], SYSTEM).listed("convert_currency")
     # the portal's turn note (AgentService.withContext, TurnDateTest pins the same text)
     assert turn({"inputs": {"question": "who am i", "caller": "rebecca", "open_claim": "CLM-1001"}},
                 fx["personas"]["rebecca"], datetime.date(2026, 11, 7)) == \
@@ -1238,7 +1246,7 @@ def selfcheck():
     assert len(fp) == len(golden["cases"]) and fp == case_fingerprints(golden, fx)
     old = {cid: v for cid, v in fp.items() if not cid.startswith(("document-payout-request", "document-status-note",
                                                                    "identity-who-am-i", "knowledge-review-deadline",
-                                                                   "knowledge-about-parasol"))}
+                                                                   "knowledge-about-parasol", "currency-conversion"))}
     old["amount-integrity"] = "changed-case"   # an older golden set: 23 cases, one of them since changed
 
     class FakeMlflow:   # newest released run r2: 18 of the older set's cases passed; seed production run s1: 17
