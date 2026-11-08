@@ -101,7 +101,7 @@ What you should see: first `Prompt pinned: agent-prompt-release = parasol-claims
 +
 What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref`, `prompt-version` (the registry version pinned), `prompt-sha256` (the digest of the pinned prompt text) and `model-ref`. *History and rollback* lists the sync that rolled it out. The `prompt-version` here (`parasol-claims-assistant-system-prompt/1`, the version behind `@production`) is the same value every live chat trace carries as its `prompt` tag, and `prompt-sha256` matches the trace's `prompt_sha256` (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]): release record and runtime evidence agree.
 +
-// SCREENSHOT: sc-argo-env-secured-promote.png — Argo CD, application env-secured, Details > Summary: annotations parasol.example/promoted-digest, promoted-by, prompt-ref, prompt-version, prompt-sha256, model-ref; and Parameters > Images with the parasol-portal digest override (Argo CD sign-in; recapture: prompt-sha256 is new)
+image::sc-argo-env-secured-promote.png["Argo CD, application env-secured, Summary: the annotations parasol.example/model-only-baseline, model-ref, promoted-by, promoted-digest, prompt-ref, prompt-sha256 and prompt-version written by the promote step; Synced, Healthy"]
 
 . Close the panel and open the `portal` Deployment.
 +
@@ -130,7 +130,7 @@ What you should see:
 +
 Signatures, the admission decision and the promote history on `env-secured` together answer "what runs in production, and who let it in".
 +
-// SCREENSHOT: sc-admission-refused.png — Terminal output of scripts/signing-demo.sh: the unsigned image refused by the admission webhook naming parasol-portal-must-be-signed, the signed one admitted (Showroom terminal)
+image::sc-admission-refused.png["Terminal: scripts/signing-demo.sh, the unsigned portal image denied by the admission webhook (policy parasol-portal-must-be-signed, no keyless or key signature), the signed image the release promoted admitted, then cleanup"]
 
 === Only approved models
 

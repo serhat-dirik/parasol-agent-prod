@@ -152,7 +152,7 @@ oc logs -n mcp-system deploy/mcp-gateway --since=1h | grep 'guardrails blocked t
 +
 What you should see: a line `guardrails blocked tool response` for `get_claim_documents`, naming the rule that fired. For the planted note it is the phrase rule (`parasol injection phrases`); a reworded note with none of the known phrases is caught by the judge (`parasol injection judge`).
 +
-// SCREENSHOT: s2-gateway-blocked-log.png — Terminal: the mcp-gateway log line "guardrails blocked tool response" for get_claim_documents, with the rule name
+image::s2-gateway-blocked-log.png["Terminal: the mcp-gateway log lines guardrails blocked tool response, tool=get_claim_documents, reason=parasol injection phrases"]
 +
 Say: the refusal is the platform's record, not the assistant's. The gateway decided, and it names the rule.
 

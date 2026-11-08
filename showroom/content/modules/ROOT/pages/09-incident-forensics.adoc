@@ -137,7 +137,7 @@ What you should see: *Tool calls by tool, user, agent and status* with `approve_
 +
 What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-version` (the registry version the release pinned), `prompt-sha256` and `model-ref` `parasol-claims-assistant:production`. The `prompt-sha256` is the same value as the trace's `prompt_sha256` tag: the release refuses to promote when the prompt the portal runs is not the registered one, so the prompt the trace names is literally the gated text. *History and rollback* shows the sync that rolled that digest out, before the approval time.
 +
-// SCREENSHOT: s9-argo-promote-annotations.png — Argo CD, env-secured, Details > Summary: promoted-digest, promoted-by, prompt-ref, prompt-version, prompt-sha256, model-ref (Argo CD sign-in)
+image::sc-argo-env-secured-promote.png["Argo CD, application env-secured, Summary: the annotations parasol.example/model-only-baseline, model-ref, promoted-by, promoted-digest, prompt-ref, prompt-sha256 and prompt-version written by the promote step; Synced, Healthy"]
 
 . *Which evaluated version.* Select the *OpenShift AI* tab, *AI hub*, *Models*, tab *Registry*, `parasol-claims-assistant`, tab *Versions*, version `production`, *Properties*.
 +

@@ -106,7 +106,7 @@ What you should see: no `convert_currency` chip and no payout. The assistant eit
 oc get mcpserverregistration -n parasol-secured
 ----
 +
-What you should see: `claims-db`, `fraud-check`, `knowledge-base`, `policy-docs`, each `READY True` with its tool count. No `currency-converter`. A registration is a resource in Git, added by a reviewed change, not a URL someone types into a configuration.
+What you should see: `claims-db`, `fraud-check`, `knowledge-base`, `policy-docs`, each `READY True`. No `currency-converter`. A registration is a resource in Git, added by a reviewed change, not a URL someone types into a configuration.
 
 . Could the agent reach the server directly? In the *Terminal* tab, try from the secured portal's pod, then from the unsecured one:
 +
@@ -117,7 +117,7 @@ for ns in parasol-secured parasol-free; do echo -n "$ns: "; oc exec -n $ns deplo
 +
 What you should see: `parasol-secured: blocked`, `parasol-free: reachable`. The secured namespace denies all egress except the MCP gateway, Keycloak, the guardrails proxy (the only model path) and telemetry; an unregistered server is not on the way.
 +
-// SCREENSHOT: s6-terminal-registrations-egress.png — Terminal: oc get mcpserverregistration without currency-converter, and the egress check blocked from parasol-secured, reachable from parasol-free (Showroom terminal)
+image::s6-terminal-registrations-egress.png["Terminal: oc get mcpserverregistration lists claims-db, fraud-check, knowledge-base and policy-docs, no currency-converter; the egress check prints parasol-secured: blocked, parasol-free: reachable"]
 
 . The governed path, if Parasol really wanted the tool: a platform engineer first reviews it. The tool scanner's pre-registration check, in the *Terminal* tab:
 +
@@ -219,7 +219,7 @@ What you should see: `tool-scan action=drift server=parasol-thirdparty/currency-
 
 . Where the rules and the pins live. *OpenShift Console*, project `parasol-secured`, *ConfigMaps*, `guardrails-rules`, key `tool-descriptions.json`, next to `detectors.json`: the same prompt-injection phrases the guardrails apply to documents, applied to tool descriptions. The pins are the annotation `parasol.example/tools-sha256` on each MCPServerRegistration (and on the vendor's Service): in the *Argo CD* tab, open `env-secured`, select `claims-db` (MCPServerRegistration), *Live manifest*.
 +
-// SCREENSHOT: s6-argocd-registration-pin.png — Argo CD, env-secured, MCPServerRegistration claims-db live manifest with the annotation parasol.example/tools-sha256 (Argo CD sign-in)
+image::s6-argocd-registration-pin.png["Argo CD, env-secured, MCPServerRegistration claims-db, live manifest: the annotations mcp.kuadrant.io/guardrails-config-ids parasol-tool-results and parasol.example/tools-sha256, the reviewed pin"]
 
 What is native and what is ours: the MCP gateway (Connectivity Link, Technology Preview) federates only registered servers, reports each registration's tool count, filters `tools/list` by the person's roles and limits each agent to a virtual server's tool names. It does not read or pin descriptions. The scanner (`mcp-system/mcp-tool-scanner`, a small service next to the gateway) does that, with the guardrails' own rules.
 

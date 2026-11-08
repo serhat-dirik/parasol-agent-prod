@@ -222,7 +222,7 @@ scripts/kill-switch.sh break-glass on
 
 What you should see: the gateway back at its normal replicas; the next question is answered.
 
-// SCREENSHOT: s4-kill-switch-status.png — Terminal: scripts/kill-switch.sh status with the four sections, one level switched off (Showroom terminal)
+image::s4-kill-switch-status.png["Terminal: scripts/kill-switch.sh status with one level switched off: nina.contractor disabled in realm parasol, both agents enabled, every MaaS subscription on, the MCP gateway at 2 replicas (the cluster MaaS gateway is not readable from this Terminal)"]
 
 == Evidence demo
 
