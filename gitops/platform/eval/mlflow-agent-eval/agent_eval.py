@@ -794,11 +794,14 @@ TURN_FORMAT = "question + (signed-in, open claim, date) note"
 
 
 def case_fingerprints(golden, fx):
-    """{case_id: short sha256 of the case (inputs, expectations, its fixtures, the turn format)}: a case whose
-    definition changed is a different case. Logged on every run (tag golden_cases) so a baseline is compared on
-    the same cases."""
-    return {c["id"]: hashlib.sha256(json.dumps([c["inputs"], c["expect"], fx["cases"].get(c["id"]), TURN_FORMAT],
-                                               sort_keys=True).encode()).hexdigest()[:12] for c in golden["cases"]}
+    """{case_id: short sha256 of the case (inputs, expectations, its fixtures including the definitions of its own
+    extra tools, the turn format)}: a case whose definition changed is a different case. Logged on every run (tag
+    golden_cases) so a baseline is compared on the same cases."""
+    def own(c):
+        f = fx["cases"].get(c["id"])
+        tools = [fx["extra_tools"][n] for n in (f or {}).get("extra_tools", [])]
+        return [c["inputs"], c["expect"], f, TURN_FORMAT] + ([tools] if tools else [])   # unchanged for the other cases
+    return {c["id"]: hashlib.sha256(json.dumps(own(c), sort_keys=True).encode()).hexdigest()[:12] for c in golden["cases"]}
 
 
 def model_only_passed(run):
