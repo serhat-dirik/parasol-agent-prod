@@ -36,3 +36,19 @@ spec:
       key:
         data: |
 ${COSIGN_PUB}
+---
+# Showcase 7: third-party images run in parasol-secured only as onboarded. The parasol-tool-onboarding pipeline signs a
+# vendor image with the cluster key after its checks pass; the partner bank's own images (even its validly published
+# 1.4.3) carry no Parasol signature, so admission refuses them here.
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: parasol-vendor-tools-must-be-onboarded
+spec:
+  images:
+    - glob: "image-registry.openshift-image-registry.svc:5000/parasol-build/currency-converter**"
+  authorities:
+    - name: parasol-onboarding-key
+      key:
+        data: |
+${COSIGN_PUB}

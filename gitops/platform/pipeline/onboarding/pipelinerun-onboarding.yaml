@@ -1,0 +1,25 @@
+# One onboarding run of a third-party MCP server version (not synced by Argo CD; a run is an event).
+# scripts/tool-rugpull.sh onboard <version> creates it with a fixed name (parasol-tool-onboarding-<server>-<version>).
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: parasol-tool-onboarding-
+  namespace: parasol-build
+spec:
+  pipelineRef: {name: parasol-tool-onboarding}
+  params:
+    - {name: server, value: currency-converter}
+    - {name: version, value: "1.4.2"}
+  timeouts: {pipeline: 30m0s}
+  taskRunTemplate:
+    serviceAccountName: pipeline
+  taskRunSpecs:
+    # the vendor's code runs in this pod (sidecar): no ServiceAccount token in it
+    - pipelineTaskName: tool-check
+      podTemplate: {automountServiceAccountToken: false}
+  workspaces:
+    - name: workspace
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources: {requests: {storage: 1Gi}}

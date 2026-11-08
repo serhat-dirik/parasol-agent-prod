@@ -1,0 +1,17 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: env-secured-tools
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "7"
+spec:
+  project: parasol
+  destination: {server: https://kubernetes.default.svc, namespace: parasol-secured}
+  source:
+    repoURL: ${REPO_URL}
+    targetRevision: ${REPO_REVISION}
+    path: gitops/envs/secured-tools
+  syncPolicy:
+    automated: {prune: true, selfHeal: true}
+    syncOptions: [ServerSideApply=true]

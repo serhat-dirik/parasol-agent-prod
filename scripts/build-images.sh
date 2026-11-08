@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 for i in $(seq 1 45); do oc get bc -n parasol-build parasol-agent >/dev/null 2>&1 && break; echo "$(date +%T) waiting for BuildConfigs from Argo ($i/45)"; sleep 20; done
-want=" ${*:-claims-db policy-docs parasol-agent parasol-portal fraud-check knowledge-base} "
+want=" ${*:-claims-db policy-docs parasol-agent parasol-portal fraud-check knowledge-base currency-converter-1.4.2 currency-converter-1.4.3} "
 build() {  # build <name> <source dir> <timeout s>
   case "$want" in *" $1 "*) timeout "$3" oc start-build "$1" -n parasol-build --from-dir="$2" --follow --wait;; esac
 }
@@ -17,7 +17,12 @@ build parasol-agent apps/parasol-agent 900 &
 build parasol-portal apps/parasol-portal/app 1200 &
 build fraud-check apps/mcp-servers/fraud-check 900 &
 build knowledge-base apps/mcp-servers/knowledge-base 1500 &
+# Showcase 7: the partner bank's two releases (standing in for its registry); latest starts on 1.4.2.
+build currency-converter-1.4.2 apps/mcp-servers/currency-converter 600 &
+build currency-converter-1.4.3 apps/mcp-servers/currency-converter 600 &
 fail=0; for j in $(jobs -p); do wait "$j" || fail=1; done
+oc get istag currency-converter:latest -n parasol-build >/dev/null 2>&1 || \
+  oc tag parasol-build/currency-converter:1.4.2 parasol-build/currency-converter:latest >/dev/null 2>&1 || true
 oc get istag parasol-portal:unsigned -n parasol-build >/dev/null 2>&1 || \
   oc tag parasol-build/parasol-portal:latest parasol-build/parasol-portal:unsigned || fail=1
 for d in $want; do oc rollout restart "deploy/${d/parasol-portal/portal}" -n parasol-free 2>/dev/null || true; done

@@ -126,14 +126,20 @@ scripts/rhoai-enable.sh || warn "OpenShift AI platform objects not complete" scr
 log "6/11 Argo CD app-of-apps"
 # A promoted release lives on the Application, not in Git (spec.source.kustomize.images/replicas, set by
 # the pipeline's promote). Read it first and put it back, so a re-run never rolls the secured portal back.
-PIN=$(oc get application env-secured -n openshift-gitops -o jsonpath='{.spec.source.kustomize.images}' 2>/dev/null || true)
-PIN_REPLICAS=$(oc get application env-secured -n openshift-gitops -o jsonpath='{.spec.source.kustomize.replicas}' 2>/dev/null || true)
+# Same for env-secured-tools (the onboarding pipeline's promoted third-party digest).
+PINS=""   # lines: app|images|replicas
+for app in env-secured env-secured-tools; do
+  i=$(oc get application $app -n openshift-gitops -o jsonpath='{.spec.source.kustomize.images}' 2>/dev/null || true)
+  r=$(oc get application $app -n openshift-gitops -o jsonpath='{.spec.source.kustomize.replicas}' 2>/dev/null || true)
+  [ -n "$i" ] && PINS="$PINS$app|$i|${r:-null}"$'\n'
+done
 kustomize build gitops/bootstrap/apps | envsubst "$APPS_ENV" | oc apply -f -
-if [ -n "$PIN" ]; then
-  oc patch application env-secured -n openshift-gitops --type merge \
-    -p "{\"spec\":{\"source\":{\"kustomize\":{\"images\":$PIN,\"replicas\":${PIN_REPLICAS:-null}}}}}" >/dev/null
-  echo "kept the promoted secured portal pin: $PIN"
-fi
+while IFS='|' read -r app i r; do
+  [ -n "$app" ] || continue
+  oc patch application "$app" -n openshift-gitops --type merge \
+    -p "{\"spec\":{\"source\":{\"kustomize\":{\"images\":$i,\"replicas\":$r}}}}" >/dev/null
+  echo "kept the promoted pin on $app: $i"
+done <<< "$PINS"
 [ $KC_APP = 1 ] && envsubst "$APPS_ENV" < gitops/bootstrap/optional/platform-keycloak-instance.yaml | oc apply -f -
 
 log "7/11 Images (built from this checkout; the secured portal is built by the release pipeline)"
@@ -146,6 +152,7 @@ for i in $(seq 1 60); do curl -skf "https://sso.apps.$CLUSTER_DOMAIN/realms/para
 scripts/portal-oidc-client.sh || warn "portal OIDC client Secret missing; both portals cannot start" scripts/portal-oidc-client.sh
 scripts/portal-users.sh >/dev/null || warn "contractor group/user not ensured" scripts/portal-users.sh
 scripts/knowledge-base-client.sh || warn "knowledge-base client/role missing; search_knowledge is refused at the gateway" scripts/knowledge-base-client.sh
+scripts/currency-converter-client.sh || warn "currency-converter client/role missing; convert_currency is refused at the gateway" scripts/currency-converter-client.sh
 scripts/agent-clients.sh || warn "agent identities (parasol-claims-agent / parasol-fraud-agent) not ensured; secured tool calls fail" scripts/agent-clients.sh
 # before MaaS/Authorino: scripts/authorino-tls.sh checks the gateway with an agent's on-behalf-of token
 
@@ -178,6 +185,8 @@ envsubst '$CLUSTER_DOMAIN' < gitops/platform/mcp-catalog/gen-ai-mcp-servers.yaml
   || warn "Parasol MCP gateway missing from Gen AI studio AI asset endpoints" "./bootstrap.sh"
 oc apply -f gitops/platform/agent-catalog/parasol-agent-catalog.yaml >/dev/null \
   || warn "Parasol agents missing from the OpenShift AI catalog" "oc apply -f gitops/platform/agent-catalog/parasol-agent-catalog.yaml"
+echo "Showcase 7: onboarding the partner bank's exchange-rate service 1.4.2 (scan, tool check, sign, promote; ~3 min)"
+scripts/tool-rugpull.sh onboard 1.4.2 --wait || warn "currency-converter 1.4.2 not onboarded; the secured assistant has no exchange-rate tool" "scripts/tool-rugpull.sh onboard 1.4.2 --wait"
 echo "first release: the production prompt is promoted onto env-secured, the shortened candidate is blocked by the gate (~20-30 min)"
 scripts/pipeline-runs.sh --wait || warn "production release not promoted; the secured portal stays at 0 replicas" "scripts/pipeline-runs.sh --wait"
 scripts/status.sh || true

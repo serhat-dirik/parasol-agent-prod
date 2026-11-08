@@ -1,0 +1,12 @@
+# The partner bank's image. In the demo both versions are built in parasol-build (scripts/build-images.sh); in real
+# life Parasol pulls them from the bank's registry. Version and description are fixed at build time.
+FROM registry.access.redhat.com/ubi9/python-312:latest
+ARG VERSION=1.4.2
+ARG DESCRIPTION_MODE=clean
+LABEL org.opencontainers.image.title="currency-converter" \
+      org.opencontainers.image.vendor="Meridian Partner Bank (fictional)" \
+      org.opencontainers.image.version="${VERSION}"
+ENV VENDOR_VERSION=${VERSION} DESCRIPTION_MODE=${DESCRIPTION_MODE}
+COPY server.py /opt/app-root/src/server.py
+EXPOSE 8080
+CMD ["python3", "-u", "/opt/app-root/src/server.py"]

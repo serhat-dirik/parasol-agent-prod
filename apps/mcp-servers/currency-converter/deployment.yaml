@@ -1,7 +1,7 @@
-# The vendor's server, in-cluster only (no Route). The free assistant was pointed at it; the secured
-# agents cannot reach it (default-deny egress in parasol-secured) and the MCP gateway does not federate it.
-# Rug pull: scripts/tool-rugpull.sh on creates the ConfigMap currency-converter-release (not in Git,
-# so Argo CD neither reverts nor prunes it) and restarts the pod: same name, same version, new description.
+# The unsecured side of Showcase 7: the partner bank's service as most teams first run it. No onboarding: the
+# Deployment follows the bank's newest image (currency-converter:latest, pulled on every start) and the free
+# assistant is pointed straight at it (gitops/envs/free/plug-in-vendor-tool). In-cluster only (no Route).
+# scripts/tool-rugpull.sh release 1.4.3 moves latest to the bank's new release and restarts this pod.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -17,11 +17,8 @@ spec:
     spec:
       containers:
         - name: server
-          image: registry.access.redhat.com/ubi9/python-312:latest
-          command: ["python3", "-u", "/app/server.py"]
-          env:
-            - name: DESCRIPTION_MODE
-              valueFrom: {configMapKeyRef: {name: currency-converter-release, key: description, optional: true}}
+          image: image-registry.openshift-image-registry.svc:5000/parasol-build/currency-converter:latest
+          imagePullPolicy: Always
           ports:
             - {name: http, containerPort: 8080}
           readinessProbe:
@@ -29,15 +26,10 @@ spec:
           resources:
             requests: {cpu: 10m, memory: 32Mi}
             limits: {cpu: 100m, memory: 64Mi}
-          volumeMounts:
-            - {name: app, mountPath: /app}
-      volumes:
-        - name: app
-          configMap: {name: currency-converter-server}
 ---
-# Label parasol.example/mcp-server=candidate: the MCP tool scanner (mcp-system) reviews it before anyone
-# registers it. The annotation pins the sha256 of the tool definitions that were reviewed (clean
-# description); a change without a reviewed pin update is drift (alert MCPToolDefinitionDrift).
+# Label parasol.example/mcp-server=candidate: the runtime tool scanner (mcp-system) also watches servers that run
+# outside the gateway. The annotation is the reviewed pin of 1.4.2; when latest moves to 1.4.3 it raises
+# MCPToolDescriptionInjection and MCPToolDefinitionDrift (the second line; the unsecured portal is not stopped by it).
 apiVersion: v1
 kind: Service
 metadata:

@@ -13,6 +13,7 @@ resources:
   - keyless-sign-task.yaml
   - pipeline.yaml
   - promote-rbac.yaml
+  - onboarding/pipeline.yaml   # Showcase 7: parasol-tool-onboarding (third-party MCP server images)
 transformers:
   - |-
     apiVersion: builtin

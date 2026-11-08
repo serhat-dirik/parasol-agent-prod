@@ -1,0 +1,281 @@
+# Showcase 7: onboarding a third-party MCP server image (the partner bank's exchange-rate service).
+# A vendor version enters parasol-secured only through this pipeline: resolve the version's image digest, scan it,
+# run it in the pipeline and check its tools (tool-check: pin, Parasol tool names, NeMo guardrails, contract calls),
+# then sign it with the cluster key and promote the digest onto the Argo CD Application env-secured-tools.
+# A refused version is neither signed nor promoted, and admission in parasol-secured runs only signed vendor images.
+# In the demo the bank's images are built in parasol-build (currency-converter:1.4.2 / 1.4.3); in real life the
+# resolve step reads a tag the bank published (pulled or imported by an ImageStream).
+# Runs: scripts/tool-rugpull.sh onboard <version> (pipelinerun-onboarding.yaml).
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: tool-resolve
+spec:
+  description: The vendor version's image digest (ImageStreamTag <server>:<version>) and its onboarding policy from Git.
+  params:
+    - {name: server, type: string}
+    - {name: version, type: string}
+    - {name: policy, type: string, default: "source/gitops/envs/secured-tools/onboarding.json"}
+  results:
+    - {name: image, description: the image repository (onboarding.json)}
+    - {name: digest, description: the version's digest}
+    - {name: application, description: the Argo CD Application that runs the server}
+  workspaces:
+    - {name: source}
+  steps:
+    - name: digest
+      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        ref=$(oc get istag "$(params.server):$(params.version)" -o jsonpath='{.image.dockerImageReference}')
+        echo "$(params.server) $(params.version) = $ref"
+        printf "%s" "${ref##*@}" > "$(results.digest.path)"
+    - name: policy
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env python3
+        import json
+        s = json.load(open("$(params.policy)"))["servers"]["$(params.server)"]
+        open("$(results.image.path)", "w").write(s["image"])
+        open("$(results.application.path)", "w").write(s["application"])
+        print("reviewed pins in Git:", s.get("pins"))
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: tool-check
+spec:
+  description: >-
+    Run the vendor image as a sidecar (no ServiceAccount token; NetworkPolicy tool-check-egress: DNS and NeMo only)
+    and check what can be seen before deployment: the version it reports, its tool definitions against the reviewed
+    pin, Parasol tool names in a description, the MCP gateway's NeMo guardrails on every description, and the
+    contract calls (expected answers, results through the same NeMo check). Decision in result gate.
+  params:
+    - {name: image, type: string}
+    - {name: digest, type: string}
+    - {name: server, type: string}
+    - {name: version, type: string}
+    - {name: policy, type: string, default: "source/gitops/envs/secured-tools/onboarding.json"}
+    - {name: nemo-url, type: string, default: "http://parasol-nemo.parasol-secured.svc.cluster.local"}
+  results:
+    - {name: gate, description: passed or refused}
+    - {name: tools-sha256, description: sha256 of the image's tool definitions}
+    - {name: findings, description: number of findings}
+  workspaces:
+    - {name: source}   # writes onboarding-report.json (attested with the signature)
+  sidecars:
+    - name: tool-under-test
+      image: $(params.image)@$(params.digest)
+      resources:
+        requests: {cpu: 10m, memory: 32Mi}
+        limits: {cpu: 200m, memory: 128Mi}
+  steps:
+    - name: check
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      env:
+        - {name: NEMO_URL, value: "$(params.nemo-url)"}
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        python3 -u source/gitops/platform/pipeline/onboarding/tool_check.py --policy "$(params.policy)" \
+          --server "$(params.server)" --version "$(params.version)" --url http://localhost:8080/mcp \
+          --out-dir /tekton/results --report onboarding-report.json
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: sign-tool-image
+spec:
+  description: >-
+    Sign the onboarded vendor digest with the cluster key (the key admission checks in parasol-secured) and attach the
+    onboarding report as an attestation, so the checks travel with the image. Verifies both.
+  params:
+    - {name: image, type: string}
+    - {name: digest, type: string}
+  results:
+    - {name: SIGNED, description: the signed image reference}
+  workspaces:
+    - {name: source}
+  volumes:
+    - {name: keys, secret: {secretName: cosign-signing-key}}
+    - {name: svcca, configMap: {name: openshift-service-ca.crt}}
+  steps:
+    - name: sign
+      image: quay.io/redhat-appstudio/rhtap-task-runner:latest
+      env:
+        - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
+        - {name: COSIGN_PASSWORD, valueFrom: {secretKeyRef: {name: cosign-signing-key, key: cosign.password}}}
+      volumeMounts:
+        - {name: keys, mountPath: /keys, readOnly: true}
+        - {name: svcca, mountPath: /svcca, readOnly: true}
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+        mkdir -p "$HOME/.docker"
+        AUTH=$(printf "pipeline:%s" "$TOKEN" | base64 | tr -d '\n')
+        printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
+        IMG="$(params.image)@$(params.digest)"
+        echo "===== cosign sign $IMG ====="
+        cosign sign --key /keys/cosign.key --tlog-upload=false --allow-insecure-registry --yes "$IMG"
+        echo "===== cosign attest (onboarding report) ====="
+        cosign attest --key /keys/cosign.key --tlog-upload=false --allow-insecure-registry --yes \
+          --type https://parasol.example/tool-onboarding/v1 --predicate "$(workspaces.source.path)/onboarding-report.json" "$IMG"
+        cosign verify --key /keys/cosign.pub --insecure-ignore-tlog=true --allow-insecure-registry "$IMG" >/dev/null && echo "VERIFIED signature $IMG"
+        cosign verify-attestation --key /keys/cosign.pub --insecure-ignore-tlog=true --allow-insecure-registry \
+          --type https://parasol.example/tool-onboarding/v1 "$IMG" >/dev/null && echo "VERIFIED onboarding attestation"
+        printf "%s" "$IMG" > "$(results.SIGNED.path)"
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: promote-tool
+spec:
+  description: Pin the onboarded digest on the server's Argo CD Application (no Git write) and wait until it runs.
+  params:
+    - {name: application, type: string}
+    - {name: application-namespace, type: string, default: openshift-gitops}
+    - {name: server, type: string}
+    - {name: version, type: string}
+    - {name: image, type: string}
+    - {name: digest, type: string}
+    - {name: tools-sha256, type: string}
+  results:
+    - {name: digest, description: the digest pinned on the Application}
+  steps:
+    - name: pin-and-sync
+      image: image-registry.openshift-image-registry.svc:5000/openshift/cli:latest
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        APP="$(params.application)"; NS="$(params.application-namespace)"; IMG="$(params.image)"; DIGEST="$(params.digest)"
+        printf "" > "$(results.digest.path)"
+        echo "Promoting $(params.server) $(params.version) ($IMG@$DIGEST): Application $NS/$APP"
+        oc patch application "$APP" -n "$NS" --type merge -p "{
+          \"metadata\": {\"annotations\": {
+            \"argocd.argoproj.io/refresh\": \"hard\",
+            \"parasol.example/onboarded-server\": \"$(params.server)\",
+            \"parasol.example/onboarded-version\": \"$(params.version)\",
+            \"parasol.example/onboarded-digest\": \"$DIGEST\",
+            \"parasol.example/onboarded-tools-sha256\": \"$(params.tools-sha256)\",
+            \"parasol.example/onboarded-by\": \"$(context.taskRun.name)\"}},
+          \"spec\": {\"source\": {\"kustomize\": {
+            \"images\": [\"$IMG=$IMG@$DIGEST\"],
+            \"replicas\": [{\"name\": \"$(params.server)\", \"count\": 1}]}}}}"
+        # ponytail: two-poll debounce on Synced/Healthy with the digest, as the portal promote; deadline 5 min.
+        ok=0
+        for i in $(seq 1 30); do
+          s=$(oc get application "$APP" -n "$NS" -o jsonpath='{.status.sync.status} {.status.health.status} {.status.summary.images}')
+          echo "$(date +%T) $APP: ${s%% \[*}"
+          case "$s" in
+            "Synced Healthy "*"$DIGEST"*) ok=$((ok+1)); [ $ok -ge 2 ] && break;;
+            *) ok=0;;
+          esac
+          sleep 10
+        done
+        [ $ok -ge 2 ] || { echo "PROMOTION NOT CONVERGED: $APP did not reach Synced/Healthy on $DIGEST in 5 min"; exit 1; }
+        printf "%s" "$DIGEST" > "$(results.digest.path)"
+        echo "PROMOTED: $APP runs $(params.server) $(params.version) = $IMG@$DIGEST"
+---
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: parasol-tool-onboarding
+spec:
+  params:
+    - {name: git-url, type: string, default: "https://github.com/serhat-dirik/parasol-agent-prod.git"}
+    - {name: revision, type: string, default: "main"}
+    - {name: server, type: string, default: "currency-converter"}
+    - {name: version, type: string}
+  results:
+    - {name: VERSION, value: "$(params.version)"}
+    - {name: IMAGE_DIGEST, value: "$(tasks.resolve.results.digest)"}
+    - {name: TOOLS_SHA256, value: "$(tasks.tool-check.results.tools-sha256)"}
+    - {name: FINDINGS, value: "$(tasks.tool-check.results.findings)"}
+    - {name: GATE, value: "$(tasks.tool-check.results.gate)"}
+    - {name: SIGNED, value: "$(tasks.sign.results.SIGNED)"}
+    - {name: PROMOTED_DIGEST, value: "$(tasks.promote.results.digest)"}
+  workspaces:
+    - {name: workspace}
+  tasks:
+    - name: clone-repository
+      taskRef: {name: git-clone}
+      params:
+        - {name: url, value: "$(params.git-url)"}
+        - {name: revision, value: "$(params.revision)"}
+      workspaces:
+        - {name: output, workspace: workspace}
+    - name: resolve
+      runAfter: [clone-repository]
+      taskRef: {name: tool-resolve}
+      params:
+        - {name: server, value: "$(params.server)"}
+        - {name: version, value: "$(params.version)"}
+      workspaces:
+        - {name: source, workspace: workspace}
+    - name: scan-image
+      runAfter: [resolve]
+      taskRef: {name: scan-image}
+      params:
+        - {name: image, value: "$(tasks.resolve.results.image)"}
+        - {name: image-digest, value: "$(tasks.resolve.results.digest)"}
+    - name: tool-check
+      runAfter: [resolve]
+      taskRef: {name: tool-check}
+      params:
+        - {name: image, value: "$(tasks.resolve.results.image)"}
+        - {name: digest, value: "$(tasks.resolve.results.digest)"}
+        - {name: server, value: "$(params.server)"}
+        - {name: version, value: "$(params.version)"}
+      workspaces:
+        - {name: source, workspace: workspace}
+    - name: sign
+      runAfter: [tool-check, scan-image]
+      when:
+        - {input: "$(tasks.tool-check.results.gate)", operator: in, values: ["passed"]}
+      taskRef: {name: sign-tool-image}
+      params:
+        - {name: image, value: "$(tasks.resolve.results.image)"}
+        - {name: digest, value: "$(tasks.resolve.results.digest)"}
+      workspaces:
+        - {name: source, workspace: workspace}
+    - name: promote
+      runAfter: [sign]
+      when:
+        - {input: "$(tasks.tool-check.results.gate)", operator: in, values: ["passed"]}
+      taskRef: {name: promote-tool}
+      params:
+        - {name: application, value: "$(tasks.resolve.results.application)"}
+        - {name: server, value: "$(params.server)"}
+        - {name: version, value: "$(params.version)"}
+        - {name: image, value: "$(tasks.resolve.results.image)"}
+        - {name: digest, value: "$(tasks.resolve.results.digest)"}
+        - {name: tools-sha256, value: "$(tasks.tool-check.results.tools-sha256)"}
+---
+# The vendor code runs inside tool-check's pod: it may reach DNS and NeMo, nothing else (the step's Python and the
+# sidecar share the pod's network). Image pulls are the kubelet's, not the pod's.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: tool-check-egress
+spec:
+  podSelector:
+    matchLabels: {tekton.dev/task: tool-check}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: openshift-dns}
+      ports:
+        - {protocol: UDP, port: 5353}
+        - {protocol: TCP, port: 5353}
+    - to:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: parasol-secured}
+          podSelector:
+            matchLabels: {app: parasol-nemo}
+      ports:
+        - {protocol: TCP, port: 8000}

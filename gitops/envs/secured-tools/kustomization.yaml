@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Showcase 7, the secured side: third-party MCP servers Parasol runs in parasol-secured, each only as the digest the
+# parasol-tool-onboarding pipeline checked, signed and promoted. Its own Argo CD Application (env-secured-tools), so
+# the onboarding promote and the portal release each pin their own image on their own Application.
+# Like the portal, the pin does not live in Git: until the first onboarding these values are placeholders (an
+# all-zero digest on a name outside the admission glob, 0 replicas).
+# onboarding.json is the reviewed onboarding policy the pipeline reads from Git (pins per version, contract tests).
+namespace: parasol-secured
+resources:
+  - currency-converter.yaml
+images:
+  - name: image-registry.openshift-image-registry.svc:5000/parasol-build/currency-converter
+    newName: image-registry.openshift-image-registry.svc:5000/parasol-build/awaiting-first-onboarding   # placeholder
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000                    # placeholder
+replicas:
+  - {name: currency-converter, count: 0}   # placeholder; the onboarding promote sets 1

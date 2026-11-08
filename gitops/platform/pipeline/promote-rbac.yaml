@@ -7,7 +7,7 @@ metadata: {name: parasol-pipeline-promote, namespace: openshift-gitops}
 rules:
   - apiGroups: [argoproj.io]
     resources: [applications]
-    resourceNames: [env-secured]
+    resourceNames: [env-secured, env-secured-tools]
     verbs: [get, patch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1

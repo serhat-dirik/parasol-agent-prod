@@ -388,7 +388,7 @@ public class AgentService {
     static final Pattern FRAUD_RISK = Pattern.compile("FRAUD RISK: ([A-Z]+)");
     static final String SUSPICIOUS_NOTE = "Platform note: this claim's documents were flagged as suspicious (they address "
             + "the assistant, so the platform's guardrails blocked them before the model read them). The fraud check ran "
-            + "on its own: %s Nothing was proposed or paid; a person must review the documents.";
+            + "on its own: %s Nothing was proposed or paid.";
 
     /**
      * Secured: when the MCP gateway blocked a claim's documents as suspicious, the portal (a rule, not the model's

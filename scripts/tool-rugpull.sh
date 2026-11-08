@@ -1,29 +1,28 @@
 #!/usr/bin/env bash
-# Scenario 6, "the poisoned tool": set-up and reset for the vendor MCP server currency-converter
-# (parasol-thirdparty). The demo itself is in the browser (portals, console, Argo CD); this only flips state.
-#   plug        someone plugs the vendor tool into the FREE assistant (Argo CD component plug-in-vendor-tool
-#               on env-free; the free portal restarts). Off by default, so Scenarios 1-5 never see it.
-#   unplug      take it out of the free assistant again
-#   on          the vendor's server starts serving the poisoned description (same name, same version 1.4.2)
-#   off         back to the clean description
-#   register    switch on the governed registration on the secured MCP gateway (Argo CD component
-#               register-currency-converter on env-secured; the reviewed change, no Git write)
-#   unregister  switch it off again
-#   status      what is plugged, registered and served, and the scanner's latest findings
-#   reset       claims data back to seed, then off + unplug + unregister (scripts/reset.sh --keep-allowance)
+# Showcase 7, the partner bank's exchange-rate service (currency-converter): set-up, the bank's release, onboarding.
+# The demo itself is in the browser (portals, console, Argo CD); this only moves state.
+#   release <version>   the bank publishes <version> as latest (oc tag in parasol-build, standing in for the bank's
+#                       registry); the unsecured side (parasol-thirdparty) runs latest and restarts on it
+#   onboard <version> [--wait]   run the onboarding pipeline for <version> (PipelineRun
+#                       parasol-tool-onboarding-currency-converter-<version>); passed = signed and promoted to
+#                       parasol-secured, refused = nothing changes
+#   plug | unplug       the team plugs the bank's service (as published) into the FREE assistant (Argo CD component
+#                       plug-in-vendor-tool on env-free). Off by default, so the other showcases never see it.
+#   bypass-test         try to run the bank's latest image in parasol-secured without onboarding (server-side dry
+#                       run: admission answers, nothing changes)
+#   status              what each side runs, what is plugged, the latest onboarding runs, the scanner's findings
+#   reset               claims data back to seed, latest back to 1.4.2, unplug (scripts/reset.sh --keep-allowance)
 set -euo pipefail
-NS=parasol-thirdparty
+B=parasol-build
 cd "$(dirname "$0")/.."
 
-restart() {
-  oc delete pod -n "$NS" -l app=currency-converter --wait=false >/dev/null
-  sleep 2
-  oc rollout status deploy/currency-converter -n "$NS" --timeout=120s >/dev/null
-  echo " currency-converter: description=$(oc get configmap currency-converter-release -n "$NS" -o jsonpath='{.data.description}' 2>/dev/null || true)"
+latest_version() { oc get istag currency-converter:latest -n $B -o jsonpath='{.image.dockerImageMetadata.Config.Labels.org\.opencontainers\.image\.version}' 2>/dev/null || echo none; }
+secured_version() { oc get application env-secured-tools -n openshift-gitops -o jsonpath='{.metadata.annotations.parasol\.example/onboarded-version}' 2>/dev/null; }
+free_portal_has_tool() {
+  oc get deploy portal -n parasol-free -o jsonpath='{.spec.template.spec.containers[0].env[*].name}' | grep -qw CURRENCY_CONVERTER_MCP_URL
 }
 
-# $1 = Application, $2 = component, $3 = add|remove. Keeps the other components.
-# Prints "changed" when the list changed.
+# $1 = Application, $2 = component, $3 = add|remove. Keeps the other components. Prints "changed" when it changed.
 components() {
   local cur new
   cur=$(oc get application "$1" -n openshift-gitops -o jsonpath='{.spec.source.kustomize.components}')
@@ -38,11 +37,34 @@ print("" if new == cur else json.dumps({"spec": {"source": {"kustomize": {"compo
   echo changed
 }
 
-free_portal_has_tool() {
-  oc get deploy portal -n parasol-free -o jsonpath='{.spec.template.spec.containers[0].env[*].name}' | grep -qw FRAUD_CHECK_MCP_URL
+onboard_status() {  # $1 = run name
+  oc get pipelinerun "$1" -n $B -o jsonpath='{.status.conditions[0].reason}' 2>/dev/null || true
 }
 
 case "${1:-status}" in
+  release)
+    v="${2:?usage: $0 release <version>}"
+    oc get istag "currency-converter:$v" -n $B >/dev/null
+    oc tag "$B/currency-converter:$v" "$B/currency-converter:latest" >/dev/null
+    oc rollout restart deploy/currency-converter -n parasol-thirdparty >/dev/null
+    oc rollout status deploy/currency-converter -n parasol-thirdparty --timeout=180s >/dev/null
+    echo " the bank's latest: $v; the unsecured side (parasol-thirdparty) runs it now"
+    echo " the secured side still runs: $(secured_version || true) (only onboarding changes it)" ;;
+  onboard)
+    v="${2:?usage: $0 onboard <version> [--wait]}"
+    name="parasol-tool-onboarding-currency-converter-${v//./-}"
+    oc delete pipelinerun "$name" -n $B --ignore-not-found >/dev/null
+    sed -e "s/^  generateName: parasol-tool-onboarding-$/  name: $name/" -e "s/value: \"1.4.2\"/value: \"$v\"/" \
+      gitops/platform/pipeline/onboarding/pipelinerun-onboarding.yaml | oc create -f - >/dev/null
+    echo " $name started (onboarding currency-converter $v)"
+    [ "${3:-}" = --wait ] || exit 0
+    for _ in $(seq 1 90); do
+      st=$(onboard_status "$name"); case "$st" in Succeeded|Completed|Failed|PipelineRunTimeout|Cancelled) break;; esac
+      echo "$(date +%T) $name: ${st:-Pending}"; sleep 20
+    done
+    r() { oc get pipelinerun "$name" -n $B -o jsonpath="{.status.results[?(@.name==\"$1\")].value}"; }
+    echo " $name: $(onboard_status "$name")  gate=$(r GATE) findings=$(r FINDINGS) promoted=$(r PROMOTED_DIGEST)"
+    [ "$(r GATE)" = passed ] ;;
   plug|unplug)
     changed=$(components env-free plug-in-vendor-tool "$([ "$1" = plug ] && echo add || echo remove)")
     for _ in $(seq 1 36); do
@@ -50,33 +72,19 @@ case "${1:-status}" in
       sleep 5
     done
     [ -n "$changed" ] && oc rollout status deploy/portal -n parasol-free --timeout=300s >/dev/null
-    echo " free assistant: vendor tool $([ "$1" = plug ] && echo plugged in || echo unplugged)" ;;
-  on)
-    oc create configmap currency-converter-release -n "$NS" --from-literal=description=poisoned \
-      --dry-run=client -o yaml | oc apply -f - >/dev/null
-    restart ;;
-  off)
-    oc delete configmap currency-converter-release -n "$NS" --ignore-not-found >/dev/null
-    restart ;;
-  register)
-    components env-secured register-currency-converter add >/dev/null
-    for _ in $(seq 1 30); do
-      oc get mcpserverregistration currency-converter -n parasol-secured >/dev/null 2>&1 && break; sleep 5
-    done
-    oc get mcpserverregistration -n parasol-secured ;;
-  unregister)
-    components env-secured register-currency-converter remove >/dev/null
-    for _ in $(seq 1 30); do
-      oc get mcpserverregistration currency-converter -n parasol-secured >/dev/null 2>&1 || break; sleep 5
-    done
-    echo " secured gateway: currency-converter not registered" ;;
+    echo " free assistant: the bank's service $([ "$1" = plug ] && echo "plugged in (runs $(latest_version))" || echo unplugged)" ;;
+  bypass-test)
+    ref=$(oc get istag currency-converter:latest -n $B -o jsonpath='{.image.dockerImageReference}')
+    echo " running the bank's latest ($(latest_version), $ref) in parasol-secured without onboarding (dry run):"
+    oc set image deploy/currency-converter -n parasol-secured "server=$ref" --dry-run=server 2>&1 | sed 's/^/   /' || true ;;
   status)
-    echo " description: $(oc get configmap currency-converter-release -n "$NS" -o jsonpath='{.data.description}' 2>/dev/null || echo clean)"
+    echo " the bank's latest: $(latest_version)   unsecured side (parasol-thirdparty) runs latest"
+    echo " secured side (parasol-secured): $(secured_version || true) $(oc get application env-secured-tools -n openshift-gitops -o jsonpath='{.metadata.annotations.parasol\.example/onboarded-digest}' 2>/dev/null)"
     echo " free assistant: $(free_portal_has_tool && echo plugged in || echo unplugged)"
-    echo " env-secured components: $(oc get application env-secured -n openshift-gitops -o jsonpath='{.spec.source.kustomize.components}')"
-    oc get mcpserverregistration -n parasol-secured
-    oc logs -n mcp-system deploy/mcp-tool-scanner --tail=200 | grep -E 'currency-converter' | tail -8 ;;
+    oc get pipelinerun -n $B -l tekton.dev/pipeline=parasol-tool-onboarding \
+      -o custom-columns='ONBOARDING:.metadata.name,STATUS:.status.conditions[0].reason,GATE:.status.results[?(@.name=="GATE")].value,FINDINGS:.status.results[?(@.name=="FINDINGS")].value' 2>/dev/null || true
+    oc logs -n mcp-system deploy/mcp-tool-scanner --tail=200 2>/dev/null | grep -E 'currency-converter' | tail -4 || true ;;
   reset)
     scripts/reset.sh --keep-allowance ;;
-  *) echo "usage: $0 plug|unplug|on|off|register|unregister|status|reset" >&2; exit 2 ;;
+  *) echo "usage: $0 release <v>|onboard <v> [--wait]|plug|unplug|bypass-test|status|reset" >&2; exit 2 ;;
 esac

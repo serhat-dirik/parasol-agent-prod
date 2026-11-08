@@ -92,3 +92,41 @@ spec:
     to: {kind: ImageStreamTag, name: "knowledge-base:latest"}
   resources:
     limits: {cpu: "2", memory: 4Gi}
+---
+# Showcase 7: the partner bank's exchange-rate service, two releases of its image. These builds stand in for the
+# bank's registry: in real life Parasol pulls (or imports with an ImageStream) the bank's published tags.
+# 1.4.2 is clean; 1.4.3 carries a tool description that addresses the assistant. `latest` is what the unsecured
+# side runs (scripts/tool-rugpull.sh release moves it); the secured side runs only what onboarding promoted.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata: {name: currency-converter-1.4.2}
+spec:
+  successfulBuildsHistoryLimit: 1
+  failedBuildsHistoryLimit: 1
+  source: {type: Binary}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+      buildArgs:
+        - {name: VERSION, value: "1.4.2"}
+        - {name: DESCRIPTION_MODE, value: clean}
+  output:
+    to: {kind: ImageStreamTag, name: "currency-converter:1.4.2"}
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata: {name: currency-converter-1.4.3}
+spec:
+  successfulBuildsHistoryLimit: 1
+  failedBuildsHistoryLimit: 1
+  source: {type: Binary}
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Containerfile
+      buildArgs:
+        - {name: VERSION, value: "1.4.3"}
+        - {name: DESCRIPTION_MODE, value: poisoned}
+  output:
+    to: {kind: ImageStreamTag, name: "currency-converter:1.4.3"}

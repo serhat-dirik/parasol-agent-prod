@@ -111,10 +111,12 @@ ceiling parasol-claims-agent parasol-secured/claims-db \
 ceiling parasol-claims-agent parasol-secured/policy-docs tool:search_policies tool:get_policy tool:list_policies
 ceiling parasol-claims-agent parasol-secured/fraud-check tool:fraud_check
 ceiling parasol-claims-agent parasol-secured/knowledge-base tool:search_knowledge
+ceiling parasol-claims-agent parasol-secured/currency-converter tool:convert_currency
 ceiling parasol-fraud-agent parasol-secured/claims-db tool:get_claim tool:get_claim_history tool:get_claim_documents
 ceiling parasol-fraud-agent parasol-secured/policy-docs
 ceiling parasol-fraud-agent parasol-secured/fraud-check
 ceiling parasol-fraud-agent parasol-secured/knowledge-base
+ceiling parasol-fraud-agent parasol-secured/currency-converter
 
 # --- audience mappers: who may exchange whose token ---
 audience() {  # $1 client that issues/receives the token  $2 audience client added to it

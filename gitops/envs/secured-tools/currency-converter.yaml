@@ -1,0 +1,110 @@
+# The partner bank's exchange-rate service as Parasol runs it: the onboarded digest (admission in parasol-secured
+# requires Parasol's signature on parasol-build/currency-converter**, ClusterImagePolicy
+# parasol-vendor-tools-must-be-onboarded), reachable only through the MCP gateway, no egress, no API token.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: currency-converter
+  labels: {app: currency-converter}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: currency-converter}
+  template:
+    metadata:
+      labels: {app: currency-converter}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: server
+          image: image-registry.openshift-image-registry.svc:5000/parasol-build/currency-converter
+          ports:
+            - {name: http, containerPort: 8080}
+          readinessProbe:
+            httpGet: {path: /health, port: 8080}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: [ALL]}
+          resources:
+            requests: {cpu: 10m, memory: 32Mi}
+            limits: {cpu: 100m, memory: 64Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: currency-converter
+  labels: {app: currency-converter}
+spec:
+  selector: {app: currency-converter}
+  ports:
+    - {name: http, port: 8080, targetPort: http}
+---
+# Ingress only from the MCP gateway (and the runtime scanner in mcp-system); no egress at all: a rate service has
+# nothing to call, so whatever its code tries, it reaches nothing (DNS comes from allow-dns).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: currency-converter
+spec:
+  podSelector:
+    matchLabels: {app: currency-converter}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: gateway-system}
+        - namespaceSelector:
+            matchLabels: {kubernetes.io/metadata.name: mcp-system}
+      ports:
+        - {protocol: TCP, port: 8080}
+  egress: []
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: currency-converter
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  parentRefs:
+    - {group: gateway.networking.k8s.io, kind: Gateway, name: mcp-gateway, namespace: gateway-system, sectionName: mcps}
+  hostnames: [currency-converter.mcp.local]
+  rules:
+    - matches:
+        - path: {type: PathPrefix, value: /}
+      backendRefs:
+        - {group: "", kind: Service, name: currency-converter, port: 8080, weight: 1}
+---
+# The registration NAME is the resource_access key in Keycloak: parasol-secured/currency-converter
+# (role tool:convert_currency: adjusters, claims-managers, and the claims agent's ceiling).
+apiVersion: mcp.kuadrant.io/v1
+kind: MCPServerRegistration
+metadata:
+  name: currency-converter
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+    # The reviewed tool definitions of the version in service (1.4.2): the same pin as onboarding.json. The runtime
+    # scanner raises MCPToolDefinitionDrift if the running server ever differs. A new version changes both in one review.
+    parasol.example/tools-sha256: d2912bb84f6eb39d89ca2d5652fe2e60cab893ce4663d754487dc0fcd7903b77
+    # Every result is checked by NeMo, as for claims-db: a third-party result is text from outside.
+    mcp.kuadrant.io/guardrails-config-ids: parasol-tool-results
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: currency-converter
+    namespace: parasol-secured
+---
+# The portal's currency-converter MCP client sends X-Mcp-Virtualserver: parasol-secured/currency-converter.
+apiVersion: mcp.kuadrant.io/v1
+kind: MCPVirtualServer
+metadata:
+  name: currency-converter
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+spec:
+  description: Partner bank exchange rates
+  tools: [convert_currency]

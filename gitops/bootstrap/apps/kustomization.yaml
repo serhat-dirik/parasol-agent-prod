@@ -18,3 +18,4 @@ resources:
   - env-free.yaml
   - env-secured.yaml
   - env-thirdparty.yaml
+  - env-secured-tools.yaml

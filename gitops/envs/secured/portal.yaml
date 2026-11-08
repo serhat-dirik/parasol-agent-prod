@@ -80,6 +80,9 @@ spec:
             # RAG: the knowledge base through the same gateway; retrieval runs as the user
             - name: KNOWLEDGE_BASE_MCP_URL
               valueFrom: {configMapKeyRef: {name: agent-config, key: knowledgeBaseMcpUrl}}
+            # Showcase 7: the partner bank's exchange-rate service, the onboarded digest, through the same gateway
+            - name: CURRENCY_CONVERTER_MCP_URL
+              valueFrom: {configMapKeyRef: {name: agent-config, key: currencyConverterMcpUrl}}
             - name: JAVA_TOOL_OPTIONS
               value: >-
                 -Dquarkus.langchain4j.mcp.claims-db.header.X-Mcp-Virtualserver=parasol-secured/claims-db
@@ -90,6 +93,7 @@ spec:
                 -Dquarkus.langchain4j.mcp.fraud-check.cache-tool-list=false
                 -Dquarkus.langchain4j.mcp.knowledge-base.header.X-Mcp-Virtualserver=parasol-secured/knowledge-base
                 -Dquarkus.langchain4j.mcp.knowledge-base.cache-tool-list=false
+                -Dquarkus.langchain4j.mcp.currency-converter.header.X-Mcp-Virtualserver=parasol-secured/currency-converter
             # Agent identity: the claims assistant acts ON BEHALF OF the logged-in user. Each MCP call carries a
             # token exchanged at Keycloak (sub = the user, azp = parasol-claims-agent, roles = user's AND the
             # agent's ceiling), authenticated by this pod's ServiceAccount token (no client secret).

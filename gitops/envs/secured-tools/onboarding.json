@@ -1,0 +1,18 @@
+{
+  "description": "Reviewed onboarding policy for third-party MCP servers (pipeline parasol-tool-onboarding). pins: the sha256 of the tool definitions (name, description, input schema) a person reviewed, per version; a version with no pin, or a different sha256, is not promoted. contract: calls run against the image inside the pipeline; each result must contain expect and pass the MCP gateway's NeMo check. parasol_tools: tool names of Parasol's own servers; a third-party description that names one is refused.",
+  "servers": {
+    "currency-converter": {
+      "image": "image-registry.openshift-image-registry.svc:5000/parasol-build/currency-converter",
+      "application": "env-secured-tools",
+      "pins": {
+        "1.4.2": "d2912bb84f6eb39d89ca2d5652fe2e60cab893ce4663d754487dc0fcd7903b77"
+      },
+      "contract": [
+        {"tool": "convert_currency", "arguments": {"amount": 4200, "from_currency": "AED", "to_currency": "USD"}, "expect": "1,143.64 USD"},
+        {"tool": "convert_currency", "arguments": {"amount": 100, "from_currency": "EUR", "to_currency": "USD"}, "expect": "108.00 USD"}
+      ]
+    }
+  },
+  "parasol_tools": ["approve_payout", "propose_payout", "get_claim", "get_claim_documents", "get_claim_history",
+    "list_claims_by_status", "fraud_check", "search_knowledge", "search_policies", "get_policy", "list_policies"]
+}

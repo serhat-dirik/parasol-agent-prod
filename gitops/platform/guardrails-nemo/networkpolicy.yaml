@@ -2,7 +2,8 @@
 # MCP gateway's broker-router (mcp-system, label app.kubernetes.io/name=mcp-gateway, set by the MCP gateway
 # controller) and from the guardrails proxy (its own `guardrails` policy already allows egress to pods in this
 # namespace), and from the release eval (parasol-build: the agent-eval task and the seed Job), which runs every
-# claims-db fixture result through the same check the gateway applies. Not from the router: the operator's Route stays unreachable. Egress: the in-cluster MaaS gateway
+# claims-db fixture result through the same check the gateway applies, and the onboarding tool-check (Showcase 7: a
+# vendor's tool descriptions and contract results). Not from the router: the operator's Route stays unreachable. Egress: the in-cluster MaaS gateway
 # (judge calls) and the OTel collector; DNS comes from allow-dns. No internet.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -26,7 +27,7 @@ spec:
             matchLabels: {kubernetes.io/metadata.name: parasol-build}
           podSelector:
             matchExpressions:
-              - {key: tekton.dev/task, operator: In, values: [agent-eval]}
+              - {key: tekton.dev/task, operator: In, values: [agent-eval, tool-check]}
         - namespaceSelector:
             matchLabels: {kubernetes.io/metadata.name: parasol-build}
           podSelector:

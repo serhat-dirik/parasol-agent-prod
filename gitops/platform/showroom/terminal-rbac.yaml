@@ -190,10 +190,10 @@ rules:
   - apiGroups: [argoproj.io]
     resources: [applications]
     verbs: [get, list, watch]
-  # Scenario 6 (scripts/tool-rugpull.sh): plug-in-vendor-tool on env-free, register-currency-converter on env-secured.
+  # Showcase 7 (scripts/tool-rugpull.sh plug|unplug): the plug-in-vendor-tool component on env-free.
   - apiGroups: [argoproj.io]
     resources: [applications]
-    resourceNames: [env-secured, env-free]
+    resourceNames: [env-free]
     verbs: [patch]
 ---
 # reset.sh: restart Limitador to refill the per-user token budgets.
@@ -303,4 +303,38 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata: {name: showroom-terminal-kill-switch, namespace: gateway-system}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-kill-switch}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+# Showcase 7 (scripts/tool-rugpull.sh): the bank's release moves currency-converter:latest (oc tag), onboarding is a
+# PipelineRun, and the bypass test is a server-side dry run (admission answers; nothing changes).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-tool-onboarding, namespace: parasol-build}
+rules:
+  - apiGroups: [image.openshift.io]
+    resources: [imagestreamtags, imagestreams]
+    verbs: [create, update, patch]
+  - apiGroups: [tekton.dev]
+    resources: [pipelineruns]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-tool-onboarding, namespace: parasol-build}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-tool-onboarding}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: showroom-terminal-bypass-test, namespace: parasol-secured}
+rules:
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [currency-converter]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-bypass-test, namespace: parasol-secured}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-bypass-test}
 subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]

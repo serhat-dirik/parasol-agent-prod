@@ -4,6 +4,7 @@
 # DOCUMENTS each of them may read is not decided here but by the groups claim inside the knowledge base
 # (contractors only ever see public documents). Runs before scripts/agent-clients.sh, which puts the tool in
 # the claims agent's ceiling. Mirrored into gitops/platform/keycloak/realm-import.yaml. Prints nothing secret.
+# TOOL_CLIENT/TOOL_ROLE/TOOL_NAME/TOOL_GROUPS reuse it for another tool server (scripts/currency-converter-client.sh).
 set -euo pipefail
 
 # shellcheck source=keycloak-admin.sh
@@ -12,8 +13,10 @@ set -euo pipefail
 DOMAIN="$(oc get ingresses.config/cluster -o jsonpath='{.spec.domain}')"
 KC="https://sso.${DOMAIN}"
 API="$KC/admin/realms/parasol"
-CLIENT=parasol-secured/knowledge-base
-ROLE=tool:search_knowledge
+CLIENT=${TOOL_CLIENT:-parasol-secured/knowledge-base}
+ROLE=${TOOL_ROLE:-tool:search_knowledge}
+NAME=${TOOL_NAME:-knowledge base}
+GROUPS_=${TOOL_GROUPS:-adjusters claims-managers contractors developers}
 
 TOKEN="$(curl -sk "$KC/realms/master/protocol/openid-connect/token" \
   -d grant_type=password -d client_id=admin-cli \
@@ -25,7 +28,7 @@ cuuid() { kc -G "$API/clients" --data-urlencode "clientId=$1" | jq -r '.[0].id /
 
 CU="$(cuuid "$CLIENT")"
 if [ -z "$CU" ]; then
-  kc -X POST "$API/clients" -d "$(jq -nc --arg c "$CLIENT" '{clientId:$c, name:"knowledge base (resource server)",
+  kc -X POST "$API/clients" -d "$(jq -nc --arg c "$CLIENT" --arg n "$NAME" '{clientId:$c, name:($n + " (resource server)"),
     publicClient:true, standardFlowEnabled:false, directAccessGrantsEnabled:false, protocol:"openid-connect",
     enabled:true, fullScopeAllowed:true, defaultClientScopes:["roles"]}')" -o /dev/null -w "client $CLIENT create http=%{http_code}\n"
   CU="$(cuuid "$CLIENT")"
@@ -34,7 +37,7 @@ fi
 kc -o /dev/null -w '%{http_code}' "$API/clients/$CU/roles/$(jq -rn --arg r "$ROLE" '$r|@uri')" | grep -q 200 || \
   kc -X POST "$API/clients/$CU/roles" -d "{\"name\":\"$ROLE\",\"clientRole\":true}" -o /dev/null -w "role $ROLE create http=%{http_code}\n"
 R="$(kc "$API/clients/$CU/roles/$(jq -rn --arg r "$ROLE" '$r|@uri')")"
-for g in adjusters claims-managers contractors developers; do
+for g in $GROUPS_; do
   gid="$(kc -G "$API/groups" --data-urlencode "search=$g" | jq -r --arg g "$g" '.[] | select(.name==$g) | .id' | head -1)"
   [ -n "$gid" ] || { echo "group $g not found"; exit 1; }
   kc -X POST "$API/groups/$gid/role-mappings/clients/$CU" -d "[$R]" -o /dev/null -w "grant $ROLE to $g http=%{http_code}\n"

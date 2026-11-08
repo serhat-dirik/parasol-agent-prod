@@ -61,7 +61,7 @@ public interface ClaimsAssistant {
     }
 
     @SystemMessage("{systemPrompt}")
-    @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base"})
+    @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base", "currency-converter"})
     Result<String> ask(@MemoryId String conversationId,
                        @V("systemPrompt") String systemPrompt,
                        @UserMessage String question);
@@ -74,7 +74,7 @@ public interface ClaimsAssistant {
      * tools, so the model can only PROPOSE here (Read-Propose-Act, A2).
      */
     @SystemMessage("{systemPrompt}")
-    @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base"})
+    @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base", "currency-converter"})
     @ToolBox(ProposePayoutTool.class)
     Result<String> askWithPropose(@MemoryId String conversationId,
                                   @V("systemPrompt") String systemPrompt,
