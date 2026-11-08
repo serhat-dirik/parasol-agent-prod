@@ -25,7 +25,7 @@ Five short steps, one command or one screen each: what runs, the rule, how the p
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh release
+scripts/evidence/showcase5.sh release
 ----
 +
 What you should see: one `sha256:...` digest three times: `PROMOTED_DIGEST` of the release run (next to `EVAL_GATE passed` and `SIGNED_IMAGES` / `KEYLESS_SIGNED_IMAGES` listing `parasol-portal`), `promoted-digest` on `env-secured`, and the running portal's `image`.
@@ -49,7 +49,7 @@ What you should see: the unsigned image refused by the admission webhook, naming
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh models
+scripts/evidence/showcase5.sh models
 ----
 +
 What you should see: the unsecured portal calls the provider's URL directly; the secured portal calls `http://guardrails-proxy.parasol-secured.svc:8080/v1`, the guardrails proxy, which alone reaches MaaS. Then the reachability table: `parasol-free` gets `401` from the public model API and from the MaaS route (it answered, and only wants a key); `parasol-secured` gets `000` for both (the connection never left the namespace).
@@ -185,7 +185,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |`scan-image`, `sign-images`, `keyless-sign`, `verify-enterprise-contract`, `agent-eval`, then `promote`
 
 |What runs is what was released
-|*Terminal*, `evidence.sh release`
+|*Terminal*, `showcase5.sh release`
 |one digest: release run, `env-secured` pin, running pod
 
 |Unsigned images cannot run
@@ -193,7 +193,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |denied by `parasol-portal-must-be-signed`; the promoted digest admitted
 
 |No path to an unapproved model
-|*Terminal*, `evidence.sh models`
+|*Terminal*, `showcase5.sh models`
 |unsecured `401`; secured `000`; secured endpoint = the guardrails proxy
 
 |Egress is an allow-list

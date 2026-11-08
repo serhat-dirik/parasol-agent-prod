@@ -37,7 +37,7 @@ Five short steps, one command or one screen each: the verdict, the rule, how the
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh gate
+scripts/evidence/showcase6.sh gate
 ----
 +
 What you should see:
@@ -65,7 +65,7 @@ What you should see: `agent-eval` green, `promote` *skipped*. The evaluation ran
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh prompt
+scripts/evidence/showcase6.sh prompt
 ----
 +
 What you should see: the same `parasol-claims-assistant-system-prompt/1` and the same sha256 twice (a higher version once a later release gated a change to the production text), then `same sha256: the portal runs exactly the text the gate evaluated.`
@@ -78,7 +78,7 @@ What you should see: the model alone called `approve_payout` in every attempt. I
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh tiers
+scripts/evidence/showcase6.sh tiers
 ----
 +
 What you should see: `parasol-eval`, owned by the pipeline's ServiceAccounts (`system:serviceaccounts:parasol-build`), with the models it may call and its token budget.
@@ -182,7 +182,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |about the same with the platform (0.97 against 0.93 to 0.97); `gate_passed` 1 against 0, `gate_reason` "model-only lost role-authorization" for the candidate
 
 |The gate stopped the candidate
-|*Terminal*, `evidence.sh gate`; *OpenShift Console*, *Pipelines*, the candidate run
+|*Terminal*, `showcase6.sh gate`; *OpenShift Console*, *Pipelines*, the candidate run
 |`gate=failed`, `promote=skipped`; `promote` skipped in the graph
 
 |Each score is tied to a version
@@ -190,7 +190,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |`eval_gate` `passed` / `failed`, `eval_score`
 
 |Production runs the gated prompt
-|*Terminal*, `evidence.sh prompt`; *MLflow*, a `parasol-portal-chat` trace
+|*Terminal*, `showcase6.sh prompt`; *MLflow*, a `parasol-portal-chat` trace
 |the same sha256 pinned and running; tags `prompt` `.../1` and `prompt_sha256`
 |===
 

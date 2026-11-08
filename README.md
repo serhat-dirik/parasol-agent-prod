@@ -165,7 +165,7 @@ Restores the claims, refills the token budgets and switches every kill-switch le
 | `gitops/platform` | Keycloak, the MCP gateway and its policies and guardrails, NeMo Guardrails, OpenShift AI (MaaS, model registry, catalogs), observability (traces, MLflow, AgenticOps, dashboard, alerts), the release pipeline, signing and admission, the Showroom |
 | `gitops/envs` | `free` and `secured` (the two portals), `thirdparty` (the bank's service as published), `secured-tools` (third-party servers as onboarded), `secured-storm` (a load variant) |
 | `showroom/` | The Showroom guide (Antora) |
-| `scripts/` | Install helpers, the demo's terminal steps (`reset.sh`, `kill-switch.sh`, `night-shift.sh`, `evidence.sh`, `incident-report.sh`, ...) and `regression.sh`, every showcase's checks headless |
+| `scripts/` | Install helpers, the demo's terminal steps (`reset.sh`, `kill-switch.sh`, `night-shift.sh`, `evidence/showcase<N>.sh` (each showcase's evidence, printing every command it runs), `incident-report.sh`, ...) and `regression.sh`, every showcase's checks headless |
 
 </details>
 

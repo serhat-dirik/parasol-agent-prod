@@ -111,7 +111,7 @@ Four short steps, one command or one screen each: what was written, the rules, t
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh payouts CLM-1004
+scripts/evidence/showcase2.sh payouts CLM-1004
 ----
 +
 What you should see:
@@ -128,7 +128,7 @@ Say: rebecca asked to process an estimate. Unsecured, the document's note set th
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh guardrails
+scripts/evidence/showcase2.sh guardrails
 ----
 +
 What you should see: two NeMo Guardrails configs in one service (`parasol-nemo`): `parasol-tool-results`, run by the *MCP gateway* on every claims-db tool result (the injection phrases, then a model judge that asks whether the text tells an assistant to approve, pay or settle), and `parasol-chat`, run on the model path (user input and answers). Then the wiring at the gateway (`guardrails-ref: parasol-guardrails`, claims-db `guardrails-config-ids: parasol-tool-results`), the NeMo pods ready, the tool results the gateway blocked, and the tool list: `claims-db: get_claim, list_claims_by_status, get_claim_history, get_claim_documents`, with no `approve_payout` anywhere, plus the portal's own `propose_payout`.

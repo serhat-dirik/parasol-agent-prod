@@ -45,7 +45,7 @@ rules:
   - apiGroups: [trustyai.opendatahub.io]
     resources: [lmevaljobs]
     verbs: [get, list, watch]
-  # evidence.sh tiers / gate (Showcases 4, 5): the MaaS subscriptions and models, read-only
+  # evidence/showcase4.sh tiers, showcase6.sh gate: the MaaS subscriptions and models, read-only
   - apiGroups: [maas.opendatahub.io]
     resources: [maassubscriptions, maasmodelrefs]
     verbs: [get, list, watch]
@@ -152,7 +152,7 @@ metadata: {name: showroom-terminal-view, namespace: models-as-a-service}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter}
 subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
 ---
-# evidence.sh agenticops (Showcase 7): the AgenticOps CronJob's run logs, read-only
+# evidence/showcase4.sh agenticops (Showcases 1, 4): the AgenticOps CronJob's run logs, read-only
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata: {name: showroom-terminal-view, namespace: observability}

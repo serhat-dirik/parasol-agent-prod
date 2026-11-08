@@ -136,7 +136,7 @@ Five short steps, one command or one screen each: what happened, the rule, how t
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh payouts CLM-1001
+scripts/evidence/showcase1.sh payouts CLM-1001
 ----
 +
 What you should see:
@@ -153,7 +153,7 @@ Say: the unsecured tool knew it was rebecca, and paid anyway. Knowing who is ask
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh roles
+scripts/evidence/showcase1.sh roles
 ----
 +
 What you should see: rebecca, group `adjusters`, tools `get_claim, get_claim_documents, get_claim_history, list_claims_by_status`; marcus, group `claims-managers`, the same tools *plus* `approve_payout`.
@@ -164,7 +164,7 @@ Say: this is the whole business rule, an adjuster reads, a manager approves. It 
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh token rebecca
+scripts/evidence/showcase1.sh token rebecca
 ----
 +
 What you should see: the same `user` (`rebecca`), the same `groups` and the same `tools`, but the `client` changes from the login client to `parasol-claims-agent`.
@@ -175,7 +175,7 @@ Say: on every chat turn the agent exchanges her token for one issued to itself, 
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh gateway
+scripts/evidence/showcase1.sh gateway
 ----
 +
 What you should see:
@@ -337,7 +337,7 @@ Each control writes its own record with the same keys. Follow them from the payo
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh release
+scripts/evidence/showcase1.sh release
 ----
 +
 What you should see: the same `sha256:...` digest three times, as `PROMOTED_DIGEST` of the release run (with `EVAL_GATE passed`), as `promoted-digest` on `env-secured`, and as the running portal's `image`; then `policy.rhtas.com/include=true` and the `ClusterImagePolicy` `parasol-portal-must-be-signed` with its two accepted signers. What ran is what was built, evaluated and signed; admission refuses anything else (xref:07-showcase5-supply-chain.adoc[07. Showcase 5: Supply chain, signing and admission]).
@@ -346,14 +346,14 @@ What you should see: the same `sha256:...` digest three times, as `PROMOTED_DIGE
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh prompt
+scripts/evidence/showcase1.sh prompt
 ----
 +
 What you should see: the same version and the same sha256 twice. The same sha256 is the `prompt_sha256` tag on marcus's trace (next step).
 
 . *The conversation, checked.* In the *MLflow* tab, *Traces*, *Filters*, field *User*, value `marcus`: open the chat turn just before the approval.
 +
-What you should see: the conversation itself (question and answer on the `ChatMessage` span, each model call and each tool call with its arguments and result), the tags `prompt` and `prompt_sha256`, the span `tool.propose_payout` (proposed 4200, claimed 4200), and the *Assessments* of the AgenticOps checks (`loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`), logged by the CronJob `agenticops` in project `observability` within 10 minutes of the turn. On the secured side every recorded text is masked with the guardrails' personal-data patterns, so the record holds no more than the model saw. The latest checks, from the *Terminal* tab: `scripts/evidence.sh agenticops`.
+What you should see: the conversation itself (question and answer on the `ChatMessage` span, each model call and each tool call with its arguments and result), the tags `prompt` and `prompt_sha256`, the span `tool.propose_payout` (proposed 4200, claimed 4200), and the *Assessments* of the AgenticOps checks (`loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`), logged by the CronJob `agenticops` in project `observability` within 10 minutes of the turn. On the secured side every recorded text is masked with the guardrails' personal-data patterns, so the record holds no more than the model saw. The latest checks, from the *Terminal* tab: `scripts/evidence/showcase1.sh agenticops`.
 +
 image::s9-mlflow-conversation-assessments.png["MLflow, workspace parasol-secured, marcus's turn that proposed CLM-1001: question and answer on the ChatMessage span, the propose_payout tool spans, and the four AgenticOps assessments (pii_in_tool_args, unknown_tool, excess_steps, loop) all False"]
 
@@ -419,7 +419,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |`tool.propose_payout` 4200; `gateway.authz` OK
 
 |What was live, and was it evaluated
-|*Terminal*, `evidence.sh release` and `evidence.sh prompt`; *Argo CD* `env-secured`; *MLflow*, *Agent versions*
+|*Terminal*, `showcase1.sh release` and `showcase1.sh prompt`; *Argo CD* `env-secured`; *MLflow*, *Agent versions*
 |the same digest in the run, the pin and the pod; the same prompt sha256; `eval_gate` `passed`
 
 |The conversation is on record, and checked

@@ -80,7 +80,7 @@ image::s4-alert-firing.png["Console, Observe > Alerting, ParasolAssistantTokenSp
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh spend
+scripts/evidence/showcase4.sh spend
 ----
 +
 What you should see: `nina.contractor via parasol-claims-agent` with a large token count, and under `refused by the platform` the line `nina.contractor via parasol-claims-agent  usage_limit` with a count. No `usage_limit` line for `rebecca`. Every token is booked to a person and an agent; that is why the platform can stop one account and leave the others alone.
@@ -112,7 +112,7 @@ What you should see: rebecca keeps working normally.
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh tiers
+scripts/evidence/showcase4.sh tiers
 ----
 +
 What you should see: `parasol-contractor`, owned by the group `parasol-contractor`, with a small token budget (for example `20000 tokens / 10m`), next to the staff tier `parasol-stage` with a larger one. The MaaS gateway counts the tokens and answers 429 at the limit, before the model is called. The same in the *OpenShift AI* tab, *Settings*, *MaaS governance*; *Gen AI studio*, *API keys* shows when each tier's key was last used.
@@ -123,7 +123,7 @@ image::s4-maas-subscriptions.png["MaaS governance: the contractor, stage and gua
 
 . Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, then *Filters*, field *Tags*, key `team`, value `contractors`, *Apply filters*.
 +
-What you should see: nina's turns, each with the question and the answer as the trace's *Request* and *Response*. Open one, tab *Assessments*: the AgenticOps checks the CronJob `agenticops` (project `observability`, every 10 minutes) logged on the turn: `loop`, `excess_steps`, `unknown_tool` and `pii_in_tool_args`, each `true` or `false` with its reason, and the tag `team` `contractors`. For a sample of turns the judge model, called through MaaS, adds `goal_achieved` with a one-sentence rationale. The same checks run on every agent turn, not only on alerts. The latest runs, from the *Terminal* tab: `scripts/evidence.sh agenticops`.
+What you should see: nina's turns, each with the question and the answer as the trace's *Request* and *Response*. Open one, tab *Assessments*: the AgenticOps checks the CronJob `agenticops` (project `observability`, every 10 minutes) logged on the turn: `loop`, `excess_steps`, `unknown_tool` and `pii_in_tool_args`, each `true` or `false` with its reason, and the tag `team` `contractors`. For a sample of turns the judge model, called through MaaS, adds `goal_achieved` with a one-sentence rationale. The same checks run on every agent turn, not only on alerts. The latest runs, from the *Terminal* tab: `scripts/evidence/showcase4.sh agenticops`.
 +
 image::s4-mlflow-contractor-turns.png["MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on the tag team = contractors: nina.contractor's night-shift turns with Request and Response, the excess_steps and goal_achieved assessments"]
 
@@ -241,7 +241,7 @@ scripts/kill-switch.sh tier parasol-contractor off
 scripts/kill-switch.sh tier parasol-contractor status
 ----
 
-What you should see: `parasol-contractor OFF (saved owner ...)` and `takes effect within about 60 s`. The subscription's owner groups are set aside, so every key minted for the contractor tier is refused; the staff tier `parasol-stage` is untouched, so rebecca keeps working. In the *Terminal* tab, `scripts/evidence.sh tiers` shows the same subscription as `SWITCHED OFF (kill switch)`. Undo with `scripts/kill-switch.sh tier parasol-contractor on`. `scripts/kill-switch.sh parasol off` does the same for every Parasol subscription at once.
+What you should see: `parasol-contractor OFF (saved owner ...)` and `takes effect within about 60 s`. The subscription's owner groups are set aside, so every key minted for the contractor tier is refused; the staff tier `parasol-stage` is untouched, so rebecca keeps working. In the *Terminal* tab, `scripts/evidence/showcase4.sh tiers` shows the same subscription as `SWITCHED OFF (kill switch)`. Undo with `scripts/kill-switch.sh tier parasol-contractor on`. `scripts/kill-switch.sh parasol off` does the same for every Parasol subscription at once.
 
 ==== Break glass
 
@@ -276,11 +276,11 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |Claim |Where |Point at
 
 |Only the contractor was throttled
-|*Terminal*, `evidence.sh spend`; dashboard row *Token spend*
+|*Terminal*, `showcase4.sh spend`; dashboard row *Token spend*
 |`usage_limit` only for `nina.contractor`; her line above the 5000 line
 
 |Budgets are per tier
-|*Terminal*, `evidence.sh tiers`; *OpenShift AI*, *MaaS governance*
+|*Terminal*, `showcase4.sh tiers`; *OpenShift AI*, *MaaS governance*
 |`parasol-contractor`, separate from the staff tier
 
 |The alert names the person and the agent

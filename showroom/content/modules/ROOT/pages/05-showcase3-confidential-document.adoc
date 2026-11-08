@@ -183,7 +183,7 @@ Five short steps, one command or one screen each: the same search for four peopl
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh search
+scripts/evidence/showcase3.sh search
 ----
 +
 What you should see:
@@ -202,7 +202,7 @@ nina.contractor via the agent   gets: PUB-01 (public), ...                      
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh kb-rule
+scripts/evidence/showcase3.sh kb-rule
 ----
 +
 What you should see: `restricted ... readable by: claims-managers`, `internal ... adjusters, claims-managers`, `public ... adjusters, claims-managers, contractors, developers`; then `rebecca adjusters`, `marcus claims-managers`, `nina.contractor contractors`, read from the token the agent presents on their behalf.
@@ -213,7 +213,7 @@ Say: every passage carries its audience; every token carries the person's groups
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh rls
+scripts/evidence/showcase3.sh rls
 ----
 +
 What you should see: the row-level security policy `chunks_by_group for SELECT to kb_app` (a passage is visible only if its audience overlaps the caller's groups), `rows visible: 0` for the server's own database user without a person's groups, and `get_claim CLM-1029` through the gateway: `Access denied: Rebecca Torres (rebecca) may not read claim CLM-1029 ...` for rebecca, the full record for marcus.
@@ -224,7 +224,7 @@ Say: the last line of defence is PostgreSQL itself: even a bug in the server cou
 +
 [source,bash,role=execute]
 ----
-scripts/evidence.sh kb-audit
+scripts/evidence/showcase3.sh kb-audit
 ----
 +
 What you should see: `RAG withheld doc=RST-01 classification=restricted ... from rebecca via parasol-claims-agent`, `RAG restricted doc=RST-01 accessed by marcus via parasol-claims-agent`, `RAG withheld ... from nina.contractor via parasol-claims-agent` (the searches of step 1 are on record too, like any other), and the claim refusals `tool=get_claim claim=CLM-1029 user=rebecca via parasol-claims-agent reason=assigned to Angela Davis`.
