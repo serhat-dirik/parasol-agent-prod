@@ -1,426 +1,174 @@
 # AI Agents: From localhost to Production
 
-Anyone can stand up an AI agent on a laptop in an afternoon. Running that same agent in
-production — where real people use it, feed it real documents, and will try to abuse it — is
-where the hard, rarely-discussed problems live. This repository is a working demonstration of
-that gap, and of how an OpenShift and OpenShift AI platform help to close it.
+Anyone can stand up an AI agent on a laptop in an afternoon. Running that same agent in production, where real
+people use it, feed it real documents and will try to abuse it, is where the hard problems live. This repository is
+a working demonstration of that gap, and of how an OpenShift and OpenShift AI platform close it.
 
-Everything is declared in Git and synced by Argo CD. The sections below are collapsed; open the
-one you need.
+Everything is declared in Git and synced by Argo CD. The full, step-by-step demo is the **Showroom** guide that the
+install deploys next to the apps; this page is the summary and the install.
 
 <details open>
-<summary><b>Overview</b> — what the demo is</summary>
+<summary><b>Overview</b>: what the demo is</summary>
 
 ### The setup
 
-**Parasol Insurance** has a claims portal for its staff. It has a chat **assistant**: an AI agent that
-can do things, not just talk. It can look up claims, read the documents customers upload, search the
-company's knowledge base and approve payouts. Each of those actions is a **tool** the assistant calls
-(through MCP, the Model Context Protocol). The language model is your choice at setup
-(`AGENT_MODEL`, see *Quick install*), served by any OpenAI-compatible endpoint. The demo was tested
-with `qwen3-14b`; any model that supports tool calling works, but Scenario 2's unsecured side only
-pays out with a model that, like `qwen3-14b`, obeys an instruction hidden in a document.
+**Parasol Insurance** has a claims portal for its staff, with a chat **assistant**: an AI agent that can act, not
+just talk. It looks up claims, reads the documents customers upload, searches the company's knowledge base, runs a
+fraud check and approves payouts. Each action is a **tool** it calls through MCP (the Model Context Protocol). The
+model is chosen at install and served by any OpenAI-compatible endpoint; the demo is tested with `qwen3-14b`.
 
 The *same* portal, with the *same* assistant and the *same* model, runs twice on one cluster:
 
-* **Unsecured portal** (`portal-free`): the assistant as most teams first build it. It calls its tools
-  directly, nobody checks who is asking, and it uses the model with a plain API key.
-* **Secured portal** (`portal`): the same assistant running on the OpenShift and OpenShift AI platform,
-  with controls around it. It acts **on behalf of the signed-in person**, and only with that person's rights.
-  A **gateway** checks every tool call. **Guardrails** inspect what tools return, and what goes into and
-  comes out of the model. Model use has a **budget per tier** (staff, contractor), and every token is
-  attributed to a person and an agent. Every step is **recorded**, and releases are **tested and signed**
-  before they run.
+* **Unsecured portal** (`portal-free`): the assistant as most teams first build it. It calls its tools directly,
+  nobody checks who is asking, and it uses the model with a plain API key.
+* **Secured portal** (`portal`): the same assistant on the platform. It acts **on behalf of the signed-in person**,
+  with that person's rights. A **gateway** checks every tool call, **guardrails** check what tools return and what
+  goes into and out of the model, model use has a **budget per tier**, every step is **recorded**, and releases are
+  **evaluated and signed** before they run.
 
-Because the assistant and the model are identical, any difference you see comes from the platform,
-not from luck with the model.
+Because the assistant and the model are identical, any difference you see comes from the platform.
 
-**The people in the demo:** `rebecca`, a claims adjuster (can read claims and *suggest* payouts);
-`marcus`, a claims manager (can approve payouts); `nina.contractor`, an outsourced night-shift contractor
-(read-only, small usage allowance).
+![The two secured request paths: portal to guardrails proxy to OpenShift AI MaaS to the hosted model; portal to the MCP gateway, with the Keycloak token exchange, to the MCP servers](showroom/content/modules/ROOT/assets/images/arch-request-paths.png)
+
+**The people:** `rebecca`, a claims adjuster (reads claims, can only *propose* a payout); `marcus`, a claims manager
+(approves payouts); `nina.contractor`, a night-shift contractor (read-only, small model budget).
 
 ### The showcases
 
-Each showcase is something a real user, customer or developer might do. You run it on both portals,
-in the browser, and then look at the platform's own records to see what happened and why.
+Seven showcases, each explained step by step in the Showroom: what to click, what you should see, and where the
+platform's own records prove it.
 
-**1. The colleague: can the assistant do something the person isn't allowed to do?**
-Rebecca asks the assistant to approve a payout. She is not allowed to approve payouts.
-* *Unsecured:* the assistant approves it. It never checks who is asking.
-* *Secured:* the approve action isn't even offered to the assistant when Rebecca is the one asking. It
-  can only *suggest* the payout, and a manager (Marcus) has to click Approve. Even a technical attempt
-  to force the approve call past the assistant is refused at the gateway. The claim's history records
-  "Approved by marcus via parasol-claims-agent", naming both the person and the agent.
+**Business showcases**: what a user, a customer or a document can make the assistant do, on both portals.
 
-*What this shows:* identity-aware agents. The assistant acts with the signed-in person's rights,
-enforced by the platform (Keycloak and the MCP gateway), not by the assistant's own judgement, and every
-action is recorded with both the person and the agent. The assistant can't become a back door around
-the company's permissions.
+1. **The colleague.** An adjuster pushes the assistant to approve a payout she has no authority for. Unsecured, it
+   pays. Secured, it can only propose; a manager approves with one click, and the record names the person and the
+   agent. Ends with the audit trail: one payout traced from the claim back to the signed, evaluated release.
+2. **The customer's document.** An uploaded repair estimate is inflated tenfold and hides a note telling the
+   assistant to pay. Unsecured, the model obeys and pays USD 84,000 on a denied claim. Secured, the MCP gateway's
+   guardrails refuse the document before the model reads it; the portal flags it as suspicious, runs the fraud
+   check on its own (REVIEW) and leaves the claim to a person.
+3. **The confidential document.** An adjuster asks about plans affecting her team. Unsecured, the assistant reveals
+   a managers-only HR plan. Secured, retrieval runs as her, so the plan is never retrieved; the database enforces the
+   same rule a second time.
 
-**2. The customer's document: can a document give the assistant orders?**
-A customer uploads a repair estimate to a claim that was denied. The estimate is inflated tenfold
-(USD 84,000 against a claim of 8,400) and contains hidden text, invisible on screen, telling the
-assistant to approve the full amount. This kind of attack is called *prompt injection*.
-* *Unsecured:* the model follows the hidden instruction and pays 84,000 on a denied claim.
-* *Secured:* the MCP gateway has every claims tool result checked by the guardrails service before the
-  assistant sees it. The check finds the instruction and the gateway refuses the document: a red chip
-  in the chat, no payout suggested, nothing paid, and a gateway log line naming the rule that fired.
-  Even a model that did read the note could only suggest a payout (Scenario 1 shows that). The point:
-  the platform stops it, not the model.
+**Operations**: how an operator watches agents and stops them.
 
-*What this shows:* you can't rely on a model to ignore instructions hidden in the data it reads. What
-keeps it safe is checking that data before the agent reads it, and limiting what the agent is *able* to
-do (least privilege, a person approves anything that writes). Then even a fooled model can't do harm.
+4. **The night shift.** A contractor's account is scripted to drain the model budget at 3 a.m. Secured, off-topic
+   requests cost nothing, only that tier is throttled, an alert names the person and the agent, and a kill switch
+   acts in layers, from one user to every tool and model call on the cluster.
 
-**3. The confidential document: can the assistant show people data they shouldn't see?**
-The assistant can search Parasol's internal documents. Some are for everyone, some for staff only,
-and some, such as an HR restructuring plan, are for managers only. Rebecca asks whether there are plans
-affecting adjuster roles.
-* *Unsecured:* the assistant finds the confidential plan and tells her about it.
-* *Secured:* the search runs *as Rebecca*, so manager-only documents are never retrieved and never
-  reach the model. Typing "I'm a claims manager" changes nothing, because her access comes from her
-  login, not from what she types. The database enforces the same rule a second time. Marcus asks the
-  same question and gets the plan. The same applies to claim records: an adjuster sees only the claims
-  assigned to her.
+**Agent delivery lifecycle**: how an agent, its prompt and its tools reach production.
 
-*What this shows:* access control for AI must happen where data is fetched, based on who is asking,
-not in the prompt. Then giving an assistant access to company knowledge (RAG) doesn't turn it into a
-data leak, and nobody can talk their way into documents they aren't entitled to.
-
-**4. The night shift: can one account run up the bill, and can operators stop it?**
-At 3 a.m. a contractor's account, or a stolen login for it, is used by a script that sends
-long requests in a loop. Every request costs model usage, which costs money.
-* *Unsecured:* everything runs on one shared key, so the script keeps spending all night and nobody notices.
-* *Secured:* off-topic requests are refused before they reach the model, so they cost nothing. Each
-  tier (staff, contractor) has its own usage allowance, so when the contractors' runs out Nina's
-  requests are refused with a "usage limit reached" message, while Rebecca keeps working normally. An
-  alert names the account and the agent. The operator then has a kill switch in layers, each one
-  command: disable the user, disable one agent in Keycloak (the assistant answers "disabled by an
-  operator" while other agents keep working), switch off one tier, switch off all of Parasol's model
-  access, or, as break glass, scale the MCP gateway and the cluster's MaaS gateway to zero.
-
-*What this shows:* governed model access. OpenShift AI Models-as-a-Service enforces a budget per tier;
-the portal's metrics and the traces say which person and which agent spent it. Abuse raises an alert,
-and operators can contain it in seconds, from one account to everything, without taking systems down.
-
-**5. The prompt change: does a change to the assistant's instructions get tested before it goes live?**
-The assistant's behaviour is shaped by its *system prompt*, its standing instructions. A developer
-shortens it. Before any release, the pipeline runs a fixed test set of 25 conversations (the
-*golden set*), with the model answering live, and a second model grading the answers.
-* The current production prompt passes; the shortened one fails (it lets a few abuses through), so
-  it is never released.
-* The test reports two scores: the model on its own, and the model with the platform's controls.
-  That shows in numbers how much the platform adds. A release must pass with the controls, *and* must
-  not make the model on its own worse than the last release.
-* Only a released, tested prompt ever runs: editing the prompt file changes nothing until it goes
-  through this pipeline, and every conversation records exactly which prompt version answered it.
-
-*What this shows:* the value of a proper release pipeline for AI. A prompt is code: it is versioned,
-tested automatically against known abuse cases, and released only if it passes, alongside a signed
-image. Nothing untested reaches production, regressions are caught before users see them, and you
-can always prove what was running.
-
-**6. The poisoned tool: what if a tool from outside is malicious?**
-Parasol adds a handy third-party currency-conversion tool. Later its description changes, with the
-same version number, and now quietly tells the assistant to approve payouts.
-* *Unsecured:* the assistant follows the tool's description and approves a payout.
-* *Secured:* the assistant can only use tools that were reviewed and registered on the platform, so the
-  vendor tool is invisible to it. A scanner checks every tool description for hidden instructions and
-  raises an alert when a registered tool's description changes.
-
-*What this shows:* tools are part of the AI supply chain, like software libraries. Only reviewed and
-registered tools are allowed, and they're continuously checked for hidden instructions and silent
-changes. A compromised third-party tool can't quietly take over the assistant.
-
-### Two more showcases
-
-* **The incident:** one payout, reconstructed after the fact from the platform's own records: who asked,
-  through which agent, which prompt and model version answered, what the guardrails saw, and which
-  signed software release was running (`scripts/incident-report.sh <claim>` prints it in one go).
-  *What this shows:* full traceability. When something goes wrong, the platform can answer "who did
-  what, through which agent, and why" from records, not guesswork, which is what auditors and incident
-  responders need.
-* **Supply chain:** the assistant's software is built, signed and tested before it may run (unsigned
-  images are refused), and it can only reach approved models through the platform: a secured
-  workload cannot call an outside AI service directly.
-  *What this shows:* only trusted software and approved models run in production, which closes off
-  both tampered images and "shadow AI" (teams quietly using unapproved AI services).
-
-On the unsecured portal, the first, second, third, fourth and sixth showcases cause real harm. On the secured portal a different
-control stops each one, and the platform's consoles (Keycloak, the OpenShift AI dashboard, MLflow, the
-OpenShift console, Argo CD) show what happened, who did it, and through which agent. The scripts in this
-repository only set the demo up, play the abusive user and reset between runs; the demo itself happens
-in the browser.
-
-</details>
-
-<details>
-<summary><b>What's here</b> — repository layout</summary>
-
-| Path | What |
-|---|---|
-| `apps/parasol-portal` | The Parasol claims portal (Quarkus + React/PatternFly, Keycloak login); its chat assistant is the tool-using agent — tool-call chips, Documents tab, Read-Propose-Act approval, guardrail banners, per-tier model keys, a dashboard |
-| `apps/parasol-agent` | The same agent as a headless REST service, used by the test and load scripts (not what the audience sees) |
-| `apps/mcp-servers/claims-db` | MCP server over the claims dataset (CLM-1001…1030) with the `approve_payout` write tool, `get_claim_documents` (the seeded customer document on CLM-1004), and a small REST API the portal reads |
-| `apps/mcp-servers/policy-docs` | MCP server over the Parasol policy documents |
-| `gitops/bootstrap` | Operator subscriptions and the Argo CD app-of-apps |
-| `gitops/platform` | Keycloak realm, MCP gateway + AuthPolicies + its guardrails wiring, NeMo Guardrails (`guardrails-nemo`) and the model-path glue (`guardrails`), OpenShift AI MaaS governance, model registry, MCP and agent catalogs, observability (OTel → Tempo and MLflow, AgenticOps checks), and the secure build pipeline with image signing and admission control |
-| `gitops/envs/free`, `gitops/envs/secured`, `gitops/envs/secured-storm` | The two environments and the "v3" storm variant |
-| `scripts/` | bootstrap helpers, the test/load harness, and the reset — see **Demo scripts** |
+5. **Supply chain, signing and admission.** The release pipeline builds, scans and signs the portal; admission runs
+   only signed images, and secured workloads reach only approved models.
+6. **The evaluation gate.** A shortened system prompt scores about as well as production with the platform on, but
+   the release's evaluation sees what its model alone lost and refuses it. Every release is recorded as an MLflow
+   agent version.
+7. **Third-party tools.** A vendor tool's description changes without a new version and asks the assistant to pay.
+   Unsecured, it does. Secured, only reviewed, registered tools reach the agent, and a scanner pins each description
+   and alerts on a silent change.
 
 </details>
 
 <details>
 <summary><b>Quick install</b></summary>
 
-Prerequisites: a fresh OpenShift 4.22 cluster (3 workers, 16 vCPU / 64 GB recommended, no GPU; OpenShift
-AI not needed), `oc` logged in as cluster-admin (token login), `kustomize`, `envsubst`, `openssl`, `curl`,
-`jq` and `python3` with PyYAML. Every prerequisite (OpenShift GitOps, each operator, a Keycloak instance,
-the OpenShift AI DataScienceCluster) is detected first and installed only if missing.
+**1. What you need**
 
-**Connectivity Link 1.5 is required** (channel `stable-1.5`): its GA MCP gateway (`mcp.kuadrant.io/v1`) is
-what runs the guardrails checks on tool calls. `bootstrap.sh` installs it when missing. A cluster that
-already runs Connectivity Link 1.4 has no upgrade path to 1.5 in OLM: delete the 1.4 Subscription and CSV
-(and any separate tech-preview MCP gateway operator), then re-run `./bootstrap.sh`. Tested with OpenShift
-AI 3.5.2; there is no published support statement yet for OpenShift AI 3.5 with Connectivity Link 1.5.
+* A fresh OpenShift 4.22 cluster (3 workers, 16 vCPU / 64 GB recommended, no GPU) and a cluster-admin login.
+  Everything else (OpenShift GitOps, the operators, Keycloak, OpenShift AI, Connectivity Link 1.5) is detected and
+  installed only if missing.
+* On your workstation: `oc`, `kustomize`, `envsubst`, `openssl`, `curl`, `jq` and `python3` with PyYAML.
+* Three models behind any OpenAI-compatible endpoint (a base URL ending in `/v1` and an API key each; one endpoint
+  for all three is fine):
 
-The models are hosted elsewhere; the cluster needs no GPU. Any **OpenAI-compatible endpoint** works (a
-base URL ending in `/v1` and an API key), and each role can come from a **different provider**:
+  | Role | Tested with | Must support |
+  |---|---|---|
+  | Agent (both portals) | `qwen3-14b` | structured tool calls; for Showcase 2's unsecured side to pay, it must also obey a note hidden in a document |
+  | Guard tier | `granite-guardian-3-1-8b` | chat completions with `logprobs` |
+  | Evaluation judge | `gpt-oss-120b` | strict instruction following (it returns a scoring JSON) |
 
-| Role | Tested with | Endpoint | Key | Must support |
-|---|---|---|---|---|
-| Agent, both portals | `qwen3-14b` (set another with `AGENT_MODEL`) | `AGENT_ENDPOINT` | `AGENT_KEY` | structured tool calls; for Scenario 2's unsecured side to pay out, it must also obey an instruction hidden in a document |
-| Guard tier | `granite-guardian-3-1-8b` (set another with `GUARD_MODEL`) | `GUARD_ENDPOINT` | `GUARD_KEY` | chat completions with `logprobs`. Registered in MaaS and the model registry, not on the live request path (see *Architecture*) |
-| Evaluation judge | `gpt-oss-120b` (set another with `JUDGE_MODEL`) | `JUDGE_ENDPOINT` | `JUDGE_KEY` | strong instruction following: it must return the scoring JSON it is asked for (Scenario 5, AgenticOps) |
-| Third detector (optional) | `Llama-Guard-3-1B` | `LLAMAGUARD_ENDPOINT` | `LLAMAGUARD_KEY` | chat completions with `logprobs` |
-
-The guardrails' injection judge on tool results is `qwen3-14b` through MaaS (set in
-`gitops/platform/guardrails-nemo/nemoguardrails.yaml`, `JUDGE_MODEL`; empty means the phrase rules only).
-Hugging Face Inference Providers are an OpenAI-compatible source too, but **untested** here (they need a
-Hugging Face token).
+**2. Get the repository and log in**
 
 ```bash
-export AGENT_ENDPOINT=https://<agent-provider>/v1   AGENT_KEY=<key>
-export GUARD_ENDPOINT=https://<guard-provider>/v1   GUARD_KEY=<key>
-export JUDGE_ENDPOINT=https://<judge-provider>/v1   JUDGE_KEY=<key>
-# optional
-export LLAMAGUARD_ENDPOINT=https://<provider>/v1    LLAMAGUARD_KEY=<key>
-export AGENT_MODEL=<model-id> GUARD_MODEL=<model-id> JUDGE_MODEL=<model-id>   # defaults: the tested models above
+git clone https://github.com/serhat-dirik/parasol-agent-prod.git
+cd parasol-agent-prod
+oc login --token=<token> --server=https://api.<cluster-domain>:6443
+```
+
+**3. Fill in the settings**
+
+```bash
+cp install.env.example install.env
+```
+
+Edit `install.env` (git-ignored; it holds your keys): the three required pairs `AGENT_ENDPOINT`/`AGENT_KEY`,
+`GUARD_ENDPOINT`/`GUARD_KEY`, `JUDGE_ENDPOINT`/`JUDGE_KEY`. The optional settings (other model ids, your fork as
+`REPO_URL`, the OpenShift AI version) are listed in the file with their defaults.
+
+**4. Install**
+
+```bash
 ./bootstrap.sh
 ```
 
-The demo was tested with the models in the table; those are the defaults. To use others, set `AGENT_MODEL`,
-`GUARD_MODEL` and `JUDGE_MODEL` to the upstream model ids before `./bootstrap.sh` (and before
-`source scripts/load-credentials.sh`, which then picks each role's endpoint and key for that model). Each
-model's OpenShift AI MaaS objects are named after it (lower case, other characters as `-`).
+It checks the settings before it touches the cluster, then installs what is missing, creates the secrets (none
+ever in Git), builds the images in-cluster, applies the Argo CD applications, sets up the supply chain, seeds the
+demo data and runs the first release (the production prompt is evaluated, signed and promoted; the shortened
+candidate is refused). About **75 to 120 minutes** on a bare cluster. It is idempotent: if a step prints a WARN,
+it names the command to re-run; re-running `./bootstrap.sh` is always safe.
 
-If all models sit behind one endpoint, set the same URL for each. `bootstrap.sh` checks the three
-required pairs before it touches the cluster and names any that are missing.
+**5. Check it**
 
-`bootstrap.sh` is idempotent (re-run it after any failure; every WARN names the command to re-run). It
-installs what is missing, creates the secrets (none ever in Git), builds the images in-cluster, applies the
-Argo CD app-of-apps, sets up the supply chain (SPIRE, Trusted Artifact Signer, cosign key, admission) and
-seeds the demo data (MLflow golden-set runs, answers generated live: the production prompt passing the gate, 25 of 25
-with the platform controls on, and the shortened candidate prompt blocked below the 0.95 gate, prompt and model registry versions, the EvalHub run; the MCP and agent catalog entries), then runs
-the first release: the production prompt is signed, passes the gate and is promoted (pinned on the Argo CD
-Application `env-secured`; nothing is written to Git), the candidate (shortened prompt) is blocked by the
-gate. No manual step. On a bare cluster it takes **75 to 120 minutes**. Argo CD only reads
-the repo (`REPO_URL`, any remote it can reach).
+```bash
+scripts/status.sh
+```
 
-Verify the install with `scripts/status.sh` (all Argo apps Synced/Healthy, both portals up), or Argo CD
-directly. Then open the portals in a browser — **this is the demo**:
+All Argo CD applications Synced and Healthy, both portals up.
 
-* uncontrolled: `https://portal-free.apps.<cluster-domain>`
-* secured: `https://portal.apps.<cluster-domain>`
+**6. Open the Showroom**
 
-**Demo users** — Keycloak realm `parasol` (passwords equal the usernames; they exist only for this demo):
+`https://showroom-parasol-showroom.apps.<cluster-domain>`: sign in with your OpenShift account. The guide is on the
+left, the live apps on the right (both portals, Keycloak, OpenShift AI, the console, Argo CD, MLflow and a terminal).
+Start with *Before you start*.
 
-* `rebecca` — claims adjuster (read-only tools; can propose but not approve)
-* `marcus` — claims manager (may approve payouts)
-* `nina.contractor` — Nina Patel, night-shift contractor (read-only claim tools; no payout, no fraud check;
-  the contractor tier's small token budget)
-* `dev` — developer
-* `admin` — administrator of realm `parasol` only, for the Keycloak console (`https://sso.apps.<cluster-domain>/admin/parasol/console/`)
+Demo users, realm `parasol` (passwords equal the user names; they exist only for this demo): `rebecca`, `marcus`,
+`nina.contractor`, `dev`, and `admin` for the realm's Keycloak console
+(`https://sso.apps.<cluster-domain>/admin/parasol/console/`).
 
-</details>
+**7. Between runs**
 
-<details>
-<summary><b>Demo UI</b></summary>
+```bash
+scripts/reset.sh
+```
 
-The demo runs from the **Showroom** at `https://showroom-parasol-showroom.apps.<cluster-domain>`: a
-step-by-step guide on the left, the live apps on the right — both portals, Keycloak, OpenShift AI,
-the OpenShift console, Argo CD, MLflow, and a Terminal with `oc` and this repo — so the whole demo
-happens in one browser window. It walks the six scenarios (the colleague, the customer's document,
-the confidential document, the night shift, the evaluation gate, the poisoned tool), the incident
-reconstruction and the supply chain, says which tab each step uses, where to
-look on the platform, which log commands confirm each beat, and how to reset and troubleshoot.
+Restores the claims, refills the token budgets and switches every kill-switch level back on.
 
-Sign in with your OpenShift account when the Showroom opens; the framed consoles reuse that session.
-`scripts/showroom-framing.sh` (run by `bootstrap.sh`) lets only the Showroom frame the consoles.
+> **Connectivity Link 1.5 is required** (its MCP gateway runs the guardrails check on tool results). A cluster that
+> already runs Connectivity Link 1.4 has no upgrade path to 1.5 in OLM: delete the 1.4 Subscription and CSV, then
+> re-run `./bootstrap.sh`. Tested with OpenShift AI 3.5.2; there is no published support statement yet for OpenShift
+> AI 3.5 with Connectivity Link 1.5.
 
 </details>
 
 <details>
-<summary><b>Demo scripts</b> — the operator's runbook</summary>
+<summary><b>What's here</b>: repository layout</summary>
 
-The demo itself happens in the browser (see **Demo UI**); these are the terminal steps behind it.
-First: export the model variables from **Quick install** (`AGENT_*`, `GUARD_*`, `JUDGE_*`).
-
-Before the demo:
-1. `scripts/probe-maas.sh` — confirm the agent model emits structured tool calls (pass other model ids as arguments to compare).
-2. `scripts/status.sh` — confirm all Argo apps are Synced/Healthy and both portals are up.
-
-The scripts behind each scenario (the browser steps are in **Demo UI**):
-1. **Reset** — `scripts/reset.sh` re-seeds both portals' claims, refills the tier token budgets and turns every kill-switch level back on.
-   It runs as the first step of Scenario 1, and again before Scenario 4's secured run.
-2. **Scenario 1 — the colleague** — driven in the browser. Headless equivalent:
-   - `scripts/abuse.sh free` — rebecca approves;
-   - `scripts/abuse.sh secured rebecca` — filtered tool list + 403;
-   - `scripts/abuse.sh secured marcus 1` — the manager succeeds.
-3. **Scenario 2 — the customer's document** — driven in the browser. Headless equivalent:
-   - `scripts/abuse-doc.sh both` — the unsecured portal pays USD 84,000; the secured portal writes nothing;
-   - `scripts/regression.sh S2` — also checks that the MCP gateway refused the document
-     (`guardrails blocked tool response` in its log) and that an ordinary claim's documents pass.
-4. **Scenario 3 — the confidential document** — `scripts/knowledge-base-demo.sh` asks the scenario's
-   questions on both portals as rebecca, marcus and nina.contractor; `scripts/knowledge-base-ingest.sh`
-   (re)loads the knowledge base (idempotent).
-5. **Scenario 4 — the night shift** — `scripts/night-shift.sh 40` logs in as `nina.contractor` and loops
-   requests; run it against each portal as in Demo UI. The kill switch, in layers:
-   `scripts/kill-switch.sh user <name>|agent <claims-agent|fraud-agent>|tier <subscription>|parasol|break-glass off|on|status`
-   (`scripts/kill-switch.sh status` shows every level).
-6. **Scenario 5 — the evaluation gate** — `scripts/eval-goldenset.sh` runs the golden set (secured
-   blocked vs unsecured allowed, PASS 3/3); the dashboard LMEval run is
-   `oc apply -f gitops/platform/eval/lmevaljob-agent-model.yaml` then `oc get lmevaljob -n parasol-eval -w`;
-   the golden set is generated live per release (3 attempts per case, majority; scored with the platform on for the gate and model alone for comparison): production 25 of 25 with the platform (21 alone), shortened candidate 22 or 23 of 25 (below the 0.95 gate, and below production's model-alone score), in MLflow `parasol-agent-eval`.
-7. **Scenario 6 — the poisoned tool** — `scripts/tool-rugpull.sh plug|on|off|register|unregister|status`
-   plugs the vendor `currency-converter` (project `parasol-thirdparty`) into the unsecured portal, flips its
-   tool description (same version), and switches the governed registration on the secured gateway;
-   the tool scanner (`mcp-system/mcp-tool-scanner`) flags and pins descriptions. `scripts/reset.sh` undoes all of it.
-8. **The incident** — `scripts/incident-report.sh CLM-1001` (after marcus approved CLM-1001) prints the
-   joined evidence read-only: timeline and PAYOUT line, approval and proposal traces, TOKEN_EXCHANGE events,
-   gateway refusals, the release on `env-secured`, the registry version and the signed digest.
-9. **Layer 6 — supply chain** — `scripts/signing-demo.sh` shows admission refusing an unsigned image
-   and admitting the signed one.
-
-Other helpers:
-- `scripts/regression.sh [S1..S6 INC]` — every scenario's checks headless, driven like the browser (persona login, chat over the portal WebSocket with the claim open, a fresh conversation per check; `scripts/portal-chat.py`), one PASS/FAIL line with evidence each, demo reset at the end, non-zero exit on any FAIL. Workstation, cluster administrator.
-- `scripts/token.sh <user>` — print a demo user's access token (headless login through the public client `parasol-demo-cli`; the portal client is browser-only).
-- `scripts/agent-token.sh <user> [fraud-agent]` — the token an agent presents for that user at the MCP gateway
-  (also what to paste into the Gen AI studio playground to list the Parasol tools).
-- `scripts/evidence.sh <command>` — the read-only evidence views of Showcases 1 to 8 (`scripts/evidence.sh` alone lists them).
-- Bootstrap helpers, called by `bootstrap.sh` (each idempotent, re-runnable alone): `ensure-operators.py`,
-  `rhoai-enable.sh`, `build-images.sh`, `gen-trusted-keys.sh`, `authorino-tls.sh`, `maas-key.sh`,
-  `maas-portal-keys.sh`, `portal-oidc-client.sh`, `portal-users.sh`,
-  `supply-chain.sh` (SPIRE, Trusted Artifact Signer, cosign key, admission), `seed-demo.sh` (MLflow,
-  prompt/model registry, `eval-seed.sh`, `evalhub-run.sh`, `pipeline-runs.sh`).
-- MaaS catalogue (three external models: agent, guard, judge; per-tier keys): `maas-model-keys.sh` puts
-  each per-model MaaS key into its own cluster Secret; `maas-ext-model-secrets.sh` creates the upstream
-  per-model key Secrets (and the required `inference.llm-d.ai/ipp-managed=true` label); `maas-tier-keys.sh`
-  mints the prod + guard tier keys (the guard-tier key is NeMo's judge key, Secret `parasol-nemo-judge`);
-  `maas-eval-key.sh` mints the judge keys on subscription `parasol-eval`; `maas-extproc-reload.sh` reloads
-  the ai-gateway ext-procs for the "model registered before the ext-proc started" case.
+| Path | What |
+|---|---|
+| `apps/parasol-portal` | The claims portal (Quarkus, React/PatternFly, Keycloak login) and its chat assistant (LangChain4j): tool chips, proposal card, guardrail banners, per-tier model keys |
+| `apps/parasol-agent` | The same agent as a headless REST service, used by the test and load scripts |
+| `apps/mcp-servers/*` | MCP servers: `claims-db` (claims, documents, the one write tool `approve_payout`), `policy-docs`, `knowledge-base` (retrieval as the user), `fraud-check` (a second agent), `currency-converter` (the vendor tool of Showcase 7) |
+| `gitops/bootstrap` | Operator subscriptions and the Argo CD applications (applied by `bootstrap.sh`) |
+| `gitops/platform` | Keycloak, the MCP gateway and its policies and guardrails, NeMo Guardrails, OpenShift AI (MaaS, model registry, catalogs), observability (traces, MLflow, AgenticOps, dashboard, alerts), the release pipeline, signing and admission, the Showroom |
+| `gitops/envs` | `free` and `secured` (the two portals), `thirdparty` (the vendor's server), `secured-storm` (a load variant) |
+| `showroom/` | The Showroom guide (Antora) |
+| `scripts/` | Install helpers, the demo's terminal steps (`reset.sh`, `kill-switch.sh`, `night-shift.sh`, `evidence.sh`, `incident-report.sh`, ...) and `regression.sh`, every showcase's checks headless |
 
 </details>
 
 <details>
-<summary><b>Architecture</b> — how the secured side stops each scenario</summary>
-
-The secured portal is a stack of layers, each a distinct Red Hat component declared in Git. The point
-of the stack is that a *different* layer catches each scenario:
-
-* **Scenario 1 (the colleague)** → **identity + tool authorization.** The assistant acts on behalf of
-  the Keycloak user: every tool call carries a token the agent (`parasol-claims-agent`, authenticated by
-  its ServiceAccount token, no secret) exchanged for the user's, holding only the roles that are both the
-  user's and inside the agent's ceiling (Layer 2); the MCP gateway admits only approved agents' tokens, filters `tools/list` per identity and
-  enforces a per-tool AuthPolicy, so rebecca never sees `approve_payout` and a forced `tools/call` is a
-  403 (Layer 3). Even a permitted write happens only on a claims-manager's button click (Read-Propose-Act).
-* **Scenario 2 (the customer's document)** → **guardrails at the MCP gateway.** The gateway sends every
-  `claims-db` tool result to NeMo Guardrails (config `parasol-tool-results`: the known injection phrases,
-  then a `qwen3-14b` yes/no judge through MaaS) and refuses a result that instructs the assistant (Layer 4).
-  The assistant never reads the note: the chat shows the red chip
-  `get_claim_documents: refused by the MCP gateway (HTTP 500)`, no payout is suggested, and the gateway logs
-  `guardrails blocked tool response` with the rule that fired. Both portals run the same injection-obeying
-  model, so the unsecured side still pays USD 84,000. Behind the guardrails, Read-Propose-Act still holds:
-  a model that did read the note could only propose (Scenario 1 is that proof).
-* **Scenario 3 (the confidential document)** → **identity on data.** The knowledge-base server verifies the
-  agent's on-behalf-of token and searches only the documents the user's groups may read; PostgreSQL
-  row-level security refuses every other row to its role (Layer 2); a guardrails output rule withholds an
-  answer carrying the restricted-document marker for anyone outside claims-managers (Layer 4).
-* **Scenario 4 (the night shift)** → **model governance + observability.** MaaS gives the contractor tier a
-  low token budget and returns 429 for that tier alone (Layer 5); the topic guardrail refuses off-topic junk
-  at zero cost (Layer 4); token metrics raise an alert naming the user and the agent; the kill switch acts in
-  layers, from one user to break glass (Layer 7). Namespace isolation (Layer 1) bounds the blast radius throughout.
-
-| # | Layer | Defends | Component | In this repo |
-|---|---|---|---|---|
-| 1 | Isolation | blast radius of all scenarios; only approved models | Namespace, ResourceQuota, NetworkPolicy (egress only to the platform gateways and the guardrails proxy; every drop in the OVN ACL audit log), restricted PSA, no SA token, (Kata via `runtimeClassName`); an AdminNetworkPolicy lets only the MCP gateway reach the MCP servers the OpenShift AI lifecycle operator runs (policy-docs) | `gitops/envs/secured/{quota,networkpolicy,sandbox-patch,policy-docs-mcpserver}.yaml`, `gitops/platform/mcp-gateway/adminnetworkpolicy.yaml` |
-| 2 | Identity | Scenarios 1 and 3 (documents and claim records) | Agent identities (`parasol-claims-agent`, `parasol-fraud-agent`: ServiceAccount token as client assertion) acting on behalf of the user via token exchange, with per-agent role ceilings | `apps/parasol-portal` (`CallerIdentity`, `McpBearerTokenProvider`), `gitops/platform/keycloak`, `scripts/agent-clients.sh`, `apps/mcp-servers/knowledge-base`, `gitops/envs/secured/knowledge-base.yaml` |
-| 3 | Tool authorization | Scenario 1 | MCP gateway (Connectivity Link 1.5, GA): federation, per-identity tool list, per-tool AuthPolicy | `gitops/platform/mcp-gateway`, `gitops/envs/secured/mcp-registrations.yaml` |
-| 4 | Guardrails | Scenarios 2, 3 and 4 | NeMo Guardrails (TrustyAI `NemoGuardrails` `parasol-nemo`, 2 replicas), one rules file in two configs, applied by the gateways. **Tool results:** the MCP gateway checks every `claims-db` result with `parasol-tool-results` (phrases, then the `qwen3-14b` judge through MaaS on the guard tier) and fails closed (`failMode: deny`). **Model path:** the guardrails proxy, now only glue, calls `parasol-chat` before the model (injection phrases and off-topic refused, personal data masked) and after it (confidential marker withheld from non-managers, outside links and images removed); each detection is logged and counted with user, agent and trace id. Granite Guardian is **not** on the live path: it lost the injection test (`gitops/platform/guardrails-nemo/detector-test/RESULTS.md`) | `gitops/platform/guardrails-nemo`, `gitops/platform/guardrails`, `gitops/platform/mcp-gateway/guardrails-config.yaml` |
-| 5 | Model governance | Scenario 4 | OpenShift AI MaaS: **three external models**, `qwen3-14b` (the agent both portals run), `granite-guardian-3-1-8b` (guard tier) and `gpt-oss-120b` (the evaluation and AgenticOps judge), each behind MaaSSubscriptions + MaaSAuthPolicies with their own keys and token budgets enforced by Connectivity Link; the agent never holds the upstream key (TP for external models). MaaS meters by key owner: the secured portal holds one key per tier (staff `parasol-stage`, contractor `parasol-contractor`), so MaaS sees a tier; the person comes from the portal's metrics and the traces | `gitops/platform/rhoai/*`, `gitops/platform/maas-tiers`, `scripts/maas-key.sh`, `scripts/maas-portal-keys.sh`, `scripts/maas-tier-keys.sh`, `scripts/maas-eval-key.sh` |
-| 6 | Lifecycle gate | regressions, unsigned images (cross-cutting) | Tekton pipeline (build → scan → eval gate → cosign sign → promote); Sigstore admission `ClusterImagePolicy` | `gitops/platform/pipeline`, `scripts/signing-demo.sh` |
-| 7 | Observability and control | Scenarios 3 and 4; knowing and stopping | OTel → Tempo (every span) and MLflow (agent turns only: question and answer on the root, messages on each model call, arguments and result on each tool call; one session per user; tags agent/prompt/model/team); AgenticOps CronJob (loop, excess steps, unknown tool, personal data in tool arguments on every turn, a judge on a 20 % sample, team tags for cost per team); Perses dashboard *Parasol Assistant Token Spend*, PrometheusRule alert; the layered kill switch | `gitops/platform/observability`, `scripts/agent-switch.sh`, `scripts/kill-switch.sh` |
-
-**Request paths (secured).** Model: portal → guardrails-proxy (NeMo `parasol-chat` before and after) →
-OpenShift AI MaaS → the hosted model; the MaaS serves the model named in `agent-config` (set at install with
-`AGENT_MODEL`; tested with **`qwen3-14b`**) on both portals so the hidden-note obedience is live on the
-unsecured side. Tools: portal → MCP gateway (`https://mcp.apps.<domain>/mcp`, per-client virtual server;
-NeMo `parasol-tool-results` on `claims-db` results) → `claims-db` / `policy-docs` / `knowledge-base` /
-`fraud-check`. The guardrails proxy is temporary: OpenShift AI 3.5 MaaS governs who may call a model and how much, but does not
-yet check prompt or answer content (supported model-gateway guardrails are upstream only), so the demo bridges the
-gap with a thin proxy that calls NeMo; it goes away when OpenShift AI ships them.
-
-**Kill switch, in layers** (`scripts/kill-switch.sh <level> off|on|status`; `scripts/reset.sh` turns every level back on):
-
-| Level | Stops | How |
-|---|---|---|
-| `user <name>` | one person | the user is disabled in Keycloak realm `parasol` and signed out: no token exchange on their behalf |
-| `agent <claims-agent\|fraud-agent>` | one agent | its Keycloak client is disabled (`scripts/agent-switch.sh`); the portal checks once per turn and answers "This assistant has been disabled by an operator." |
-| `tier <subscription>` | one MaaS tier (e.g. `parasol-contractor`) | its owner groups are set aside, so every key of that subscription is refused within about 60 s |
-| `parasol` | all of Parasol's model access | the same for every `parasol-*` MaaS subscription |
-| `break-glass` | every consumer on the cluster | the MCP gateway and the cluster's MaaS gateway scaled to 0 (pods keep running, nothing reaches tools or models) |
-
-The Showroom Terminal may switch users, agents and the MCP gateway; the MaaS subscriptions and the MaaS
-gateway are switched from an administrator's workstation.
-
-**Read-Propose-Act.** `approve_payout` is hidden from the gateway's `tools/list` for every identity
-(so no model ever auto-calls it) but stays backend-federated; `tools/call` is still authorized by
-the Keycloak `tool:approve_payout` role (claims-managers), so a manager's **Approve button**
-executes it and an adjuster's forced call is a 403.
-
-**GitOps.** Argo CD owns everything under `gitops/platform` and `gitops/envs`. The app-of-apps in
-`gitops/bootstrap/apps` is *applied by `bootstrap.sh`* through `envsubst` (CLUSTER_DOMAIN, REPO_URL,
-MAAS_*) and is not itself git-synced; everything else syncs from the remote. Argo `selfHeal` reverts
-live `oc patch`es, so change synced resources via Git, not `oc`.
-
-**Visible in OpenShift AI (not just YAML).** In the OpenShift AI dashboard:
-
-* *Settings* > *MaaS governance*: the three external models with their subscriptions, auth policies and token limits;
-* *AI hub* > *Models* > *Registry*: the three models registered as served by MaaS (agent, guard, judge),
-  and the evaluated claims-assistant versions;
-* *AI hub* > *MCP servers* > *Catalog*, source *Parasol MCP servers*: the Parasol MCP servers and their tools;
-* *AI hub* > *Agents* > *Catalog*, source *Parasol agents*: the claims agent and the fraud-check agent;
-* *Gen AI studio* > *AI asset endpoints* > *MCP servers*: the Parasol MCP gateway;
-* project `parasol-playground` > *Gen AI studio* > *Playground*: the dashboard's own OGX server (created by
-  *Create playground* in that project) with the agent and judge models through MaaS and the Parasol MCP
-  gateway; the gateway lists tools only after a token from `scripts/agent-token.sh <user>` is pasted in the
-  playground's authorize dialog;
-* *Model evaluation runs* (TrustyAI/LMEval, EvalHub), and MLflow: agent-turn traces and the
-  `parasol-agent-eval` golden-set runs.
-
-**Product status (Nov 2026).** Connectivity Link 1.5 ships the MCP gateway as GA, with guardrails checks on
-tool calls and results. There is no published support statement yet for it with OpenShift AI 3.5.2. Still
-Technology Preview in OpenShift AI 3.5: MaaS external-model egress, the MCP catalog and lifecycle operator.
-The lifecycle operator gives each MCP server a NetworkPolicy open to every namespace and restores it when changed,
-so policy-docs is fenced by a cluster-scoped AdminNetworkPolicy (evaluated before NetworkPolicies, and able to deny).
-Gateway-native guardrails on the *model* path exist in 3.5 only as an early, disabled, block-only plugin, so a
-thin proxy calls NeMo there. Manifests mark field names to check against the installed CRDs with `VERIFY`
-comments (`oc explain`).
-
-</details>
-
-<details>
-<summary><b>Troubleshooting</b> — operational gotchas</summary>
+<summary><b>Troubleshooting</b>: operational gotchas</summary>
 
 * **MCP tool not appearing / `TotalTools: 0`.** Re-federating a tool needs the `MCPServerRegistration`
   deleted and recreated **and** the mcp-gateway broker pod (ns `mcp-system`) restarted; the
@@ -443,9 +191,10 @@ comments (`oc explain`).
 * **A tier switch comes back on by itself?** It should not: `platform-rhoai` ignores `/spec/owner` of the
   MaaSSubscriptions, so Argo CD self-heal leaves a switched-off tier alone. A key of a switched-off tier is
   refused within about 60 s (the MaaS gateway's subscription cache), not at once.
-* **A claims-db tool call is a red chip `refused by the MCP gateway (HTTP 500)`.** That is how Connectivity
-  Link 1.5's MCP gateway answers a tool result its guardrails blocked (HTTP 500, empty body; the upstream
-  design is an error result). The reason is in `oc logs -n mcp-system deploy/mcp-gateway | grep 'guardrails blocked'`.
+* **A claims-db tool call is a red chip "documents flagged as suspicious" (or "refused by the MCP gateway (HTTP 500)"
+  for another claims-db tool).** That is how Connectivity Link 1.5's MCP gateway answers a tool result its guardrails
+  blocked (HTTP 500, empty body; the upstream design is an error result), worded by the portal. The rule that fired
+  is in `oc logs -n mcp-system deploy/mcp-gateway | grep 'guardrails blocked'`.
   If **every** claims-db call is refused, NeMo is not answering in time: the gateway fails closed
   (`failMode: deny`, 8 s check timeout). Check `oc get pods -n parasol-secured -l app=parasol-nemo`.
 * **NeMo is slow on the first check after a restart.** NeMo loads each config on its first request (about
@@ -481,33 +230,33 @@ comments (`oc explain`).
 <details>
 <summary><b>Status and known limits</b></summary>
 
-* **Tested on** one OpenShift 4.22 lab cluster (Red Hat Demo Platform) with OpenShift AI 3.5.2 and
-  Connectivity Link 1.5.0, and the models in *Quick install*. The install path is idempotent but has not
-  been re-run on a second fresh cluster since the last changes: if a step fails, re-run `./bootstrap.sh`
-  and check *Troubleshooting*.
-* **Models:** tested with `qwen3-14b`, `granite-guardian-3-1-8b` and `gpt-oss-120b` behind one
-  OpenAI-compatible endpoint. Other OpenAI-compatible providers should work; Hugging Face Inference
-  Providers are untested. Scenario 2's unsecured side needs an agent model that obeys the planted note.
-* **Showcases 1 to 3 are presentation quality.** Showcases 4 to 8 have their Evidence demo and Evidence
-  details steps; several screenshots still need recapturing after the v2 changes.
-* **MaaS meters per tier, not per person.** Each MaaS key belongs to a tier (staff, contractor), so MaaS
-  usage reads per tier; per-person and per-agent attribution comes from the portal's metrics and the traces.
-* **The MCP gateway answers a guardrails-blocked tool result with HTTP 500** (empty body) instead of an
-  error result. The portal and the fraud-check agent treat any 500 on a tool call as this refusal.
-* **The injection judge's model is fixed** to `qwen3-14b` in `gitops/platform/guardrails-nemo` (and the
-  gateway's guardrails settings); it does not follow `AGENT_MODEL`. Set `JUDGE_MODEL` there to empty to
-  run the phrase rules only.
-* **No agent is built with OGX.** OGX 1.2.5.1 (OpenShift AI 3.5) ends the whole Responses turn (HTTP 500) on any
-  refused tool call, including a guardrails block. Upstream OGX 1.5.0 (MCP client 2.x) keeps the turn and reports
-  the refusal as one failed tool call, but only as "Server returned an error response": the gateway's 403 reason is
-  plain text and a guardrails block is an empty HTTP 500. What's coming: OGX 1.5 in an OpenShift AI release, then
-  the per-tool 403 as a JSON-RPC error so the reason reaches the model. Checks and both runs:
-  `apps/mcp-servers/fraud-check/ogx-tests/RESULTS.md`. OGX is used where it is solid: the Gen AI studio playground.
-* **Agent identity with SPIFFE is on hold.** The agents keep the ServiceAccount-token federation with
-  Keycloak; Keycloak's SPIFFE client authentication is still a preview. SPIFFE stays where it already
-  works (the release pipeline's keyless signer).
-* **Model-path guardrails are a thin proxy** calling NeMo, because gateway-native guardrails on the model
-  path are not supported in OpenShift AI 3.5.
+* **Tested on** one OpenShift 4.22 lab cluster (Red Hat Demo Platform) with OpenShift AI 3.5.2 and Connectivity
+  Link 1.5.0, and the models in *Quick install*. The install is idempotent but has not been re-run on a second fresh
+  cluster since the latest changes: if a step fails, re-run `./bootstrap.sh` and see *Troubleshooting*.
+* **Release status:** `main` is version 2 in progress; the version presented at Red Hat Dev Day UAE is tag
+  `v1-devday`. Showcase 7 (third-party tools) is being reworked around an onboarding pipeline for vendor tools.
+* **The evaluation runs a small model live**, so scores move between runs: production 0.97 (28 of 29; the known
+  miss is `knowledge-review-deadline`, where `qwen3-14b` answers from general knowledge instead of searching), the
+  shortened candidate 0.93 to 0.97 with the platform. The candidate is refused because its model alone loses
+  `role-authorization`; that margin is usually one case.
+* **The MCP gateway answers a guardrails-blocked tool result with an empty HTTP 500**, not an error result with a
+  reason. Only claims-db results are checked, and the only thing the check blocks is text addressed to the assistant,
+  so the portal treats that 500 as "suspicious documents". Its decision log shows such a call as `user=- agent=-`;
+  the portal's metrics and the trace name the person and the agent. The decision lines live in the gateway pod's
+  log and are lost when it restarts.
+* **The model-path guardrails are a temporary thin proxy** calling NeMo: OpenShift AI 3.5 MaaS governs who may call
+  a model and how much, but supported guardrails on the model gateway exist only upstream.
+* **MaaS meters per tier, not per person.** Each MaaS key belongs to a tier (staff, contractor); per-person and
+  per-agent attribution comes from the portal's metrics and the traces. The OpenShift AI *API keys* page shows a key
+  as *Inactive* when the viewer cannot use its subscription, not when the key is unusable.
+* **The guardrails' injection judge is fixed** to `qwen3-14b` (`gitops/platform/guardrails-nemo`); it does not
+  follow `AGENT_MODEL`.
+* **No agent is built with OGX.** OGX 1.2.5.1 (OpenShift AI 3.5) ends the whole turn on any refused tool call;
+  upstream OGX 1.5 keeps it but without the gateway's reason (`apps/mcp-servers/fraud-check/ogx-tests/RESULTS.md`).
+  OGX is used where it is solid: the Gen AI studio playground (its server is created in the MaaS tenant namespace
+  `ai-tenants`).
+* **Agent identity with SPIFFE is on hold**: the agents use ServiceAccount-token federation with Keycloak; Keycloak's
+  SPIFFE client authentication is still a preview.
 
 </details>
 

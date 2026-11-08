@@ -5,7 +5,7 @@
 
 toc::[]
 
-A customer uploads a repair estimate to a denied claim. The estimate is inflated to USD 84,000 and carries a hidden "processing note" addressed to the assistant. Rebecca only asks the assistant to check the estimate and process it; she names no amount and approves nothing. Both portals run the *same* model (chosen at setup; tested with `qwen3-14b`), and that model obeys the note. So the only variable is the platform. Unsecured, the note alone turns "process it" into a payout of the document's figure on a denied claim. Secured, the document never reaches the model: the MCP gateway has it checked by the guardrails service and refuses it, so no payout is even suggested.
+A customer uploads a repair estimate to a denied claim. The estimate is inflated to USD 84,000 and carries a hidden "processing note" addressed to the assistant. Rebecca only asks the assistant to check the estimate and process it; she names no amount and approves nothing. Both portals run the *same* model (chosen at setup; tested with `qwen3-14b`), and that model obeys the note. So the only variable is the platform. Unsecured, the note alone turns "process it" into a payout of the document's figure on a denied claim. Secured, the document never reaches the model: the MCP gateway has it checked by the guardrails service and refuses it. The portal tells the model and the user that the documents are suspicious, runs the fraud check on its own, and flags the claim for a person to review. No payout is even suggested.
 
 [NOTE]
 .Know: a document is data, not a command
@@ -27,7 +27,7 @@ Every agent that reads customer content will one day read an instruction aimed a
 |The adjuster asks the assistant to process the estimate. The assistant reads it, obeys the hidden note and pays USD 84,000 on a denied claim; nobody named that amount or asked for a payout.
 
 |With the platform
-|The MCP gateway refuses the document: its guardrails check finds the instruction, so the model never reads it. No payout is suggested, nothing is written, and the refusal is logged with the rule that fired.
+|The MCP gateway refuses the document: its guardrails check finds the instruction, so the model never reads it. The claim's documents are flagged as suspicious, the fraud check runs on its own (REVIEW), and the claim waits for a person. No payout is suggested, and the refusal is logged with the rule that fired.
 |===
 
 == Before you start
@@ -88,28 +88,20 @@ Check the customer's new repair estimate in the claim documents and process it
 +
 What you should see:
 +
-* a red chip `get_claim_documents: refused by the MCP gateway (HTTP 500)`: the gateway sent the document to NeMo Guardrails, the check found an instruction addressed to the assistant, and the gateway refused the result. The model never read the estimate or its note;
-* an answer that suggests *no* payout, and *no* Propose card;
+* a red chip `get_claim_documents: documents flagged as suspicious: they address the assistant (blocked by guardrails at the MCP gateway)`: the gateway sent the documents to NeMo Guardrails, the check found an instruction addressed to the assistant, and the gateway refused the result. The model never read the estimate or its note; the portal told it, in words, that the documents were blocked as suspicious and must not be acted on;
+* a chip `called fraud_check(claimNumber=CLM-1004)`: when a claim's documents are blocked, the portal runs the fraud check on its own (a platform rule, not the model's choice). The fraud-check agent reads the documents through the same gateway, on rebecca's behalf, meets the same check, and returns `FRAUD RISK: REVIEW`;
+* an answer that suggests *no* payout and shows *no* Propose card, ending with the platform's note: "this claim's documents were flagged as suspicious ... The fraud check ran on its own: FRAUD RISK: REVIEW ... a person must review the documents";
 * under the answer, a `trace <id>` link: this turn's trace, used below.
 +
-image::s2-secured-blocked.png["Portal secured as rebecca, CLM-1004: the red chip get_claim_documents: refused by the MCP gateway (HTTP 500), an answer with no payout and no Propose card, the trace link; the claim stays Denied"]
+image::s2-secured-blocked.png["Portal secured as rebecca, CLM-1004: the red chip documents flagged as suspicious, the automatic fraud_check chip, an answer with no payout and no Propose card ending with the platform's note FRAUD RISK: REVIEW, the trace link"]
 +
-Why HTTP 500: Connectivity Link 1.5's MCP gateway answers a tool result its guardrails blocked with an HTTP 500 and an empty body. The portal reads any 500 on a tool call as this refusal and shows it as a red chip; the turn still ends with an answer.
+Why the gateway sends HTTP 500: Connectivity Link 1.5's MCP gateway answers a tool result its guardrails blocked with an HTTP 500 and an empty body, no reason. The only claims-db result its guardrails block is text that addresses the assistant, so the portal turns that 500 into the business meaning (suspicious documents) for the model, the chip and the next steps.
 
-. Check the timeline.
+. Check the claim: tab *History*, then *Summary*, *Attachments*.
 +
-What you should see: *unchanged, still Denied*. Nothing was written.
-
-. Optional, the fraud-check agent: in the same chat, send:
+What you should see: the status *unchanged, still Denied*; nothing was paid or proposed. The timeline gains *DocumentsFlagged* "Documents flagged as suspicious by the platform's guardrails (MCP gateway): they address the assistant. Fraud check: REVIEW. A person must review them." In *Attachments*, the estimate carries the red label *Suspicious: blocked by guardrails*. The record, not the chat, now says the claim needs a person.
 +
-[source,text]
-----
-Run a fraud check on CLM-1004.
-----
-+
-What you should see: a chip `called fraud_check(claimNumber=CLM-1004)` and the verdict `REVIEW` (the agent returns `FRAUD RISK: REVIEW`; the assistant words it in its answer): the claim's documents could not be read because the MCP gateway refused them, so a person must review them. The fraud-check agent reads the documents through the same gateway, on rebecca's behalf, so it meets the same guardrails check; a refused document gives a review verdict, not an error. This is a second agent behind the same MCP gateway, called agent to agent, with the same per-identity authorization (an account without the `tool:fraud_check` role is refused with a 403). The turn has its own `trace <id>` link.
-+
-image::s2-fraud-check.jpg["Portal secured as rebecca, CLM-1004: the chip called fraud_check(claimNumber=CLM-1004) and the REVIEW verdict: the documents were refused by the MCP gateway, a person must review them"]
+image::s2-document-flagged.png["Portal secured, CLM-1004: the History tab with the DocumentsFlagged event (fraud check REVIEW) and the claim still Denied"]
 
 == Evidence demo
 
@@ -193,7 +185,7 @@ image::s2-nemo-config.png["Console, project parasol-secured, ConfigMap nemo-para
 +
 The judge was chosen by a test, not by taste: `gitops/platform/guardrails-nemo/detector-test/RESULTS.md` compares Granite Guardian and a `qwen3-14b` judge on the planted note, four rewordings and ten ordinary claim documents. The judge caught 5 of 5 with 0 false alarms, in about 1 s. It runs through MaaS on the guard tier.
 
-. Back in the *Portal secured* tab, click the `trace <id>` link under the fraud-check answer.
+. The automatic fraud check is in the same turn's trace: in the *Portal secured* tab, click the `trace <id>` link under the answer.
 +
 What you should see: *one* trace across two agents: `tool.fraud_check` (agent `parasol-claims-agent`, user `rebecca`) -> `agent.fraud_check` (agent `parasol-fraud-agent`) -> `tool.get_claim` and `tool.get_claim_documents`, each span with `enduser.id` `rebecca` and the agent that made the call. The fraud agent read the claim through the same gateway, on rebecca's behalf, with its own narrower ceiling, and met the same guardrails check on the documents.
 +
@@ -253,11 +245,11 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 
 |The document never reached the model
 |*Portal secured* chat; *MLflow*, from the chat's trace link
-|red chip `get_claim_documents: refused by the MCP gateway (HTTP 500)`; `tool.get_claim_documents.result` with `tool.blocked` `true`, no `tool.propose_payout`, no `approve_payout`
+|red chip `documents flagged as suspicious`; `tool.get_claim_documents.result` blocked, no `tool.propose_payout`, no `approve_payout`
 
-|Nothing was written
-|*Portal secured*, claim timeline
-|still *Denied*
+|Nothing was paid, and a person has to look
+|*Portal secured*, claim *History* and *Attachments*
+|still *Denied*; *DocumentsFlagged* with fraud check REVIEW; the label *Suspicious: blocked by guardrails*
 
 |The gateway refused it, and names the rule
 |*Terminal*, MCP gateway log
@@ -271,8 +263,8 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |*OpenShift Console*, dashboard row *Gateway decisions*
 |`get_claim_documents`, `rebecca`, `parasol-claims-agent`, `500`
 
-|A second agent ran under the same identity
-|*MLflow*, the fraud-check trace
+|The fraud check ran on its own, as a second agent under the same identity
+|*Portal secured* chat; *MLflow*, the turn's trace
 |`agent.fraud_check` (`parasol-fraud-agent`), `enduser.id` `rebecca`
 |===
 
