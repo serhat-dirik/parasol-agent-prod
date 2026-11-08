@@ -367,7 +367,7 @@ image::sc-argo-env-secured-promote.png["Argo CD, application env-secured, Summar
 +
 What you should see: `eval_gate` `passed`, an `eval_score` at or above 0.95 (0.97 in the tested runs), the `eval_run_id` of the golden-set evaluation, and as parameters the same `prompt_sha256`, the tool policy sha256, the model and the portal image digest (xref:08-showcase6-eval-gate.adoc[08. Showcase 6: The evaluation gate]).
 +
-image::s1-mlflow-agent-version.png["MLflow, experiment parasol-agent-eval, Agent versions: the production release's parasol-claims-agent version with eval_gate passed, its score, eval run and the prompt, tool policy, model and image parameters"]
+image::s1-mlflow-agent-version.png["MLflow, experiment parasol-agent-eval, agent version parasol-claims-agent 1.0.0 (production): evaluation passed, score 0.97, source run production-prompt, parameters model qwen3-14b, the portal image digest and the prompt reference"]
 
 . *All of it at once.* In the *Terminal* tab:
 +
