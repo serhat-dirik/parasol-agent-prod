@@ -21,6 +21,6 @@ oc -n "$NS" create configmap parasol-prompt-registrar \
   --from-file=system-prompt.txt="$DIR/../../../envs/secured/system-prompt.txt" \
   --from-file=v2.txt="$DIR/v2.txt"
 oc -n "$NS" delete job parasol-prompt-registrar --ignore-not-found
-oc apply -f "$DIR/register-job.yaml"
+AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}" envsubst '$AGENT_MODEL' < "$DIR/register-job.yaml" | oc apply -f -
 oc -n "$NS" wait --for=condition=complete job/parasol-prompt-registrar --timeout=180s
 oc -n "$NS" logs job/parasol-prompt-registrar | grep -E 'registered|reused|loaded|alias'

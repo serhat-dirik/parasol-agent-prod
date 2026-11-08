@@ -94,7 +94,7 @@ platform's own records prove it.
 
   | Role | Tested with | Must support |
   |---|---|---|
-  | Agent (both portals) | `qwen3-14b` | structured tool calls; for Showcase 2's unsecured side to pay, it must also obey a note hidden in a document |
+  | Agent (both portals, and the guardrails' injection judge) | `qwen3-14b` | structured tool calls; for Showcase 2's unsecured side to pay, it must also obey a note hidden in a document; a yes/no answer for the judge |
   | Guard tier | `granite-guardian-3-1-8b` | chat completions with `logprobs` |
   | Evaluation judge | `gpt-oss-120b` | strict instruction following (it returns a scoring JSON) |
 
@@ -259,8 +259,6 @@ Restores the claims, refills the token budgets and switches every kill-switch le
 * **MaaS meters per tier, not per person.** Each MaaS key belongs to a tier (staff, contractor); per-person and
   per-agent attribution comes from the portal's metrics and the traces. The OpenShift AI *API keys* page shows a key
   as *Inactive* when the viewer cannot use its subscription, not when the key is unusable.
-* **The guardrails' injection judge is fixed** to `qwen3-14b` (`gitops/platform/guardrails-nemo`); it does not
-  follow `AGENT_MODEL`.
 * **No agent is built with OGX.** OGX 1.2.5.1 (OpenShift AI 3.5) ends the whole turn on any refused tool call;
   upstream OGX 1.5 keeps it but without the gateway's reason (`apps/mcp-servers/fraud-check/ogx-tests/RESULTS.md`).
   OGX is used where it is solid: the Gen AI studio playground (its server is created in the MaaS tenant namespace

@@ -14,6 +14,12 @@ spec:
     path: gitops/platform/guardrails
     kustomize:
       patches:
+        - target: {kind: Deployment, name: guardrails-proxy}   # the agent model's MaaS path (tests guard the order)
+          patch: |-
+            - {op: test, path: /spec/template/spec/containers/0/env/2/name, value: MAAS_URL}
+            - op: replace
+              path: /spec/template/spec/containers/0/env/2/value
+              value: https://maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local/models-as-a-service/${AGENT_MODEL_NAME}/v1
         - target: {kind: ConfigMap, name: guardrails-orchestrator-config}
           patch: |-
             - op: replace

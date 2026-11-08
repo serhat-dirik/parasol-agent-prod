@@ -16,6 +16,16 @@ spec:
     repoURL: ${REPO_URL}
     targetRevision: ${REPO_REVISION}
     path: gitops/platform/guardrails-nemo
+    kustomize:
+      patches:
+        - target: {kind: NemoGuardrails, name: parasol-nemo}   # the judge runs on the agent model (tests guard the order)
+          patch: |-
+            - {op: test, path: /spec/env/1/name, value: MAIN_MODEL_BASE_URL}
+            - op: replace
+              path: /spec/env/1/value
+              value: https://maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local/models-as-a-service/${AGENT_MODEL_NAME}/v1
+            - {op: test, path: /spec/env/2/name, value: JUDGE_MODEL}
+            - {op: replace, path: /spec/env/2/value, value: "${AGENT_MODEL}"}
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, ServerSideApply=true]

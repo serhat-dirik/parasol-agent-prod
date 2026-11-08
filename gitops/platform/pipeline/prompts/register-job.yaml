@@ -19,6 +19,7 @@ spec:
             - {name: MLFLOW_WORKSPACE, value: "parasol-secured"}
             - {name: MLFLOW_TRACKING_INSECURE_TLS, value: "true"}
             - {name: HOME, value: "/tmp"}
+            - {name: AGENT_MODEL, value: "${AGENT_MODEL}"}
           volumeMounts:
             - {name: scripts, mountPath: /scripts}
       volumes:

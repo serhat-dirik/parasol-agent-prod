@@ -107,7 +107,7 @@ spec:
       tokenRateLimits:
         - {limit: 100000, window: 10m}
     # the NeMo injection judge on claims-db tool results (gitops/platform/guardrails-nemo/detector-test)
-    - name: qwen3-14b
+    - name: ${AGENT_MODEL_NAME}
       namespace: models-as-a-service
       tokenRateLimits:
         - {limit: 100000, window: 10m}

@@ -18,7 +18,7 @@ spec:
           patch: |-
             - op: replace
               path: /data/model
-              value: qwen3-14b   # secured portal runs on the injection-obeying model; the controls (not model luck) stop the payout
+              value: ${AGENT_MODEL}   # same model as the unsecured portal: the controls, not model luck, stop the payout
             # Keycloak by its in-cluster Service (transport only; tokens keep the public issuer below)
             - op: replace
               path: /data/realmUrl

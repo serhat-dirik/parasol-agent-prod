@@ -45,7 +45,7 @@ common = {
     "source_file": "apps/parasol-portal/app/src/main/java/org/parasol/ai/ClaimsAssistant.java",
     "tools_authpolicy_path": "gitops/platform/mcp-gateway/authpolicy-tools.yaml",
     "tools_authpolicy_sha256": "02619907984be688d238cb2510610458018e427c56066b4e8335bc2b33a1310e",
-    "model_id": "qwen3-14b",
+    "model_id": os.environ.get("AGENT_MODEL", "qwen3-14b"),
     "model_config_name": "parasol-chat",
 }
 versions = [
