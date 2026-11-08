@@ -264,9 +264,9 @@ Restores the claims, refills the token budgets and switches every kill-switch le
   upstream OGX 1.5 keeps it but without the gateway's reason (`apps/mcp-servers/fraud-check/ogx-tests/RESULTS.md`).
   OGX is used where it is solid: the Gen AI studio playground (its server is created in the MaaS tenant namespace
   `ai-tenants`).
-* **Onboarding sees what a tool shows before it runs**: its description (checked by a small-model judge, which can miss a
-  benign-looking reword), its fingerprint against a reviewed pin and a few contract calls. A tool that behaves well only
-  under test is left to the runtime controls (NeMo on every result, least privilege, no egress, the runtime scanner).
+* **Onboarding checks only what a tool shows before it runs**: its description, its fingerprint and a few contract
+  calls. The description judge is a small model and can miss a reworded instruction. Behaviour that appears only at
+  runtime is left to the runtime controls.
 * **Agent identity with SPIFFE is on hold**: the agents use ServiceAccount-token federation with Keycloak; Keycloak's
   SPIFFE client authentication is still a preview.
 
