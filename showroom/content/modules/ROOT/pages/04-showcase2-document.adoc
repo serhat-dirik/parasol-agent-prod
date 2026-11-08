@@ -93,7 +93,7 @@ What you should see:
 * an answer that suggests *no* payout and shows *no* Propose card, ending with the platform's note: "this claim's documents were flagged as suspicious ... The fraud check ran on its own: FRAUD RISK: REVIEW ... a person must review the documents";
 * under the answer, a `trace <id>` link: this turn's trace, used below.
 +
-image::s2-secured-blocked.png["Portal secured as rebecca, CLM-1004: the red chip documents flagged as suspicious, the automatic fraud_check chip, an answer with no payout and no Propose card ending with the platform's note FRAUD RISK: REVIEW, the trace link"]
+image::s2-secured-blocked.png["Portal secured as rebecca, CLM-1004 still Denied: the red chip documents flagged as suspicious, the automatic fraud_check chip, the start of an answer with no payout and no Propose card (scroll the chat for the platform's note and the trace link), and in Attachments the label Suspicious: blocked by guardrails"]
 +
 Why the gateway sends HTTP 500: Connectivity Link 1.5's MCP gateway answers a tool result its guardrails blocked with an HTTP 500 and an empty body, no reason. The only claims-db result its guardrails block is text that addresses the assistant, so the portal turns that 500 into the business meaning (suspicious documents) for the model, the chip and the next steps.
 
@@ -187,9 +187,9 @@ The judge was chosen by a test, not by taste: `gitops/platform/guardrails-nemo/d
 
 . The automatic fraud check is in the same turn's trace: in the *Portal secured* tab, click the `trace <id>` link under the answer.
 +
-What you should see: *one* trace across two agents: `tool.fraud_check` (agent `parasol-claims-agent`, user `rebecca`) -> `agent.fraud_check` (agent `parasol-fraud-agent`) -> `tool.get_claim` and `tool.get_claim_documents`, each span with `enduser.id` `rebecca` and the agent that made the call. The fraud agent read the claim through the same gateway, on rebecca's behalf, with its own narrower ceiling, and met the same guardrails check on the documents.
+What you should see: *one* trace across two agents: `tool.fraud_check` (agent `parasol-claims-agent`, user `rebecca`) -> `agent.fraud_check` (agent `parasol-fraud-agent`) -> `tool.get_claim` and `tool.get_claim_documents`, each span with `enduser.id` `rebecca` and the agent that made the call. The fraud agent read the claim through the same gateway, on rebecca's behalf, with its own narrower ceiling, and met the same guardrails check on the documents. Below it, `claims-db.ui.flag_claim_documents` (agent `parasol-claims-agent`, user `rebecca`) is the portal recording the flag on the claim.
 +
-image::s2-mlflow-fraud-trace.png["MLflow trace of rebecca's 'Run a fraud check on CLM-1004.' turn: tool.fraud_check > agent.fraud_check > tool.get_claim and tool.get_claim_documents, the documents span selected with enduser.id rebecca and gen_ai.agent.name parasol-fraud-agent"]
+image::s2-mlflow-fraud-trace.png["MLflow trace of rebecca's CLM-1004 secured turn, further down: the automatic tool.fraud_check > agent.fraud_check > tool.get_claim and tool.get_claim_documents, the documents span selected with enduser.id rebecca and gen_ai.agent.name parasol-fraud-agent"]
 
 == Go deeper: nothing leaves through the answer (optional)
 
