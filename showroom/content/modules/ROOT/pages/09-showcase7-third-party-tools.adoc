@@ -111,7 +111,7 @@ image::s7-unsecured-rugpull-payout.png["Portal unsecured as rebecca, CLM-1001: c
 scripts/tool-rugpull.sh onboard 1.4.3 --wait
 ----
 +
-What you should see, after about two minutes: `Completed  gate=refused findings=3 promoted=` (empty). In the *OpenShift Console*, *PipelineRuns*, `parasol-tool-onboarding-currency-converter-1-4-3`: `tool-check` green (it ran and decided), `sign` and `promote` *skipped*. Its log:
+What you should see, after about two minutes: `Completed  gate=refused findings=3 promoted=` (empty). In the *OpenShift Console*, *PipelineRuns*, `parasol-tool-onboarding-currency-converter-1-4-3`: the run *Succeeded* (it did its job: it decided), `tool-check` green, `sign` and `promote` *skipped*. Its log:
 +
 ----
 ===== onboarding check: currency-converter 1.4.3 (server says 1.4.3) =====
@@ -124,7 +124,7 @@ FINDING guardrails: convert_currency's description blocked by NeMo parasol-tool-
 REFUSED: currency-converter 1.4.3, 3 finding(s); nothing is signed or promoted
 ----
 +
-image::s7-onboarding-refused.png["Console, PipelineRun parasol-tool-onboarding-currency-converter-1-4-3: clone-repository, resolve, scan-image and tool-check run, sign and promote skipped"]
+image::s7-onboarding-refused.png["Console, PipelineRun parasol-tool-onboarding-currency-converter-1-4-3, Succeeded: clone-repository, resolve, tool-check and scan-image ran, sign and promote skipped"]
 +
 Note what passed: the contract. 1.4.3 still converts correctly; only its description changed. A test of the tool's behaviour alone would have let it through.
 
@@ -143,11 +143,11 @@ What you should see: `admission webhook "policy.rhtas.com" denied the request: .
 
 == Look closer
 
-. *Where the onboarded version is pinned.* Select the *Argo CD* tab, Application `env-secured-tools`, *App details*.
+. *Where the onboarded version runs.* Select the *Argo CD* tab, Application `env-secured-tools`.
 +
-What you should see: annotations `parasol.example/onboarded-version: 1.4.2`, `onboarded-digest`, `onboarded-tools-sha256: d2912bb8...` and `onboarded-by` (the promote TaskRun), and under *Kustomize* the image pinned by digest. The Deployment `currency-converter` in `parasol-secured` runs exactly that digest.
+What you should see: one onboarded server and everything around it, *Synced* and *Healthy*: the `currency-converter` Deployment (one pod), its Service, the HTTPRoute, the MCPServerRegistration (the gateway federates it, with the reviewed pin), the MCPVirtualServer (`convert_currency` only) and the NetworkPolicy (no egress). The Application node shows *1 parameter override*: the image pinned by digest, set by the onboarding's promote step, not by Git (*Details*, *Parameters*). Its annotations `parasol.example/onboarded-version`, `onboarded-digest`, `onboarded-tools-sha256` and `onboarded-by` record which run promoted what.
 +
-image::s7-argocd-onboarded-pin.png["Argo CD, Application env-secured-tools: annotations onboarded-version 1.4.2, onboarded-digest, onboarded-tools-sha256 and onboarded-by, the image pinned by digest"]
+image::s7-argocd-onboarded-pin.png["Argo CD, Application env-secured-tools, Synced and Healthy, 1 parameter override: currency-converter Service, Deployment with its pod, HTTPRoute, MCPServerRegistration, MCPVirtualServer and NetworkPolicy"]
 
 . *The reviewed policy in Git.* `gitops/envs/secured-tools/onboarding.json`: the pin per version (`"1.4.2": "d2912bb8..."`), the contract calls with their expected answers, and the names of Parasol's own tools that a vendor description may not mention. Accepting a new version is a reviewed change to this file; the pipeline only checks.
 
@@ -164,9 +164,9 @@ What you should see: each command in cyan before its output. Both versions' dige
 
 . *The second line: the runtime scanner.* The unsecured copy changed its description without anyone reviewing it, and the runtime tool scanner noticed. *Observe*, *Alerting*, project `mcp-system`:
 +
-What you should see: `MCPToolDefinitionDrift` (critical) and `MCPToolDescriptionInjection` (warning) for `server=parasol-thirdparty/currency-converter`. The registered `parasol-secured/currency-converter` stays `pin=match`.
+What you should see: `MCPToolDefinitionDrift` (critical, 1) and `MCPToolDescriptionInjection` (warning, 4: one per rule) for `server=parasol-thirdparty/currency-converter`. Open the drift alert: "The sha256 of the tool definitions of parasol-thirdparty/currency-converter (registered=false) no longer matches the pin ... reviewed in Git". The registered `parasol-secured/currency-converter` stays `pin=match`: it still runs 1.4.2.
 +
-image::s7-console-alerts.png["Console, Observe > Alerting, project mcp-system: MCPToolDefinitionDrift (critical) for parasol-thirdparty/currency-converter, its tool definitions no longer match the reviewed pin"]
+image::s7-console-alerts.png["Console, alert MCPToolDefinitionDrift (critical, firing): the tool definitions of parasol-thirdparty/currency-converter no longer match the pin reviewed in Git"]
 +
 The audit lines, in the *Terminal* tab:
 +
