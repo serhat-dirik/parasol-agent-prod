@@ -77,18 +77,12 @@ platform's own records prove it.
 
 **1. What you need**
 
-* An OpenShift 4.22 or later cluster (tested on 4.22; a fresh one is not required) and a cluster-admin login.
-  Everything else (OpenShift GitOps, the operators, Keycloak, OpenShift AI, Connectivity Link 1.5) is detected and
-  installed only if missing.
-* Capacity for the demo on top of what the cluster already runs: about **16 vCPU and 40 GiB of memory** free across
-  the workers (for example three 8 vCPU / 16 GB workers), a default StorageClass for ReadWriteOnce volumes, no GPU.
-  Measured on the tested cluster: the demo's own stack (OpenShift AI, Keycloak, Argo CD, Connectivity Link,
-  Pipelines, the Parasol namespaces, observability) requests about 13 vCPU and 28 GiB and uses far less when idle;
-  release builds add about 2 vCPU each for a few minutes. Tested on Red Hat Demo Platform's shape: three
-  16 vCPU / 32 GB workers plus three schedulable 16 vCPU / 64 GB control-plane nodes, with OpenShift Data
-  Foundation (which the demo does not need).
+* An OpenShift 4.22 or later cluster and a cluster-admin login. Everything else (OpenShift GitOps, the operators,
+  Keycloak, OpenShift AI, Connectivity Link 1.5) is detected and installed only if missing.
+* Capacity needed for the demo is about 16 vCPU and 40 GiB of memory free across the workers, a default StorageClass
+  for ReadWriteOnce volumes.
 * On your workstation:
-  [`oc`](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/) (or the cluster console, *?* > *Command line tools*),
+  [`oc`](https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/),
   [`kustomize`](https://kubectl.docs.kubernetes.io/installation/kustomize/),
   `envsubst` (part of [GNU gettext](https://www.gnu.org/software/gettext/)),
   [`openssl`](https://openssl-library.org/source/), [`curl`](https://curl.se/download.html),
