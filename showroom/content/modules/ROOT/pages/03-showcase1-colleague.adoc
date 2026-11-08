@@ -322,6 +322,66 @@ What you should see: user `marcus`, tags `agent` `parasol-claims-agent` and `act
 +
 image::s1-mlflow-approval-trace.png["MLflow (workspace parasol-secured, experiment parasol-portal-chat), the approval trace opened from the card's link: user marcus, tags agent=parasol-claims-agent and action=approve_payout CLM-1001, span gateway.authz"]
 
+[#audit-trail]
+== The audit trail: one payout, end to end
+
+Monday morning, finance sees the payout on CLM-1001 and asks four questions: who paid it, through what, under which rules, and was the software that did it the software that was approved? The first three are answered above. This section follows the same keys (the user, the agent, the trace id, the prompt digest, the image digest) from marcus's payout back to the release. Everything reads only, and nothing is paid twice: claims-db refuses a second payout on a claim that already has a payment issued.
+
+[NOTE]
+.Know: an audit trail is a chain, not a log file
+====
+Each control writes its own record with the same keys. Follow them from the payout back to the release and you have reconstructed the incident from evidence the platform produced while it happened, not from what anyone remembers.
+====
+
+. *Was it the approved software?* The release run, the Argo CD pin, the running pod and the admission policy:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh release
+----
++
+What you should see: the same `sha256:...` digest three times, as `PROMOTED_DIGEST` of the release run (with `EVAL_GATE passed`), as `promoted-digest` on `env-secured`, and as the running portal's `image`; then `policy.rhtas.com/include=true` and the `ClusterImagePolicy` `parasol-portal-must-be-signed` with its two accepted signers. What ran is what was built, evaluated and signed; admission refuses anything else (xref:07-showcase5-supply-chain.adoc[07. Showcase 5: Supply chain, signing and admission]).
+
+. *With which prompt.* The prompt the release pinned against the prompt the portal runs:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh prompt
+----
++
+What you should see: the same version and the same sha256 twice. The same sha256 is the `prompt_sha256` tag on marcus's trace (next step).
+
+. *The conversation, checked.* In the *MLflow* tab, *Traces*, *Filters*, field *User*, value `marcus`: open the chat turn just before the approval.
++
+What you should see: the conversation itself (question and answer on the `ChatMessage` span, each model call and each tool call with its arguments and result), the tags `prompt` and `prompt_sha256`, the span `tool.propose_payout` (proposed 4200, claimed 4200), and the *Assessments* of the AgenticOps checks (`loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`), logged by the CronJob `agenticops` in project `observability` within 10 minutes of the turn. On the secured side every recorded text is masked with the guardrails' personal-data patterns, so the record holds no more than the model saw. The latest checks, from the *Terminal* tab: `scripts/evidence.sh agenticops`.
++
+image::s9-mlflow-conversation-assessments.png["MLflow, workspace parasol-secured, marcus's turn that proposed CLM-1001: question and answer on the ChatMessage span, the propose_payout tool spans, and the four AgenticOps assessments (pii_in_tool_args, unknown_tool, excess_steps, loop) all False"]
+
+. *What was live.* Select the *Argo CD* tab, application `env-secured`, *Details*, *Summary*, then *History and rollback*.
++
+What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-version`, `prompt-sha256` and `agent-version` (the MLflow agent version the release evaluated, its id in `agent-version-id`). The `prompt-sha256` is the trace's `prompt_sha256`: the release refuses to promote when the prompt the portal runs is not the registered one. *History and rollback* shows the sync that rolled that digest out, before the approval time.
++
+image::sc-argo-env-secured-promote.png["Argo CD, application env-secured, Summary: the annotations parasol.example/agent-version, model-only-baseline, promoted-by, promoted-digest, prompt-ref, prompt-sha256 and prompt-version written by the promote step; Synced, Healthy"]
+
+. *Which evaluated version.* Select the *MLflow* tab, experiment `parasol-agent-eval`, *Agent versions*, the version named in the annotation `agent-version`.
++
+What you should see: `eval_gate` `passed`, an `eval_score` at or above 0.95 (0.97 in the tested runs), the `eval_run_id` of the golden-set evaluation, and as parameters the same `prompt_sha256`, the tool policy sha256, the model and the portal image digest (xref:08-showcase6-eval-gate.adoc[08. Showcase 6: The evaluation gate]).
++
+image::s1-mlflow-agent-version.png["MLflow, experiment parasol-agent-eval, Agent versions: the production release's parasol-claims-agent version with eval_gate passed, its score, eval run and the prompt, tool policy, model and image parameters"]
+
+. *All of it at once.* In the *Terminal* tab:
++
+[source,bash,role=execute]
+----
+scripts/incident-report.sh CLM-1001
+----
++
+What you should see: the chain in seven read-only sections: the timeline and the PAYOUT line, the gateway's decisions in the 15 minutes before the approval (allow and deny, each with user, agent and tool), the release annotations on `env-secured`, the release run's results and the running digest. The MLflow and Keycloak sections print `n/a` from the Terminal (its identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too. The gateway's decision lines live in the MCP gateway pod's log and are lost when that pod restarts; a production cluster ships them to cluster logging.
++
+image::s9-terminal-incident-report.png["Terminal: scripts/incident-report.sh CLM-1001, sections 3 to 7: the gateway decisions before the approval (allow marcus parasol-claims-agent approve_payout), the release annotations on env-secured, the signed image and the evaluation gate 0.97"]
+
+The point: one payout, independent records, joined by the same names. None of them depends on the model telling the truth.
+
 == Evidence checklist
 
 Your closing cue: each claim this showcase makes, and the screen that proves it.
@@ -357,15 +417,27 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |The model proposed, the person approved
 |*MLflow*, rebecca's and marcus's traces
 |`tool.propose_payout` 4200; `gateway.authz` OK
+
+|What was live, and was it evaluated
+|*Terminal*, `evidence.sh release` and `evidence.sh prompt`; *Argo CD* `env-secured`; *MLflow*, *Agent versions*
+|the same digest in the run, the pin and the pod; the same prompt sha256; `eval_gate` `passed`
+
+|The conversation is on record, and checked
+|*MLflow*, marcus's chat turn, *Assessments*
+|question and answer, tool arguments and results; `loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`
+
+|One payout, end to end
+|*Terminal*, `incident-report.sh CLM-1001`
+|seven sections, the same names in each
 |===
 
 == Reset after this showcase
 
-Both portals approved CLM-1001 (unsecured by the assistant, secured by marcus's click). Put it back to *UnderReview*:
+Both portals approved CLM-1001 (unsecured by the assistant, secured by marcus's click). Put it back to *UnderReview*. The records stay, on purpose: traces, Keycloak events and logs are the audit trail.
 
 [source,bash,role=execute]
 ----
 scripts/reset.sh
 ----
 
-Continue with xref:04-scenario2-document.adoc[04. Showcase 2: The customer's document].
+Continue with xref:04-showcase2-document.adoc[04. Showcase 2: The customer's document].

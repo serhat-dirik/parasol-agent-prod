@@ -39,40 +39,28 @@ This showcase runs on its own, in any order with the others.
 * Personas: `nina.contractor` (the night-shift contractor, played by the script) and `rebecca`; passwords equal the user names.
 * State: every kill switch is on (`scripts/kill-switch.sh status`: no user disabled, both agents enabled, every subscription on, the gateways up), and her token budget is full. If an earlier run changed any of them, undo it as in *Reset after this showcase* below.
 
-== Scenario walkthrough: unsecured
+== The operator's night
 
-. In the *Terminal* tab, run the night shift against the unsecured portal:
+One flow, the way an operator lives it: the script runs, the alert fires, the operator finds out who and through what, confirms only that account is throttled, looks at what it did, and switches it off at the narrowest level that works. Every step says where to look and what to check.
+
+=== 1. 3 a.m.: the script runs
+
+. Unsecured first. In the *Terminal* tab, run the night shift against the unsecured portal:
 +
 [source,bash,role=execute,subs=attributes]
 ----
 scripts/night-shift.sh 40 portal-free.{domain}
 ----
-
-. Watch the script output.
 +
-What you should see: every request is answered; there is no per-user limit on the shared key. Left running all night, the budget is gone by morning and the assistant answers the claims staff with "budget exhausted".
-+
-Then look for this traffic on the platform: there is none to find. The unsecured portal calls the model provider directly with a key from a Secret, so no subscription, budget, dashboard or alert covers it.
-+
-The point: denial of wallet, and nobody was watching.
+What you should see: every request is answered; there is no per-user limit on the shared key. Left running all night, the budget is gone by morning and the assistant answers the claims staff with "budget exhausted". Look for this traffic on the platform: there is none to find. The unsecured portal calls the model provider directly with a key from a Secret, so no subscription, budget, dashboard or alert covers it. Denial of wallet, and nobody was watching.
 
-== Scenario walkthrough: secured
-
-. In the *Terminal* tab, give `nina.contractor` a full token budget again:
+. Now the secured portal. Give `nina.contractor` a full token budget again, then run the same script (the secured portal is the default target):
 +
 [source,bash,role=execute]
 ----
 scripts/reset.sh
-----
-
-. Run the night shift against the secured portal (the default target):
-+
-[source,bash,role=execute]
-----
 scripts/night-shift.sh 40
 ----
-
-. Watch the script output.
 +
 What you should see:
 +
@@ -80,17 +68,68 @@ What you should see:
 * the on-topic loop keeps hammering, and the per-user spend climbs;
 * after the contractor tier's token limit (Nina is its only member), the response reads "you have reached your usage limit (429)" and the script stops.
 
+=== 2. The alert fires: who, through which agent
+
+. Select the *OpenShift Console* tab, *Observe*, *Alerting*, project `parasol-secured`, and open the firing `ParasolAssistantTokenSpendHigh`.
++
+What you should see: the labels `user=nina.contractor`, `agent=parasol-claims-agent`, `namespace=parasol-secured`, and the description "Agent parasol-claims-agent on behalf of user nina.contractor is spending ... tokens/min", followed by the switches to use. The alert needs both the burst above the line and the usage-limit 429, so staff asking a few questions back to back do not trigger it.
++
+image::s4-alert-firing.png["Console, Observe > Alerting, ParasolAssistantTokenSpendHigh firing: agent parasol-claims-agent on behalf of user nina.contractor, with the operator responses in the description"]
+
+. Confirm it from the portal's own counters, per person and agent:
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh spend
+----
++
+What you should see: `nina.contractor via parasol-claims-agent` with a large token count, and under `refused by the platform` the line `nina.contractor via parasol-claims-agent  usage_limit` with a count. No `usage_limit` line for `rebecca`. Every token is booked to a person and an agent; that is why the platform can stop one account and leave the others alone.
+
+. Watch it. *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*; set *User* to `nina.contractor` and `rebecca`, so the earlier showcases' chats do not crowd the view.
++
+What you should see, in the row *Token spend*:
++
+* *Token spend per user and agent* climbing as `nina.contractor via parasol-claims-agent` past the red 5000 tokens/min line for the whole loop, while `rebecca via parasol-claims-agent` shows only a short blip;
+* *Tokens by user and agent* with `nina.contractor`, `parasol-claims-agent`, `secured` on top;
+* *Tokens by tier and agent*: the contractor tier (`parasol-contractor`) against the staff tier (`parasol-stage`), the cost per team;
+* *ParasolAssistantTokenSpendHigh: alert state* stepping to `firing nina.contractor via parasol-claims-agent`.
++
+In the row *Gateway decisions*, *Gateway rejections by reason* has `429 usage limit (MaaS token budget)` for `nina.contractor` via `parasol-claims-agent`.
++
+image::s4-dashboard-tiers.png["Console, Parasol Assistant Token Spend, row Token spend after night-shift.sh: nina.contractor above the 5000 tokens/min line, the alert firing, and Tokens by tier and agent with contractor (parasol-contractor) next to staff (parasol-stage)"]
+
+=== 3. Only that account is throttled
+
 . Select the *Portal secured* tab, sign in as `nina.contractor`, open her claim *CLM-1031* and ask a question.
 +
-What you should see: the chat answers with the usage-limit message "You have reached your usage limit (429). Please try again later." The account, not the portal, is out of budget.
+What you should see: "You have reached your usage limit (429). Please try again later." The account, not the portal, is out of budget.
 
-. In the same *Portal secured* tab, sign out, log in as `rebecca`, open any claim and ask a question.
+. Sign out, log in as `rebecca`, open any claim and ask a question.
 +
-What you should see: rebecca keeps working normally. Only `nina.contractor` is throttled.
+What you should see: rebecca keeps working normally.
 
-== Scenario walkthrough: the operator's response
+. Why: the rule is a Models-as-a-Service subscription per tier, not code in the agent.
++
+[source,bash,role=execute]
+----
+scripts/evidence.sh tiers
+----
++
+What you should see: `parasol-contractor`, owned by the group `parasol-contractor`, with a small token budget (for example `20000 tokens / 10m`), next to the staff tier `parasol-stage` with a larger one. The MaaS gateway counts the tokens and answers 429 at the limit, before the model is called. The same in the *OpenShift AI* tab, *Settings*, *MaaS governance*; *Gen AI studio*, *API keys* shows when each tier's key was last used.
++
+image::s4-maas-subscriptions.png["MaaS governance: the contractor, stage and guard subscriptions, each Ready with its own priority and token limit"]
 
-The alert has fired. Now the operator acts. The kill switch has five levels, from one person to the whole cluster: `user`, `agent`, `tier`, `parasol` and `break-glass`. Pick the narrowest one that stops the problem. Each is one command, each is undone with `on`, nothing in Git changes, and `scripts/reset.sh` undoes all of them.
+=== 4. What the account did
+
+. Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, then *Filters*, field *Tags*, key `team`, value `contractors`, *Apply filters*.
++
+What you should see: nina's turns, each with the question and the answer as the trace's *Request* and *Response*. Open one, tab *Assessments*: the AgenticOps checks the CronJob `agenticops` (project `observability`, every 10 minutes) logged on the turn: `loop`, `excess_steps`, `unknown_tool` and `pii_in_tool_args`, each `true` or `false` with its reason, and the tag `team` `contractors`. For a sample of turns the judge model, called through MaaS, adds `goal_achieved` with a one-sentence rationale. The same checks run on every agent turn, not only on alerts. The latest runs, from the *Terminal* tab: `scripts/evidence.sh agenticops`.
++
+image::s4-mlflow-contractor-turns.png["MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on the tag team = contractors: nina.contractor's night-shift turns with Request and Response, the excess_steps and goal_achieved assessments"]
+
+=== 5. Switch it off, narrowest first
+
+The kill switch has five levels, from one person to the whole cluster. Pick the narrowest one that stops the problem. Each is one command, each is undone with `on`, nothing in Git changes, and `scripts/reset.sh` undoes all of them.
 
 [cols="1,3,2",options="header"]
 |===
@@ -117,7 +156,7 @@ The alert has fired. Now the operator acts. The kill switch has five levels, fro
 |*Terminal* (MCP gateway only); administrator's workstation (both)
 |===
 
-Show where every switch stands, in the *Terminal* tab:
+Where every switch stands, in the *Terminal* tab:
 
 [source,bash,role=execute]
 ----
@@ -126,7 +165,9 @@ scripts/kill-switch.sh status
 
 What you should see: four short sections, `users (realm parasol, disabled)`, `agents`, `MaaS subscriptions (tier / parasol)` and `break glass`. Before you act: no user disabled, both agents `enabled=true`, every subscription `on`, the gateways at their normal replicas.
 
-=== 1. Switch the user off
+image::s4-kill-switch-status.png["Terminal: scripts/kill-switch.sh status with one level switched off: nina.contractor disabled in realm parasol, both agents enabled, every MaaS subscription on, the MCP gateway at 2 replicas (the cluster MaaS gateway is not readable from this Terminal)"]
+
+==== One user
 
 The problem is one account: the night-shift contractor.
 
@@ -155,7 +196,7 @@ What you should see: the script cannot log in as `nina.contractor`. Everyone els
 scripts/kill-switch.sh user nina.contractor on
 ----
 
-=== 2. Switch one agent off
+==== One agent
 
 Disable an agent the way you disable a user. The claims assistant's identity is the Keycloak client `parasol-claims-agent`; with it off, Keycloak refuses the agent's own sign-in, so it can no longer act on behalf of anyone. Other agents and every user keep their access.
 
@@ -190,7 +231,7 @@ What you should see: the next question in the *Portal secured* tab is answered n
 
 Switching off `fraud-agent` instead shows the other half of the story: rebecca's "Run a fraud check on this claim." on CLM-1004 still calls `fraud_check`, but the fraud agent cannot act for her, so the answer says the fraud check could not be completed, while the claims assistant keeps answering her other questions.
 
-=== 3. Switch a tier, or all of Parasol, off
+==== One tier, or all of Parasol
 
 When the spend comes from a whole group of users, cut their model budget at Models-as-a-Service. These switches change MaaS subscriptions, a cluster administrator's resources, so they run from an administrator's workstation, not from this Terminal:
 
@@ -202,7 +243,7 @@ scripts/kill-switch.sh tier parasol-contractor status
 
 What you should see: `parasol-contractor OFF (saved owner ...)` and `takes effect within about 60 s`. The subscription's owner groups are set aside, so every key minted for the contractor tier is refused; the staff tier `parasol-stage` is untouched, so rebecca keeps working. In the *Terminal* tab, `scripts/evidence.sh tiers` shows the same subscription as `SWITCHED OFF (kill switch)`. Undo with `scripts/kill-switch.sh tier parasol-contractor on`. `scripts/kill-switch.sh parasol off` does the same for every Parasol subscription at once.
 
-=== 4. Break glass
+==== Break glass
 
 When you cannot tell what is misbehaving, stop every tool call and every model call on the cluster. In the *Terminal* tab:
 
@@ -222,93 +263,9 @@ scripts/kill-switch.sh break-glass on
 
 What you should see: the gateway back at its normal replicas; the next question is answered.
 
-image::s4-kill-switch-status.png["Terminal: scripts/kill-switch.sh status with one level switched off: nina.contractor disabled in realm parasol, both agents enabled, every MaaS subscription on, the MCP gateway at 2 replicas (the cluster MaaS gateway is not readable from this Terminal)"]
+=== 6. The morning report
 
-== Evidence demo
-
-Five short steps, one command or one screen each: who spent, the rule, the switches, the alert, and the record. Everything runs read-only. The full walk through every screen is in <<Evidence details>> below.
-
-. *Who spent, through which agent.* The secured portal's own counters, per person and agent:
-+
-[source,bash,role=execute]
-----
-scripts/evidence.sh spend
-----
-+
-What you should see: `nina.contractor via parasol-claims-agent` with a large token count, and under `refused by the platform` the line `nina.contractor via parasol-claims-agent  usage_limit` with a count. No `usage_limit` line for `rebecca`.
-+
-Say: every token is booked to a person and an agent. That is why the platform can stop one account and leave the others alone.
-
-. *The rule.* Who may use which model, with which budget:
-+
-[source,bash,role=execute]
-----
-scripts/evidence.sh tiers
-----
-+
-What you should see: `parasol-contractor`, owned by the group `parasol-contractor`, with a small token budget (for example `20000 tokens / 10m`), next to the staff tier `parasol-stage` with a larger one.
-+
-Say: the budget is a Models-as-a-Service subscription per tier, not code in the agent. The MaaS gateway counts the tokens and answers 429 at the limit, before the model is called.
-
-. *The operator's switches.* Where each level of the kill switch stands:
-+
-[source,bash,role=execute]
-----
-scripts/kill-switch.sh status
-----
-+
-What you should see: users, agents, MaaS subscriptions and gateways, each `on` or switched off. If you switched something off above and did not undo it, it shows here.
-+
-Say: five levels, one person to the whole cluster. Each one is an identity or a platform resource, so it works the same for every agent.
-
-. *The alert names the person.* Select the *OpenShift Console* tab, *Observe*, *Alerting*, project `parasol-secured`.
-+
-What you should see: `ParasolAssistantTokenSpendHigh` with `user=nina.contractor` and `agent=parasol-claims-agent`. Its description lists the switches: `kill-switch.sh user`, `agent` and `parasol`.
-
-. *Watch it and trace it.* *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Token spend*.
-+
-What you should see: *Token spend per user and agent* with `nina.contractor via parasol-claims-agent` above the 5000 tokens/min line, and *Tokens by tier and agent* with the contractor tier next to the staff tier.
-+
-Then select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, then *Filters*, field *Tags*, key `team`, value `contractors`, *Apply filters*.
-+
-What you should see: nina's turns, each with the question and the answer as the trace's *Request* and *Response*. Once the AgenticOps check has run (every 10 minutes), each turn also carries its assessments (`loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`) and the tag `team` `contractors`.
-+
-image::s4-mlflow-contractor-turns.png["MLflow, workspace parasol-secured, experiment parasol-portal-chat, Traces filtered on the tag team = contractors: nina.contractor's night-shift turns with Request and Response, the excess_steps and goal_achieved assessments"]
-
-== Evidence details
-
-For curious minds: every screen behind the demo above.
-
-. Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, dashboard *Parasol Assistant Token Spend*. Set *User* to `nina.contractor` and `rebecca`, so the earlier showcases' chats do not crowd the view.
-+
-What you should see, in the row *Token spend*:
-+
-* *Token spend per user and agent* climbing as `nina.contractor via parasol-claims-agent` past the red 5000 tokens/min line for the whole loop, while `rebecca via parasol-claims-agent` shows only a short blip for her one question;
-* *Tokens by user and agent* with `nina.contractor`, `parasol-claims-agent`, `secured` on top;
-* *Tokens by tier and agent*: the contractor tier (`parasol-contractor`) against the staff tier (`parasol-stage`), the cost per team;
-* *ParasolAssistantTokenSpendHigh: alert state* stepping to `firing nina.contractor via parasol-claims-agent` once her budget runs out: the alert needs both the burst above the line and the usage-limit 429, so staff asking a few questions back to back do not trigger it.
-+
-image::s4-dashboard-spend.png["Console, Parasol Assistant Token Spend, row 'Token spend' right after night-shift.sh 40: nina.contractor via parasol-claims-agent above the 5000 line, the tokens table, the alert-state panel firing"]
-+
-image::s4-dashboard-tiers.png["Console, Parasol Assistant Token Spend, row Token spend after night-shift.sh: nina.contractor above the 5000 tokens/min line, the alert firing, and Tokens by tier and agent with contractor (parasol-contractor) next to staff (parasol-stage)"]
-
-. Scroll to the row *Gateway decisions*, then open *Observe*, *Alerting* with the project set to `parasol-secured`, and open the firing `ParasolAssistantTokenSpendHigh`.
-+
-What you should see: *Gateway rejections by reason* has `429 usage limit (MaaS token budget)` for `nina.contractor` via `parasol-claims-agent`. In *Alerting*, `ParasolAssistantTokenSpendHigh` is firing with the labels `user=nina.contractor`, `agent=parasol-claims-agent`, `namespace=parasol-secured`, and its description reads "Agent parasol-claims-agent on behalf of user nina.contractor is spending ... tokens/min", followed by the three switches to use.
-+
-image::s4-alert-firing.png["Console, Observe > Alerting, ParasolAssistantTokenSpendHigh firing: agent parasol-claims-agent on behalf of user nina.contractor, with the operator responses in the description"]
-
-. Select the *OpenShift AI* tab and open *Settings*, then *MaaS governance*.
-+
-What you should see: every model call from the secured side goes through a subscription with its own token limit. `parasol-contractor` is the contractor tier, separate from the staff tiers, which is why only nina.contractor hit the limit while the claims staff kept working. *Gen AI studio*, *API keys* shows when each tier's key was last used. The platform enforced the budget; the dashboard and the alert name who spent it and through which agent.
-+
-image::s4-maas-subscriptions.png["MaaS governance: the contractor, stage and guard subscriptions, each Ready with its own priority and token limit"]
-
-. In the *MLflow* tab, open one of nina's traces (*Filters*, field *Tags*, key `team`, value `contractors`), tab *Assessments*.
-+
-What you should see: the AgenticOps checks the CronJob `agenticops` (project `observability`, every 10 minutes) logged on the turn: `loop`, `excess_steps`, `unknown_tool` and `pii_in_tool_args`, each `true` or `false` with its reason. For a sample of turns the judge model, called through MaaS, adds `goal_achieved` with a one-sentence rationale. The same checks run on every agent turn, not only on alerts. The latest runs, from the *Terminal* tab: `scripts/evidence.sh agenticops`.
-
-The morning report is two screens you already have open: the alert and the dashboard.
+Two screens you already have open: the alert, which names the person and the agent, and the dashboard, which shows what they spent, against which budget, and what the platform refused.
 
 == Evidence checklist
 
@@ -352,4 +309,4 @@ To undo one switch only: `scripts/kill-switch.sh <level> ... on`, for example `s
 
 The `ParasolAssistantTokenSpendHigh` alert resolves on its own about 20 minutes after the spend stops.
 
-Continue with xref:07-scenario5-eval-gate.adoc[07. Showcase 5: The evaluation gate].
+Continue with xref:07-showcase5-supply-chain.adoc[07. Showcase 5: Supply chain, signing and admission].

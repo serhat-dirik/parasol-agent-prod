@@ -19,19 +19,27 @@ You demo the *same claim* with the *same request* on each portal. The only varia
 
 == The showcases
 
-. *The colleague.* A claims adjuster asks the assistant to approve a payout the adjuster has no authority to approve.
+*Business showcases*: what a user, a customer or a document can make the assistant do. Each one runs on both portals, unsecured first, then secured, then the platform's own records.
+
+. *The colleague.* A claims adjuster pushes the assistant to approve a payout the adjuster has no authority to approve. Ends with the audit trail: one payout, reconstructed from the platform's records, from the claim back to the signed release.
 . *The customer's document.* An uploaded repair estimate is inflated to USD 84,000 and carries a hidden note addressed to the assistant.
 . *The confidential document.* The assistant searches Parasol's knowledge base, where some documents are for everyone, some for claims staff and some for claims managers only, and an adjuster asks about plans affecting her own team.
-. *The night shift.* An outsourced night-shift contractor's account (or its leaked token) is scripted at 3 a.m. to drain the token budget.
-. *The evaluation gate.* A developer simplifies the system prompt; the platform evaluates it against a golden set and blocks the regression.
-. *The poisoned tool.* A handy third-party currency-conversion tool is plugged into the assistant; later its description changes, without a new version, and asks the assistant to approve payouts.
 
-. *The incident.* One payout reconstructed from the platform's own records, from the claim back to the signed release.
-. *Supply chain.* Signed images, admission control, and *only approved models*: what a secured workload can and cannot reach.
+*Operations*: how an operator watches agents and stops them.
 
-Unsecured, the first, second, third, fourth and sixth cause harm. Secured, a *different* layer stops each, and the platform consoles show why. Each showcase stands on its own: run any of them, in any order, using its *Before you start* and *Reset* steps.
+[start=4]
+. *The night shift.* An outsourced night-shift contractor's account (or its leaked token) is scripted at 3 a.m. to drain the token budget; the operator sees it, names it and switches it off, one layer at a time.
 
-Every showcase follows one shape: *The business case* (who, what is at stake, the outcome without and with the platform), the *Scenario walkthrough* on the unsecured portal and then the secured one (where a showcase has both), the *Technical evidence* on the platform's own screens (identity provider events, gateway decisions, traces, dashboards, logs; in Showcases 1 to 3 split into a short *Evidence demo* and *Evidence details* for curious minds), and an *Evidence checklist* to close on.
+*Agent delivery lifecycle*: how an agent, its prompt and the tools it uses reach production.
+
+[start=5]
+. *Supply chain, signing and admission.* The release pipeline builds, scans and signs the portal; admission runs only signed images, and secured workloads reach only approved models.
+. *The evaluation gate.* A developer shortens the system prompt; the release evaluates it against a golden set and refuses it, although it scores as well as production with the platform on.
+. *Third-party tools.* A vendor's currency-conversion tool; later its description changes, without a new version, and asks the assistant to approve payouts.
+
+Unsecured, the business showcases and the third-party tool cause harm. Secured, a *different* layer stops each, and the platform consoles show why. Each showcase stands on its own: run any of them, in any order, using its *Before you start* and *Reset* steps.
+
+The business showcases follow one shape: *The business case* (who, what is at stake, the outcome without and with the platform), the *Scenario walkthrough* on the unsecured portal and then the secured one, a short *Evidence demo* and *Evidence details* for curious minds, and an *Evidence checklist* to close on. The operations and delivery showcases follow the operator's or the pipeline's own steps: run it, look, check.
 
 [NOTE]
 .The messages to land

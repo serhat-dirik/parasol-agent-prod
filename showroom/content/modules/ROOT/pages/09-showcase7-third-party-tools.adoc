@@ -1,5 +1,5 @@
-= 08. Showcase 6: The poisoned tool
-:navtitle: 08. Showcase 6: The poisoned tool
+= 09. Showcase 7: Third-party tools
+:navtitle: 09. Showcase 7: Third-party tools
 :toc: macro
 :toclevels: 2
 
@@ -263,4 +263,17 @@ scripts/reset.sh
 
 What you should see: the claims restored in both portals, then `vendor tool: clean description`, `free assistant: vendor tool unplugged` (the unsecured portal restarts) and `secured gateway: currency-converter not registered`. CLM-1001 is back to *UnderReview*. The two alerts resolve within a minute of the clean description; the scanner logs `action=cleared`.
 
-Continue with xref:09-incident-forensics.adoc[09. The incident: one payout, reconstructed].
+== Conclusion
+
+The showcases made one argument. The unsecured and the secured portal are the same image running the same model. The difference is the platform around it, and every piece of that platform is a product an operator already knows:
+
+* Identity on every tool call: Keycloak and the MCP gateway.
+* Identity on data: retrieval runs as the user, down to row-level security in the database.
+* A document is data, not a command: NeMo Guardrails on the MCP gateway and on the model path, and the Read-Propose-Act gate.
+* Budgets and alerts with a name: OpenShift AI Models-as-a-Service, Connectivity Link, and the OpenShift console.
+* Only approved models: egress only to the platform's gateways, provider keys only in MaaS, only registered models routed.
+* Quality and provenance enforced: the evaluation gate, signing and admission.
+* A tool is a supply chain too: the MCP gateway federates only reviewed registrations, and the tool scanner pins and reads every tool description.
+* The sandbox has a front door: access is identity-bound, and the operator has a layered kill switch, from one user or one agent in Keycloak, through one MaaS tier or all of Parasol, to every tool and model call on the cluster, each level one command.
+
+Continue with xref:10-reset-troubleshooting.adoc[10. Reset and troubleshooting].

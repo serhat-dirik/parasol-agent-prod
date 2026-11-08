@@ -1,5 +1,5 @@
-= 07. Showcase 5: The evaluation gate
-:navtitle: 07. Showcase 5: The evaluation gate
+= 08. Showcase 6: The evaluation gate
+:navtitle: 08. Showcase 6: The evaluation gate
 :toc: macro
 :toclevels: 2
 
@@ -13,22 +13,9 @@ A developer proposes a shorter system prompt for the assistant, the *candidate: 
 A prompt change is a code change: it can silently remove a safety behavior. A version that fails the evaluation cannot be promoted, and every score is tied to the exact prompt and model version it measured.
 ====
 
-== The business case
+== Why it matters
 
-[cols="1,4"]
-|===
-|Who
-|A developer who shortens the assistant's system prompt, and the release manager who decides what reaches production.
-
-|What is at stake
-|A prompt is code. A harmless-looking simplification can quietly remove a safety rule; shipped untested, it reaches every customer conversation at once and is found only after an incident.
-
-|Without the platform
-|The change ships when it is merged. Nobody measures what it does to the answers.
-
-|With the platform
-|The release runs the golden set live, with and without the platform's controls, and blocks promotion when either bar fails. Every score is tied to the exact prompt and model version it measured.
-|===
+A prompt is code. A harmless-looking simplification can quietly remove a safety rule; shipped untested, it reaches every customer conversation at once and is found only after an incident. Without the platform the change ships when it is merged and nobody measures what it does to the answers. Here the release runs the golden set live, with and without the platform's controls, and blocks promotion when either bar fails; every score is tied to the exact prompt, agent version and model it measured.
 
 == Before you start
 
@@ -42,9 +29,9 @@ This showcase runs on its own, in any order with the others. It only reads what 
 scripts/pipeline-runs.sh
 ----
 
-== Evidence demo
+== Run it
 
-Five short steps, one command or one screen each: the verdict, the rule, how the release enforces it, and the record it leaves. Everything reads only. The full walk through every screen is in <<Evidence details>> below.
+Five short steps, one command or one screen each: the verdict, the rule, how the release enforces it, and the record it leaves. Everything reads only. The full walk through every screen is in <<Look closer>> below.
 
 . *The verdict.* Both release runs, from each run's own results:
 +
@@ -98,7 +85,7 @@ What you should see: `parasol-eval`, owned by the pipeline's ServiceAccounts (`s
 +
 image::s5-mlflow-role-authorization.png["MLflow, a candidate-shortened-prompt evaluation trace of case role-authorization, mode model_only: caller rebecca (adjuster), approve_payout called, the payout reported approved, assessments case_pass and no_payout_without_approval False"]
 
-== Evidence details
+== Look closer
 
 For curious minds: every screen behind the demo above.
 
@@ -172,7 +159,7 @@ The link back from the gate to production: every live chat turn names the prompt
 
 . Select the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*. Open any recent chat trace (for example the CLM-1004 turn from Showcase 2), or filter with *Filters*, field *Tags*, key `agent`, value `parasol-claims-agent`.
 +
-What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt/1` (the version behind `@production`), next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the registry version behind `@production` that the production release gated and pinned (`prompt-ref` and `prompt-version` on the `env-secured` Application, xref:10-supply-chain.adoc[10. Supply chain]); the shortened candidate never appears here, because it was never promoted.
+What you should see: the trace tag `prompt` `parasol-claims-assistant-system-prompt/1` (the version behind `@production`), next to `agent` `parasol-claims-agent` and `model` `qwen3-14b`; on the root span the same value as `gen_ai.prompt.ref`. It is the registry version behind `@production` that the production release gated and pinned (`prompt-ref` and `prompt-version` on the `env-secured` Application, xref:07-showcase5-supply-chain.adoc[07. Showcase 5: Supply chain, signing and admission]); the shortened candidate never appears here, because it was never promoted.
 +
 The tag `prompt_sha256` is the digest of the prompt text this turn actually ran. It equals the `prompt_sha256` of the prompt registry version behind alias `production`, of the Model Registry version `production`, and the `parasol.example/prompt-sha256` annotation on `env-secured`: the secured portal reads its whole system prompt only from what the release pinned (ConfigMap `agent-prompt-release`, written by `promote` with the registered text the gate evaluated). Editing `gitops/envs/secured/system-prompt.txt` in Git changes nothing here until the next release registers, gates and pins it. The running prompt is literally the gated text.
 +
@@ -211,4 +198,4 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 
 Nothing to reset: this showcase changes no data.
 
-Continue with xref:08-scenario6-poisoned-tool.adoc[08. Showcase 6: The poisoned tool].
+Continue with xref:09-showcase7-third-party-tools.adoc[09. Showcase 7: Third-party tools].

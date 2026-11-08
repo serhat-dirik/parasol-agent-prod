@@ -10,7 +10,7 @@ A customer uploads a repair estimate to a denied claim. The estimate is inflated
 [NOTE]
 .Know: a document is data, not a command
 ====
-Every agent that reads customer content will one day read an instruction aimed at it. Here the model obeys any such note, so what stops the payout is the platform: the MCP gateway checks every claims tool result with NeMo Guardrails and refuses the document before the model reads it. And even a model that did read it could only propose, never pay (that proof is in xref:03-scenario1-colleague.adoc[Showcase 1]). The controls, not model luck, stop the payout.
+Every agent that reads customer content will one day read an instruction aimed at it. Here the model obeys any such note, so what stops the payout is the platform: the MCP gateway checks every claims tool result with NeMo Guardrails and refuses the document before the model reads it. And even a model that did read it could only propose, never pay (that proof is in xref:03-showcase1-colleague.adoc[Showcase 1]). The controls, not model luck, stop the payout.
 ====
 
 == The business case
@@ -210,7 +210,7 @@ The hidden note asked for a payout. A note could just as well ask the assistant 
 oc get mcpvirtualserver -n parasol-secured -o custom-columns=SERVER:.metadata.name,TOOLS:.spec.tools
 ----
 +
-What you should see: every tool an agent in `parasol-secured` can be offered: `claims-db` (`get_claim`, `list_claims_by_status`, `get_claim_history`, `get_claim_documents`), `fraud-check` (`fraud_check`), `knowledge-base` (`search_knowledge`), `policy-docs` (`search_policies`, `get_policy`, `list_policies`). None takes a web address, a host or a mailbox. A new tool appears only through a reviewed registration (xref:08-scenario6-poisoned-tool.adoc[08. Showcase 6]).
+What you should see: every tool an agent in `parasol-secured` can be offered: `claims-db` (`get_claim`, `list_claims_by_status`, `get_claim_history`, `get_claim_documents`), `fraud-check` (`fraud_check`), `knowledge-base` (`search_knowledge`), `policy-docs` (`search_policies`, `get_policy`, `list_policies`). None takes a web address, a host or a mailbox. A new tool appears only through a reviewed registration (xref:09-showcase7-third-party-tools.adoc[09. Showcase 7: Third-party tools]).
 
 . *The network reaches nothing else.* Select the *OpenShift Console* tab, project `parasol-secured`, *Networking*, *NetworkPolicies*, `portal`.
 +
@@ -221,7 +221,7 @@ What you should see: egress only to the MCP gateway (`gateway-system`), Keycloak
 oc exec -n parasol-secured deploy/portal -- curl -sS -o /dev/null --max-time 5 https://example.com
 ----
 +
-What you should see: `curl: (28) ... Connection timed out` (and `command terminated with exit code 28`): the connection never leaves the namespace. OVN logs the drop on the pod's node (`name="NP:parasol-secured:Egress", verdict=drop`, see xref:10-supply-chain.adoc[10. Supply chain]).
+What you should see: `curl: (28) ... Connection timed out` (and `command terminated with exit code 28`): the connection never leaves the namespace. OVN logs the drop on the pod's node (`name="NP:parasol-secured:Egress", verdict=drop`, see xref:07-showcase5-supply-chain.adoc[07. Showcase 5: Supply chain, signing and admission]).
 
 . *The answer cannot carry a link out.* In the *OpenShift Console* tab, *ConfigMaps*, `nemo-parasol-chat`: the output rail `parasol remove external links` in `config.yaml`, and in `actions.py` the allow-list `parasol.example`. Then, in the *Portal secured* tab as `rebecca` on *CLM-1004*, send a benign test:
 +
@@ -285,4 +285,4 @@ The unsecured portal paid CLM-1004 (USD 84,000). Put it back to *Denied*; the se
 scripts/reset.sh
 ----
 
-Continue with xref:05-scenario3-confidential-document.adoc[05. Showcase 3: The confidential document].
+Continue with xref:05-showcase3-confidential-document.adoc[05. Showcase 3: The confidential document].

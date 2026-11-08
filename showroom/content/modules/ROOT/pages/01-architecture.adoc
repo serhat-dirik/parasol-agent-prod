@@ -73,7 +73,7 @@ Keycloak realm `parasol`. Passwords equal the usernames; these users exist only 
 The models are hosted outside the cluster, behind any OpenAI-compatible endpoint, and reached through OpenShift AI Models-as-a-Service (MaaS). No GPU in the cluster. Each one is chosen at setup; these are the tested defaults:
 
 * `qwen3-14b`: the agent model. *Both* portals run it. It emits structured tool calls and it obeys an instruction hidden in a document, which is what makes Showcase 2's unsecured side pay. The same model, with a short yes/no prompt, is the guardrails' injection judge on tool results (set in the NeMo Guardrails manifest, not at setup).
-* `gpt-oss-120b`: the evaluation judge in Showcase 5 and the sampled judge of the AgenticOps checks.
+* `gpt-oss-120b`: the evaluation judge in Showcase 6 and the sampled judge of the AgenticOps checks.
 * `granite-guardian-3-1-8b`: the guard-tier model, registered in MaaS and in the model registry. It is *not* on the live request path: on Parasol's documents it lost the injection test to the `qwen3-14b` judge (it missed reworded notes, or flagged ordinary claim records).
 
 The agent never holds the upstream model key. MaaS holds it, and gives each consumer its own MaaS key bound to a subscription with a token budget. MaaS meters by the key's owner, and the secured portal holds one key per tier (staff, contractor), so MaaS sees a *tier*, not a person. Who spent what, per person and per agent, comes from the portal's own metrics and the traces.
@@ -122,7 +122,7 @@ What enforces it is the gateway's role check on every call, not the tool set: th
 |OpenShift AI MaaS: per-tier subscriptions, auth policies, keys and token budgets enforced by Connectivity Link; MaaS meters per tier, the portal's metrics and the traces name the person
 
 |6 Lifecycle gate
-|regressions and unsigned images
+|Showcases 5 to 7: unsigned images, regressions, unreviewed third-party tools
 |Tekton pipeline (build, scan, evaluation gate, sign, verify, promote) and Sigstore admission policy
 
 |7 Observability and control

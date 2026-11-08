@@ -1,5 +1,5 @@
-= 10. Showcase 8: Supply chain, signing and admission
-:navtitle: 10. Showcase 8: Supply chain, signing and admission
+= 07. Showcase 5: Supply chain, signing and admission
+:navtitle: 07. Showcase 5: Supply chain, signing and admission
 :toc: macro
 :toclevels: 2
 
@@ -13,26 +13,13 @@ The agent reached production the way any workload should: a pipeline that evalua
 What runs next to customer data must be the exact image the pipeline built, evaluated and signed. An unsigned or tampered image cannot start in the secured namespace, whoever deploys it.
 ====
 
-== The business case
+== Why it matters
 
-[cols="1,4"]
-|===
-|Who
-|The platform team, and anyone who can deploy to the cluster.
+What runs next to customer data must be exactly what was built, scanned, evaluated and approved. A tampered or unsigned image, or a workload calling an unapproved model, bypasses every other control. Without the platform any image can run, and any workload can call any model endpoint it has a key for. Here the pipeline signs and verifies every release, admission refuses unsigned images in the secured namespace, and only approved models are reachable.
 
-|What is at stake
-|What runs next to customer data must be exactly what was built, scanned, evaluated and approved. A tampered or unsigned image, or a workload calling an unapproved model, bypasses every other control.
+== Run it
 
-|Without the platform
-|Any image can run, and any workload can call any model endpoint it has a key for.
-
-|With the platform
-|The pipeline signs and verifies every release, admission refuses unsigned images in the secured namespace, and only approved models are reachable.
-|===
-
-== Evidence demo
-
-Five short steps, one command or one screen each: what runs, the rule, how the platform enforces it, and the record it leaves. Everything reads only, except step 3, which starts and removes two test pods in a demo namespace. The full walk through every screen is in <<Evidence details>> below.
+Five short steps, one command or one screen each: what runs, the rule, how the platform enforces it, and the record it leaves. Everything reads only, except step 3, which starts and removes two test pods in a demo namespace. The full walk through every screen is in <<Look closer>> below.
 
 . *What runs in production.* The release run, the Argo CD pin, the running pod and the admission policy:
 +
@@ -73,7 +60,7 @@ Say: no key would help the secured portal call a model around the platform. Its 
 +
 What you should see: build, scan, the two signatures, Conforma, the evaluation gate, then `promote`. The run's *Details* tab lists the same `PROMOTED_DIGEST` as step 1.
 
-== Evidence details
+== Look closer
 
 For curious minds: every screen behind the demo above.
 
@@ -85,7 +72,7 @@ What you should see: the release process is code too. Argo CD keeps the `parasol
 
 . Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-release-production`.
 +
-What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Showcase 5 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom`; `register-agent-version` records the evaluated agent configuration as an MLflow agent version before `promote` runs. (On this console version the graph can show a red marker on `promote`'s step once the run is old; the run's status line, *Tasks Completed: 13 (Failed: 0)*, and the `promote` log are the record.)
+What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Showcase 6 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom`; `register-agent-version` records the evaluated agent configuration as an MLflow agent version before `promote` runs. (On this console version the graph can show a red marker on `promote`'s step once the run is old; the run's status line, *Tasks Completed: 13 (Failed: 0)*, and the `promote` log are the record.)
 +
 image::sc-pipeline-v1-promoted.png["The release run: build, scan, keyed and keyless signing, Conforma, the evaluation gate, then promote"]
 
@@ -99,7 +86,7 @@ What you should see: first `Prompt pinned: agent-prompt-release = parasol-claims
 
 . Select the *Argo CD* tab, open application `env-secured`, click *Details* and select the *Parameters* tab.
 +
-What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref`, `prompt-version` (the registry version pinned), `prompt-sha256` (the digest of the pinned prompt text) and `agent-version` (the MLflow agent version the gate evaluated). *History and rollback* lists the sync that rolled it out. The `prompt-version` here (`parasol-claims-assistant-system-prompt/1`, the version behind `@production`) is the same value every live chat trace carries as its `prompt` tag, and `prompt-sha256` matches the trace's `prompt_sha256` (xref:07-scenario5-eval-gate.adoc[07. Showcase 5]): release record and runtime evidence agree.
+What you should see: under *Images*, the `parasol-portal` override with the promoted digest. The *Summary* tab carries the audit trail as annotations: `parasol.example/promoted-digest`, `promoted-by` (the TaskRun), `prompt-ref`, `prompt-version` (the registry version pinned), `prompt-sha256` (the digest of the pinned prompt text) and `agent-version` (the MLflow agent version the gate evaluated). *History and rollback* lists the sync that rolled it out. The `prompt-version` here (`parasol-claims-assistant-system-prompt/1`, the version behind `@production`) is the same value every live chat trace carries as its `prompt` tag, and `prompt-sha256` matches the trace's `prompt_sha256` (xref:08-showcase6-eval-gate.adoc[08. Showcase 6: The evaluation gate]): release record and runtime evidence agree.
 +
 image::sc-argo-env-secured-promote.png["Argo CD, application env-secured, Summary: the annotations parasol.example/agent-version, model-only-baseline, promoted-by, promoted-digest, prompt-ref, prompt-sha256 and prompt-version written by the promote step; Synced, Healthy"]
 
@@ -171,7 +158,7 @@ oc adm node-logs $node --path=ovn/acl-audit-log.log | grep 'NP:parasol-secured:E
 +
 What you should see: `name="NP:parasol-secured:Egress", verdict=drop, severity=alert, ... nw_src=<the portal pod IP>, nw_dst=<the public address>, tp_dst=443`. Without the annotation, NetworkPolicy drops are not logged at all; the namespace in this demo opts in.
 
-. *Only registered models, only MaaS keys.* Select the *OpenShift Console* tab, project `models-as-a-service`, *Home*, *Search*, resource `MaaSModelRef`: the models the platform serves (the assistant's model, the guard model and the evaluation's judge model, chosen at setup; tested with `qwen3-14b`, `granite-guardian-3-1-8b` and `gpt-oss-120b`), each *Ready* behind `maas-default-gateway` and backed by an `ExternalModel` whose upstream provider key lives in that project only. In the *OpenShift AI* tab, *Settings*, *MaaS governance* lists the subscriptions that may use each one. Then, in the *OpenShift Console* tab, project `parasol-secured`, *Secrets*: `maas-credentials` and `maas-portal-keys` hold *MaaS* keys, each bound to a subscription with its own token limit (xref:06-scenario4-night-shift.adoc[06. Showcase 4]); no provider key is in the namespace. Every model call goes portal -> guardrails proxy -> MaaS, and MaaS routes only to the models registered in it: a request for any other model name finds no route.
+. *Only registered models, only MaaS keys.* Select the *OpenShift Console* tab, project `models-as-a-service`, *Home*, *Search*, resource `MaaSModelRef`: the models the platform serves (the assistant's model, the guard model and the evaluation's judge model, chosen at setup; tested with `qwen3-14b`, `granite-guardian-3-1-8b` and `gpt-oss-120b`), each *Ready* behind `maas-default-gateway` and backed by an `ExternalModel` whose upstream provider key lives in that project only. In the *OpenShift AI* tab, *Settings*, *MaaS governance* lists the subscriptions that may use each one. Then, in the *OpenShift Console* tab, project `parasol-secured`, *Secrets*: `maas-credentials` and `maas-portal-keys` hold *MaaS* keys, each bound to a subscription with its own token limit (xref:06-showcase4-night-shift.adoc[06. Showcase 4: The night shift]); no provider key is in the namespace. Every model call goes portal -> guardrails proxy -> MaaS, and MaaS routes only to the models registered in it: a request for any other model name finds no route.
 +
 image::sc-maas-models.png["Console, project models-as-a-service, MaaSModelRefs: gpt-oss-120b (judge), granite-guardian-3-1-8b (guard) and qwen3-14b (agent), each Ready behind maas-default-gateway"]
 +
@@ -218,17 +205,4 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |agent, guard and judge models, *Ready*, behind `maas-default-gateway`
 |===
 
-== Conclusion
-
-The showcases and the incident made one argument. The unsecured and the secured portal are the same image running the same model. The difference is the platform around it, and every piece of that platform is a product an operator already knows:
-
-* Identity on every tool call: Keycloak and the MCP gateway.
-* Identity on data: retrieval runs as the user, down to row-level security in the database.
-* A document is data, not a command: NeMo Guardrails on the MCP gateway and on the model path, and the Read-Propose-Act gate.
-* Budgets and alerts with a name: OpenShift AI Models-as-a-Service, Connectivity Link, and the OpenShift console.
-* Only approved models: egress only to the platform's gateways, provider keys only in MaaS, only registered models routed.
-* Quality and provenance enforced: the evaluation gate, signing and admission.
-* A tool is a supply chain too: the MCP gateway federates only reviewed registrations, and the tool scanner pins and reads every tool description.
-* The sandbox has a front door: access is identity-bound, and the operator has a layered kill switch, from one user or one agent in Keycloak, through one MaaS tier or all of Parasol, to every tool and model call on the cluster, each level one command.
-
-Continue with xref:11-reset-troubleshooting.adoc[11. Reset and troubleshooting].
+Continue with xref:08-showcase6-eval-gate.adoc[08. Showcase 6: The evaluation gate].

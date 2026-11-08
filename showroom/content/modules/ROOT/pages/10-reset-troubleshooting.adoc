@@ -1,5 +1,5 @@
-= 11. Reset and troubleshooting
-:navtitle: 11. Reset and troubleshooting
+= 10. Reset and troubleshooting
+:navtitle: 10. Reset and troubleshooting
 :toc: macro
 :toclevels: 2
 
@@ -15,7 +15,7 @@ Reset between every run of the demo, and scan the troubleshooting table once bef
 
 == Reset between runs
 
-The showcases change data: Showcase 1 approves CLM-1001, Showcase 2 pays CLM-1004 on the unsecured portal, and Showcase 4 spends `nina.contractor`'s budget. Showcase 3 only reads: the knowledge base is not changed by any showcase, and the reset leaves it as it is. Showcase 6 plugs the vendor tool into the unsecured portal, poisons its description, may register it on the secured gateway, and pays CLM-1001 on the unsecured portal. The incident page (09) needs marcus's approval of CLM-1001 on the secured portal.
+The showcases change data: Showcase 1 approves CLM-1001, Showcase 2 pays CLM-1004 on the unsecured portal, and Showcase 4 spends `nina.contractor`'s budget. Showcase 3 only reads: the knowledge base is not changed by any showcase, and the reset leaves it as it is. Showcase 7 plugs the vendor tool into the unsecured portal, poisons its description, may register it on the secured gateway, and pays CLM-1001 on the unsecured portal. The incident page (09) needs marcus's approval of CLM-1001 on the secured portal.
 
 . In the *Terminal* tab, reset both portals and the token budgets:
 +
@@ -41,7 +41,7 @@ What you should see: no user disabled, both agents `enabled=true`, every MaaS su
 
 === What a reset clears, and what it keeps
 
-`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every tier's token budget and zeroes Limitador's own 429 count. It also puts the Showcase 6 vendor tool back: clean description, unplugged from the unsecured portal (which restarts if it was plugged in), not registered on the secured gateway. And it undoes the Showcase 4 kill switch at every level: the gateways back up, Parasol's MaaS subscriptions back on, every disabled user of realm `parasol` enabled again, `parasol-claims-agent` and `parasol-fraud-agent` enabled in Keycloak. It does not clear the governance record, on purpose:
+`scripts/reset.sh` puts the claims back (CLM-1001 *UnderReview*, CLM-1004 *Denied*, in both portals) and restarts Limitador, which refills every tier's token budget and zeroes Limitador's own 429 count. It also puts the Showcase 7 vendor tool back: clean description, unplugged from the unsecured portal (which restarts if it was plugged in), not registered on the secured gateway. And it undoes the Showcase 4 kill switch at every level: the gateways back up, Parasol's MaaS subscriptions back on, every disabled user of realm `parasol` enabled again, `parasol-claims-agent` and `parasol-fraud-agent` enabled in Keycloak. It does not clear the governance record, on purpose:
 
 * the dashboard counters are cumulative since their process started: token spend, tool calls and 429s per user live in the secured portal (cleared when the portal pod restarts, for example after a release), guardrail hits in the guardrails proxy, gateway refusals in Authorino. Between runs, read the *change* on a panel, not the absolute number;
 * MLflow traces, Keycloak events (kept 7 days) and the Authorino log stay, so a later run can still be traced back;
@@ -124,7 +124,7 @@ Every question the audience asks has one screen that answers it with the same na
 |production 0.97 (28 of 29 with the platform; answers generated live), candidate about the same with the platform but BLOCKED: its model alone lost `role-authorization`, a case production's model alone passed on every attempt; `prompt-ref` `...@production` and `prompt-sha256`, the same values as every chat trace's `prompt` and `prompt_sha256` tags and the registry version's `prompt_sha256`
 
 |One payout, end to end?
-|xref:09-incident-forensics.adoc[09. The incident]; `scripts/incident-report.sh <claim>`
+|xref:03-showcase1-colleague.adoc#audit-trail[03. Showcase 1: The colleague, the audit trail]; `scripts/incident-report.sh <claim>`
 |timeline, PAYOUT line, approval and proposal traces, TOKEN_EXCHANGE, gateway decisions, release annotations, registry version, signed digest
 
 |Is what runs the image the pipeline signed?

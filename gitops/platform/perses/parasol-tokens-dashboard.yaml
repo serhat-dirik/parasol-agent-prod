@@ -820,7 +820,7 @@ spec:
     - kind: Grid
       spec:
         display:
-          title: 'Tool supply chain: what MCP servers tell the model (Showcase 6)'
+          title: 'Tool supply chain: what MCP servers tell the model (Showcase 7)'
         items:
         - content:
             $ref: '#/spec/panels/toolServers'

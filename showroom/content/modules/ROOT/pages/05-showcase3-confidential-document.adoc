@@ -332,4 +332,4 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 
 Nothing to reset: the showcase only reads (the knowledge base and the claims). `scripts/reset.sh` does not touch the knowledge base; an administrator can reload it at any time with `scripts/knowledge-base-ingest.sh`.
 
-Continue with xref:06-scenario4-night-shift.adoc[06. Showcase 4: The night shift].
+Continue with xref:06-showcase4-night-shift.adoc[06. Showcase 4: The night shift].

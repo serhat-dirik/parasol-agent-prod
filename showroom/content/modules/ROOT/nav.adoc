@@ -3,15 +3,18 @@
 * xref:01-architecture.adoc[01. Architecture]
 * xref:02-before-you-start.adoc[02. Before you start]
 
-.Showcases
-* xref:03-scenario1-colleague.adoc[03. Showcase 1: The colleague]
-* xref:04-scenario2-document.adoc[04. Showcase 2: The customer's document]
-* xref:05-scenario3-confidential-document.adoc[05. Showcase 3: The confidential document]
-* xref:06-scenario4-night-shift.adoc[06. Showcase 4: The night shift]
-* xref:07-scenario5-eval-gate.adoc[07. Showcase 5: The evaluation gate]
-* xref:08-scenario6-poisoned-tool.adoc[08. Showcase 6: The poisoned tool]
-* xref:09-incident-forensics.adoc[09. Showcase 7: The incident, one payout reconstructed]
-* xref:10-supply-chain.adoc[10. Showcase 8: Supply chain, signing and admission]
+.Business showcases
+* xref:03-showcase1-colleague.adoc[03. Showcase 1: The colleague]
+* xref:04-showcase2-document.adoc[04. Showcase 2: The customer's document]
+* xref:05-showcase3-confidential-document.adoc[05. Showcase 3: The confidential document]
 
 .Operations
-* xref:11-reset-troubleshooting.adoc[11. Reset and troubleshooting]
+* xref:06-showcase4-night-shift.adoc[06. Showcase 4: The night shift]
+
+.Agent delivery lifecycle
+* xref:07-showcase5-supply-chain.adoc[07. Showcase 5: Supply chain, signing and admission]
+* xref:08-showcase6-eval-gate.adoc[08. Showcase 6: The evaluation gate]
+* xref:09-showcase7-third-party-tools.adoc[09. Showcase 7: Third-party tools]
+
+.Reference
+* xref:10-reset-troubleshooting.adoc[10. Reset and troubleshooting]
