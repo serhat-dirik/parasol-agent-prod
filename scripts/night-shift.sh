@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# night-shift.sh [count] [portal-host]
+# night-shift.sh [count] [secured|free|<portal-host>]   (default secured)
 # The 02:00 denial-of-wallet scene (Demo 3 beats 1-2): a contractor's account at 3am (nina.contractor, an
 # outsourced night-shift contractor, or its leaked token) is scripted to hammer the assistant on the shared model. It sends a MIX, because off-topic requests are refused at
 # the topic guardrail for ZERO tokens (cheap deflection) and so could never fill the budget on their own:
@@ -20,8 +20,12 @@ MAXCOUNT=200                     # hard ceiling regardless of the argument (prot
 [ "$count" -gt "$MAXCOUNT" ] 2>/dev/null && count=$MAXCOUNT
 user=${NIGHT_USER:-nina.contractor}
 interval=${NIGHT_INTERVAL:-1}
-host=${2:-$(oc get route portal -n parasol-secured -o jsonpath='{.spec.host}' 2>/dev/null)}
-[ -n "$host" ] || { echo "no portal host (pass it as arg 2, or deploy the secured portal)"; exit 1; }
+case "${2:-secured}" in   # the portal's Route, so no command carries the cluster's domain
+  secured) host=$(oc get route portal -n parasol-secured -o jsonpath='{.spec.host}' 2>/dev/null) ;;
+  free) host=$(oc get route portal-free -n parasol-free -o jsonpath='{.spec.host}' 2>/dev/null) ;;
+  *) host=$2 ;;
+esac
+[ -n "$host" ] || { echo "no portal host (arg 2: secured, free or a host; is the portal deployed?)"; exit 1; }
 PORTAL="https://$host"
 
 tok=$("$(dirname "$0")/token.sh" "$user") || { echo "could not log in as $user"; exit 1; }
