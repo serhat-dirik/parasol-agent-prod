@@ -165,7 +165,7 @@ if [ "${SKIP_SEED:-0}" = 1 ]; then echo "SKIP_SEED=1"
 else scripts/seed-demo.sh || warn "demo data incomplete (the lines above name each step)" scripts/seed-demo.sh; fi
 scripts/knowledge-base-ingest.sh || warn "knowledge base not loaded (search_knowledge returns nothing)" scripts/knowledge-base-ingest.sh
 scripts/showroom-framing.sh || warn "console framing headers not applied; Showroom console tabs stay blank" scripts/showroom-framing.sh
-scripts/console-plugins.sh || warn "console plugins not enabled; the PipelineRun graph will be missing" scripts/console-plugins.sh
+scripts/console-plugins.sh || warn "console plugins not enabled; the PipelineRun graph and the Connectivity Link views will be missing" scripts/console-plugins.sh
 envsubst '$CLUSTER_DOMAIN' < gitops/platform/mcp-catalog/parasol-mcp-catalog.yaml | oc apply -f - >/dev/null \
   || warn "Parasol MCP servers missing from the OpenShift AI catalog" "./bootstrap.sh"
 envsubst '$CLUSTER_DOMAIN' < gitops/platform/mcp-catalog/gen-ai-mcp-servers.yaml | oc apply -f - >/dev/null \

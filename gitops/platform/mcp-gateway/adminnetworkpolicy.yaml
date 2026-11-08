@@ -27,6 +27,16 @@ spec:
         - namespaces: {matchLabels: {kubernetes.io/metadata.name: mcp-system}}       # MCP broker (tools/list)
         - namespaces: {matchLabels: {kubernetes.io/metadata.name: openshift-ingress}}
         - namespaces: {matchLabels: {network.openshift.io/policy-group: monitoring}}
+    # The lifecycle operator's health check (MCP initialize on the server port), so the MCPServer reports Ready and the
+    # OpenShift AI MCP servers > Deployments view shows it healthy. Only the operator pod, only the MCP port.
+    - name: allow-lifecycle-operator-probe
+      action: Allow
+      from:
+        - pods:
+            namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: redhat-ods-applications}}
+            podSelector: {matchLabels: {app.kubernetes.io/name: mcp-lifecycle-operator}}
+      ports:
+        - portNumber: {protocol: TCP, port: 8080}
     - name: deny-everyone-else
       action: Deny
       from:
