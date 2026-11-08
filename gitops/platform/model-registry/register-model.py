@@ -79,7 +79,8 @@ VERSIONS = {
         "mlflow_run_id": os.environ.get("RUN_ID_PRODUCTION") or "b9971fab", "mlflow_experiment_id": EXP_ID,
         "desc": "Production prompt (base + safety rules, gitops/envs/secured/system-prompt.txt; prompt registry version 1, alias production). "
                 "Agent-eval: golden-set answers generated live, 3 attempts per case (majority), scored on the release as "
-                "deployed (platform controls on, >= 0.95) and on the model alone (no fewer cases than the last released production); "
+                "deployed (platform controls on, >= 0.95) and on the model alone (it may not lose a case the last released production "
+                "passed on every attempt); "
                 "gate passed: promotion allowed. Both scores are on the MLflow run.",
     },
     "candidate-shortened": {
@@ -89,7 +90,8 @@ VERSIONS = {
         "eval_score": SCORE_CANDIDATE, "eval_gate": "failed",
         "mlflow_run_id": os.environ.get("RUN_ID_CANDIDATE") or "c7a36f43", "mlflow_experiment_id": EXP_ID,
         "desc": "Candidate: the shortened prompt, the base as written on the laptop without the production rules (prompt registry version 2, alias "
-                "candidate). Agent-eval (answers generated live, platform controls on) below the 0.95 gate: gate failed, promotion skipped.",
+                "candidate). Agent-eval (answers generated live): with the platform controls on it scores like production, but its model "
+                "alone lost a case the released production passed on every attempt: gate failed, promotion skipped.",
     },
 }
 
