@@ -55,8 +55,7 @@ public class ClaimWebsocketChatBot {
     /** A grey chip per tool call; a call the MCP gateway refused is a red chip with the gateway's reason. */
     public static ChatFrame toolFrame(ToolCall call) {
         return call.blocked()
-                ? ChatFrame.error(call.tool() + ": " + (ToolCallRecorder.GATEWAY_500_REASON.equals(call.reason())
-                        ? ToolCallRecorder.GATEWAY_500_CHIP : call.reason() + " (MCP gateway)"))
+                ? ChatFrame.error(ToolCallRecorder.chip(call.tool(), call.reason()))
                 : ChatFrame.tool(call.tool(), call.arguments());
     }
 

@@ -9,7 +9,11 @@ import org.parasol.model.ClaimDtos.Dashboard;
 import org.parasol.model.ClaimDtos.DocumentDto;
 import org.parasol.model.ClaimDtos.TimelineEntry;
 
+import java.util.Map;
+
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
@@ -43,6 +47,13 @@ public interface ClaimsDbClient {
     @GET
     @Path("/{number}/documents")
     List<DocumentDto> documents(@PathParam("number") String number, @HeaderParam("Authorization") String authorization);
+
+    /** Record that the claim's documents were blocked as suspicious (secured: the portal's automatic flag). */
+    @POST
+    @Path("/{number}/documents/flag")
+    @Consumes(MediaType.APPLICATION_JSON)
+    void flagDocuments(@PathParam("number") String number, @HeaderParam("Authorization") String authorization,
+                       Map<String, String> body);
 
     @GET
     @Path("/dashboard")

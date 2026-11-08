@@ -28,7 +28,8 @@ public final class ClaimDtos {
     }
 
     /** A customer-uploaded document; hiddenNote is the white-text block revealed on select-all. */
-    public record DocumentDto(String filename, String vendor, String visibleText, String hiddenNote) {
+    /** {@code flagged}: the note when the platform flagged the claim's documents as suspicious, else null. */
+    public record DocumentDto(String filename, String vendor, String visibleText, String hiddenNote, String flagged) {
     }
 
     /** The logged-in user for the top bar. */

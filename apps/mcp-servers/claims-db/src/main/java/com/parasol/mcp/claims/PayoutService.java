@@ -79,6 +79,33 @@ public class PayoutService {
                 number, claim.claimant, paid.toPlainString(), previous);
     }
 
+    static final String DOCUMENTS_FLAGGED = "DocumentsFlagged";
+
+    /**
+     * Record that the claim's documents were flagged as suspicious (the secured portal does this when the MCP
+     * gateway's guardrails blocked them). A timeline event, so the History tab shows it and reset() removes it;
+     * once per claim and session. False when the claim does not exist.
+     */
+    @Transactional
+    public boolean flagDocuments(String claimNumber, String note) {
+        String number = ClaimsRepository.normalize(claimNumber);
+        if (Claim.findById(number) == null) {
+            return false;
+        }
+        if (documentsFlag(number) == null) {
+            addEvent(nextEventId(), number, DOCUMENTS_FLAGGED, note, LocalDateTime.now().withNano(0));
+            LOG.warnf("DOCUMENTS FLAGGED claim=%s note=%s", number, note);
+        }
+        return true;
+    }
+
+    /** The note of the claim's documents flag in this session, else null. */
+    public String documentsFlag(String claimNumber) {
+        return history(ClaimsRepository.normalize(claimNumber)).stream()
+                .filter(e -> DOCUMENTS_FLAGGED.equals(e.eventType) && e.id != null && e.id >= DEMO_EVENT_ID_BASE)
+                .map(e -> e.note).findFirst().orElse(null);
+    }
+
     /** Undo every payout made in this session (status + timeline events). */
     @Transactional
     public int reset() {

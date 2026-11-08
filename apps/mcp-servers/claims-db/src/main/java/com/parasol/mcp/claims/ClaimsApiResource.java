@@ -9,7 +9,9 @@ import java.util.stream.Collectors;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import io.opentelemetry.api.trace.Span;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
@@ -40,6 +42,9 @@ public class ClaimsApiResource {
 
     @Inject
     RecordAccess access;
+
+    @Inject
+    PayoutService payouts;
 
     /** Outcome of one record decision: the caller (null when access is off) or the refusal response. */
     private record Decision(RecordAccess.Caller who, Response refused) {
@@ -194,15 +199,37 @@ public class ClaimsApiResource {
         if (refused != null) {
             return refused;
         }
+        String flagged = payouts.documentsFlag(number);
         return Response.ok(documents.forClaim(number).stream()
-                .map(d -> new DocumentView(d.filename(), d.vendor(), d.visibleText(), d.hiddenNote()))
+                .map(d -> new DocumentView(d.filename(), d.vendor(), d.visibleText(), d.hiddenNote(), flagged))
                 .toList()).build();
+    }
+
+    /**
+     * The secured portal flags a claim's documents as suspicious when the MCP gateway's guardrails blocked them. A
+     * timeline note, not a decision: who may read the claim may flag it (the same record rule as the reads).
+     */
+    @POST
+    @Path("/{number}/documents/flag")
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response flag(@PathParam("number") String number, @HeaderParam("Authorization") String authorization,
+                         Map<String, String> body) {
+        Response refused = guard("ui.flag_claim_documents", number, authorization);
+        if (refused != null) {
+            return refused;
+        }
+        String note = body == null ? null : body.get("note");
+        if (note == null || note.isBlank()) {
+            note = "Documents flagged as suspicious by the platform.";
+        }
+        return payouts.flagDocuments(number, note.length() > 500 ? note.substring(0, 500) : note)
+                ? Response.noContent().build() : Response.status(Response.Status.NOT_FOUND).build();
     }
 
     public record TimelineEntry(String eventType, String note, String createdAt) {
     }
 
     /** visibleText renders normally; hiddenNote is the white-text block the UI reveals on select-all. */
-    public record DocumentView(String filename, String vendor, String visibleText, String hiddenNote) {
+    public record DocumentView(String filename, String vendor, String visibleText, String hiddenNote, String flagged) {
     }
 }

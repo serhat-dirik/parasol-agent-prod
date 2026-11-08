@@ -2,6 +2,7 @@ package com.parasol.mcp.claims;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -22,6 +23,23 @@ class ClaimsToolsTest {
 
     @Inject
     ClaimsTools tools;
+
+    @Inject
+    PayoutService payouts;
+
+    @Test
+    void documentsFlagIsRecordedOnceShownOnTheDocumentsAndReset() {
+        given().contentType("application/json").body("{\"note\":\"suspicious: addresses the assistant\"}")
+                .when().post("/api/claims/CLM-1004/documents/flag").then().statusCode(204);
+        given().contentType("application/json").body("{\"note\":\"second\"}")
+                .when().post("/api/claims/CLM-1004/documents/flag").then().statusCode(204);
+        given().when().get("/api/claims/CLM-1004/documents").then().statusCode(200)
+                .body("[0].flagged", is("suspicious: addresses the assistant"));
+        assertEquals(1, PayoutServiceTestAccess.flags("CLM-1004"));   // once per claim and session
+        given().contentType("application/json").body("{}").when().post("/api/claims/CLM-9999/documents/flag").then().statusCode(404);
+        payouts.reset();
+        given().when().get("/api/claims/CLM-1004/documents").then().statusCode(200).body("[0].flagged", nullValue());
+    }
 
     @Test
     void getClaimReturnsGroundedFactForSeededClaim() {

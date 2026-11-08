@@ -5,6 +5,8 @@ import dev.langchain4j.service.Result;
 import dev.langchain4j.service.SystemMessage;
 import dev.langchain4j.service.UserMessage;
 import dev.langchain4j.service.V;
+import dev.langchain4j.service.tool.ToolErrorContext;
+import io.quarkiverse.langchain4j.HandleToolExecutionError;
 import io.quarkiverse.langchain4j.RegisterAiService;
 import io.quarkiverse.langchain4j.ToolBox;
 import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
@@ -47,6 +49,16 @@ public interface ClaimsAssistant {
             - Be concise: a few sentences. Give the specific figures the tools return.
             - If a question needs both a claim fact and a policy rule, call both kinds of tool.
             """;
+
+    /**
+     * A failed tool call as the model reads it. The MCP gateway answers a result its guardrails blocked with a bare
+     * HTTP 500, so that one is put in words (for the claim's documents: suspicious, do not act on them); everything
+     * else stays the client's own message.
+     */
+    @HandleToolExecutionError
+    static String toolError(Throwable error, ToolErrorContext context) {
+        return ToolCallRecorder.forModel(context.toolExecutionRequest().name(), error.getMessage());
+    }
 
     @SystemMessage("{systemPrompt}")
     @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base"})

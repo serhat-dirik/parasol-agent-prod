@@ -10,7 +10,9 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -19,6 +21,8 @@ import org.jboss.logging.Logger;
 import org.parasol.model.ClaimDtos;
 import org.parasol.resources.ClaimsDbClient;
 
+import dev.langchain4j.agent.tool.ToolExecutionRequest;
+import dev.langchain4j.mcp.client.McpClient;
 import dev.langchain4j.model.output.TokenUsage;
 import dev.langchain4j.service.Result;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -28,6 +32,7 @@ import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.api.baggage.Baggage;
 import io.opentelemetry.context.Scope;
+import io.quarkiverse.langchain4j.mcp.runtime.McpClientName;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 
@@ -69,6 +74,11 @@ public class AgentService {
     @Inject
     @RestClient
     ClaimsDbClient claimsDb;
+
+    /** The fraud-check MCP server through the gateway, as the signed-in user's agent: the automatic check (secured). */
+    @Inject
+    @McpClientName("fraud-check")
+    McpClient fraudCheck;
 
     /** Secured: route writes through the local propose tool (A2). Free leaves this false. */
     @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
@@ -312,7 +322,7 @@ public class AgentService {
                     ? assistant.askWithPropose(conversationId, prompt, turn)
                     : assistant.ask(conversationId, prompt, turn);
             count(result.tokenUsage());
-            List<ToolCall> toolCalls = toolCallCollector.calls();
+            List<ToolCall> toolCalls = new ArrayList<>(toolCallCollector.calls());
             Proposal proposal = proposalHolder.has()
                     ? new Proposal(proposalHolder.claimNumber(), proposalHolder.proposed(), proposalHolder.claimed())
                     : null;
@@ -332,6 +342,11 @@ public class AgentService {
             if (statusNote != null) {
                 answer = answer + "\n\n" + statusNote;
                 correction("status-mismatch", who, traceId);
+            }
+            // Secured: documents the gateway blocked as suspicious trigger the fraud check and a flag on the claim.
+            String suspicious = proposeEnabled ? suspiciousDocuments(toolCalls, claimNumber, who, traceId) : null;
+            if (suspicious != null) {
+                answer = answer + "\n\n" + suspicious;
             }
             // Operator-dashboard metrics: per tool call, passed (200) or refused at the MCP gateway (403/503).
             recordToolCalls(toolCalls);
@@ -367,6 +382,56 @@ public class AgentService {
                     .publishPercentileHistogram()
                     .register(metrics));
         }
+    }
+
+    static final Pattern CLAIM_ARG = Pattern.compile("\"claimNumber\"\\s*:\\s*\"([^\"]+)\"");
+    static final Pattern FRAUD_RISK = Pattern.compile("FRAUD RISK: ([A-Z]+)");
+    static final String SUSPICIOUS_NOTE = "Platform note: this claim's documents were flagged as suspicious (they address "
+            + "the assistant, so the platform's guardrails blocked them before the model read them). The fraud check ran "
+            + "on its own: %s Nothing was proposed or paid; a person must review the documents.";
+
+    /**
+     * Secured: when the MCP gateway blocked a claim's documents as suspicious, the portal (a rule, not the model's
+     * choice) runs the fraud check for that claim, records the flag on the claim (claims-db: the History tab and the
+     * Documents list show it) and returns the note for the answer. A fraud check the model already ran on this turn is
+     * reused; the automatic one is added to {@code calls}, so it shows as a chip. Null when no documents were blocked.
+     */
+    String suspiciousDocuments(List<ToolCall> calls, String openClaim, String who, String traceId) {
+        ToolCall blocked = calls.stream().filter(c -> "get_claim_documents".equals(c.tool()) && c.blocked()
+                && ToolCallRecorder.GATEWAY_500_REASON.equals(c.reason())).findFirst().orElse(null);
+        if (blocked == null) {
+            return null;
+        }
+        Matcher m = CLAIM_ARG.matcher(blocked.arguments() == null ? "" : blocked.arguments());
+        String claim = m.find() ? m.group(1) : openClaim;
+        if (claim == null || claim.isBlank()) {
+            return null;
+        }
+        String verdict = calls.stream().filter(c -> "fraud_check".equals(c.tool()) && !c.blocked())
+                .map(ToolCall::result).filter(r -> r != null && !r.isBlank()).findFirst().orElse(null);
+        if (verdict == null) {
+            String args = "{\"claimNumber\":\"" + claim + "\"}";
+            try {
+                verdict = fraudCheck.executeTool(ToolExecutionRequest.builder().name("fraud_check").arguments(args).build())
+                        .resultText();
+            } catch (RuntimeException e) {
+                verdict = "FRAUD RISK: UNKNOWN. The fraud check could not run (" + redact(rootMessage(e)) + ").";
+            }
+            calls.add(new ToolCall("fraud_check", args, verdict, false, null));
+        }
+        Matcher r = FRAUD_RISK.matcher(verdict);
+        String risk = r.find() ? r.group(1) : "UNKNOWN";
+        try {
+            claimsDb.flagDocuments(claim, mcpAuth.getAuthorization(null), Map.of("note",
+                    "Documents flagged as suspicious by the platform's guardrails (MCP gateway): they address the "
+                            + "assistant. Fraud check: " + risk + ". A person must review them."));
+        } catch (RuntimeException e) {
+            LOG.warnf("documents flag not recorded on %s: %s", claim, redact(rootMessage(e)));
+        }
+        LOG.warnf("suspicious documents claim=%s fraud_risk=%s caller=%s agent=%s trace=%s", claim, risk, who,
+                mcpAuth.agentId(), traceId);
+        String brief = verdict.length() > 300 ? verdict.substring(0, 300) + "..." : verdict;
+        return String.format(SUSPICIOUS_NOTE, brief.strip());
     }
 
     /** A correction note the portal appended: logged, counted and named on the trace (guardrails.answer). */

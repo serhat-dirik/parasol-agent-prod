@@ -45,6 +45,7 @@ interface ClaimDoc {
   vendor: string;
   visibleText: string;
   hiddenNote: string | null;
+  flagged: string | null;
 }
 
 interface HistoryEntry {
@@ -91,10 +92,13 @@ const ClaimDetail: React.FunctionComponent = () => {
   // Documents and details don't change across a turn, so fetch once per claim.
   const [details, setDetails] = React.useState<ClaimDetails | null>(null);
   const [photo, setPhoto] = React.useState(0);
+  // Documents again after each turn too: the platform may flag them as suspicious during one.
   React.useEffect(() => {
     axios.get(config.backend_api_url + `/claims/${claimNumber}/documents`)
       .then((response) => setDocuments(response.data))
       .catch(() => setDocuments([]));
+  }, [claimNumber, refreshKey]);
+  React.useEffect(() => {
     axios.get(config.backend_api_url + `/claims/${claimNumber}/details`)
       .then((response) => { setDetails(response.data); setPhoto(0); })
       .catch(() => setDetails(null));
@@ -200,13 +204,13 @@ const ClaimDetail: React.FunctionComponent = () => {
                           {documents.map((doc, i) => (
                             <div key={i} className='padding-top-25'>
                               <TextContent>
-                                <Text component={TextVariants.h3}>{doc.filename}</Text>
+                                <Text component={TextVariants.h3}>{doc.filename}{doc.flagged ? <> <Label color='red' className='doc-flag'>Suspicious: blocked by guardrails</Label></> : null}</Text>
                                 <Text component={TextVariants.small}>Vendor: {doc.vendor}</Text>
                               </TextContent>
                               {/* The hidden note is appended inside the same selectable block, styled
                                   white so that Select-All (Ctrl/Cmd-A) reveals it. */}
                               <pre className='doc-visible-text'>{doc.visibleText}{doc.hiddenNote ? <span className='doc-hidden-note'>{'\n' + doc.hiddenNote}</span> : null}</pre>
-                              <Text className='doc-caption'>Customer upload</Text>
+                              <Text className='doc-caption'>Customer upload{doc.flagged ? ` · ${doc.flagged}` : ''}</Text>
                             </div>
                           ))}
                         </div>

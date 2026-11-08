@@ -171,7 +171,20 @@ class ToolBlockedTest {
         assertEquals("500", AgentService.toolStatus(c));
         ChatFrame f = ClaimWebsocketChatBot.toolFrame(c);
         assertEquals("error", f.type());
-        assertEquals("get_claim_documents: refused by the MCP gateway (HTTP 500)", f.text());
+        assertEquals("get_claim_documents: " + ToolCallRecorder.SUSPICIOUS_CHIP, f.text());
+    }
+
+    @Test
+    void gateway500IsPutInWordsForTheModel() {
+        String docs = ToolCallRecorder.forModel("get_claim_documents", "Unexpected status code: 500, body: ");
+        assertTrue(docs.startsWith("BLOCKED BY GUARDRAILS") && docs.contains("suspicious"));
+        // the worded text is still recognised as the gateway's refusal: same chip, metrics and trace
+        assertEquals(ToolCallRecorder.GATEWAY_500_REASON, ToolCallRecorder.blockedReason(docs));
+        assertEquals(ToolCallRecorder.BLOCKED_RESULT, ToolCallRecorder.forModel("get_claim", "Unexpected status code: 500, body: "));
+        String forbidden = "Unexpected status code: 403, body: x";
+        assertEquals(forbidden, ToolCallRecorder.forModel("get_claim", forbidden));   // anything else unchanged
+        assertEquals("get_claim: refused by the MCP gateway (HTTP 500)",
+                ToolCallRecorder.chip("get_claim", ToolCallRecorder.GATEWAY_500_REASON));
     }
 
     @Test
