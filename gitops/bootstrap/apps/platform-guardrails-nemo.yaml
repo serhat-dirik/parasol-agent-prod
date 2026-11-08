@@ -26,6 +26,12 @@ spec:
               value: https://maas-default-gateway-openshift-default.openshift-ingress.svc.cluster.local/models-as-a-service/${AGENT_MODEL_NAME}/v1
             - {op: test, path: /spec/env/2/name, value: JUDGE_MODEL}
             - {op: replace, path: /spec/env/2/value, value: "${AGENT_MODEL}"}
+  # Admission (policy-controller) resolves image tags to digests in parasol-secured (see platform-guardrails.yaml).
+  ignoreDifferences:
+    - group: batch
+      kind: CronJob
+      jqPathExpressions:
+        - '.spec.jobTemplate.spec.template.spec.containers[].image'
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=true, ServerSideApply=true]

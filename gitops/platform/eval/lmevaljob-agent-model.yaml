@@ -12,7 +12,7 @@
 # parasol-agent-eval (id 2); see docs/handover.md (G1).
 #
 # Prereqs (all already present):
-#   - namespace parasol-eval; Secret maas-key-qwen3-14b (GENAI_API_KEY=<AGENT_KEY>, written by
+#   - namespace parasol-eval; Secret maas-key-agent (GENAI_API_KEY=<AGENT_KEY>, written by
 #     scripts/maas-model-keys.sh), never committed.
 #   - TrustyAI operator online + code-execution enabled cluster-wide:
 #       oc patch datasciencecluster default-dsc --type merge \
@@ -50,4 +50,4 @@ spec:
     container:
       env:
         - name: OPENAI_API_KEY
-          valueFrom: {secretKeyRef: {name: maas-key-qwen3-14b, key: GENAI_API_KEY}}
+          valueFrom: {secretKeyRef: {name: maas-key-agent, key: GENAI_API_KEY}}

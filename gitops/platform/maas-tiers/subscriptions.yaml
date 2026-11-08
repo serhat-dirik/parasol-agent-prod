@@ -12,7 +12,7 @@
 # MaaSModelRef are registered by the platform (platform-rhoai, gitops/platform/rhoai/maas.yaml);
 # the guard model is added here as an additional ExternalModel (named GUARD_MODEL_NAME, the DNS-1123 form of
 # GUARD_MODEL; targetModel is GUARD_MODEL itself). Upstream API-key Secrets (data key
-# api-key) are created out-of-band by scripts/maas-ext-model-secrets.sh (maas-upstream-qwen3-14b,
+# api-key) are created out-of-band by scripts/maas-ext-model-secrets.sh (maas-upstream-agent,
 # maas-upstream-granite-guardian) and are never committed.
 #
 # Isolated + additive: own namespace parasol-maas-tiers owns the subscriptions (owner group

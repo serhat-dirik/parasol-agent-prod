@@ -3,7 +3,7 @@
 # (Develop & train -> Evaluations, project parasol-eval). Idempotent: applies the EvalHub CR, waits
 # for it, and submits the run only if no completed run of that name exists (sqlite store: a pod
 # restart empties the list, so re-run this after one). ~3 min, 5 IFEval prompts on the agent key.
-# Needs: AGENT_ENDPOINT (+ AGENT_MODEL), Secret parasol-eval/maas-key-qwen3-14b with data key api-key
+# Needs: AGENT_ENDPOINT (+ AGENT_MODEL), Secret parasol-eval/maas-key-agent with data key api-key
 # (scripts/maas-model-keys.sh), OdhDashboardConfig disableLMEval=false (scripts/rhoai-enable.sh).
 # Revert: oc delete evalhub parasol-evalhub -n parasol-eval
 set -euo pipefail

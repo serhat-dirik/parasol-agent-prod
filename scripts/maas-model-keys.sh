@@ -27,7 +27,7 @@ mk parasol-guardian maas-key-llama-guard      "${LLAMAGUARD_KEY:-}"
 mk parasol-build "$JUDGE_SECRET"              "${JUDGE_KEY:-}"
 mk parasol-eval  "$JUDGE_SECRET"              "${JUDGE_KEY:-}"
 # agent model (evaluated by the LMEvalJob)
-mk parasol-eval  maas-key-qwen3-14b           "${AGENT_KEY:-}"
+mk parasol-eval  maas-key-agent           "${AGENT_KEY:-}"
 # MLflow judge in the Tekton agent-eval task (mounted as files /maas/endpoint + /maas/key + /maas/model).
 # Only a first-install fallback: scripts/maas-eval-key.sh replaces it with a MaaS key (judge metered on
 # subscription parasol-eval) and this script never overwrites an existing one.

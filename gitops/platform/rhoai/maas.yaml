@@ -3,13 +3,13 @@
 # gateway fronts it: subscriptions (token allowance per window) and auth policies (who may call which
 # model) are enforced here. Field names verified against the installed 3.5.1 CRD schemas (server dry run).
 # Needs: Gateway openshift-ingress/maas-default-gateway (maas-gateway.yaml); Secret
-# maas-upstream-qwen3-14b with data key "api-key" (created at run time by scripts/maas-ext-model-secrets.sh,
+# maas-upstream-agent with data key "api-key" (created at run time by scripts/maas-ext-model-secrets.sh,
 # never committed).
 #
 # qwen3-14b is THE agent model: both the free and the secured portal run on it. It obeys the injected
 # "processing note", so the secured side proves that the CONTROLS (identity-bound tool authz +
 # Read-Propose-Act), not model luck, stop the payout. The Argo Application patches /spec/endpoint
-# with $AGENT_HOST and /spec/targetModel with $AGENT_MODEL; upstream key Secret maas-upstream-qwen3-14b (data key "api-key", label
+# with $AGENT_HOST and /spec/targetModel with $AGENT_MODEL; upstream key Secret maas-upstream-agent (data key "api-key", label
 # inference.llm-d.ai/ipp-managed=true) created at run time, never committed.
 #
 # Object names follow the install settings: the agent model's objects are named AGENT_MODEL_NAME and the
@@ -38,7 +38,7 @@ spec:
   provider: openai
   endpoint: maas.invalid.example    # FQDN only; the Argo Application patches /spec/endpoint with $AGENT_HOST
   targetModel: qwen3-14b
-  credentialRef: {name: maas-upstream-qwen3-14b}
+  credentialRef: {name: maas-upstream-agent}
 ---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef

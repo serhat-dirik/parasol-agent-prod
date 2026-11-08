@@ -5,18 +5,18 @@
 # (GUARD_MODEL), JUDGE_KEY -> the evaluation judge (JUDGE_MODEL). The Secret names are fixed role names: they do
 # not change with the model.
 # Values are never printed or committed.
-#   Secret maas-upstream-qwen3-14b         -> AGENT_MODEL (the agent model both portals run; default qwen3-14b)
+#   Secret maas-upstream-agent         -> AGENT_MODEL (the agent model both portals run; default qwen3-14b)
 #   Secret maas-upstream-granite-guardian  -> GUARD_MODEL (guard-tier detector; default granite-guardian-3-1-8b)
 #   Secret maas-upstream-judge             -> JUDGE_MODEL (evaluation judge; default gpt-oss-120b; skipped without JUDGE_KEY)
 set -euo pipefail
 : "${AGENT_KEY:?set AGENT_KEY (or source scripts/load-credentials.sh)}"
 : "${GUARD_KEY:?set GUARD_KEY (or source scripts/load-credentials.sh)}"
 NS=models-as-a-service
-oc -n "$NS" create secret generic maas-upstream-qwen3-14b \
+oc -n "$NS" create secret generic maas-upstream-agent \
   --from-literal=api-key="$AGENT_KEY" --dry-run=client -o yaml | oc apply -f - >/dev/null
 oc -n "$NS" create secret generic maas-upstream-granite-guardian \
   --from-literal=api-key="$GUARD_KEY" --dry-run=client -o yaml | oc apply -f - >/dev/null
-names="maas-upstream-qwen3-14b maas-upstream-granite-guardian"
+names="maas-upstream-agent maas-upstream-granite-guardian"
 if [ -n "${JUDGE_KEY:-}" ]; then
   oc -n "$NS" create secret generic maas-upstream-judge \
     --from-literal=api-key="$JUDGE_KEY" --dry-run=client -o yaml | oc apply -f - >/dev/null
