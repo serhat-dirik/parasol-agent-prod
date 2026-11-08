@@ -1,0 +1,57 @@
+---
+name: pages
+
+# Publishes the Showroom guide (showroom/) to GitHub Pages. Cluster URLs show the marker
+# apps.<your-cluster-domain>; a Showroom deployed on a cluster sets the real ones.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'showroom/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Antora
+        run: npm install --no-save --no-package-lock @antora/cli@3.1.15 @antora/site-generator@3.1.15
+      - name: Build the guide
+        env:
+          # HTML entities: attribute values are inserted into the page unescaped.
+          D: 'apps.&lt;your-cluster-domain&gt;'
+        run: |
+          npx antora --fetch --to-dir "$GITHUB_WORKSPACE/www" \
+            --url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}" \
+            --attribute "domain=$D" \
+            --attribute "portal_free_url=https://portal-free.$D" \
+            --attribute "portal_secured_url=https://portal.$D" \
+            --attribute "keycloak_url=https://sso.$D" \
+            --attribute "rhoai_url=https://rh-ai.$D" \
+            --attribute "console_url=https://console-openshift-console.$D" \
+            --attribute "argocd_url=https://openshift-gitops-server-openshift-gitops.$D" \
+            --attribute "mlflow_url=https://rh-ai.$D/mlflow" \
+            showroom/site.yml
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: www
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -5,7 +5,8 @@ people use it, feed it real documents and will try to abuse it, is where the har
 a working demonstration of that gap, and of how an OpenShift and OpenShift AI platform close it.
 
 Everything is declared in Git and synced by Argo CD. The full, step-by-step demo is the **Showroom** guide that the
-install deploys next to the apps; this page is the summary and the install.
+install deploys next to the apps (also published at https://serhat-dirik.github.io/parasol-agent-prod/); this page is
+the summary and the install.
 
 <details open>
 <summary><b>Overview</b>: what the demo is</summary>
