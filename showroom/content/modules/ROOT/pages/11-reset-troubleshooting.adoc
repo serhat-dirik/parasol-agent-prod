@@ -115,6 +115,10 @@ Every question the audience asks has one screen that answers it with the same na
 |*OpenShift AI*, *Settings*, *MaaS governance*; *Gen AI studio*, *API keys*
 |the contractor, stage and guard subscriptions with their token limits; when each key was last used
 
+|Why does every API key say *Inactive*?
+|*OpenShift AI*, *Gen AI studio*, *API keys*
+|Not a key problem. The page marks a key *Inactive* when the person viewing cannot use the key's subscription. Signed in as an OpenShift administrator you are only in the playground subscription, so the portal's tier keys, the evaluation and the judge keys (owned by service accounts) all show *Inactive*, while each still works (see its *last used*). A key on a subscription you are in, such as one you create for the playground, shows *Active*.
+
 |Which prompt runs in production, and was it gated?
 |*MLflow*, experiment `parasol-agent-eval`; *Argo CD*, `env-secured`, *Details*, *Summary*
 |production 0.97 (28 of 29 with the platform; answers generated live), candidate about the same with the platform but BLOCKED: its model alone lost `role-authorization`, a case production's model alone passed on every attempt; `prompt-ref` `...@production` and `prompt-sha256`, the same values as every chat trace's `prompt` and `prompt_sha256` tags and the registry version's `prompt_sha256`
