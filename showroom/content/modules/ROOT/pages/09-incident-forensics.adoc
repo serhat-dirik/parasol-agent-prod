@@ -127,7 +127,7 @@ image::s9-mlflow-proposal-trace.png["MLflow, workspace parasol-secured, the marc
 +
 What you should see: client `parasol-claims-agent`, `username` `marcus`, `subject_token_client_id` `parasol-portal` (the browser login it acted on), `client_assertion_sub` `system:serviceaccount:parasol-secured:claims-agent` (the agent's workload identity), at the time of the approval.
 +
-// SCREENSHOT: s9-keycloak-exchange-marcus.png — Keycloak admin, realm parasol, Events > User events, TOKEN_EXCHANGE filtered on user marcus, one row expanded at the approval time (Keycloak admin sign-in)
+image::s9-keycloak-exchange-marcus.png["Keycloak admin, realm parasol, Events > User events, a TOKEN_EXCHANGE row expanded just before the approval: client parasol-claims-agent, username marcus, subject_token_client_id parasol-portal, client_assertion_sub system:serviceaccount:parasol-secured:claims-agent"]
 
 . *What the gateway decided.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `openshift-operators`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
 +
@@ -158,7 +158,7 @@ scripts/incident-report.sh CLM-1001
 +
 What you should see: the same chain in seven read-only sections: the timeline and the PAYOUT line, the gateway's decisions in the 15 minutes before the approval (allow and deny, each with user, agent and tool), the release annotations on `env-secured`, the release run's results and the running digest. The MLflow, Keycloak and Model Registry sections print `n/a` here (the Terminal's identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too. The gateway's decision lines live in the MCP gateway pod's log and are lost when that pod restarts; a production cluster ships them to cluster logging.
 +
-// SCREENSHOT: s9-terminal-incident-report.png — Terminal: scripts/incident-report.sh CLM-1001 (Showroom terminal); recapture: section 4 now lists the gateway decisions (allow/deny, user, agent, tool) instead of n/a
+image::s9-terminal-incident-report.png["Terminal: scripts/incident-report.sh CLM-1001, sections 3 to 7: the gateway decisions before the approval (allow marcus parasol-claims-agent approve_payout), the release annotations on env-secured, the signed image and the evaluation gate 0.97"]
 
 The point: one payout, seven independent records, joined by the same names. None of them depends on the model telling the truth.
 

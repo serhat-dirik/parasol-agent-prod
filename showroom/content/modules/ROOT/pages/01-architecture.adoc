@@ -87,7 +87,7 @@ The agent never holds the upstream model key. MaaS holds it, and gives each cons
 
 The unsecured portal skips all of it: a shared model key, and tools called with no authorization and no record.
 
-// SCREENSHOT: arch-request-paths.png — diagram of the two secured paths: portal > guardrails proxy (NeMo parasol-chat) > MaaS > hosted model; portal > MCP gateway (identity, per-tool policy, NeMo parasol-tool-results on claims-db) > MCP servers
+image::arch-request-paths.png["The two secured paths: portal to guardrails proxy (NeMo parasol-chat) to OpenShift AI MaaS to the hosted model; portal to MCP gateway (identity, per-tool AuthPolicy, NeMo parasol-tool-results on claims-db results) to the MCP servers, with the Keycloak token exchange for user and agent"]
 
 == Read, propose, act
 
