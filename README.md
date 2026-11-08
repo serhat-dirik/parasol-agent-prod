@@ -366,7 +366,9 @@ OpenShift AI MaaS → the hosted model; the MaaS serves the model named in `agen
 `AGENT_MODEL`; tested with **`qwen3-14b`**) on both portals so the hidden-note obedience is live on the
 unsecured side. Tools: portal → MCP gateway (`https://mcp.apps.<domain>/mcp`, per-client virtual server;
 NeMo `parasol-tool-results` on `claims-db` results) → `claims-db` / `policy-docs` / `knowledge-base` /
-`fraud-check`.
+`fraud-check`. The guardrails proxy is temporary: OpenShift AI 3.5 MaaS governs who may call a model and how much, but does not
+yet check prompt or answer content (supported model-gateway guardrails are upstream only), so the demo bridges the
+gap with a thin proxy that calls NeMo; it goes away when OpenShift AI ships them.
 
 **Kill switch, in layers** (`scripts/kill-switch.sh <level> off|on|status`; `scripts/reset.sh` turns every level back on):
 
