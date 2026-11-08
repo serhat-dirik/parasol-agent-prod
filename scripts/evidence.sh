@@ -251,10 +251,10 @@ print(d.get("promptVersion", "-"), hashlib.sha256(d.get("systemPrompt", "").enco
 tools)
   echo "MCP servers the gateway federates for the secured agent (MCPServerRegistration, parasol-secured):"
   oc get mcpserverregistration -n parasol-secured | sed 's/^/  /'
-  oc get mcpserverregistration currency-converter -n parasol-secured >/dev/null 2>&1 \
-    && echo "  currency-converter IS registered (reviewed change switched on)" || echo "  currency-converter: not registered"
+  echo "  currency-converter runs as onboarded: $(oc get application env-secured-tools -n openshift-gitops \
+    -o jsonpath='{.metadata.annotations.parasol\.example/onboarded-version} {.metadata.annotations.parasol\.example/onboarded-digest}' 2>/dev/null)"
   echo
-  echo "Can a portal reach the vendor's server directly (currency-converter.parasol-thirdparty)?"
+  echo "Can a portal reach the bank's service as published (currency-converter.parasol-thirdparty) directly?"
   for ns in parasol-secured parasol-free; do
     oc exec -n "$ns" deploy/portal -- timeout 5 bash -c '</dev/tcp/currency-converter.parasol-thirdparty.svc/8080' 2>/dev/null \
       && echo "  $ns: reachable" || echo "  $ns: blocked"

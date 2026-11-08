@@ -158,11 +158,11 @@ Each showcase has a script that drives the same beats without a browser. Use the
 |4
 |`scripts/night-shift.sh 40` (secured) or `scripts/night-shift.sh 40 portal-free.{domain}` (unsecured).
 
-|5
+|6
 |`scripts/eval-goldenset.sh` (workstation, needs the credentials file): secured blocked, unsecured allowed, PASS 3/3.
 
-|6
-|`scripts/tool-rugpull.sh plug`, then `on`, then `status`: the vendor tool in the unsecured portal, poisoned, flagged and drifted in the scanner log; `scripts/tool-rugpull.sh register` / `unregister` for the governed registration; `scripts/reset.sh` puts everything back.
+|7
+|`scripts/tool-rugpull.sh release 1.4.3`, `plug`, then `onboard 1.4.3 --wait`: the bank's new release in the unsecured portal, refused by onboarding; `bypass-test` for admission; `status` for both sides; `scripts/reset.sh` puts everything back (latest 1.4.2, unplugged).
 
 |Model check
 |`scripts/probe-maas.sh $MAAS_MODEL` (workstation, needs the credentials file): the agent model emits structured tool calls.

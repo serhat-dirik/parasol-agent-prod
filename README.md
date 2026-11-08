@@ -64,9 +64,11 @@ platform's own records prove it.
 6. **The evaluation gate.** A shortened system prompt scores about as well as production with the platform on, but
    the release's evaluation sees what its model alone lost and refuses it. Every release is recorded as an MLflow
    agent version.
-7. **Third-party tools.** A vendor tool's description changes without a new version and asks the assistant to pay.
-   Unsecured, it does. Secured, only reviewed, registered tools reach the agent, and a scanner pins each description
-   and alerts on a silent change.
+7. **Third-party tools.** The partner bank's exchange-rate service runs in-house from the bank's image. Its new
+   release, 1.4.3, carries a tool description that tells the assistant to pay. Unsecured, the team runs the bank's
+   latest and the assistant pays. Secured, each version passes an onboarding pipeline first (the image is run and its
+   tools checked against a reviewed pin, Parasol's tool names, NeMo Guardrails and contract calls); 1.4.3 is refused
+   and never signed, the assistant keeps 1.4.2, and admission refuses the unsigned image.
 
 </details>
 
@@ -158,10 +160,10 @@ Restores the claims, refills the token budgets and switches every kill-switch le
 |---|---|
 | `apps/parasol-portal` | The claims portal (Quarkus, React/PatternFly, Keycloak login) and its chat assistant (LangChain4j): tool chips, proposal card, guardrail banners, per-tier model keys |
 | `apps/parasol-agent` | The same agent as a headless REST service, used by the test and load scripts |
-| `apps/mcp-servers/*` | MCP servers: `claims-db` (claims, documents, the one write tool `approve_payout`), `policy-docs`, `knowledge-base` (retrieval as the user), `fraud-check` (a second agent), `currency-converter` (the vendor tool of Showcase 7) |
+| `apps/mcp-servers/*` | MCP servers: `claims-db` (claims, documents, the one write tool `approve_payout`), `policy-docs`, `knowledge-base` (retrieval as the user), `fraud-check` (a second agent), `currency-converter` (the partner bank's service of Showcase 7, two releases) |
 | `gitops/bootstrap` | Operator subscriptions and the Argo CD applications (applied by `bootstrap.sh`) |
 | `gitops/platform` | Keycloak, the MCP gateway and its policies and guardrails, NeMo Guardrails, OpenShift AI (MaaS, model registry, catalogs), observability (traces, MLflow, AgenticOps, dashboard, alerts), the release pipeline, signing and admission, the Showroom |
-| `gitops/envs` | `free` and `secured` (the two portals), `thirdparty` (the vendor's server), `secured-storm` (a load variant) |
+| `gitops/envs` | `free` and `secured` (the two portals), `thirdparty` (the bank's service as published), `secured-tools` (third-party servers as onboarded), `secured-storm` (a load variant) |
 | `showroom/` | The Showroom guide (Antora) |
 | `scripts/` | Install helpers, the demo's terminal steps (`reset.sh`, `kill-switch.sh`, `night-shift.sh`, `evidence.sh`, `incident-report.sh`, ...) and `regression.sh`, every showcase's checks headless |
 
@@ -234,7 +236,7 @@ Restores the claims, refills the token budgets and switches every kill-switch le
   Link 1.5.0, and the models in *Quick install*. The install is idempotent but has not been re-run on a second fresh
   cluster since the latest changes: if a step fails, re-run `./bootstrap.sh` and see *Troubleshooting*.
 * **Release status:** `main` is version 2 in progress; the version presented at Red Hat Dev Day UAE is tag
-  `v1-devday`. Showcase 7 (third-party tools) is being reworked around an onboarding pipeline for vendor tools.
+  `v1-devday`.
 * **The evaluation runs a small model live**, so scores move between runs: production 0.97 (28 of 29; the known
   miss is `knowledge-review-deadline`, where `qwen3-14b` answers from general knowledge instead of searching), the
   shortened candidate 0.93 to 0.97 with the platform. The candidate is refused because its model alone loses
@@ -255,6 +257,9 @@ Restores the claims, refills the token budgets and switches every kill-switch le
   upstream OGX 1.5 keeps it but without the gateway's reason (`apps/mcp-servers/fraud-check/ogx-tests/RESULTS.md`).
   OGX is used where it is solid: the Gen AI studio playground (its server is created in the MaaS tenant namespace
   `ai-tenants`).
+* **Onboarding sees what a tool shows before it runs**: its description (checked by a small-model judge, which can miss a
+  benign-looking reword), its fingerprint against a reviewed pin and a few contract calls. A tool that behaves well only
+  under test is left to the runtime controls (NeMo on every result, least privilege, no egress, the runtime scanner).
 * **Agent identity with SPIFFE is on hold**: the agents use ServiceAccount-token federation with Keycloak; Keycloak's
   SPIFFE client authentication is still a preview.
 
