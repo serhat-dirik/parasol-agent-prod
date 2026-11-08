@@ -34,7 +34,7 @@ You demo the *same claim* with the *same request* on each portal. The only varia
 
 [start=5]
 . *Supply chain, signing and admission.* The release pipeline builds, scans and signs the portal; admission runs only signed images, and secured workloads reach only approved models.
-. *The evaluation gate.* A developer shortens the system prompt; the release evaluates it against a golden set and refuses it, although it scores as well as production with the platform on.
+. *The evaluation gate.* A developer shortens the system prompt; the release evaluates it against a golden set and refuses it, although with the platform on it scores about as well as production.
 . *Third-party tools.* A vendor's currency-conversion tool; later its description changes, without a new version, and asks the assistant to approve payouts.
 
 Unsecured, the business showcases and the third-party tool cause harm. Secured, a *different* layer stops each, and the platform consoles show why. Each showcase stands on its own: run any of them, in any order, using its *Before you start* and *Reset* steps.
