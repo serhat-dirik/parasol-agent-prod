@@ -1,99 +1,29 @@
 #!/usr/bin/env python3
-"""Register the Parasol claims-assistant in the OpenShift AI (RHOAI) Model Registry as a
-RegisteredModel with ModelVersions `production` (the production prompt, gate passed) and
-`candidate-shortened` (the shortened candidate prompt, gate failed), and carry the agent-eval result on each version.
+"""Register the models the demo uses in the OpenShift AI Model Registry parasol-model-registry.
 
-The served model is an EXTERNAL MaaS model (AGENT_MODEL, default qwen3-14b), so a "version" is the AGENT CONFIG
-(system-prompt version + prompt sha + tools-authpolicy sha + model id), not model weights. Each
-ModelVersion carries the eval score / pass-rate + the MLflow run id + the gate result + the
-prompt@version it was evaluated with, as customProperties the registry UI shows.
+The registry holds MODELS only. The three are external (AGENT_MODEL, GUARD_MODEL, JUDGE_MODEL), served by OpenShift
+AI Models-as-a-Service: one RegisteredModel each (labels external, MaaS, <role>) with one version named after the
+model's own release (qwen3-14b 3.0.0, gpt-oss-120b 1.0.0, granite-guardian-3-1-8b 3.1.0; <ROLE>_MODEL_VERSION
+overrides), whose artifact URI is the model's MaaS endpoint. No weights: the provider serves the model, MaaS governs
+access (subscription, rate limit, key), the registry records what runs and where.
 
-It also registers the three external models (AGENT_MODEL, GUARD_MODEL, JUDGE_MODEL) as served by OpenShift AI
-Models-as-a-Service: labels external / MaaS / role, one version `maas` whose artifact URI is the MaaS endpoint.
+The claims agent is not a model: its versions (prompt, tool policy, model id, evaluation) are MLflow agent versions,
+written by the release pipeline (gitops/platform/pipeline/register-agent-version.py). An earlier layout registered the
+agent here as parasol-claims-assistant; it is archived, as are the former version names ("maas").
 
-Stdlib only (urllib) so it runs in any python image without pip/egress.
-
-Two modes:
-  register-model.py                       full: ensure the model + both versions with all metadata+eval;
-                                          older versions (e.g. v1/v2) are archived
-  register-model.py --patch-eval \
-      --version candidate-shortened --gate failed \
-      --score 0.83 --run-id c7a36f43 \
-      [--prompt-ref ...@candidate]                 pipeline gate step: merge the eval fields onto one version
-
-Config (env):
+Stdlib only (urllib). Config (env):
   MR_BASE_URL   model-registry REST base. Default in-cluster kube-rbac-proxy service.
   MR_TOKEN      bearer token; else read from TOKEN_FILE; else the pod SA token.
-  TOKEN_FILE    path to a bearer token (default: the in-cluster SA token).
   MR_INSECURE   "1" (default) to skip TLS verify (lab reencrypt / service CA).
-  AGENT_MODEL, AGENT_ENDPOINT   install contract: recorded as model_id / maas_endpoint_host.
+  MAAS_BASE_URL, <ROLE>_MODEL, <ROLE>_MODEL_NAME, <ROLE>_ENDPOINT, <ROLE>_MODEL_VERSION   (ROLE = AGENT, GUARD, JUDGE)
 """
-import argparse, hashlib, json, os, pathlib, ssl, sys, urllib.parse, urllib.request, urllib.error
+import json, os, ssl, sys, urllib.error, urllib.parse, urllib.request
 
-HERE = pathlib.Path(__file__).resolve().parent
-
-
-def prompt_meta(repo_path):
-    """sha256 + length of a prompt file: next to this script (Job ConfigMap copy) or in the repo checkout."""
-    name = pathlib.Path(repo_path).name
-    for f in (HERE / name, HERE.parents[2] / repo_path if len(HERE.parents) > 2 else None):
-        if f and f.is_file():
-            t = f.read_text()
-            return {"prompt_sha256": hashlib.sha256(t.encode()).hexdigest(), "prompt_chars": str(len(t))}
-    return {"prompt_sha256": "unknown", "prompt_chars": "unknown"}
-
-BASE = os.environ.get(
-    "MR_BASE_URL",
-    "https://parasol-model-registry.rhoai-model-registries.svc.cluster.local:8443",
-).rstrip("/")
+BASE = os.environ.get("MR_BASE_URL", "https://parasol-model-registry.rhoai-model-registries.svc.cluster.local:8443").rstrip("/")
 API = BASE + "/api/model_registry/v1alpha3"
-MLFLOW_UI = os.environ.get("MLFLOW_UI_BASE", "").rstrip("/")  # https://rh-ai.apps.<domain>/mlflow
-
-MODEL = "parasol-claims-assistant"
-# MLflow experiment parasol-agent-eval and its production-prompt / candidate-shortened-prompt golden-set runs on THIS cluster (scripts/eval-seed.sh
-# passes them in); the defaults are the reference runs the guide was written against.
-EXP_ID = os.environ.get("MLFLOW_EXPERIMENT_ID") or "2"
-# Pass rate of each run (scripts/eval-seed.sh); the gate is a share of the golden set's cases.
-GATE_THRESHOLD = "0.95"
-SCORE_PRODUCTION = os.environ.get("SCORE_PRODUCTION") or "0.96"
-SCORE_CANDIDATE = os.environ.get("SCORE_CANDIDATE") or "0.83"
-
-# Fixed agent-config metadata (mirrors G1 agent_eval VERSION_META and G2 prompt registry).
-COMMON = {
-    "agent": "parasol-claims-assistant",
-    "model_kind": "external-maas-agent-config",
-    "model_id": os.environ.get("AGENT_MODEL") or "qwen3-14b",
-    "model_config_name": "parasol-chat",
-    "maas_endpoint_host": urllib.parse.urlparse(os.environ.get("AGENT_ENDPOINT", "")).hostname or "unset",
-    "prompt_name": "parasol-claims-assistant-system-prompt",
-    "source_file": "apps/parasol-portal/app/src/main/java/org/parasol/ai/ClaimsAssistant.java",
-    "tools_authpolicy_path": "gitops/platform/mcp-gateway/authpolicy-tools.yaml",
-    "tools_authpolicy_sha256": "02619907984be688d238cb2510610458018e427c56066b4e8335bc2b33a1310e",
-}
-VERSIONS = {
-    "production": {
-        "prompt_version": "1", "prompt_alias": "production", "variant": "production",
-        **prompt_meta("gitops/envs/secured/system-prompt.txt"),
-        "prompt_file": "gitops/envs/secured/system-prompt.txt",
-        "eval_score": SCORE_PRODUCTION, "eval_gate": "passed",
-        "mlflow_run_id": os.environ.get("RUN_ID_PRODUCTION") or "b9971fab", "mlflow_experiment_id": EXP_ID,
-        "desc": "Production prompt (base + safety rules, gitops/envs/secured/system-prompt.txt; prompt registry version 1, alias production). "
-                "Agent-eval: golden-set answers generated live, 3 attempts per case (majority), scored on the release as "
-                "deployed (platform controls on, >= 0.95) and on the model alone (it may not lose a case the last released production "
-                "passed on every attempt); "
-                "gate passed: promotion allowed. Both scores are on the MLflow run.",
-    },
-    "candidate-shortened": {
-        "prompt_version": "2", "prompt_alias": "candidate", "variant": "candidate-shortened",
-        **prompt_meta("gitops/platform/pipeline/prompts/v2.txt"),
-        "prompt_file": "gitops/platform/pipeline/prompts/v2.txt",
-        "eval_score": SCORE_CANDIDATE, "eval_gate": "failed",
-        "mlflow_run_id": os.environ.get("RUN_ID_CANDIDATE") or "c7a36f43", "mlflow_experiment_id": EXP_ID,
-        "desc": "Candidate: the shortened prompt, the base as written on the laptop without the production rules (prompt registry version 2, alias "
-                "candidate). Agent-eval (answers generated live): with the platform controls on it scores like production, but its model "
-                "alone lost a case the released production passed on every attempt: gate failed, promotion skipped.",
-    },
-}
+FORMER_AGENT_MODEL = "parasol-claims-assistant"
+# The model's own release, in semantic form; a model not listed here is registered as 1.0.0.
+MODEL_VERSIONS = {"qwen3-14b": "3.0.0", "gpt-oss-120b": "1.0.0", "granite-guardian-3-1-8b": "3.1.0"}
 
 
 def token():
@@ -114,9 +44,7 @@ TOK = token()
 
 
 def req(method, path, body=None):
-    url = API + path
-    data = json.dumps(body).encode() if body is not None else None
-    r = urllib.request.Request(url, data=data, method=method)
+    r = urllib.request.Request(API + path, data=json.dumps(body).encode() if body is not None else None, method=method)
     r.add_header("Authorization", "Bearer " + TOK)
     r.add_header("Content-Type", "application/json")
     try:
@@ -132,151 +60,37 @@ def cp(d):
     return {k: {"string_value": str(v), "metadataType": "MetadataStringValue"} for k, v in d.items()}
 
 
-def find_model():
-    s, body = req("GET", "/registered_models?pageSize=200")
-    if s != 200:
-        sys.exit(f"list models failed {s}: {body}")
-    for m in body.get("items", []):
-        if m.get("name") == MODEL:
-            return m
-    return None
+def versions_of(mid):
+    s, body = req("GET", f"/registered_models/{mid}/versions?pageSize=200")
+    return body.get("items", []) if s == 200 else []
 
 
-def ensure_model():
-    m = find_model()
-    props = cp(COMMON)
-    if m:
-        req("PATCH", f"/registered_models/{m['id']}",
-            {"description": "Parasol claims assistant (agent). External MaaS model; versions are agent configs.",
-             "customProperties": props})
-        print(f"model {MODEL} exists id={m['id']} (metadata refreshed)")
-        return m["id"]
-    s, body = req("POST", "/registered_models", {
-        "name": MODEL, "state": "LIVE",
-        "description": "Parasol claims assistant (agent). External MaaS model; versions are agent configs.",
-        "customProperties": props})
-    if s not in (200, 201):
-        sys.exit(f"create model failed {s}: {body}")
-    print(f"created model {MODEL} id={body['id']}")
-    return body["id"]
-
-
-def find_version(model_id, name):
-    s, body = req("GET", f"/registered_models/{model_id}/versions?pageSize=200")
-    if s != 200:
-        return None
-    for v in body.get("items", []):
-        if v.get("name") == name:
-            return v
-    return None
-
-
-def version_props(v):
-    d = dict(COMMON)
-    d.update({
-        "prompt_version": v["prompt_version"], "prompt_alias": v["prompt_alias"], "variant": v["variant"],
-        "prompt_sha256": v["prompt_sha256"], "prompt_chars": v["prompt_chars"],
-        "prompt_file": v["prompt_file"],
-        "prompt_ref": f"{COMMON['prompt_name']}@{v['prompt_alias']}",
-        "gate": v["eval_gate"],
-        "eval_dataset": "parasol-golden-set",
-        "eval_score": v["eval_score"],
-        "eval_gate": v["eval_gate"], "eval_threshold": GATE_THRESHOLD,
-        "eval_judge_model": os.environ.get("JUDGE_MODEL") or "gpt-oss-120b",
-        "mlflow_run_id": v["mlflow_run_id"], "mlflow_experiment_id": v["mlflow_experiment_id"],
-        "mlflow_run_url": f"{MLFLOW_UI}/#/experiments/{v['mlflow_experiment_id']}/runs/{v['mlflow_run_id']}",
-    })
-    return d
-
-
-def ensure_version(model_id, name, v):
-    props = cp(version_props(v))
-    existing = find_version(model_id, name)
-    if existing:
-        req("PATCH", f"/model_versions/{existing['id']}",
-            {"description": v["desc"], "customProperties": props})
-        vid = existing["id"]
-        print(f"version {name} exists id={vid} (eval + metadata refreshed: {v['eval_score']} {v['eval_gate']})")
-    else:
-        s, body = req("POST", f"/registered_models/{model_id}/versions", {
-            "name": name, "state": "LIVE", "author": "parasol-pipeline",
-            "registeredModelId": str(model_id),
-            "description": v["desc"], "customProperties": props})
-        if s not in (200, 201):
-            sys.exit(f"create version {name} failed {s}: {body}")
-        vid = body["id"]
-        print(f"created version {name} id={vid} ({v['eval_score']} {v['eval_gate']})")
-    ensure_artifact(vid, name, v)
-    return vid
-
-
-def ensure_artifact(vid, name, v):
-    """One model artifact per version = the agent config pointer (external MaaS, no weights)."""
-    s, body = req("GET", f"/model_versions/{vid}/artifacts?pageSize=100")
-    aname = f"{MODEL}-agent-config-{name}"
-    if s == 200 and any(a.get("name") == aname for a in body.get("items", [])):
+def archive_former_agent(existing):
+    """The agent is not a model: archive the former parasol-claims-assistant record and its versions."""
+    m = existing.get(FORMER_AGENT_MODEL)
+    if not m or m.get("state") == "ARCHIVED":
         return
-    art = {
-        "name": aname, "artifactType": "model-artifact",
-        "uri": f"mlflow+prompt://{COMMON['prompt_name']}/{v['prompt_version']}",
-        "modelFormatName": "parasol-agent-config", "modelFormatVersion": v["prompt_version"],
-        "description": "Agent config: system prompt + tool authz + model id. External MaaS model, no weights.",
-        "customProperties": cp({
-            "model_id": COMMON["model_id"], "prompt_ref": f"{COMMON['prompt_name']}@{v['prompt_version']}",
-            "tools_authpolicy_sha256": COMMON["tools_authpolicy_sha256"],
-        }),
-    }
-    s, b = req("POST", f"/model_versions/{vid}/artifacts", art)
-    print(f"  artifact {aname} -> {s}")
-
-
-def archive_others(model_id):
-    """Archive versions that are not in VERSIONS (the former v1/v2 names), so the UI lists only the roles."""
-    s, body = req("GET", f"/registered_models/{model_id}/versions?pageSize=200")
-    for v in body.get("items", []) if s == 200 else []:
-        if v.get("name") not in VERSIONS and v.get("state") != "ARCHIVED":
-            s2, _ = req("PATCH", f"/model_versions/{v['id']}", {"state": "ARCHIVED"})
-            print(f"archived old version {v['name']} id={v['id']} -> {s2}")
-
-
-def patch_eval(name, gate, score, run_id, prompt_ref):
-    m = find_model()
-    if not m:
-        sys.exit(f"model {MODEL} not registered yet; run full registration first")
-    ver = find_version(m["id"], name)
-    if not ver:
-        sys.exit(f"version {name} not found; run full registration first")
-    merged = {
-        "gate": gate, "eval_gate": gate, "eval_score": f"{float(score):.2f}" if score else "",
-        "eval_threshold": GATE_THRESHOLD,
-        "eval_dataset": "parasol-golden-set",
-        "mlflow_run_id": run_id, "mlflow_run_url": f"{MLFLOW_UI}/#/experiments/{EXP_ID}/runs/{run_id}",
-    }
-    if prompt_ref:
-        merged["prompt_ref"] = prompt_ref
-    # Merge onto the version's existing customProperties so the fixed agent-config fields
-    # (prompt_sha256, tools sha, model id, ...) survive the eval patch.
-    props = dict(ver.get("customProperties") or {})
-    props.update(cp(merged))
-    s, b = req("PATCH", f"/model_versions/{ver['id']}", {"customProperties": props})
-    if s not in (200, 201):
-        sys.exit(f"patch eval on {name} failed {s}: {b}")
-    print(f"patched eval onto {MODEL} version {name}: gate={gate} score={score} run_id={run_id}")
+    for v in versions_of(m["id"]):
+        if v.get("state") != "ARCHIVED":
+            req("PATCH", f"/model_versions/{v['id']}", {"state": "ARCHIVED"})
+    s, _ = req("PATCH", f"/registered_models/{m['id']}", {"state": "ARCHIVED"})
+    print(f"archived {FORMER_AGENT_MODEL} (agent versions are MLflow agent versions now) -> {s}")
 
 
 def maas_models():
-    """The external models the demo uses, each served through OpenShift AI Models-as-a-Service (ExternalModel +
-    MaaSModelRef in models-as-a-service). Keyed by the MaaS object name; one model can serve several roles."""
+    """The external models, each served through MaaS (ExternalModel + MaaSModelRef in models-as-a-service). Keyed by
+    the MaaS object name; one model can serve several roles."""
     base = os.environ.get("MAAS_BASE_URL", "").rstrip("/")  # https://maas.apps.<domain>
     out = {}
     for role, uses in (("agent", "claims assistant in both portals (secured: through the guardrails proxy)"),
-                       ("guard", "guardrails detector (NeMo rails) and the guard MaaS tier"),
+                       ("guard", "guard MaaS tier"),
                        ("judge", "LLM judge of the release evaluation and the sampled online judge")):
         model = os.environ.get(f"{role.upper()}_MODEL", "")
         if not model:
             continue
         name = os.environ.get(f"{role.upper()}_MODEL_NAME") or model.lower()
         m = out.setdefault(name, {"model": model, "roles": [], "uses": [],
+                                  "version": os.environ.get(f"{role.upper()}_MODEL_VERSION") or MODEL_VERSIONS.get(name, "1.0.0"),
                                   "host": urllib.parse.urlparse(os.environ.get(f"{role.upper()}_ENDPOINT", "")).hostname or "unset"})
         m["roles"].append(role)
         m["uses"].append(f"{role}: {uses}")
@@ -284,12 +98,7 @@ def maas_models():
     return out
 
 
-def ensure_external_models():
-    """Register each MaaS-served external model: RegisteredModel (labels external, MaaS, <role>) with one version
-    'maas' whose artifact URI is the model's MaaS endpoint. No weights: the provider serves the model, MaaS governs
-    access (subscription, rate limit, key), the registry records what runs and where."""
-    s, body = req("GET", "/registered_models?pageSize=200")
-    existing = {m["name"]: m for m in body.get("items", [])} if s == 200 else {}
+def ensure_external_models(existing):
     for name, m in maas_models().items():
         labels = {k: "" for k in ["external", "MaaS", *m["roles"]]}  # empty string values = labels in the UI
         props = cp({**labels, "serving": "external", "served_by": "OpenShift AI Models-as-a-Service",
@@ -302,24 +111,29 @@ def ensure_external_models():
             mid = existing[name]["id"]
             req("PATCH", f"/registered_models/{mid}", {"description": desc, "customProperties": props})
         else:
-            s, b = req("POST", "/registered_models", {"name": name, "state": "LIVE", "description": desc,
-                                                       "customProperties": props})
+            s, b = req("POST", "/registered_models", {"name": name, "state": "LIVE", "description": desc, "customProperties": props})
             if s not in (200, 201):
                 sys.exit(f"create external model {name} failed {s}: {b}")
             mid = b["id"]
-        ver = find_version(mid, "maas")
-        vbody = {"description": f"Served by MaaS: {m['endpoint']} (OpenAI-compatible).", "customProperties": props}
+        vbody = {"description": f"{m['model']} {m['version']}, served by MaaS: {m['endpoint']} (OpenAI-compatible).",
+                 "customProperties": props}
+        vers = versions_of(mid)
+        ver = next((v for v in vers if v.get("name") == m["version"]), None)
         if ver:
-            req("PATCH", f"/model_versions/{ver['id']}", vbody)
+            req("PATCH", f"/model_versions/{ver['id']}", {**vbody, "state": "LIVE"})
             vid = ver["id"]
         else:
             s, b = req("POST", f"/registered_models/{mid}/versions",
-                       {"name": "maas", "state": "LIVE", "author": "parasol-bootstrap", "registeredModelId": str(mid), **vbody})
+                       {"name": m["version"], "state": "LIVE", "author": "parasol-bootstrap", "registeredModelId": str(mid), **vbody})
             if s not in (200, 201):
-                sys.exit(f"create version maas of {name} failed {s}: {b}")
+                sys.exit(f"create version {m['version']} of {name} failed {s}: {b}")
             vid = b["id"]
+        for v in vers:   # former version names (e.g. "maas") are archived, not deleted
+            if v.get("name") != m["version"] and v.get("state") != "ARCHIVED":
+                req("PATCH", f"/model_versions/{v['id']}", {"state": "ARCHIVED"})
+                print(f"  archived former version {v['name']} of {name}")
         s, arts = req("GET", f"/model_versions/{vid}/artifacts?pageSize=100")
-        art = {"name": f"{name}-maas-endpoint", "artifactType": "model-artifact", "uri": m["endpoint"],
+        art = {"name": f"{name}-{m['version']}-maas-endpoint", "artifactType": "model-artifact", "uri": m["endpoint"],
                "modelFormatName": "openai-compatible-api", "modelFormatVersion": "v1",
                "description": "External model endpoint on the MaaS gateway, no weights.",
                "customProperties": cp({"maas_model_ref": f"models-as-a-service/{name}", "upstream_model": m["model"]})}
@@ -328,33 +142,17 @@ def ensure_external_models():
             req("PATCH", f"/artifacts/{old['id']}", {k: v for k, v in art.items() if k != "name"})
         else:
             req("POST", f"/model_versions/{vid}/artifacts", art)
-        print(f"external model {name} ({','.join(m['roles'])}) -> {m['endpoint']}")
+        print(f"external model {name} {m['version']} ({','.join(m['roles'])}) -> {m['endpoint']}")
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--patch-eval", action="store_true")
-    ap.add_argument("--version", default="candidate-shortened")
-    ap.add_argument("--gate", default="")
-    ap.add_argument("--score", default="")
-    ap.add_argument("--run-id", default="")
-    ap.add_argument("--prompt-ref", default="")
-    a = ap.parse_args()
     print(f"model-registry base: {BASE}")
-    if a.patch_eval:
-        patch_eval(a.version, a.gate, a.score, a.run_id, a.prompt_ref)
-        return
-    mid = ensure_model()
-    for name, v in VERSIONS.items():
-        ensure_version(mid, name, v)
-    archive_others(mid)
-    ensure_external_models()
-    # read back
-    s, body = req("GET", f"/registered_models/{mid}/versions?pageSize=200")
-    print("VERSIONS NOW:", ", ".join(
-        f"{v['name']}(gate={v.get('customProperties',{}).get('eval_gate',{}).get('string_value','?')},"
-        f"score={v.get('customProperties',{}).get('eval_score',{}).get('string_value','?')},{v.get('state')})"
-        for v in body.get("items", [])))
+    s, body = req("GET", "/registered_models?pageSize=200")
+    if s != 200:
+        sys.exit(f"list models failed {s}: {body}")
+    existing = {m["name"]: m for m in body.get("items", [])}
+    ensure_external_models(existing)
+    archive_former_agent(existing)
 
 
 if __name__ == "__main__":

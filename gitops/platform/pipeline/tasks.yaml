@@ -320,11 +320,12 @@ spec:
     - {name: image-name, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal"}
     - {name: application, type: string, default: env-secured}
     - {name: application-namespace, type: string, default: openshift-gitops}
-    # The MLflow Prompt Registry entry (name@alias) and the RHOAI Model Registry ModelVersion the
-    # agent-eval gate evaluated. Recorded as annotations on the Application next to the pin, so Argo CD
-    # shows which prompt and model version the promoted digest was gated on.
+    # The MLflow Prompt Registry entry (name@alias) and the MLflow agent version (name@version and its model id) the
+    # agent-eval gate evaluated. Recorded as annotations on the Application next to the pin, so Argo CD shows which
+    # prompt and which agent version the promoted digest was gated on.
     - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@production"}
-    - {name: model-ref, type: string, default: "parasol-claims-assistant:production"}
+    - {name: agent-version, type: string, default: "unrecorded"}
+    - {name: agent-version-id, type: string, default: "unrecorded"}
     # sha256 of the registered prompt-ref (from agent-eval). The pinned text must hash to it: what the traces
     # call prompt_sha256 is literally the registered prompt the gate evaluated.
     - {name: prompt-sha256, type: string, default: ""}
@@ -378,7 +379,8 @@ spec:
             \"parasol.example/prompt-ref\": \"$(params.prompt-ref)\",
             \"parasol.example/prompt-sha256\": \"$HAVE\",
             \"parasol.example/prompt-version\": \"$PVER\",
-            \"parasol.example/model-ref\": \"$(params.model-ref)\",
+            \"parasol.example/agent-version\": \"$(params.agent-version)\",
+            \"parasol.example/agent-version-id\": \"$(params.agent-version-id)\",
             \"parasol.example/model-only-baseline\": \"$(params.model-only-passed)\",
             \"parasol.example/model-only-baseline-run\": \"$(params.mlflow-run-id)\"}},
           \"spec\": {\"source\": {\"kustomize\": {
@@ -412,7 +414,7 @@ spec:
         done
         [ $ok -ge 2 ] || { echo "PROMOTION NOT CONVERGED: $APP did not reach Synced/Healthy on $DIGEST in 10 min"; exit 1; }
         printf "%s" "$DIGEST" > "$(results.digest.path)"
-        echo "PROMOTED: $APP runs $NAME@$DIGEST (prompt $PVER = $(params.prompt-ref) sha256 $HAVE, model $(params.model-ref))"
+        echo "PROMOTED: $APP runs $NAME@$DIGEST (prompt $PVER = $(params.prompt-ref) sha256 $HAVE, agent $(params.agent-version))"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -560,51 +562,42 @@ spec:
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: register-model-version
-  labels: {app.kubernetes.io/version: "0.1"}
+  name: register-agent-version
+  labels: {app.kubernetes.io/version: "0.2"}
 spec:
   description: >-
-    Governance: stamp this release's agent-eval result onto the matching ModelVersion of the RHOAI
-    Model Registry RegisteredModel parasol-claims-assistant. The served model is an EXTERNAL MaaS
-    model (qwen3-14b), so a ModelVersion is the agent CONFIG (prompt version + tools-authpolicy
-    sha + model id); this step writes the gate result, pass-rate/score, MLflow run id and prompt@version
-    that the agent-eval gate just produced onto that version, so the registry UI shows what the pipeline
-    evaluated. Best-effort by design: it never fails the pipeline (the agent-eval gate alone decides
-    promotion), it only records provenance. Reuses gitops/platform/model-registry/register-model.py
-    from the cloned source. The registry NetworkPolicy admits only the ingress router + RHOAI
-    namespaces on 8443, so it is reached through the registry's public route (kube-rbac-proxy still
-    TokenReviews the pipeline SA, which holds registry-user via gitops/platform/model-registry/rbac.yaml).
+    Governance: record this release's claims agent as an MLflow agent version (parasol-claims-agent 1.0.0, 1.1.0, ...)
+    in the release experiment: the agent config the gate evaluated (prompt version and sha256, tool policy sha256,
+    model id, portal image digest) and its evaluation (gate, score, eval run). Every release gets one, passed or not.
+    The agent is not a model, so it is not in the Model Registry (that holds the three models). Best-effort: it never
+    fails the pipeline (the agent-eval gate alone decides promotion); promote stamps the version on the Application.
   params:
-    - {name: candidate, type: string, default: candidate-shortened}
+    - {name: candidate, type: string, default: production}
     - {name: gate, type: string}
     - {name: score, type: string}
     - {name: mlflow-run-id, type: string}
     - {name: prompt-ref, type: string, default: ""}
-    - {name: mr-base-url, type: string, default: "https://parasol-model-registry-rest.apps.CLUSTER_DOMAIN"}
-    - {name: mlflow-ui-base, type: string, default: "https://rh-ai.apps.CLUSTER_DOMAIN/mlflow"}
-    - {name: script-path, type: string, default: "source/gitops/platform/model-registry/register-model.py"}
+    - {name: image-digest, type: string, default: ""}
+    - {name: mlflow-uri, type: string, default: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
+    - {name: mlflow-workspace, type: string, default: parasol-secured}
+    - {name: script-path, type: string, default: "source/gitops/platform/pipeline/register-agent-version.py"}
   results:
-    - {name: version-ref, description: "the RegisteredModel:version this run stamped its eval onto"}
+    - {name: agent-version, description: "name@version of the recorded agent version (unrecorded if MLflow was unreachable)"}
+    - {name: agent-version-id, description: "its MLflow model id"}
   workspaces:
-    - {name: source}
+    - {name: source}   # release/ from agent-eval (prompt sha256, released prompt version, gate reason)
   steps:
-    - name: stamp
+    - name: record
       image: registry.access.redhat.com/ubi9/python-311:latest
       workingDir: $(workspaces.source.path)
       env:
-        - {name: MR_BASE_URL, value: "$(params.mr-base-url)"}
-        - {name: MLFLOW_UI_BASE, value: "$(params.mlflow-ui-base)"}
-        - {name: MR_INSECURE, value: "1"}
+        - {name: MLFLOW_TRACKING_URI, value: "$(params.mlflow-uri)"}
+        - {name: MLFLOW_WORKSPACE, value: "$(params.mlflow-workspace)"}
         - {name: HOME, value: "/tmp"}
       script: |
         #!/usr/bin/env bash
         set -u
-        printf "parasol-claims-assistant:%s" "$(params.candidate)" > "$(results.version-ref.path)"
-        echo "Stamping agent-eval result onto model-registry version $(params.candidate): gate=$(params.gate) score=$(params.score) run=$(params.mlflow-run-id)"
-        python3 "$(params.script-path)" --patch-eval \
-          --version "$(params.candidate)" \
-          --gate "$(params.gate)" \
-          --score "$(params.score)" \
-          --run-id "$(params.mlflow-run-id)" \
-          --prompt-ref "$(params.prompt-ref)" \
-          || echo "model-registry stamp skipped (non-fatal): registry unreachable or version not registered yet"
+        python3 "$(params.script-path)" --variant "$(params.candidate)" --gate "$(params.gate)" --score "$(params.score)" \
+          --run-id "$(params.mlflow-run-id)" --prompt-ref "$(params.prompt-ref)" --image-digest "$(params.image-digest)" \
+          --release-dir "$(workspaces.source.path)/release" --tools-policy source/gitops/platform/mcp-gateway/authpolicy-tools.yaml \
+          --out-version "$(results.agent-version.path)" --out-id "$(results.agent-version-id.path)"

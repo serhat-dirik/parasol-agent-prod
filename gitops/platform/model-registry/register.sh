@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
-# Register the Parasol claims-assistant (RegisteredModel + ModelVersions production / candidate-shortened with the agent-eval
-# result) in the RHOAI Model Registry parasol-model-registry. Idempotent (re-running refreshes
-# metadata). Run as cluster-admin (or any identity that can create the SA/Job).
+# Register the demo's three external models (agent, guard, judge; each with its own version, served by MaaS) in the
+# OpenShift AI Model Registry parasol-model-registry. Idempotent (re-running refreshes metadata). Run as cluster-admin
+# (or any identity that can create the SA/Job). Agent versions are MLflow agent versions, written by the release pipeline.
 #
 #   gitops/platform/model-registry/register.sh
 #
-# The same register-model.py is what the Tekton register-model-version gate step imports with
-# --patch-eval to stamp a run's gate/score/mlflow-run-id onto the matching ModelVersion.
 set -euo pipefail
 : "${AGENT_ENDPOINT:?export the install contract (AGENT_ENDPOINT, AGENT_MODEL) or source scripts/load-credentials.sh}"
 export AGENT_MODEL="${AGENT_MODEL:-qwen3-14b}" JUDGE_MODEL="${JUDGE_MODEL:-gpt-oss-120b}" GUARD_MODEL="${GUARD_MODEL:-granite-guardian-3-1-8b}"
@@ -19,10 +17,9 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 oc apply -f "$DIR/rbac.yaml"
 oc -n "$NS" delete configmap parasol-model-registrar --ignore-not-found
 oc -n "$NS" create configmap parasol-model-registrar \
-  --from-file=register-model.py="$DIR/register-model.py" \
-  --from-file="$DIR/../../envs/secured/system-prompt.txt" --from-file="$DIR/../pipeline/prompts/v2.txt"
+  --from-file=register-model.py="$DIR/register-model.py"
 oc -n "$NS" delete job parasol-model-registrar --ignore-not-found
 CLUSTER_DOMAIN="${CLUSTER_DOMAIN:-$(oc get dns cluster -o jsonpath='{.spec.baseDomain}')}" \
-  envsubst '$AGENT_MODEL $JUDGE_MODEL $AGENT_ENDPOINT $AGENT_MODEL_NAME $GUARD_MODEL $GUARD_MODEL_NAME $GUARD_ENDPOINT $JUDGE_MODEL_NAME $JUDGE_ENDPOINT $CLUSTER_DOMAIN $MLFLOW_EXPERIMENT_ID $RUN_ID_PRODUCTION $RUN_ID_CANDIDATE $SCORE_PRODUCTION $SCORE_CANDIDATE' < "$DIR/register-job.yaml" | oc apply -f -
+  envsubst '$AGENT_MODEL $JUDGE_MODEL $AGENT_ENDPOINT $AGENT_MODEL_NAME $GUARD_MODEL $GUARD_MODEL_NAME $GUARD_ENDPOINT $JUDGE_MODEL_NAME $JUDGE_ENDPOINT $CLUSTER_DOMAIN' < "$DIR/register-job.yaml" | oc apply -f -
 oc -n "$NS" wait --for=condition=complete job/parasol-model-registrar --timeout=180s
 oc -n "$NS" logs job/parasol-model-registrar

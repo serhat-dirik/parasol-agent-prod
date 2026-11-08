@@ -19,12 +19,11 @@ spec:
             # namespaces on 8443, so in-cluster callers reach it through its public route (hairpin
             # via the router); the kube-rbac-proxy still TokenReviews the SA token on either path.
             - {name: MR_BASE_URL, value: "https://parasol-model-registry-rest.apps.${CLUSTER_DOMAIN}"}
-            - {name: MLFLOW_UI_BASE, value: "https://rh-ai.apps.${CLUSTER_DOMAIN}/mlflow"}
             - {name: MR_INSECURE, value: "1"}
-            # Install contract (substituted by register.sh): recorded as model_id / maas_endpoint_host.
+            # Install contract (substituted by register.sh): each model's upstream host is recorded.
             - {name: AGENT_MODEL, value: "${AGENT_MODEL}"}
             - {name: AGENT_ENDPOINT, value: "${AGENT_ENDPOINT}"}
-            - {name: JUDGE_MODEL, value: "${JUDGE_MODEL}"}   # recorded as eval_judge_model
+            - {name: JUDGE_MODEL, value: "${JUDGE_MODEL}"}
             # The three external models, registered as served by MaaS (endpoint = MAAS_BASE_URL/models-as-a-service/<name>/v1).
             - {name: MAAS_BASE_URL, value: "https://maas.apps.${CLUSTER_DOMAIN}"}
             - {name: AGENT_MODEL_NAME, value: "${AGENT_MODEL_NAME}"}
@@ -34,12 +33,6 @@ spec:
             - {name: JUDGE_MODEL_NAME, value: "${JUDGE_MODEL_NAME}"}
             - {name: JUDGE_ENDPOINT, value: "${JUDGE_ENDPOINT}"}
             - {name: HOME, value: "/tmp"}
-            # This cluster's golden-set runs (scripts/eval-seed.sh); empty = the reference ids.
-            - {name: MLFLOW_EXPERIMENT_ID, value: "${MLFLOW_EXPERIMENT_ID}"}
-            - {name: RUN_ID_PRODUCTION, value: "${RUN_ID_PRODUCTION}"}
-            - {name: RUN_ID_CANDIDATE, value: "${RUN_ID_CANDIDATE}"}
-            - {name: SCORE_PRODUCTION, value: "${SCORE_PRODUCTION}"}
-            - {name: SCORE_CANDIDATE, value: "${SCORE_CANDIDATE}"}
           volumeMounts:
             - {name: scripts, mountPath: /scripts}
       volumes:

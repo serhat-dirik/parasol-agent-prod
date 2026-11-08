@@ -20,7 +20,7 @@ spec:
     - {name: path-context, type: string, default: "source/apps/parasol-portal/app"}
     - {name: dockerfile, type: string, default: "Containerfile"}
     # Agent config the gate evaluates: production (the production prompt, passes) or
-    # candidate-shortened (the shortened candidate prompt, blocked). Also the Model Registry version name.
+    # candidate-shortened (the shortened candidate prompt, blocked). Recorded as the agent version's variant.
     - {name: candidate, type: string, default: "production"}
     # MLflow Prompt Registry entry the gate evaluated; promote records it on the Application.
     - {name: prompt-ref, type: string, default: "parasol-claims-assistant-system-prompt@production"}
@@ -32,7 +32,7 @@ spec:
     - {name: EVAL_SCORE, value: "$(tasks.agent-eval.results.score)"}
     - {name: EVAL_GATE, value: "$(tasks.agent-eval.results.gate)"}
     - {name: MLFLOW_RUN_ID, value: "$(tasks.agent-eval.results.mlflow-run-id)"}
-    - {name: REGISTERED_MODEL_VERSION, value: "$(tasks.register-model-version.results.version-ref)"}
+    - {name: AGENT_VERSION, value: "$(tasks.register-agent-version.results.agent-version)"}
     - {name: SIGNED_IMAGES, value: "$(tasks.sign-images.results.SIGNED)"}
     - {name: KEYLESS_SIGNED_IMAGES, value: "$(tasks.keyless-sign.results.SIGNED)"}
     - {name: PROMOTED_DIGEST, value: "$(tasks.promote.results.digest)"}
@@ -86,17 +86,18 @@ spec:
         - {name: prompt-file, value: "$(params.prompt-file)"}
       workspaces:
         - {name: source, workspace: workspace}
-    # Governance: stamp the agent-eval result (gate, score, MLflow run id, prompt@version) onto the
-    # matching RHOAI Model Registry ModelVersion. Consumes agent-eval's results; never blocks promotion.
-    - name: register-model-version
+    # Governance: record the evaluated agent config as an MLflow agent version (parasol-claims-agent x.y.0) with the
+    # agent-eval result. Every release, passed or not; never blocks promotion.
+    - name: register-agent-version
       runAfter: [agent-eval]
-      taskRef: {name: register-model-version}
+      taskRef: {name: register-agent-version}
       params:
         - {name: candidate, value: "$(params.candidate)"}
         - {name: gate, value: "$(tasks.agent-eval.results.gate)"}
         - {name: score, value: "$(tasks.agent-eval.results.score)"}
         - {name: mlflow-run-id, value: "$(tasks.agent-eval.results.mlflow-run-id)"}
         - {name: prompt-ref, value: "$(params.prompt-ref)"}
+        - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
       workspaces:
         - {name: source, workspace: workspace}
     - name: verify-enterprise-contract
@@ -118,7 +119,7 @@ spec:
       params:
         - {name: portal-image, value: "$(params.output-image)@$(tasks.build-container.results.IMAGE_DIGEST)"}
     - name: promote
-      runAfter: [scan-image, agent-eval, verify-enterprise-contract]
+      runAfter: [scan-image, agent-eval, verify-enterprise-contract, register-agent-version]
       when:
         - {input: "$(tasks.agent-eval.results.gate)", operator: in, values: ["passed"]}
         - {input: "$(tasks.verify-enterprise-contract.results.verified)", operator: in, values: ["true"]}
@@ -128,7 +129,8 @@ spec:
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
         - {name: prompt-ref, value: "$(params.prompt-ref)"}
         - {name: prompt-sha256, value: "$(tasks.agent-eval.results.prompt-sha256)"}
-        - {name: model-ref, value: "parasol-claims-assistant:$(params.candidate)"}
+        - {name: agent-version, value: "$(tasks.register-agent-version.results.agent-version)"}
+        - {name: agent-version-id, value: "$(tasks.register-agent-version.results.agent-version-id)"}
         - {name: mlflow-run-id, value: "$(tasks.agent-eval.results.mlflow-run-id)"}
         - {name: model-only-passed, value: "$(tasks.agent-eval.results.model-only-passed)"}
       workspaces:

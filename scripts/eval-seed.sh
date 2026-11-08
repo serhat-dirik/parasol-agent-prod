@@ -7,7 +7,7 @@
 # Runs gitops/platform/eval/mlflow-agent-eval/agent_eval.py once as a Job in parasol-build (SA pipeline,
 # the identity the Tekton agent-eval gate uses; judge endpoint + key from Secret maas-eval-key).
 # Idempotent: a completed Job is reused, never re-run (delete job/parasol-eval-seed to force a fresh run).
-# Prints "MLFLOW_EXPERIMENT_ID=.. RUN_ID_PRODUCTION=.. RUN_ID_CANDIDATE=.. SCORE_PRODUCTION=.. SCORE_CANDIDATE=.." for the Model Registry registration.
+# Prints "MLFLOW_EXPERIMENT_ID=.. RUN_ID_PRODUCTION=.. RUN_ID_CANDIDATE=.. SCORE_PRODUCTION=.. SCORE_CANDIDATE=.." (the seed runs; release runs record agent versions).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 NS=parasol-build JOB=parasol-eval-seed SRC=gitops/platform/eval/mlflow-agent-eval

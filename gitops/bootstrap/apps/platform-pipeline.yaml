@@ -43,20 +43,6 @@ spec:
             - op: replace
               path: /spec/params/6/default
               value: https://oidc-discovery.apps.${CLUSTER_DOMAIN}
-        - target: {kind: Task, name: register-model-version}
-          patch: |-
-            - op: test
-              path: /spec/params/5/name
-              value: mr-base-url
-            - op: replace
-              path: /spec/params/5/default
-              value: https://parasol-model-registry-rest.apps.${CLUSTER_DOMAIN}
-            - op: test
-              path: /spec/params/6/name
-              value: mlflow-ui-base
-            - op: replace
-              path: /spec/params/6/default
-              value: https://rh-ai.apps.${CLUSTER_DOMAIN}/mlflow
   syncPolicy:
     automated: {prune: true, selfHeal: true}
     syncOptions: [CreateNamespace=false, RespectIgnoreDifferences=true, ServerSideApply=true]

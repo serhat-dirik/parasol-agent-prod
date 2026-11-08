@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # incident-report.sh <claim> : one payout on the secured portal, reconstructed from the platform's own records.
 # Read-only: it only reads (claims-db timeline and log, MLflow traces, Keycloak events, the MCP gateway's decision log,
-# the Argo CD Application env-secured, the Model Registry, the release PipelineRun and the running pod).
+# the Argo CD Application env-secured, the MLflow agent version, the release PipelineRun and the running pod).
 # Each section prints "n/a: <why>" when this identity may not read that source.
 #   scripts/incident-report.sh CLM-1001
-# Full report: a workstation with `oc` signed in as an administrator (MLflow and Model Registry take the
+# Full report: a workstation with `oc` signed in as an administrator (MLflow takes the
 # oc token; Keycloak events need the Keycloak admin, scripts/keycloak-admin.sh). From the Showroom Terminal
-# the cluster sections run; MLflow, Keycloak and the Model Registry are then read in their browser tabs.
+# the cluster sections run; MLflow and Keycloak are then read in their browser tabs.
 set -uo pipefail
 claim=${1:?usage: scripts/incident-report.sh <claim number, e.g. CLM-1001>}
 cd "$(dirname "$0")/.."
@@ -130,28 +130,28 @@ hdr "5. What was live: the release on Argo CD Application env-secured"
 oc get application env-secured -n openshift-gitops -o json 2>/dev/null | python3 -c '
 import sys, json
 a = json.load(sys.stdin); an = a["metadata"].get("annotations", {})
-for k in ("promoted-digest", "promoted-by", "prompt-ref", "prompt-version", "prompt-sha256", "model-ref"):
+for k in ("promoted-digest", "promoted-by", "prompt-ref", "prompt-version", "prompt-sha256", "agent-version"):
     print("  %-16s %s" % (k, an.get("parasol.example/" + k, "-")))
 for h in a.get("status", {}).get("history", [])[-3:]:
     print("  synced %s  revision %s" % (h.get("deployedAt"), h.get("revision", "")[:12]))' || na "cannot read the Application"
 
-hdr "6. Which evaluated version (RHOAI Model Registry parasol-model-registry, model parasol-claims-assistant)"
-MR=https://parasol-model-registry-rest.apps.$D/api/model_registry/v1alpha3
-if [ -n "$TOK" ] && curl -sk -m 15 -H "Authorization: Bearer $TOK" "$MR/registered_models?pageSize=50" | grep -q parasol-claims-assistant; then
-  mid=$(curl -sk -H "Authorization: Bearer $TOK" "$MR/registered_models?pageSize=50" | python3 -c 'import sys,json; print(next(m["id"] for m in json.load(sys.stdin)["items"] if m["name"]=="parasol-claims-assistant"))')
-  curl -sk -H "Authorization: Bearer $TOK" "$MR/registered_models/$mid/versions?pageSize=50" | python3 -c '
+hdr "6. Which evaluated agent version (MLflow, workspace $NS, Agent versions of parasol-agent-eval)"
+AV=$(oc get application env-secured -n openshift-gitops -o jsonpath='{.metadata.annotations.parasol\.example/agent-version-id}' 2>/dev/null)
+if [ -n "$TOK" ] && [ -n "$AV" ] && [ "$AV" != unrecorded ] && mlf "api/2.0/mlflow/logged-models/$AV" | grep -q model_id; then
+  mlf "api/2.0/mlflow/logged-models/$AV" | python3 -c '
 import sys, json
-for v in json.load(sys.stdin).get("items", []):
-    p = {k: x.get("string_value") for k, x in v.get("customProperties", {}).items()}
-    print("  %-20s state=%-8s gate=%-6s eval_score=%-5s run=%s prompt_sha256=%s" % (v["name"], v.get("state"), p.get("gate") or p.get("eval_gate"),
-          p.get("eval_score"), (p.get("mlflow_run_id") or "")[:12], (p.get("prompt_sha256") or "")[:12]))'
-else na "Model Registry not readable with this identity (OpenShift AI tab: Models, Model registry, parasol-model-registry)"; fi
+i = json.load(sys.stdin)["model"]; info, d = i["info"], i.get("data", {})
+t = {x["key"]: x["value"] for x in info.get("tags", [])}; p = {x["key"]: x["value"] for x in d.get("params", [])}
+print("  %s %s (%s)  gate=%s score=%s eval run=%s" % (info["name"], t.get("version"), info["model_id"], t.get("eval_gate"), t.get("eval_score"), t.get("eval_run_id", "")[:12]))
+print("  prompt %s (%s) sha256 %s  tool policy sha256 %s  model %s" % (p.get("prompt_ref"), p.get("prompt_version"),
+      p.get("prompt_sha256", "")[:12], p.get("tools_policy_sha256", "")[:12], p.get("model_id")))'
+else na "agent version not readable here (annotation parasol.example/agent-version-id=${AV:-none}; MLflow tab: experiment parasol-agent-eval, Agent versions)"; fi
 
 hdr "7. Is it the signed image? (release run, admission, the running pod)"
 oc get pipelinerun parasol-portal-release-production -n parasol-build -o json 2>/dev/null | python3 -c '
 import sys, json
 r = {x["name"]: x["value"] for x in json.load(sys.stdin).get("status", {}).get("results", [])}
-for k in ("PROMOTED_DIGEST", "EVAL_GATE", "EVAL_SCORE", "MLFLOW_RUN_ID", "REGISTERED_MODEL_VERSION", "SIGNED_IMAGES", "KEYLESS_SIGNED_IMAGES"):
+for k in ("PROMOTED_DIGEST", "EVAL_GATE", "EVAL_SCORE", "MLFLOW_RUN_ID", "AGENT_VERSION", "SIGNED_IMAGES", "KEYLESS_SIGNED_IMAGES"):
     print("  %-24s %s" % (k, str(r.get(k, "-"))[:110]))' || na "cannot read PipelineRuns in parasol-build"
 echo "  running portal: $(oc get pods -n $NS -l app=portal -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' 2>/dev/null | sed 's/.*@//')"
 echo "  admission: namespace label policy.rhtas.com/include=$(oc get ns $NS -o jsonpath='{.metadata.labels.policy\.rhtas\.com/include}' 2>/dev/null), ClusterImagePolicy parasol-portal-must-be-signed (unsigned images are refused: scripts/signing-demo.sh)"

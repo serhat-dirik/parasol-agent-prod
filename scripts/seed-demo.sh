@@ -4,7 +4,7 @@
 #   1 MLflow experiment parasol-portal-chat (chat traces; must be experiment id 1, see otel-collector.yaml)
 #   2 MLflow Prompt Registry: system prompt, aliases production (version 1) and candidate (version 2)
 #   3 MLflow golden-set runs: production-prompt PASS, candidate-shortened-prompt BLOCK (judge = JUDGE model)
-#   4 Model Registry parasol-model-registry: parasol-claims-assistant versions production + candidate-shortened with those eval results
+#   4 Model Registry parasol-model-registry: the three external models (agent, guard, judge) with their own versions
 #   5 EvalHub run parasol-agent-model-ifeval + LMEvalJob parasol-agent-model-eval (Evaluations pages)
 #   6 release PipelineRuns candidate-shortened (blocked) and production (promoted; bootstrap.sh waits for it)
 # Needs the install contract env (AGENT_*, JUDGE_* ...), see bootstrap.sh.

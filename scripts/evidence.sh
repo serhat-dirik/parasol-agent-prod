@@ -290,7 +290,7 @@ for k in ("EVAL_GATE", "EVAL_SCORE", "SIGNED_IMAGES", "KEYLESS_SIGNED_IMAGES", "
   echo "2) The pin on Argo CD Application env-secured:"
   oc get application env-secured -n openshift-gitops -o json | python3 -c '
 import sys, json; a = json.load(sys.stdin)["metadata"]["annotations"]
-for k in ("promoted-digest", "promoted-by", "prompt-version", "model-ref"): print("  %-22s %s" % (k, a.get("parasol.example/" + k, "-")))'
+for k in ("promoted-digest", "promoted-by", "prompt-version", "agent-version"): print("  %-22s %s" % (k, a.get("parasol.example/" + k, "-")))'
   echo "3) The running secured portal:"
   echo "  $(oc get pods -n parasol-secured -l app=portal -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' | sed 's/.*@/image                  /')"
   echo "4) Admission: namespace parasol-secured policy.rhtas.com/include=$(oc get ns parasol-secured -o jsonpath='{.metadata.labels.policy\.rhtas\.com/include}')"
