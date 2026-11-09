@@ -4,7 +4,7 @@
 * xref:02-before-you-start.adoc[02. Before you start]
 
 .Business showcases
-* xref:03-showcase1-colleague.adoc[03. Showcase 1: The colleague]
+* xref:03-showcase1-colleague.adoc[03. Showcase 1: The overstepping colleague]
 * xref:04-showcase2-document.adoc[04. Showcase 2: The customer's document]
 * xref:05-showcase3-confidential-document.adoc[05. Showcase 3: The confidential document]
 

@@ -1,5 +1,5 @@
-= 03. Showcase 1: The colleague
-:navtitle: 03. Showcase 1: The colleague
+= 03. Showcase 1: The overstepping colleague
+:navtitle: 03. Showcase 1: The overstepping colleague
 :toc: macro
 :toclevels: 2
 

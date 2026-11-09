@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# showcase1.sh <topic> : evidence of Showcase 1, the colleague (read-only; nothing is paid or changed)
+# showcase1.sh <topic> : evidence of Showcase 1, the overstepping colleague (read-only; nothing is paid or changed)
 #   payouts [claim]  the latest claims-db payout record of both portals, side by side (also Showcases 2, 7)
 #   roles            rebecca's and marcus's groups and claims-db tool roles, from their Keycloak login tokens
 #   token [user]     a persona's login token next to the token the claims agent gets on their behalf

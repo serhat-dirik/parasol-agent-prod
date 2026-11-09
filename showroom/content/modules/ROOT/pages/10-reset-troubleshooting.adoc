@@ -124,7 +124,7 @@ Every question the audience asks has one screen that answers it with the same na
 |production 0.97 (28 of 29 with the platform; answers generated live), candidate about the same with the platform but BLOCKED: its model alone lost `role-authorization`, a case production's model alone passed on every attempt; `prompt-ref` `...@production` and `prompt-sha256`, the same values as every chat trace's `prompt` and `prompt_sha256` tags and the registry version's `prompt_sha256`
 
 |One payout, end to end?
-|xref:03-showcase1-colleague.adoc#audit-trail[03. Showcase 1: The colleague, the audit trail]; `scripts/incident-report.sh <claim>`
+|xref:03-showcase1-colleague.adoc#audit-trail[03. Showcase 1: The overstepping colleague, the audit trail]; `scripts/incident-report.sh <claim>`
 |timeline, PAYOUT line, approval and proposal traces, TOKEN_EXCHANGE, gateway decisions, release annotations, registry version, signed digest
 
 |Is what runs the image the pipeline signed?

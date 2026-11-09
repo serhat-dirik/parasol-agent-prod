@@ -106,4 +106,4 @@ What you should see: the Parasol sign-in page on each.
 
 The two portals have separate databases, so you do not reset when you switch between them within a showcase. The showcases tell you when a reset is needed.
 
-Continue with xref:03-showcase1-colleague.adoc[03. Showcase 1: The colleague].
+Continue with xref:03-showcase1-colleague.adoc[03. Showcase 1: The overstepping colleague].

@@ -41,7 +41,7 @@ platform's own records prove it.
 
 **Business showcases**: what a user, a customer or a document can make the assistant do, on both portals.
 
-1. **The colleague.** An adjuster pushes the assistant to approve a payout she has no authority for. Unsecured, it
+1. **The overstepping colleague.** An adjuster pushes the assistant to approve a payout she has no authority for. Unsecured, it
    pays. Secured, it can only propose; a manager approves with one click, and the record names the person and the
    agent. Ends with the audit trail: one payout traced from the claim back to the signed, evaluated release.
 2. **The customer's document.** An uploaded repair estimate is inflated tenfold and hides a note telling the

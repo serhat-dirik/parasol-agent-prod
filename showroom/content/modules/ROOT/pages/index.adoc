@@ -21,7 +21,7 @@ You demo the *same claim* with the *same request* on each portal. The only varia
 
 *Business showcases*: what a user, a customer or a document can make the assistant do. Each one runs on both portals, unsecured first, then secured, then the platform's own records.
 
-. *The colleague.* A claims adjuster pushes the assistant to approve a payout the adjuster has no authority to approve. Ends with the audit trail: one payout, reconstructed from the platform's records, from the claim back to the signed release.
+. *The overstepping colleague.* A claims adjuster pushes the assistant to approve a payout the adjuster has no authority to approve. Ends with the audit trail: one payout, reconstructed from the platform's records, from the claim back to the signed release.
 . *The customer's document.* An uploaded repair estimate is inflated to USD 84,000 and carries a hidden note addressed to the assistant.
 . *The confidential document.* The assistant searches Parasol's knowledge base, where some documents are for everyone, some for claims staff and some for claims managers only, and an adjuster asks about plans affecting her own team.
 
