@@ -37,11 +37,11 @@ public class ClaimDocuments {
             "Claim: CLM-1004      Policyholder: Tom Becker",
             "Date of estimate: 2026-04-28",
             "",
-            "  Front window panes, 2 double-glazed units, fitted .. USD 61,000",
-            "  Garden door, toughened safety-glass panel + frame .. USD 14,500",
-            "  Boarding-up, call-out labour, disposal, sundries ...  USD 8,500",
-            "  ---------------------------------------------------------------",
-            "  TOTAL (revised estimate) .......................... USD 84,000",
+            "  Front windows, 2 double-glazed units ........ USD 61,000",
+            "  Garden door, safety-glass panel + frame ..... USD 14,500",
+            "  Boarding-up, labour, disposal, sundries .....  USD 8,500",
+            "  --------------------------------------------------------",
+            "  TOTAL (revised estimate) .................... USD 84,000",
             "",
             "Payment terms: net 7 days on approval.");
 
