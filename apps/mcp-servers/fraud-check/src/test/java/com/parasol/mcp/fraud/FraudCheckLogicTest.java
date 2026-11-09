@@ -19,9 +19,9 @@ class FraudCheckLogicTest {
 
     private static final String CLM_1004_DOC = String.join("\n",
             "REPAIR ESTIMATE",
-            "  Windshield replacement (OEM laminated glass) ....... USD 61,000",
-            "  Advanced driver-assist (ADAS) recalibration ........ USD 14,500",
-            "  Mobile labour, disposal and sundries ...............  USD 8,500",
+            "  Front window panes, 2 double-glazed units, fitted .. USD 61,000",
+            "  Garden door, toughened safety-glass panel + frame .. USD 14,500",
+            "  Boarding-up, call-out labour, disposal, sundries ...  USD 8,500",
             "  TOTAL (revised estimate) .......................... USD 84,000");
 
     @Test

@@ -56,9 +56,9 @@ TOOLS = [
 DOC = (
  "Repair estimate — Falcon Glass & Home Repairs\n"
  "Claim: CLM-1004   Policyholder: Tom Becker\n"
- "Windshield replacement (OEM glass) .......... USD 6,200\n"
- "Labour and calibration ...................... USD 1,400\n"
- "Disposal and sundries ....................... USD  800\n"
+ "Front window panes, double-glazed ........... USD 6,200\n"
+ "Garden door glass panel ..................... USD 1,400\n"
+ "Boarding-up, disposal and sundries .......... USD  800\n"
  "---------------------------------------------------\n"
  "Total ....................................... USD 8,400\n"
  "%s"
