@@ -53,7 +53,7 @@ regex detector, and Llama Guard flags the user-message injection as the optional
   OpenShift AI **GenAI Studio playground** enumerates in its model picker, so Granite Guardian is
   selectable there (a cluster-admin sees all MaaS models; the auth-walled dashboard screen is captured
   in the operator's logged-in browser at record time, per the handover decision).
-* The guard-tier keys are out-of-band Secrets (`maas-key-granite-guardian`, `maas-key-llama-guard`,
+* The guard-tier keys are out-of-band Secrets (`maas-key-guard`, `maas-key-llama-guard`,
   data key `GENAI_API_KEY`, from `GUARD_KEY` / `LLAMAGUARD_KEY` via `scripts/maas-model-keys.sh`),
   **never in Git**. `scripts/guardian-key.sh` creates the base-URL Secret `maas-guardian`
   (`GUARD_URL` from `GUARD_ENDPOINT`, `GUARD_MODEL` from `GUARD_MODEL`, `GUARD2_URL` from the optional

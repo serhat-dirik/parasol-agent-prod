@@ -13,7 +13,7 @@
 # the guard model is added here as an additional ExternalModel (named GUARD_MODEL_NAME, the DNS-1123 form of
 # GUARD_MODEL; targetModel is GUARD_MODEL itself). Upstream API-key Secrets (data key
 # api-key) are created out-of-band by scripts/maas-ext-model-secrets.sh (maas-upstream-agent,
-# maas-upstream-granite-guardian) and are never committed.
+# maas-upstream-guard) and are never committed.
 #
 # Isolated + additive: own namespace parasol-maas-tiers owns the subscriptions (owner group
 # system:serviceaccounts:parasol-maas-tiers), so scripts/maas-tier-keys.sh mints both keys from one pod
@@ -43,7 +43,7 @@ spec:
   provider: openai
   endpoint: ${GUARD_HOST}    # FQDN of GUARD_ENDPOINT; apply with: kustomize build ... | envsubst '$GUARD_HOST $GUARD_MODEL $GUARD_MODEL_NAME $AGENT_MODEL_NAME' | oc apply -f -
   targetModel: ${GUARD_MODEL}
-  credentialRef: {name: maas-upstream-granite-guardian}
+  credentialRef: {name: maas-upstream-guard}
 ---
 apiVersion: maas.opendatahub.io/v1alpha1
 kind: MaaSModelRef

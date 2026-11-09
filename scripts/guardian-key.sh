@@ -3,7 +3,7 @@
 # URLs to the guardian-detector: GUARD_URL <- GUARD_ENDPOINT, GUARD_MODEL <- GUARD_MODEL (default
 # granite-guardian-3-1-8b) and, only when set,
 # GUARD2_URL <- LLAMAGUARD_ENDPOINT (optional Llama-Guard). The keys the detector uses come from the
-# per-model Secrets maas-key-granite-guardian / maas-key-llama-guard (scripts/maas-model-keys.sh);
+# per-model Secrets maas-key-guard / maas-key-llama-guard (scripts/maas-model-keys.sh);
 # GUARD_KEY here is a legacy fallback copy of GUARD_KEY. Values are never printed. NOT in Git.
 #
 # Usage: scripts/guardian-key.sh   (with GUARD_ENDPOINT, GUARD_KEY [, LLAMAGUARD_ENDPOINT] exported)

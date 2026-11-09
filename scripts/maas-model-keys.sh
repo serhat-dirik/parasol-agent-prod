@@ -21,7 +21,7 @@ mk() {
 }
 
 # guard-tier detector models (granite-guardian required; Llama-Guard optional 3rd detector)
-mk parasol-guardian maas-key-granite-guardian "$GUARD_KEY"
+mk parasol-guardian maas-key-guard           "$GUARD_KEY"
 mk parasol-guardian maas-key-llama-guard      "${LLAMAGUARD_KEY:-}"
 # eval judge (JUDGE_MODEL) — pipeline + eval namespaces
 mk parasol-build "$JUDGE_SECRET"              "${JUDGE_KEY:-}"
