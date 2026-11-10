@@ -31,8 +31,8 @@ Because the assistant and the model are identical, any difference you see comes 
 
 ![The two secured request paths: portal to guardrails proxy to OpenShift AI MaaS to the hosted model; portal to the MCP gateway, with the Keycloak token exchange, to the MCP servers](showroom/content/modules/ROOT/assets/images/arch-request-paths.png)
 
-**The people:** `rebecca`, a claims adjuster (reads claims, can only *propose* a payout); `marcus`, a claims manager
-(approves payouts); `nina.contractor`, a night-shift contractor (read-only, small model budget).
+**The people:** `rebecca`, a claims adjuster (reads and approves claims, cannot pay); `marcus`, a claims manager
+(approves claims and releases payments); `nina.contractor`, a night-shift contractor (read-only, small model budget).
 
 ### The showcases
 
@@ -42,8 +42,8 @@ platform's own records prove it.
 **Business showcases**: what a user, a customer or a document can make the assistant do, on both portals.
 
 1. **The overstepping colleague.** An adjuster pushes the assistant to approve a payout she has no authority for. Unsecured, it
-   pays. Secured, it can only propose; a manager approves with one click, and the record names the person and the
-   agent. Ends with the audit trail: one payout traced from the claim back to the signed, evaluated release.
+   pays. Secured, her assistant approves the claim (*Ready for payment*, no money moves); a manager releases the payment
+   with one click, and the record names each person and the agent. Ends with the audit trail: one payout traced from the claim back to the signed, evaluated release.
 2. **The customer's document.** An uploaded repair estimate is inflated tenfold and hides a note telling the
    assistant to pay. Unsecured, the model obeys and pays USD 84,000 on a denied claim. Secured, the MCP gateway's
    guardrails refuse the document before the model reads it; the portal flags it as suspicious, runs the fraud
@@ -166,9 +166,9 @@ Restores the claims, refills the token budgets and switches every kill-switch le
 
 | Path | What |
 |---|---|
-| `apps/parasol-portal` | The claims portal (Quarkus, React/PatternFly, Keycloak login) and its chat assistant (LangChain4j): tool chips, proposal card, guardrail banners, per-tier model keys |
+| `apps/parasol-portal` | The claims portal (Quarkus, React/PatternFly, Keycloak login) and its chat assistant (LangChain4j): tool chips, Release payment button, guardrail banners, per-tier model keys |
 | `apps/parasol-agent` | The same agent as a headless REST service, used by the test and load scripts |
-| `apps/mcp-servers/*` | MCP servers: `claims-db` (claims, documents, the one write tool `approve_payout`), `policy-docs`, `knowledge-base` (retrieval as the user), `fraud-check` (a second agent), `currency-converter` (the partner bank's service of Showcase 7, two releases) |
+| `apps/mcp-servers/*` | MCP servers: `claims-db` (claims, documents; writes `approve_payout` unsecured, `approve_claim` and `release_payment` secured), `policy-docs`, `knowledge-base` (retrieval as the user), `fraud-check` (a second agent), `currency-converter` (the partner bank's service of Showcase 7, two releases) |
 | `gitops/bootstrap` | Operator subscriptions and the Argo CD applications (applied by `bootstrap.sh`) |
 | `gitops/platform` | Keycloak, the MCP gateway and its policies and guardrails, NeMo Guardrails, OpenShift AI (MaaS, model registry, catalogs), observability (traces, MLflow, AgenticOps, dashboard, alerts), the release pipeline, signing and admission, the Showroom |
 | `gitops/envs` | `free` and `secured` (the two portals), `thirdparty` (the bank's service as published), `secured-tools` (third-party servers as onboarded), `secured-storm` (a load variant) |
@@ -185,7 +185,7 @@ Restores the claims, refills the token budgets and switches every kill-switch le
   registration alone shows zero tools until the broker bounces.
 * **A live `oc patch` reverts itself.** Argo `selfHeal` on `env-secured` reverts live edits. Change
   synced resources (e.g. the MCPVirtualServer tool list) via Git + an Argo refresh, not `oc`.
-* **Reset to a clean state.** The live gate/propose tests re-approve CLM-1001 and mutate claims;
+* **Reset to a clean state.** The live approval and payment tests change CLM-1001 and other claims;
   `scripts/reset.sh` restores the data, refills the tier token allowances (it restarts Limitador) and
   turns every kill-switch level back on.
 * **429 shows as HTTP 502.** The portal surfaces the upstream 429 as a 502 whose chat body still reads
@@ -228,8 +228,8 @@ Restores the claims, refills the token budgets and switches every kill-switch le
   note); `qwen3-14b` and `gpt-oss-120b` **do** (6/6). Both portals now run on **`qwen3-14b`** so the
   obedience is shown live: unsecured pays the inflated USD 84,000 on a denied claim. With a model that
   does not obey, the unsecured side does not pay and Scenario 2 shows nothing. Secured, the MCP gateway
-  refuses the document before any model reads it, and a model that read it could still only *propose*
-  (`approve_payout` is hidden): the secured controls stop the payout regardless of which model obeys.
+  refuses the document before any model reads it, and a model that read it still could not pay (no model is
+  offered a tool that pays): the secured controls stop the payout regardless of which model obeys.
 * **Keycloak tools come back empty (`tools=[]`) or every tool call is a 403.** The agent's exchanged
   token must carry `resource_access` roles for `claims-db`/`policy-docs` and `azp=parasol-claims-agent`
   (`scripts/agent-token.sh rebecca` shows what the gateway sees); re-run `scripts/agent-clients.sh`.

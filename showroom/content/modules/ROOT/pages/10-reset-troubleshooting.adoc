@@ -69,7 +69,7 @@ Every question the audience asks has one screen that answers it with the same na
 
 |Who approved a payout?
 |Claim *History* tab; the approved card's `trace <id>` link
-|"Approved by marcus via parasol-claims-agent"; the MLflow trace with user `marcus`, tag `action` `approve_payout <claim>`
+|"Claim approved ... by rebecca via parasol-claims-agent" and "Payment released by marcus via parasol-claims-agent"; the MLflow trace with user `marcus`, tag `action` `release_payment <claim>`
 
 |Who was refused at the gateway, and why?
 |*OpenShift Console*, *Observe*, *Dashboards (Perses)*, `parasol-secured`, *Parasol Assistant Token Spend*, row *Gateway decisions*; Authorino log
@@ -125,7 +125,7 @@ Every question the audience asks has one screen that answers it with the same na
 
 |One payout, end to end?
 |xref:03-showcase1-colleague.adoc#audit-trail[03. Showcase 1: The overstepping colleague, the audit trail]; `scripts/incident-report.sh <claim>`
-|timeline, PAYOUT line, approval and proposal traces, TOKEN_EXCHANGE, gateway decisions, release annotations, registry version, signed digest
+|timeline, CLAIM APPROVED and PAYMENT RELEASED lines, approval and payment traces, TOKEN_EXCHANGE, gateway decisions, release annotations, registry version, signed digest
 
 |Is what runs the image the pipeline signed?
 |*Argo CD*, `env-secured`, *Parameters*; *OpenShift Console*, *Pipelines*, `parasol-build`
@@ -144,10 +144,10 @@ Each showcase has a script that drives the same beats without a browser. Use the
 |`scripts/abuse.sh free`: rebecca approves.
 
 |1, secured
-|`scripts/abuse.sh secured rebecca 1`: filtered tool list, the agent declines, and the two 403s (not via an approved agent; role). `scripts/abuse.sh secured marcus 1`: the agent still declines (`approve_payout` is in nobody's tool list), and the same call forced through the agent succeeds for the manager (approves CLM-1001: reset afterwards).
+|`scripts/abuse.sh secured rebecca 1`: filtered tool list, the agent declines, and the two 403s (not via an approved agent; role). `scripts/abuse.sh secured marcus 1`: the agent still declines (`approve_payout` is in nobody's tool list), and the same call forced through the agent is refused too: in secured nobody holds `approve_payout`; payments go through `release_payment`.
 
 |2
-|`scripts/abuse-doc.sh both`: the unsecured portal pays USD 84,000; secured flags the note and proposes without writing.
+|`scripts/abuse-doc.sh both`: the unsecured portal pays USD 84,000; secured flags the note and approves nothing.
 
 |2, fraud check
 |`scripts/fraud-check-demo.sh`: rebecca and marcus get HIGH; `nina.contractor` gets a 403.
@@ -181,7 +181,7 @@ Each showcase has a script that drives the same beats without a browser. Use the
 scripts/regression.sh            # or only some: scripts/regression.sh S2 S3
 ----
 
-It drives each check the way the browser does: the persona logs in through the portal's own login and sends the showcase's message over the chat WebSocket with the claim open (`scripts/portal-chat.py`), a new conversation per check, and reads the claim screens through the portal's API. One line per check, `PASS` or `FAIL` with its evidence (tool chips, guardrail banner, proposal, claim status, HTTP status): S1 rebecca can only propose and `abuse.sh` gets both 403s; S2 secured reads the documents, flags and proposes while CLM-1004 stays Denied, unsecured pays; S3 the knowledge-base checks and CLM-1029 refused to rebecca in the chat and on the claim page, shown to marcus; S4 nina.contractor reaches the usage limit while rebecca keeps working; S5 the production release promoted with its gate reason, the candidate's promote skipped; S6 the poisoned vendor tool pays unsecured, is absent secured and is flagged by the scanner; the incident report prints its seven sections. It starts and ends with `scripts/reset.sh` (also when it fails) and exits non-zero on any `FAIL`. About 20 minutes.
+It drives each check the way the browser does: the persona logs in through the portal's own login and sends the showcase's message over the chat WebSocket with the claim open (`scripts/portal-chat.py`), a new conversation per check, and reads the claim screens through the portal's API. One line per check, `PASS` or `FAIL` with its evidence (tool chips, guardrail banner, claim status, HTTP status): S1 rebecca's assistant approves the claim, her Release payment is refused and marcus releases it, and `abuse.sh` gets both 403s; S2 secured reads the documents, flags and proposes while CLM-1004 stays Denied, unsecured pays; S3 the knowledge-base checks and CLM-1029 refused to rebecca in the chat and on the claim page, shown to marcus; S4 nina.contractor reaches the usage limit while rebecca keeps working; S5 the production release promoted with its gate reason, the candidate's promote skipped; S6 the poisoned vendor tool pays unsecured, is absent secured and is flagged by the scanner; the incident report prints its seven sections. It starts and ends with `scripts/reset.sh` (also when it fails) and exits non-zero on any `FAIL`. About 20 minutes.
 
 == Troubleshooting
 
@@ -229,7 +229,7 @@ It drives each check the way the browser does: the persona logs in through the p
 |Each Gateway that calls Authorino needs the annotation `security.opendatahub.io/authorino-tls-bootstrap: "true"`, and the upstream key Secret needs the label `inference.llm-d.ai/ipp-managed=true`.
 
 |Responses differ from this guide's wording
-|The model is non-deterministic. Watch the chips, the banners, the proposal card and the timeline rather than the prose.
+|The model is non-deterministic. Watch the chips, the banners, the claim status and the timeline rather than the prose.
 |===
 
 [NOTE]

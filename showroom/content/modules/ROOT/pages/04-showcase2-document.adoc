@@ -10,7 +10,7 @@ A customer uploads a repair estimate to a denied claim. The estimate is inflated
 [NOTE]
 .Know: a document is data, not a command
 ====
-Every agent that reads customer content will one day read an instruction aimed at it. Here the model obeys any such note, so what stops the payout is the platform: the MCP gateway checks every claims tool result with NeMo Guardrails and refuses the document before the model reads it. And even a model that did read it could only propose, never pay (that proof is in xref:03-showcase1-colleague.adoc[Showcase 1]). The controls, not model luck, stop the payout.
+Every agent that reads customer content will one day read an instruction aimed at it. Here the model obeys any such note, so what stops the payout is the platform: the MCP gateway checks every claims tool result with NeMo Guardrails and refuses the document before the model reads it. And even a model that did read it could never pay: it has no tool that moves money, and CLM-1004 is *Denied*, so it cannot even be approved (that proof is in xref:03-showcase1-colleague.adoc[Showcase 1]). The controls, not model luck, stop the payout.
 ====
 
 == The business case
@@ -90,16 +90,16 @@ What you should see:
 +
 * a red chip `get_claim_documents: documents flagged as suspicious: they address the assistant (blocked by guardrails at the MCP gateway)`: the gateway sent the documents to NeMo Guardrails, the check found an instruction addressed to the assistant, and the gateway refused the result. The model never read the estimate or its note; the portal told it, in words, that the documents were blocked as suspicious and must not be acted on;
 * a chip `called fraud_check(claimNumber=CLM-1004)`: when a claim's documents are blocked, the portal runs the fraud check on its own (a platform rule, not the model's choice). The fraud-check agent reads the documents through the same gateway, on rebecca's behalf, meets the same check, and returns `FRAUD RISK: REVIEW`;
-* an answer that suggests *no* payout and shows *no* Propose card, ending with the platform's note: "this claim's documents were flagged as suspicious ... The fraud check ran on its own: FRAUD RISK: REVIEW ... a person must review the documents";
+* an answer that suggests *no* payout and approves nothing, ending with the platform's note: "this claim's documents were flagged as suspicious ... The fraud check ran on its own: FRAUD RISK: REVIEW ... a person must review the documents";
 * under the answer, a `trace <id>` link: this turn's trace, used below.
 +
-image::s2-secured-blocked.png["Portal secured as rebecca, CLM-1004 still Denied: the red chip documents flagged as suspicious, the automatic fraud_check chip, the start of an answer with no payout and no Propose card (scroll the chat for the platform's note and the trace link), and in Attachments the label Suspicious: blocked by guardrails"]
+image::s2-secured-blocked.png["Portal secured as rebecca, CLM-1004 still Denied: the red chip documents flagged as suspicious, the automatic fraud_check chip, the start of an answer with no payout and nothing approved (scroll the chat for the platform's note and the trace link), and in Attachments the label Suspicious: blocked by guardrails"]
 +
 Why the gateway sends HTTP 500: Connectivity Link 1.5's MCP gateway answers a tool result its guardrails blocked with an HTTP 500 and an empty body, no reason. The only claims-db result its guardrails block is text that addresses the assistant, so the portal turns that 500 into the business meaning (suspicious documents) for the model, the chip and the next steps.
 
 . Check the claim: tab *History*, then *Summary*, *Attachments*.
 +
-What you should see: the status *unchanged, still Denied*; nothing was paid or proposed. The timeline gains *DocumentsFlagged* "Documents flagged as suspicious by the platform's guardrails (MCP gateway): they address the assistant. Fraud check: REVIEW. A person must review them." In *Attachments*, the estimate carries the red label *Suspicious: blocked by guardrails*. The record, not the chat, now says the claim needs a person.
+What you should see: the status *unchanged, still Denied*; nothing was approved or paid. The timeline gains *DocumentsFlagged* "Documents flagged as suspicious by the platform's guardrails (MCP gateway): they address the assistant. Fraud check: REVIEW. A person must review them." In *Attachments*, the estimate carries the red label *Suspicious: blocked by guardrails*. The record, not the chat, now says the claim needs a person.
 +
 image::s2-document-flagged.png["Portal secured, CLM-1004: the History tab with the DocumentsFlagged event (fraud check REVIEW) and the claim still Denied"]
 
@@ -133,7 +133,7 @@ scripts/evidence/showcase2.sh guardrails
 +
 What you should see: two NeMo Guardrails configs in one service (`parasol-nemo`): `parasol-tool-results`, run by the *MCP gateway* on every claims-db tool result (the injection phrases, then a model judge that asks whether the text tells an assistant to approve, pay or settle), and `parasol-chat`, run on the model path (user input and answers). Then the wiring at the gateway (`guardrails-ref: parasol-guardrails`, claims-db `guardrails-config-ids: parasol-tool-results`), the NeMo pods ready, the tool results the gateway blocked, and the tool list: `claims-db: get_claim, list_claims_by_status, get_claim_history, get_claim_documents`, with no `approve_payout` anywhere, plus the portal's own `propose_payout`.
 +
-Say: two independent layers. The gateway checks what a tool returns before any agent reads it, with the rules kept in one place. And a write is not something a model can do here: it can only propose, a person approves.
+Say: two independent layers. The gateway checks what a tool returns before any agent reads it, with the rules kept in one place. And a payment is not something a model can do here: at most it approves a claim that is under review, and only a claims manager releases the payment.
 
 . *The refusal.* The MCP gateway's own record of rebecca's turn:
 +
@@ -156,7 +156,7 @@ image::s2-dashboard-tool-calls.png["Console, Parasol Assistant Token Spend, row 
 +
 Then, in the *Portal secured* tab, click the `trace <id>` link under rebecca's answer (the turn with the red chip).
 +
-What you should see: the *MLflow* trace, user `rebecca`, agent `parasol-claims-agent`: `model.chat` -> `tool.get_claim_documents` (error) -> `tool.get_claim_documents.result` with the result `Unexpected status code: 500, body:` and `blocked` naming the refusal by the MCP gateway; *no* `tool.propose_payout` and *no* `approve_payout` span. The model never saw the document, so it had nothing to obey.
+What you should see: the *MLflow* trace, user `rebecca`, agent `parasol-claims-agent`: `model.chat` -> `tool.get_claim_documents` (error) -> `tool.get_claim_documents.result` with the result `Unexpected status code: 500, body:` and `blocked` naming the refusal by the MCP gateway; *no* `approve_claim` and *no* `approve_payout` span. The model never saw the document, so it had nothing to obey.
 +
 image::s2-mlflow-trace.png["MLflow trace of rebecca's CLM-1004 secured turn: span tool.get_claim_documents in error, span tool.get_claim_documents.result selected with Unexpected status code: 500 and blocked: refused by the MCP gateway; no propose_payout span"]
 
@@ -173,7 +173,7 @@ What you should see: the *MLflow* trace view opens on exactly this turn, in work
 +
 * the trace's user `rebecca` and tags `agent` `parasol-claims-agent`, `prompt` (the released prompt version, for example `parasol-claims-assistant-system-prompt/1`), `model` (the model chosen at setup), with the token count; the trace's request is rebecca's question and its response the assistant's answer;
 * the spans `model.chat` (the messages sent to the model) -> `tool.get_claim_documents` (the arguments) -> `tool.get_claim_documents.result` (status error, attributes `tool.blocked` `true` and `tool.blocked.reason` `refused by the MCP gateway (HTTP 500; ...)`);
-* *no* `tool.propose_payout` and *no* `approve_payout` span anywhere.
+* *no* `approve_claim` and *no* `approve_payout` span anywhere.
 
 . Select the *OpenShift Console* tab, project `parasol-secured`, *Workloads*, *ConfigMaps*, `nemo-parasol-tool-results`.
 +
@@ -245,7 +245,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 
 |The document never reached the model
 |*Portal secured* chat; *MLflow*, from the chat's trace link
-|red chip `documents flagged as suspicious`; `tool.get_claim_documents.result` blocked, no `tool.propose_payout`, no `approve_payout`
+|red chip `documents flagged as suspicious`; `tool.get_claim_documents.result` blocked, no `approve_claim`, no `approve_payout`
 
 |Nothing was paid, and a person has to look
 |*Portal secured*, claim *History* and *Attachments*

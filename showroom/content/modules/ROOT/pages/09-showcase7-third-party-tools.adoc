@@ -181,7 +181,7 @@ What you should see: the *MLflow* trace with the span `tool.convert_currency` (u
 
 What is native and what is ours: OpenShift Pipelines runs the onboarding, Trusted Artifact Signer's policy controller enforces the signature, Argo CD rolls out the pinned digest, the MCP gateway (Connectivity Link) federates the registered server with per-tool roles and runs NeMo Guardrails on every result, and NeMo Guardrails judges the description. Ours: the tool-check step (`gitops/platform/pipeline/onboarding/tool_check.py`: fingerprint, Parasol tool names, contract calls) and the runtime scanner.
 
-What onboarding cannot see: a tool that behaves well only under test, misbehaves only on some inputs or later, or answers some callers differently. Those are limited at runtime: NeMo checks every result at the gateway, the secured agent is never offered `approve_payout` (rebecca can only propose, a manager approves), the server has no egress, and the scanner re-reads its tools every 30 seconds.
+What onboarding cannot see: a tool that behaves well only under test, misbehaves only on some inputs or later, or answers some callers differently. Those are limited at runtime: NeMo checks every result at the gateway, the secured agent is never offered a tool that pays (a claims manager releases payments), the server has no egress, and the scanner re-reads its tools every 30 seconds.
 
 == Evidence checklist
 
@@ -233,7 +233,7 @@ The showcases made one argument. The unsecured and the secured portal are the sa
 
 * Identity on every tool call: Keycloak and the MCP gateway.
 * Identity on data: retrieval runs as the user, down to row-level security in the database.
-* A document is data, not a command: NeMo Guardrails on the MCP gateway and on the model path, and the Read-Propose-Act gate.
+* A document is data, not a command: NeMo Guardrails on the MCP gateway and on the model path, and two-stage approval (no model can pay).
 * Budgets and alerts with a name: OpenShift AI Models-as-a-Service, Connectivity Link, and the OpenShift console.
 * Only approved models: egress only to the platform's gateways, provider keys only in MaaS, only registered models routed.
 * Quality and provenance enforced: the evaluation gate, signing and admission.

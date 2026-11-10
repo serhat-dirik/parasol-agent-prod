@@ -46,7 +46,7 @@ The business showcases follow one shape: *The business case* (who, what is at st
 ====
 . Identity on every tool call, and on the data the agent retrieves.
 . A document is data, not a command.
-. Read, propose, act: a person with the right role makes every write.
+. Approve, then release: no model can pay; a person with the right role releases every payment.
 . Budgets and alerts with a name.
 . The sandbox has a front door: identity-bound access, not a wall.
 . A tool is a supply chain too: only reviewed, pinned tools reach the agent.

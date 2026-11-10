@@ -19,14 +19,14 @@ The Parasol claims portal is a Quarkus backend with a React/PatternFly front end
 
 Its tools come from MCP servers:
 
-* *claims-db*: read a claim and its history, read the documents attached to it (`get_claim_documents`), propose a payout (`propose_payout`) and approve one (`approve_payout`, the write).
+* *claims-db*: read a claim and its history, read the documents attached to it (`get_claim_documents`), and the writes: in the unsecured portal `approve_payout` (pays at once); in the secured portal two stages, `approve_claim` (the claim is valid, *Ready for payment*, no money moves) and `release_payment` (pays; claims managers only, from the claim page).
 * *policy-docs*: read the Parasol policy documents.
 * *fraud-check* (secured only): a second agent behind the same gateway that scores a claim's fraud risk.
 
 Every tool call streams into the chat as a chip, so you see what the agent did:
 
 * a normal chip, for example `approve_payout(CLM-1001)`;
-* a red chip for a refused call, for example `403: approve_payout is not permitted for rebecca (MCP gateway)`, or `get_claim_documents: refused by the MCP gateway (HTTP 500)` when the gateway's guardrails block what a tool returned;
+* a red chip for a refused call, for example `403: release_payment is not permitted for rebecca (MCP gateway)`, or `get_claim_documents: refused by the MCP gateway (HTTP 500)` when the gateway's guardrails block what a tool returned;
 * an amber banner for a guardrail detection on the model path (the user's message or the answer);
 * a grey `personal data masked` chip when guardrails mask personal data.
 
@@ -53,11 +53,11 @@ Keycloak realm `parasol`. Passwords equal the usernames; these users exist only 
 
 |`rebecca`
 |claims adjuster
-|Read claims and tools; can *propose* a payout but not approve one.
+|Reads claims; can approve a claim (secured: it becomes *Ready for payment*), not release a payment.
 
 |`marcus`
 |claims manager
-|Can approve a proposed payout (Keycloak role `tool:approve_payout`).
+|Approves claims and releases payments (Keycloak roles `tool:approve_claim`, `tool:release_payment`).
 
 |`nina.contractor`
 |night-shift contractor
@@ -89,11 +89,11 @@ The unsecured portal skips all of it: a shared model key, and tools called with 
 
 image::arch-request-paths.png["The two secured paths: portal to guardrails proxy (NeMo parasol-chat) to OpenShift AI MaaS to the hosted model; portal to MCP gateway (identity, per-tool AuthPolicy, NeMo parasol-tool-results on claims-db results) to the MCP servers, with the Keycloak token exchange for user and agent"]
 
-== Read, propose, act
+== Approve, then release: no model can pay
 
-The model is never shown `approve_payout`: its claims tool set holds only the read tools, plus a local `propose_payout` that draws a proposal card and moves no money. So the assistant can only *propose*, whatever a person or a document asks. The write is a claims manager's *Approve* click, which calls `approve_payout` directly.
+Payments take two stages in the secured portal. The model may *approve a claim* (`approve_claim`: the claim is valid and the amount agreed; it becomes *Ready for payment*, no money moves). It is never shown a tool that pays: `release_payment` is in no model's tool list, so whatever a person or a document asks, the assistant cannot move money. The payment is a claims manager's *Release payment* click on the claim page, which calls `release_payment` directly. One manager may do both stages on the same claim, which keeps the demo simple; a production system would require a second person.
 
-What enforces it is the gateway's role check on every call, not the tool set: the gateway serves `approve_payout` only to a token that carries the Keycloak role `tool:approve_payout` (claims managers only) and was exchanged by an approved agent. No token is a 401, a person's own login token is a 403, and an adjuster's forced call is a 403.
+What enforces it is the gateway's role check on every call, not the tool set: the gateway serves `release_payment` only to a token that carries the Keycloak role `tool:release_payment` (claims managers only) and was exchanged by an approved agent; `approve_claim` needs `tool:approve_claim` (adjusters and claims managers). No token is a 401, a person's own login token is a 403, and an adjuster's forced payment is a 403. The one-step `approve_payout` is granted to nobody in secured, and claims-db refuses it there.
 
 == Which layer stops which showcase
 
