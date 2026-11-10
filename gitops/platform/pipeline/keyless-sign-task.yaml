@@ -4,7 +4,8 @@
 # (ZTWIM / SPIRE, Stream S3) via the SPIFFE CSI driver. SPIRE's OIDC discovery provider is the
 # OIDC issuer Fulcio trusts (type: spiffe). cosign exchanges the JWT-SVID for a short-lived
 # Fulcio certificate, signs, and records the signature in Rekor. There is NO long-lived private
-# signing key - this replaces the cluster cosign keypair ("keyed") fallback.
+# signing key. It also attaches the portal's SBOM (sbom.json from generate-sbom, in the workspace) as a
+# keyless-signed CycloneDX attestation. The keyed signature is Tekton Chains', outside the pipeline.
 #
 # The certificate identity that admission (ClusterImagePolicy) verifies is:
 #   issuer:  https://oidc-discovery.apps.CLUSTER_DOMAIN
@@ -41,7 +42,8 @@ metadata:
 spec:
   description: >-
     Keyless-sign the three Parasol images (portal, claims-db, policy-docs) with Trusted Artifact
-    Signer (Fulcio + Rekor), using a SPIFFE JWT-SVID from the SPIRE Workload API as the identity.
+    Signer (Fulcio + Rekor), using a SPIFFE JWT-SVID from the SPIRE Workload API as the identity, and
+    attach the portal's SBOM as a keyless-signed CycloneDX attestation.
   params:
     - {name: portal-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal:latest"}
     - {name: claims-db-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/claims-db:latest"}
@@ -53,6 +55,8 @@ spec:
     - {name: audience, type: string, default: "trusted-artifact-signer"}
   results:
     - {name: SIGNED, description: comma-separated list of keyless-signed images}
+  workspaces:
+    - {name: source}   # sbom.json from generate-sbom
   volumes:
     - name: svcca
       configMap: {name: openshift-service-ca.crt}
@@ -132,4 +136,16 @@ spec:
             --allow-insecure-registry "$IMG" >/dev/null \
             && echo "VERIFIED (keyless) $IMG"
         done
+
+        echo "===== SBOM: keyless-signed CycloneDX attestation on $PORTAL ====="
+        cosign attest --yes --type cyclonedx --predicate "$(workspaces.source.path)/sbom.json" \
+          --fulcio-url="$FULCIO" --rekor-url="$REKOR" \
+          --oidc-issuer="$ISSUER" --identity-token="$IDT" \
+          --allow-insecure-registry "$PORTAL"
+        cosign verify-attestation --type cyclonedx \
+          --rekor-url="$REKOR" \
+          --certificate-identity="$SUBJECT" \
+          --certificate-oidc-issuer="$ISSUER" \
+          --allow-insecure-registry "$PORTAL" >/dev/null \
+          && echo "VERIFIED (keyless) CycloneDX SBOM attestation on $PORTAL"
         printf "parasol-portal,claims-db,policy-docs" > "$(results.SIGNED.path)"

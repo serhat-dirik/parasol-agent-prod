@@ -1,7 +1,10 @@
 # Showcase 7: onboarding a third-party MCP server image (the partner bank's exchange-rate service).
 # A vendor version enters parasol-secured only through this pipeline: resolve the version's image digest, scan it,
 # run it in the pipeline and check its tools (tool-check: pin, Parasol tool names, NeMo guardrails, contract calls),
-# then sign it with the cluster key and promote the digest onto the Argo CD Application env-secured-tools.
+# then sign it with the onboarding key and promote the digest onto the Argo CD Application env-secured-tools.
+# The onboarding key (Secret parasol-onboarding-key, generated in the cluster by scripts/supply-chain.sh) means
+# "Parasol checked and approved this vendor image"; it is not the build key Tekton Chains signs with, and admission
+# trusts it only for the vendor images (ClusterImagePolicy parasol-vendor-tools-must-be-onboarded).
 # A refused version is neither signed nor promoted, and admission in parasol-secured runs only signed vendor images.
 # In the demo the bank's images are built in parasol-build (currency-converter:1.4.2 / 1.4.3); in real life the
 # resolve step reads a tag the bank published (pulled or imported by an ImageStream).
@@ -90,8 +93,9 @@ metadata:
   name: sign-tool-image
 spec:
   description: >-
-    Sign the onboarded vendor digest with the cluster key (the key admission checks in parasol-secured) and attach the
-    onboarding report as an attestation, so the checks travel with the image. Verifies both.
+    Sign the onboarded vendor digest with the onboarding key (the key admission checks for vendor images in
+    parasol-secured) and attach the onboarding report as an attestation, so the checks travel with the image.
+    Verifies both.
   params:
     - {name: image, type: string}
     - {name: digest, type: string}
@@ -100,14 +104,14 @@ spec:
   workspaces:
     - {name: source}
   volumes:
-    - {name: keys, secret: {secretName: cosign-signing-key}}
+    - {name: keys, secret: {secretName: parasol-onboarding-key}}
     - {name: svcca, configMap: {name: openshift-service-ca.crt}}
   steps:
     - name: sign
       image: quay.io/redhat-appstudio/rhtap-task-runner:latest
       env:
         - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
-        - {name: COSIGN_PASSWORD, valueFrom: {secretKeyRef: {name: cosign-signing-key, key: cosign.password}}}
+        - {name: COSIGN_PASSWORD, valueFrom: {secretKeyRef: {name: parasol-onboarding-key, key: cosign.password}}}
       volumeMounts:
         - {name: keys, mountPath: /keys, readOnly: true}
         - {name: svcca, mountPath: /svcca, readOnly: true}
@@ -201,10 +205,13 @@ spec:
     - {name: workspace}
   tasks:
     - name: clone-repository
-      taskRef: {name: git-clone}
+      taskRef:
+        resolver: cluster
+        params: [{name: kind, value: task}, {name: name, value: git-clone}, {name: namespace, value: openshift-pipelines}]
       params:
-        - {name: url, value: "$(params.git-url)"}
-        - {name: revision, value: "$(params.revision)"}
+        - {name: URL, value: "$(params.git-url)"}
+        - {name: REVISION, value: "$(params.revision)"}
+        - {name: SUBDIRECTORY, value: source}
       workspaces:
         - {name: output, workspace: workspace}
     - name: resolve

@@ -1,9 +1,11 @@
 # Tasks for the Parasol secure supply-chain pipeline (layer 6), namespace parasol-build.
 # Task names and order mirror the Red Hat tssc-sample-pipelines reference
-# (init -> git-clone -> buildah -> ... -> show-sbom/summary). ACS/Quay/GitLab are not on this
-# cluster, so the ACS scan is replaced by Trivy, and promotion pins the signed digest on the Argo CD
-# Application env-secured (no Git write: the GitOps repo is read-only for releases). Tekton Chains signs the image the buildah task produces (IMAGE_URL/IMAGE_DIGEST
-# results) out of band using the cosign key in openshift-pipelines/signing-secrets.
+# (init -> git-clone -> buildah -> ... -> show-sbom/summary); git-clone and buildah are the Tasks OpenShift Pipelines
+# ships (cluster resolver, namespace openshift-pipelines), not defined here. ACS/Quay/GitLab are not on this cluster,
+# so the ACS scan is replaced by Trivy, and promotion pins the signed digest on the Argo CD Application env-secured
+# (no Git write: the GitOps repo is read-only for releases). Tekton Chains signs the image buildah produces
+# (IMAGE_URL/IMAGE_DIGEST results) and its SLSA provenance out of band, with the key in
+# openshift-pipelines/signing-secrets; no Task here holds a private key.
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -26,81 +28,6 @@ spec:
         echo "Build initialize: $(params.image-url)"
         # This pipeline always rebuilds (promotion build); emit the build flag the reference uses.
         printf "true" > "$(results.build.path)"
----
-apiVersion: tekton.dev/v1
-kind: Task
-metadata:
-  name: git-clone
-  labels: {app.kubernetes.io/version: "0.1"}
-spec:
-  description: Clone the source repository into the shared workspace.
-  params:
-    - {name: url, type: string}
-    - {name: revision, type: string, default: "main"}
-  results:
-    - {name: url, description: cloned repository URL}
-    - {name: commit, description: cloned commit SHA}
-  workspaces:
-    - {name: output}
-  steps:
-    - name: clone
-      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
-      workingDir: $(workspaces.output.path)
-      script: |
-        #!/usr/bin/env bash
-        set -eu
-        microdnf install -y git >/dev/null 2>&1 || microdnf install -y git
-        rm -rf source
-        git clone --depth 1 --branch "$(params.revision)" "$(params.url)" source
-        cd source
-        printf "%s" "$(params.url)" > "$(results.url.path)"
-        git rev-parse HEAD | tr -d '\n' > "$(results.commit.path)"
-        echo "Cloned $(params.url) @ $(cat "$(results.commit.path)")"
----
-apiVersion: tekton.dev/v1
-kind: Task
-metadata:
-  name: buildah
-  labels: {app.kubernetes.io/version: "0.1", build.appstudio.redhat.com/build_type: docker}
-spec:
-  description: Build the container image with buildah and push it to the internal registry. Tekton Chains signs the resulting image.
-  params:
-    - {name: IMAGE, type: string}
-    - {name: DOCKERFILE, type: string, default: Containerfile}
-    - {name: CONTEXT, type: string, default: .}
-  results:
-    - {name: IMAGE_URL, description: Image repository and tag that was pushed}
-    - {name: IMAGE_DIGEST, description: Digest of the image that was built}
-  workspaces:
-    - {name: source}
-  stepTemplate:
-    env:
-      - {name: STORAGE_DRIVER, value: vfs}
-      - {name: BUILDAH_ISOLATION, value: chroot}
-  steps:
-    - name: build-and-push
-      image: registry.redhat.io/rhel9/buildah:latest
-      workingDir: $(workspaces.source.path)
-      securityContext:
-        capabilities:
-          add: ["SETFCAP"]
-      script: |
-        #!/usr/bin/env bash
-        set -eu
-        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-        mkdir -p /tmp/auth
-        buildah login --tls-verify=false -u pipeline -p "$TOKEN" image-registry.openshift-image-registry.svc:5000
-        buildah bud --storage-driver=$STORAGE_DRIVER --tls-verify=false \
-          -f "$(params.DOCKERFILE)" -t "$(params.IMAGE)" "$(params.CONTEXT)"
-        buildah push --storage-driver=$STORAGE_DRIVER --tls-verify=false \
-          --digestfile /tmp/digest "$(params.IMAGE)" "docker://$(params.IMAGE)"
-        printf "%s" "$(params.IMAGE)" > "$(results.IMAGE_URL.path)"
-        cat /tmp/digest | tr -d '\n' > "$(results.IMAGE_DIGEST.path)"
-        echo "Built and pushed $(params.IMAGE)@$(cat /tmp/digest)"
-      volumeMounts:
-        - {name: varlibcontainers, mountPath: /var/lib/containers}
-  volumes:
-    - {name: varlibcontainers, emptyDir: {}}
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -233,10 +160,10 @@ metadata:
   labels: {app.kubernetes.io/version: "0.1"}
 spec:
   description: >-
-    Conforma / Enterprise Contract gate. Runs `ec validate image` against the built image and
-    enforces the release contract: the image must carry a valid cosign signature AND a signed
-    SLSA provenance attestation from the cluster key (both produced by Tekton Chains). An unsigned
-    or unattested image fails this gate, so it is never promoted.
+    Conforma (Enterprise Contract) gate: `ec validate image` against the built image. The image signature and the
+    SLSA provenance must verify against the Tekton Chains key, and policy ec-policy must hold (provenance from a
+    PipelineRun of parasol-portal-secure-build, image pinned by digest). Any violation fails the task, so promote
+    is skipped.
   params:
     - {name: image, type: string}
     - {name: image-digest, type: string}
@@ -265,38 +192,18 @@ spec:
         printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
         mkdir -p /tmp/pol/policy && cp -L /ec-policy-src/policy.rego /tmp/pol/policy/policy.rego
 
-        echo "Waiting for Tekton Chains to sign + attest $IMG ..."
-        i=0; ok=1
-        while [ $i -lt 30 ]; do
-          if cosign verify --key /keys/cosign.pub --insecure-ignore-tlog=true \
-               --allow-insecure-registry "$IMG" >/tmp/sig.out 2>&1 \
-             && cosign verify-attestation --key /keys/cosign.pub --type slsaprovenance \
-               --insecure-ignore-tlog=true --allow-insecure-registry "$IMG" >/tmp/att.out 2>&1; then
-            ok=0; break
-          fi
-          i=$((i+1)); sleep 6
+        printf "false" > "$(results.verified.path)"
+        # Tekton Chains signs after build-container finishes, out of band: wait (3 min) for its provenance.
+        echo "Waiting for Tekton Chains to sign and attest $IMG ..."
+        for i in $(seq 1 30); do
+          cosign verify-attestation --key /keys/cosign.pub --type slsaprovenance --insecure-ignore-tlog=true \
+            --allow-insecure-registry "$IMG" >/dev/null 2>&1 && break
+          sleep 6
         done
-
-        echo "===== Conforma / Enterprise Contract (ec validate image) ====="
-        if ec validate image --image "$IMG" --public-key /keys/cosign.pub --ignore-rekor \
-             --policy '{"sources":[{"name":"parasol","policy":["/tmp/pol"]}]}' \
-             --output text --show-successes >/tmp/ec.out 2>&1; then
-          head -40 /tmp/ec.out
-        else
-          # ec's rego input contract is strict; the signed image passes EC's built-in signature,
-          # attestation and accessibility checks. The release gate below is the authoritative pass.
-          grep -v -E 'level=error|^Error:|no successes' /tmp/ec.out | head -40 || true
-          echo "ec validate ran against the signed image; release gate enforced below."
-        fi
-
-        echo "===== Release contract: signature ====="
-        if [ $ok -ne 0 ]; then
-          echo "CONTRACT FAILED: no valid signature/attestation for $IMG"; cat /tmp/sig.out /tmp/att.out 2>/dev/null
-          printf "false" > "$(results.verified.path)"; exit 1
-        fi
-        cat /tmp/sig.out
-        echo "===== Release contract: SLSA provenance attestation ====="
-        echo "Verified SLSA provenance attestation signed by the cluster key."
+        echo "===== Conforma: ec validate image ====="
+        ec validate image --image "$IMG" --public-key /keys/cosign.pub --ignore-rekor \
+          --policy '{"sources":[{"name":"parasol","policy":["/tmp/pol"]}]}' --output text --show-successes \
+          || { echo "CONTRACT FAILED for $IMG: not promoted"; exit 1; }
         echo "ENTERPRISE CONTRACT SATISFIED for $IMG"
         printf "true" > "$(results.verified.path)"
 ---
@@ -422,7 +329,9 @@ metadata:
   name: generate-sbom
   labels: {app.kubernetes.io/version: "0.1"}
 spec:
-  description: Generate a CycloneDX SBOM for the built image with syft and attach it as a signed cosign attestation.
+  description: >-
+    Generate a CycloneDX SBOM for the built image with syft into the workspace (sbom.json); keyless-sign attaches it
+    to the image as a keyless-signed attestation.
   params:
     - {name: image, type: string}
     - {name: image-digest, type: string}
@@ -432,16 +341,13 @@ spec:
     - {name: source}
   volumes:
     - {name: svcca, configMap: {name: openshift-service-ca.crt}}
-    - {name: keys, secret: {secretName: cosign-signing-key}}
   steps:
     - name: syft
       image: quay.io/redhat-appstudio/rhtap-task-runner:latest
       env:
         - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
-        - {name: COSIGN_PASSWORD, valueFrom: {secretKeyRef: {name: cosign-signing-key, key: cosign.password}}}
       volumeMounts:
         - {name: svcca, mountPath: /svcca, readOnly: true}
-        - {name: keys, mountPath: /keys, readOnly: true}
       workingDir: $(workspaces.source.path)
       script: |
         #!/usr/bin/env bash
@@ -456,15 +362,7 @@ spec:
         N=$(grep -o '"bom-ref"' sbom.json | wc -l | tr -d ' ')
         echo "SBOM written to sbom.json with ~$N components."
         printf "%s" "${N:-0}" > "$(results.SBOM_COMPONENTS.path)"
-        # Attach the SBOM to the image as a signed cosign attestation (CycloneDX predicate), signed
-        # with the cluster key. This makes the SBOM travel with the image and be independently
-        # verifiable (cosign verify-attestation --type cyclonedx).
-        echo "Attaching SBOM as a cosign attestation to $IMG ..."
-        cosign attest --predicate sbom.json --type cyclonedx --key /keys/cosign.key \
-          --tlog-upload=false --allow-insecure-registry --yes "$IMG"
-        cosign verify-attestation --type cyclonedx --key /keys/cosign.pub \
-          --insecure-ignore-tlog=true --allow-insecure-registry "$IMG" >/dev/null \
-          && echo "VERIFIED CycloneDX SBOM attestation on $IMG"
+        test -s sbom.json
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -481,7 +379,8 @@ spec:
       script: |
         #!/usr/bin/env bash
         echo "SBOM / attestation location for $(params.IMAGE_URL):"
-        echo "  cosign download sbom $(params.IMAGE_URL)  (generated and attached by the build platform)"
+        echo "  cosign verify-attestation --type cyclonedx --certificate-identity spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer \\"
+        echo "    --certificate-oidc-issuer https://oidc-discovery.apps.<cluster-domain> $(params.IMAGE_URL)@<digest>"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -507,57 +406,6 @@ spec:
         echo "  Image       : $(params.image-url)"
         echo "  Build status: $(params.build-task-status)"
         echo "End Summary"
----
-apiVersion: tekton.dev/v1
-kind: Task
-metadata:
-  name: sign-images
-  labels: {app.kubernetes.io/version: "0.1"}
-spec:
-  description: >-
-    cosign-sign all THREE Parasol images (parasol-portal, claims-db, policy-docs) with the cluster
-    signing key (the same key Tekton Chains uses, copied into parasol-build as cosign-signing-key).
-    Tekton Chains only signs images produced by a Tekton TaskRun (the portal), so claims-db and
-    policy-docs - built by BuildConfigs - are signed here. Verifies each signature before returning.
-  params:
-    - {name: portal-image, type: string}
-    - {name: portal-digest, type: string}
-    - {name: claims-db-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/claims-db:latest"}
-    - {name: policy-docs-image, type: string, default: "image-registry.openshift-image-registry.svc:5000/parasol-build/policy-docs:latest"}
-  results:
-    - {name: SIGNED, description: comma-separated list of signed images}
-  volumes:
-    - {name: keys, secret: {secretName: cosign-signing-key}}
-    - {name: svcca, configMap: {name: openshift-service-ca.crt}}
-  steps:
-    - name: sign
-      image: quay.io/redhat-appstudio/rhtap-task-runner:latest
-      env:
-        - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
-        - {name: COSIGN_PASSWORD, valueFrom: {secretKeyRef: {name: cosign-signing-key, key: cosign.password}}}
-      volumeMounts:
-        - {name: keys, mountPath: /keys, readOnly: true}
-        - {name: svcca, mountPath: /svcca, readOnly: true}
-      script: |
-        #!/usr/bin/env bash
-        set -eu
-        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-        mkdir -p "$HOME/.docker"
-        AUTH=$(printf "pipeline:%s" "$TOKEN" | base64 | tr -d '\n')
-        printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
-        PORTAL="$(params.portal-image)@$(params.portal-digest)"
-        CLAIMS="$(params.claims-db-image)"
-        DOCS="$(params.policy-docs-image)"
-        for IMG in "$PORTAL" "$CLAIMS" "$DOCS"; do
-          echo "===== cosign sign $IMG ====="
-          cosign sign --key /keys/cosign.key --tlog-upload=false --allow-insecure-registry --yes "$IMG"
-        done
-        echo "===== verify all three ====="
-        for IMG in "$PORTAL" "$CLAIMS" "$DOCS"; do
-          cosign verify --key /keys/cosign.pub --insecure-ignore-tlog=true --allow-insecure-registry "$IMG" >/dev/null \
-            && echo "VERIFIED $IMG"
-        done
-        printf "parasol-portal,claims-db,policy-docs" > "$(results.SIGNED.path)"
 ---
 apiVersion: tekton.dev/v1
 kind: Task

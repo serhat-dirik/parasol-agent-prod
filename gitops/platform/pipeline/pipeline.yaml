@@ -1,9 +1,11 @@
 # Parasol secure supply-chain pipeline (layer 6), namespace parasol-build.
-# Reads like the Red Hat tssc reference: init -> clone-repository -> build-container (the portal,
-# from source) -> scan + SBOM, a lifecycle gate (agent-eval), keyless (Trusted Artifact Signer) and
-# keyed (cluster cosign key) signatures, the Conforma contract, then promote: the released prompt (registered
-# from Git by the gate) is pinned as ConfigMap agent-prompt-release and the signed digest on the Argo CD
-# Application env-secured (no Git write); Argo CD rolls it out and admission verifies it.
+# Reads like the Red Hat tssc reference: init -> clone-repository -> build-container (the portal, from source;
+# git-clone and buildah are the Tasks OpenShift Pipelines ships, by the cluster resolver) -> scan + SBOM, a lifecycle
+# gate (agent-eval), a keyless signature (Trusted Artifact Signer), the Conforma contract, then promote: the released
+# prompt (registered from Git by the gate) is pinned as ConfigMap agent-prompt-release and the signed digest on the
+# Argo CD Application env-secured (no Git write); Argo CD rolls it out and admission verifies it.
+# The keyed signature and the SLSA provenance are not a step: Tekton Chains (a controller outside the pipeline) signs
+# the image build-container produced with a key no pipeline step can read.
 # Synced by the Argo CD Application platform-pipeline; PipelineRuns are created by hand (pipelinerun.yaml).
 apiVersion: tekton.dev/v1
 kind: Pipeline
@@ -33,7 +35,6 @@ spec:
     - {name: EVAL_GATE, value: "$(tasks.agent-eval.results.gate)"}
     - {name: MLFLOW_RUN_ID, value: "$(tasks.agent-eval.results.mlflow-run-id)"}
     - {name: AGENT_VERSION, value: "$(tasks.register-agent-version.results.agent-version)"}
-    - {name: SIGNED_IMAGES, value: "$(tasks.sign-images.results.SIGNED)"}
     - {name: KEYLESS_SIGNED_IMAGES, value: "$(tasks.keyless-sign.results.SIGNED)"}
     - {name: PROMOTED_DIGEST, value: "$(tasks.promote.results.digest)"}
     - {name: SBOM_COMPONENTS, value: "$(tasks.generate-sbom.results.SBOM_COMPONENTS)"}
@@ -48,19 +49,25 @@ spec:
       runAfter: [init]
       when:
         - {input: "$(tasks.init.results.build)", operator: in, values: ["true"]}
-      taskRef: {name: git-clone}
+      taskRef:
+        resolver: cluster
+        params: [{name: kind, value: task}, {name: name, value: git-clone}, {name: namespace, value: openshift-pipelines}]
       params:
-        - {name: url, value: "$(params.git-url)"}
-        - {name: revision, value: "$(params.revision)"}
+        - {name: URL, value: "$(params.git-url)"}
+        - {name: REVISION, value: "$(params.revision)"}
+        - {name: SUBDIRECTORY, value: source}
       workspaces:
         - {name: output, workspace: workspace}
     - name: build-container
       runAfter: [clone-repository]
-      taskRef: {name: buildah}
+      taskRef:
+        resolver: cluster
+        params: [{name: kind, value: task}, {name: name, value: buildah}, {name: namespace, value: openshift-pipelines}]
       params:
         - {name: IMAGE, value: "$(params.output-image)"}
         - {name: DOCKERFILE, value: "$(params.dockerfile)"}
         - {name: CONTEXT, value: "$(params.path-context)"}
+        - {name: TLS_VERIFY, value: "false"}   # the internal registry's certificate is from the service CA
       workspaces:
         - {name: source, workspace: workspace}
     - name: scan-image
@@ -100,24 +107,22 @@ spec:
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
       workspaces:
         - {name: source, workspace: workspace}
+    # Conforma: Tekton Chains' signature and SLSA provenance verify against the Chains key, and the policy holds.
     - name: verify-enterprise-contract
-      runAfter: [sign-images, keyless-sign]
+      runAfter: [keyless-sign]
       taskRef: {name: verify-enterprise-contract}
       params:
         - {name: image, value: "$(params.output-image)"}
         - {name: image-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
-    - name: sign-images
-      runAfter: [build-container]
-      taskRef: {name: sign-images}
-      params:
-        - {name: portal-image, value: "$(params.output-image)"}
-        - {name: portal-digest, value: "$(tasks.build-container.results.IMAGE_DIGEST)"}
-    # Keyless signature: SPIFFE JWT-SVID -> Fulcio certificate -> Rekor entry (runs as SA keyless-signer).
+    # Keyless signature: SPIFFE JWT-SVID -> Fulcio certificate -> Rekor entry (runs as SA keyless-signer); it also
+    # attaches the SBOM generate-sbom wrote as a keyless-signed CycloneDX attestation.
     - name: keyless-sign
-      runAfter: [build-container]
+      runAfter: [generate-sbom]
       taskRef: {name: keyless-sign-images}
       params:
         - {name: portal-image, value: "$(params.output-image)@$(tasks.build-container.results.IMAGE_DIGEST)"}
+      workspaces:
+        - {name: source, workspace: workspace}
     - name: promote
       runAfter: [scan-image, agent-eval, verify-enterprise-contract, register-agent-version]
       when:

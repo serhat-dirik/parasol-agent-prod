@@ -151,7 +151,7 @@ hdr "7. Is it the signed image? (release run, admission, the running pod)"
 oc get pipelinerun parasol-portal-release-production -n parasol-build -o json 2>/dev/null | python3 -c '
 import sys, json
 r = {x["name"]: x["value"] for x in json.load(sys.stdin).get("status", {}).get("results", [])}
-for k in ("PROMOTED_DIGEST", "EVAL_GATE", "EVAL_SCORE", "MLFLOW_RUN_ID", "AGENT_VERSION", "SIGNED_IMAGES", "KEYLESS_SIGNED_IMAGES"):
+for k in ("PROMOTED_DIGEST", "EVAL_GATE", "EVAL_SCORE", "MLFLOW_RUN_ID", "AGENT_VERSION", "KEYLESS_SIGNED_IMAGES"):
     print("  %-24s %s" % (k, str(r.get(k, "-"))[:110]))' || na "cannot read PipelineRuns in parasol-build"
 echo "  running portal: $(oc get pods -n $NS -l app=portal -o jsonpath='{.items[0].status.containerStatuses[0].imageID}' 2>/dev/null | sed 's/.*@//')"
 echo "  admission: namespace label policy.rhtas.com/include=$(oc get ns $NS -o jsonpath='{.metadata.labels.policy\.rhtas\.com/include}' 2>/dev/null), ClusterImagePolicy parasol-portal-must-be-signed (unsigned images are refused: scripts/signing-demo.sh)"

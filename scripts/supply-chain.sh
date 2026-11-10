@@ -3,7 +3,8 @@
 # Pipeline/Tasks. Idempotent; each item prints "already present" or what it creates.
 #   1 SPIRE (workload identity): the pipeline's keyless signer is a SPIFFE JWT-SVID
 #   2 Trusted Artifact Signer (Fulcio trusts the SPIRE OIDC issuer, type spiffe), ClusterSPIFFEID for the signer
-#   3 cosign keypair for Tekton Chains (openshift-pipelines/signing-secrets) + its copies in parasol-build
+#   3 cosign keypair for Tekton Chains (openshift-pipelines/signing-secrets; only Chains reads it) + its public key in
+#     parasol-build; the onboarding keypair (parasol-build/parasol-onboarding-key) for Showcase 7's approved vendor images
 #   4 policy-controller (admission webhook), no-match-policy=allow
 #   5 TrustRoot + ClusterImagePolicy rendered from THIS cluster's TUF root, OIDC issuer and cosign key
 #   6 parasol-secured enforced (label policy.rhtas.com/include=true)
@@ -87,7 +88,52 @@ YAML
   oc rollout restart deploy/tekton-chains-controller -n openshift-pipelines
 fi
 wait_for 40 15 "namespace parasol-build (Argo platform-builds)" oc get ns parasol-build
-scripts/signing-key-to-build.sh
+# The Chains private key stays in openshift-pipelines: no pipeline step signs with it (older installs copied it here).
+oc delete secret cosign-signing-key -n parasol-build --ignore-not-found >/dev/null
+# The onboarding key: a separate keypair the vendor-image onboarding pipeline signs approved images with.
+if [ -n "$(oc get secret parasol-onboarding-key -n parasol-build -o jsonpath='{.data.cosign\.pub}' 2>/dev/null)" ]; then
+  echo "parasol-onboarding-key: already present"
+else
+  echo "parasol-onboarding-key: generating in-cluster (the private key never leaves the cluster)"
+  oc -n parasol-build get secret onboarding-keygen-password >/dev/null 2>&1 || \
+    oc -n parasol-build create secret generic onboarding-keygen-password --from-literal=password="$(openssl rand -hex 16)" >/dev/null
+  oc delete job onboarding-keygen -n parasol-build --ignore-not-found >/dev/null
+  oc apply -f - <<'YAML'
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: onboarding-keygen, namespace: parasol-build}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: {name: onboarding-keygen, namespace: parasol-build}
+rules:
+  - {apiGroups: [""], resources: [secrets], verbs: [get, create, update, patch]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: onboarding-keygen, namespace: parasol-build}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: onboarding-keygen}
+subjects: [{kind: ServiceAccount, name: onboarding-keygen, namespace: parasol-build}]
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: onboarding-keygen, namespace: parasol-build}
+spec:
+  backoffLimit: 2
+  template:
+    spec:
+      serviceAccountName: onboarding-keygen
+      restartPolicy: Never
+      containers:
+        - name: keygen
+          image: ghcr.io/sigstore/cosign/cosign:v2.4.3
+          args: ["generate-key-pair", "k8s://parasol-build/parasol-onboarding-key"]
+          env:
+            - name: COSIGN_PASSWORD
+              valueFrom: {secretKeyRef: {name: onboarding-keygen-password, key: password}}
+YAML
+  oc wait job/onboarding-keygen -n parasol-build --for=condition=complete --timeout=300s
+fi
 oc get secret signing-secrets -n openshift-pipelines -o jsonpath='{.data.cosign\.pub}' | base64 -d > /tmp/parasol-cosign.pub.$$
 oc -n parasol-build create configmap cosign-pub --from-file=cosign.pub=/tmp/parasol-cosign.pub.$$ --dry-run=client -o yaml | oc apply -f - >/dev/null
 echo "configmap parasol-build/cosign-pub applied"
@@ -104,11 +150,12 @@ export TUF_URL="https://tuf-trusted-artifact-signer.$D" OIDC_ISSUER="https://oid
 wait_for 40 15 "TUF root at $TUF_URL/root.json" curl -skf "$TUF_URL/root.json"
 TUF_ROOT_B64="$(curl -skf "$TUF_URL/root.json" | base64 | tr -d '\n')"
 COSIGN_PUB="$(sed 's/^/          /' /tmp/parasol-cosign.pub.$$)"
-export TUF_ROOT_B64 COSIGN_PUB
+ONBOARDING_PUB="$(oc get secret parasol-onboarding-key -n parasol-build -o jsonpath='{.data.cosign\.pub}' | base64 -d | sed 's/^/          /')"
+export TUF_ROOT_B64 COSIGN_PUB ONBOARDING_PUB
 rm -f /tmp/parasol-cosign.pub.$$
-envsubst '$TUF_URL $TUF_ROOT_B64 $OIDC_ISSUER $COSIGN_PUB' < gitops/platform/tas/clusterimagepolicy-keyless.yaml | oc apply -f -
+envsubst '$TUF_URL $TUF_ROOT_B64 $OIDC_ISSUER $COSIGN_PUB $ONBOARDING_PUB' < gitops/platform/tas/clusterimagepolicy-keyless.yaml | oc apply -f -
 
 echo "== 6 enforce on parasol-secured"
 wait_for 40 15 "namespace parasol-secured (Argo env-secured)" oc get ns parasol-secured
 oc label namespace parasol-secured policy.rhtas.com/include=true --overwrite
-echo "supply chain ready: keyless (SPIFFE -> Fulcio -> Rekor) + cluster key; admission enforced on parasol-secured"
+echo "supply chain ready: keyless (SPIFFE -> Fulcio -> Rekor) + Tekton Chains key; onboarding key for vendor images; admission enforced on parasol-secured"

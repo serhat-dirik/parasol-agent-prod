@@ -1,6 +1,7 @@
 # TEMPLATE rendered by scripts/supply-chain.sh with this cluster's values (envsubst):
 #   TUF_URL, TUF_ROOT_B64 (base64 of the TUF root.json), OIDC_ISSUER (SPIRE OIDC discovery),
-#   COSIGN_PUB (the Tekton Chains cosign public key, indented to 10 spaces).
+#   COSIGN_PUB (the Tekton Chains cosign public key), ONBOARDING_PUB (the onboarding key's public key), both
+#   indented to 10 spaces.
 # Keyless admission trust for Red Hat Trusted Artifact Signer (Securesign).
 apiVersion: policy.sigstore.dev/v1alpha1
 kind: TrustRoot
@@ -38,8 +39,9 @@ spec:
 ${COSIGN_PUB}
 ---
 # Showcase 7: third-party images run in parasol-secured only as onboarded. The parasol-tool-onboarding pipeline signs a
-# vendor image with the cluster key after its checks pass; the partner bank's own images (even its validly published
-# 1.4.3) carry no Parasol signature, so admission refuses them here.
+# vendor image with the onboarding key (parasol-build/parasol-onboarding-key) after its checks pass; the partner bank's
+# own images (even its validly published 1.4.3) carry no Parasol signature, so admission refuses them here. The build
+# key (Tekton Chains) is not accepted for vendor images, and the onboarding key is not accepted for the portal.
 apiVersion: policy.sigstore.dev/v1beta1
 kind: ClusterImagePolicy
 metadata:
@@ -51,4 +53,4 @@ spec:
     - name: parasol-onboarding-key
       key:
         data: |
-${COSIGN_PUB}
+${ONBOARDING_PUB}
