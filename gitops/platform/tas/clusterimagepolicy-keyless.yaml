@@ -1,7 +1,7 @@
 # TEMPLATE rendered by scripts/supply-chain.sh with this cluster's values (envsubst):
 #   TUF_URL, TUF_ROOT_B64 (base64 of the TUF root.json), OIDC_ISSUER (SPIRE OIDC discovery),
-#   COSIGN_PUB (the Tekton Chains cosign public key), ONBOARDING_PUB (the onboarding key's public key), both
-#   indented to 10 spaces.
+#   ONBOARDING_PUB (the onboarding key's public key, indented to 10 spaces). The Tekton Chains key is not trusted
+#   at admission (Conforma checks it before promote).
 # Keyless admission trust for Red Hat Trusted Artifact Signer (Securesign).
 apiVersion: policy.sigstore.dev/v1alpha1
 kind: TrustRoot
@@ -13,10 +13,11 @@ spec:
     targets: targets
     root: ${TUF_ROOT_B64}
 ---
-# parasol-portal admission. Enforced on policy.rhtas.com/include=true namespaces. Two OR-ed authorities:
-#   - keyless-tas: keyless cosign signature (Fulcio+Rekor) by the pipeline SPIFFE identity.
-#   - cluster-cosign-key: the cluster keypair Tekton Chains signs with; keeps the running portal
-#     admitted after its short-lived Fulcio certificate expires (no trusted timestamp is wired).
+# parasol-portal admission. Enforced on policy.rhtas.com/include=true namespaces. One authority, keyless-tas: a keyless
+# cosign signature by the release pipeline's SPIFFE identity (certificate from Fulcio), with an RFC 3161 timestamp from
+# the Trusted Artifact Signer time-stamp server (TSA, in the TrustRoot from TUF). The timestamp proves the signature
+# was made while the 10-minute certificate was valid, so the image stays admissible after the certificate expires.
+# The Tekton Chains key is not accepted here; Conforma checks Chains' signature and provenance before promote.
 apiVersion: policy.sigstore.dev/v1beta1
 kind: ClusterImagePolicy
 metadata:
@@ -33,10 +34,8 @@ spec:
             subject: "spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer"
       ctlog:
         trustRootRef: parasol-tas
-    - name: cluster-cosign-key
-      key:
-        data: |
-${COSIGN_PUB}
+      rfc3161timestamp:
+        trustRootRef: parasol-tas
 ---
 # Showcase 7: third-party images run in parasol-secured only as onboarded. The parasol-tool-onboarding pipeline signs a
 # vendor image with the onboarding key (parasol-build/parasol-onboarding-key) after its checks pass; the partner bank's

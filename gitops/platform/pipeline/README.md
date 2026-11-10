@@ -64,8 +64,8 @@ the portal at 0 replicas, so nothing is pulled or admitted before the first prom
 * Operators (RHTAS, policy-controller, SPIRE) are in `gitops/bootstrap/operators/supply-chain.yaml`;
   their operands, the cosign keypair and the admission policy are set up by `scripts/supply-chain.sh`.
 * `admission/` — the policy-controller webhook (`policycontroller.yaml`), the key-based
-  `clusterimagepolicy.yaml`, and `demo-unsigned-deploy.yaml`. The live policy trusts both the
-  keyless identity and the Tekton Chains key (`gitops/platform/tas/clusterimagepolicy-keyless.yaml`).
+  `clusterimagepolicy.yaml`, and `demo-unsigned-deploy.yaml`. The live policy trusts only the keyless identity, with
+  a trusted timestamp (`gitops/platform/tas/clusterimagepolicy-keyless.yaml`).
 * `onboarding/` — Showcase 7's vendor-image onboarding pipeline; it signs an approved vendor image with its own
   key (`parasol-build/parasol-onboarding-key`), which admission accepts for vendor images only.
 
@@ -83,9 +83,10 @@ Only Chains reads the private key; it never leaves `openshift-pipelines`. `cosig
 `parasol-build/cosign-pub` (used by `verify-enterprise-contract`) and embedded in the ClusterImagePolicy. The
 `keyless-sign` task adds the keyless signature and the SBOM attestation: the pod (SA `keyless-signer`, SPIFFE ID
 `spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer`) fetches a JWT-SVID from SPIRE, exchanges it at Fulcio for
-a short-lived certificate, signs, and records the signature in Rekor (Trusted Artifact Signer, `gitops/platform/tas`).
-Admission accepts either authority; the keyed one stays because Fulcio certificates expire and no trusted timestamp
-is wired.
+a short-lived certificate, signs with an RFC 3161 timestamp from the Trusted Artifact Signer time-stamp server, and
+records the signature in Rekor (`gitops/platform/tas`). Admission accepts the keyless signature only: the timestamp
+proves it was made while the 10-minute certificate was valid, so a pod that restarts later is still admitted. The
+Chains signature and provenance are what Conforma checks before promote.
 
 Three keys, three meanings: the Chains key (this cluster built it), the keyless identity (this pipeline signed it),
 the onboarding key (Parasol checked and approved this vendor image).
@@ -93,7 +94,7 @@ the onboarding key (Parasol checked and approved this vendor image).
 ## Admission (parasol-secured)
 
 `ClusterImagePolicy parasol-portal-must-be-signed` requires a valid cosign signature from the
-keyless identity or the Tekton Chains key for any `…/parasol-build/parasol-portal**` image. The webhook enforces on namespaces
+keyless identity, with a trusted timestamp, for any `…/parasol-build/parasol-portal**` image. The webhook enforces on namespaces
 labelled `policy.rhtas.com/include=true`. `no-match-policy` is set to `allow` on
 `config-policy-controller` so the *other* (not-yet-signed) workloads in `parasol-secured` are
 untouched — only an unsigned **portal** is refused:
