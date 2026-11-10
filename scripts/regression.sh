@@ -106,7 +106,7 @@ fi
 if want S4; then
   echo "== S4 the night shift (secured: nina.contractor's budget)"
   out=$(scripts/night-shift.sh 40 2>&1); echo "$out" >"$LOG/night-shift.log"
-  grep -q 'per-user usage limit reached' <<<"$out"; check S4-nina-429 $? "$(grep -o 'usage limit reached after [0-9]* requests' <<<"$out" || tail -1 <<<"$out" | short 90)"
+  grep -q 'usage limit reached after' <<<"$out"; check S4-nina-429 $? "$(grep -o 'usage limit reached after [0-9]* requests' <<<"$out" || tail -1 <<<"$out" | short 90)"
   r=$(ask "$SEC" rebecca CLM-1001 "What is the status of this claim?")
   [ -n "$(q "$r" '.answer // empty')" ] && [ -z "$(q "$r" '.error // empty')" ]; check S4-rebecca-unaffected $? "$(q "$r" '.answer // .error' | short 100)"
   scripts/reset.sh >"$LOG/reset-s4.log" 2>&1; grep -q 'model allowance reset' "$LOG/reset-s4.log"; check S4-budget-reset $? "$(grep allowance "$LOG/reset-s4.log" | short 60)"
