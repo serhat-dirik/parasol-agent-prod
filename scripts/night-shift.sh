@@ -9,7 +9,7 @@
 #     topic guard and burn ~1-3k tokens each against the contractor subscription.
 # Each request prints its HTTP status, the caller the portal attributes it to, and the token spend, so
 # the audience sees the per-user meter climb (drives ParasolAssistantTokenSpendHigh and the MLflow/Tempo
-# traces) until the MaaS per-user limit returns 429 "you have reached your usage limit". Rebecca, on the
+# traces) until the contractor tier's MaaS token budget (nina is its only member) returns 429 "you have reached your usage limit". Rebecca, on the
 # staff tier, keeps working throughout. ~10-15 on-topic requests reach the 20k/10m contractor bucket.
 # Stops at the first 429 (the point of the scene) or after <count> requests. Bounded by a hard ceiling
 # so a stray run cannot drain the 10-day model key.
@@ -83,7 +83,7 @@ for i in $(seq 1 "$count"); do
   # The portal surfaces the upstream MaaS 429 as HTTP 502 with "usage limit (429)" in the body, so
   # detect the limit from the message, not just the status code.
   if [ "$code" = "429" ] || printf '%s' "$line" | grep -qi 'usage limit\|(429)'; then
-    echo ">>> per-user usage limit reached after $i requests - the night-shift account is throttled; staff (rebecca/marcus) are unaffected."
+    echo ">>> contractor-tier usage limit reached after $i requests - the night-shift account is throttled; staff (rebecca/marcus) are unaffected."
     spent_429=1; break
   fi
   sleep "$interval"

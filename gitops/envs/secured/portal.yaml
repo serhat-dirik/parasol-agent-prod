@@ -34,12 +34,12 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: endpoint}}
             - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_CHAT_MODEL_MODEL_NAME
               valueFrom: {configMapKeyRef: {name: agent-config, key: model}}
-            # ponytail: single staff key for now; Stream G is minting per-tier keys and a
-            # ModelAuthProvider will select contractor vs staff by Keycloak group. Replace when G confirms.
+            # fallback key, used only when the per-tier keys below are not set
             - name: QUARKUS_LANGCHAIN4J_OPENAI_PARASOL_CHAT_API_KEY
               valueFrom: {secretKeyRef: {name: maas-credentials, key: GENAI_API_KEY}}
-            # per-tier keys (Stream G): PortalModelAuth presents the contractor key for the
-            # contractors group and the staff key otherwise, so the night-shift storm drains only its bucket
+            # per-tier keys (Secret maas-portal-keys, scripts/maas-portal-keys.sh): PortalModelAuth presents the
+            # contractor key (subscription parasol-contractor) for the contractors group and the staff key
+            # (parasol-stage) otherwise; the budget is per subscription, so the night-shift storm drains only its tier
             - name: STAFF_MAAS_KEY
               valueFrom: {secretKeyRef: {name: maas-portal-keys, key: STAFF_MAAS_KEY}}
             - name: CONTRACTOR_MAAS_KEY
