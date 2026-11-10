@@ -127,12 +127,14 @@ spec:
       containers:
         - name: keygen
           image: ghcr.io/sigstore/cosign/cosign:v2.4.3
+          workingDir: /tmp   # cosign also writes cosign.pub locally
           args: ["generate-key-pair", "k8s://parasol-build/parasol-onboarding-key"]
           env:
             - name: COSIGN_PASSWORD
               valueFrom: {secretKeyRef: {name: onboarding-keygen-password, key: password}}
 YAML
   oc wait job/onboarding-keygen -n parasol-build --for=condition=complete --timeout=300s
+  oc delete job onboarding-keygen -n parasol-build >/dev/null
 fi
 oc get secret signing-secrets -n openshift-pipelines -o jsonpath='{.data.cosign\.pub}' | base64 -d > /tmp/parasol-cosign.pub.$$
 oc -n parasol-build create configmap cosign-pub --from-file=cosign.pub=/tmp/parasol-cosign.pub.$$ --dry-run=client -o yaml | oc apply -f - >/dev/null
