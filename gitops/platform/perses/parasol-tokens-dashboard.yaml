@@ -347,7 +347,7 @@ spec:
 
                 * `not via an approved agent: rebecca azp=parasol-demo-cli`: a login token presented without an agent
 
-                * `tool approve_payout denied for rebecca azp=parasol-claims-agent`: the agent asked, the person lacks the role
+                * `tool release_payment denied for rebecca azp=parasol-claims-agent`: the agent asked, the person lacks the role
 
 
                 Record refusals (the tool was allowed, the claim is not assigned to the user): `oc logs -n parasol-secured deploy/claims-db | grep ''CLAIMS ACL denied''`

@@ -14,7 +14,8 @@ configMapGenerator:
       - pii.json   # same regexes as pii.json in gitops/platform/guardrails/guardrails-rules.yaml (the self-test compares)
     literals:
       # the agent's tool set: the MCP virtual servers in gitops/envs/secured (+ the registered currency converter)
-      # and the portal's own propose_payout. approve_payout is deliberately absent: only the manager's Approve calls it.
-      - KNOWN_TOOLS=["get_claim","list_claims_by_status","get_claim_history","get_claim_documents","search_policies","get_policy","list_policies","fraud_check","search_knowledge","convert_currency","propose_payout"]
+      # (approve_claim included). release_payment and approve_payout are deliberately absent: only a claims manager's
+      # Release payment click calls release_payment, and approve_payout is granted to nobody in secured.
+      - KNOWN_TOOLS=["get_claim","list_claims_by_status","get_claim_history","get_claim_documents","search_policies","get_policy","list_policies","fraud_check","search_knowledge","convert_currency","approve_claim"]
       # team fallback when no span carries enduser.groups: the users' groups in gitops/platform/keycloak/realm-import.yaml
       - USER_GROUPS={"rebecca":["adjusters"],"marcus":["claims-managers"],"nina.contractor":["contractors"]}

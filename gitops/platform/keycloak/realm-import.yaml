@@ -218,6 +218,10 @@ spec:
           clientRole: true
         - name: tool:approve_payout
           clientRole: true
+        - name: tool:approve_claim
+          clientRole: true
+        - name: tool:release_payment
+          clientRole: true
         parasol-secured/policy-docs:
         - name: tool:search_policies
           clientRole: true
@@ -234,13 +238,14 @@ spec:
         parasol-secured/currency-converter:
         - name: tool:convert_currency
           clientRole: true
-    # The agent ceilings (what each agent may ever use on a user's behalf). Approve is inside the claims
-    # agent's ceiling but only reachable when the USER holds it too (claims-managers); the fraud agent is
-    # read-only and can never approve.
+    # The agent ceilings (what each agent may ever use on a user's behalf). Two-stage approval: approve_claim
+    # and release_payment are inside the claims agent's ceiling but only reachable when the USER holds them too
+    # (approve_claim: adjusters and claims-managers; release_payment: claims-managers); the fraud agent is
+    # read-only and can never approve. approve_payout (one-step payout) is granted to nobody in secured.
     clientScopeMappings:
       parasol-secured/claims-db:
       - client: parasol-claims-agent
-        roles: [tool:get_claim, tool:list_claims_by_status, tool:get_claim_history, tool:get_claim_documents, tool:approve_payout]
+        roles: [tool:get_claim, tool:list_claims_by_status, tool:get_claim_history, tool:get_claim_documents, tool:approve_claim, tool:release_payment]
       - client: parasol-fraud-agent
         roles: [tool:get_claim, tool:get_claim_history, tool:get_claim_documents]
       parasol-secured/policy-docs:
@@ -275,11 +280,12 @@ spec:
     - name: adjusters
       path: /adjusters
       clientRoles:
-        parasol-secured/claims-db: &id002
+        parasol-secured/claims-db:
         - tool:get_claim
         - tool:list_claims_by_status
         - tool:get_claim_history
         - tool:get_claim_documents
+        - tool:approve_claim
         parasol-secured/policy-docs: &id001
         - tool:search_policies
         - tool:get_policy
@@ -298,7 +304,8 @@ spec:
         - tool:list_claims_by_status
         - tool:get_claim_history
         - tool:get_claim_documents
-        - tool:approve_payout
+        - tool:approve_claim
+        - tool:release_payment
         parasol-secured/policy-docs: *id001
         parasol-secured/fraud-check: *id003
         parasol-secured/knowledge-base: *id004
@@ -306,7 +313,7 @@ spec:
     - name: developers
       path: /developers
       clientRoles:
-        parasol-secured/claims-db: *id002
+        parasol-secured/claims-db: [tool:get_claim, tool:list_claims_by_status, tool:get_claim_history, tool:get_claim_documents]
         parasol-secured/policy-docs: *id001
         parasol-secured/knowledge-base: *id004
     # Contractors (outsourced night-shift staff). Read-only claim and policy tools, nothing that writes
@@ -314,7 +321,7 @@ spec:
     - name: contractors
       path: /contractors
       clientRoles:
-        parasol-secured/claims-db: *id002
+        parasol-secured/claims-db: [tool:get_claim, tool:list_claims_by_status, tool:get_claim_history, tool:get_claim_documents]
         parasol-secured/policy-docs: *id001
         parasol-secured/knowledge-base: *id004
     users:

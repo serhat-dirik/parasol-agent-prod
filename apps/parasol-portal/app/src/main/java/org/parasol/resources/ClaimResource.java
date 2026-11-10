@@ -36,7 +36,6 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
-import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
@@ -160,60 +159,51 @@ public class ClaimResource {
     }
 
     /**
-     * A2 "Act": a claims manager approves a proposed payout. The write happens HERE on the button
-     * click (not from the model path), invoking the real {@code approve_payout} MCP tool with the
-     * manager's own token - so in secured the MCP gateway authorizes it for a claims-manager and
-     * 403s anyone else. Adjusters have no Approve button; a forced call is refused at the gateway.
+     * Two-stage approval, stage 2: a claims manager releases the payment of a claim the assistant (or anyone with
+     * approve_claim) set to Ready for payment. The write happens HERE on the button click, never from the model path
+     * (release_payment is in no model's tool list): the real {@code release_payment} MCP tool is called with a token
+     * exchanged on the manager's behalf, so the MCP gateway authorizes it for claims-managers and 403s anyone else.
+     * Adjusters have no button; a forced call is refused (403).
      */
     @POST
-    @Path("/claims/{number}/approve")
+    @Path("/claims/{number}/release")
     @Blocking
-    public Response approve(@PathParam("number") String number, @QueryParam("amount") Double amount) {
+    public Response release(@PathParam("number") String number) {
         Span root = Span.current();
         String traceId = root.getSpanContext().getTraceId();
-        // The approval's trace reads like the chat's: who approved, through which agent (MLflow user + tags).
+        // The release's trace reads like the chat's: who released, through which agent (MLflow user + tags).
         String who = identity.isAnonymous() ? "anonymous" : identity.getPrincipal().getName();
         root.setAttribute("user.id", who);
         root.setAttribute("enduser.id", who);
         root.setAttribute("gen_ai.agent.name", mcpAuth.agentId());
         root.setAttribute("claim.number", number);
         root.setAttribute("mlflow.traceTag.agent", mcpAuth.agentId());
-        root.setAttribute("mlflow.traceTag.action", "approve_payout " + number);
+        root.setAttribute("mlflow.traceTag.action", "release_payment " + number);
         if (!groups().contains("claims-managers")) {
-            // O2: this role-block runs BEFORE forwardToken()/CallerIdentity is populated, so
-            // caller.subject() is still "anonymous" here. Attribute the denied call to the
-            // AUTHENTICATED identity instead, so the 403 metric carries the real user (e.g. rebecca).
-            String user = identity.isAnonymous() ? "anonymous" : identity.getPrincipal().getName();
-            toolCall("approve_payout", "403", user);
-            gatewayAuthz("approve_payout", true);
+            // Runs before forwardToken()/CallerIdentity is populated: attribute the refusal to the authenticated user.
+            toolCall("release_payment", "403", who);
+            gatewayAuthz("release_payment", true);
             return Response.status(Response.Status.FORBIDDEN)
-                    .entity(Map.of("error", "approve_payout is not permitted for this role",
-                            "traceId", traceId)).build();
+                    .entity(Map.of("error", "release_payment is not permitted for this role", "traceId", traceId)).build();
         }
         forwardToken();
-        // A human (a claims manager) clicked Approve. The call carries a token exchanged on their
-        // behalf (sub = the manager, azp = the agent), so claims-db writes "Approved by <user> via
-        // <agent>" from the token; actor stays as the fallback for the token-less free path.
-        String actor = identity.isAnonymous() ? "" : identity.getPrincipal().getName();
-        String args = amount == null
-                ? String.format("{\"claimNumber\":\"%s\",\"actor\":\"%s\"}", number, actor)
-                : String.format("{\"claimNumber\":\"%s\",\"amount\":%s,\"actor\":\"%s\"}", number, amount, actor);
+        String args = String.format("{\"claimNumber\":\"%s\"}", number);
         try {
             String result = claimsDb.executeTool(
-                    ToolExecutionRequest.builder().name("approve_payout").arguments(args).build()).resultText();
-            toolCall("approve_payout", "200");
-            gatewayAuthz("approve_payout", false);
-            // traceId lets the timeline event link to the trace of this approval ("Approved by
-            // <user> via assistant"). Persisting it on the claim record needs a claims-db field
-            // (kept backward-compatible), so for now the portal surfaces it live on the response.
-            return Response.ok(Map.of("result", result, "traceId", traceId, "approvedBy", who,
-                    "agent", mcpAuth.agentId())).build();
+                    ToolExecutionRequest.builder().name("release_payment").arguments(args).build()).resultText();
+            toolCall("release_payment", "200");
+            gatewayAuthz("release_payment", false);
+            // claims-db answers a claim that is not Ready for payment in words: nothing was paid.
+            boolean paid = result != null && result.startsWith("Payment released");
+            return Response.status(paid ? Response.Status.OK : Response.Status.CONFLICT)
+                    .entity(Map.of("result", String.valueOf(result), "traceId", traceId, "releasedBy", who,
+                            "agent", mcpAuth.agentId())).build();
         } catch (RuntimeException e) {
-            // A forced call by someone without the tool role is refused at the MCP gateway (403).
+            // A call without the tool role is refused at the MCP gateway (403).
             String msg = String.valueOf(e.getMessage());
-            boolean denied = msg != null && msg.toLowerCase().contains("403");
-            toolCall("approve_payout", denied ? "403" : "200");
-            gatewayAuthz("approve_payout", denied);
+            boolean denied = msg.toLowerCase().contains("403");
+            toolCall("release_payment", denied ? "403" : "200");
+            gatewayAuthz("release_payment", denied);
             return Response.status(Response.Status.BAD_GATEWAY)
                     .entity(Map.of("error", msg, "traceId", traceId)).build();
         }
@@ -235,7 +225,7 @@ public class ClaimResource {
     /**
      * gateway.authz span: the identity-bound tool-authorization decision at the MCP gateway, for the
      * trace. A denial carries the tool name as an attribute and the 403 as the span status, so the
-     * trace shows the refusal plainly (an adjuster forcing approve_payout); an allow is an OK span.
+     * trace shows the refusal plainly (an adjuster forcing release_payment); an allow is an OK span.
      */
     private void gatewayAuthz(String tool, boolean denied) {
         Span s = tracer.spanBuilder("gateway.authz").startSpan();

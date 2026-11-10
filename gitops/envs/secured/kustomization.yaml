@@ -65,6 +65,9 @@ patches:
       - op: add
         path: /spec/template/spec/containers/0/env/-
         value: {name: CLAIMS_ACL_ISSUER, valueFrom: {configMapKeyRef: {name: agent-config, key: issuer}}}
+      - op: add   # two-stage approval: approve_claim, then release_payment by a claims manager; approve_payout refuses
+        path: /spec/template/spec/containers/0/env/-
+        value: {name: CLAIMS_TWO_STAGE, value: "true"}
   - target: {kind: Deployment, name: knowledge-base}   # retrieval spans join the portal's trace
     patch: |-
       - op: add

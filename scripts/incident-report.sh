@@ -24,15 +24,14 @@ if [ -n "$hist" ]; then
   printf '%s' "$hist" | python3 -c 'import sys,json
 for e in json.load(sys.stdin): print("  %s  %-16s %s" % (e["createdAt"], e["eventType"], e["note"]))'
 else na "cannot exec into claims-db"; fi
-appr=$(printf '%s' "$hist" | python3 -c 'import sys,json
-try: e=[x for x in json.load(sys.stdin) if x["eventType"]=="Approved" and "Approved by" in x["note"]]; print(e[-1]["createdAt"] if e else "")
-except Exception: print("")' 2>/dev/null)
-[ -n "$appr" ] || echo "  no 'Approved by <user> via <agent>' event yet: approve the claim first (see Before you start)"
-# the approver, from the event the token wrote ("Approved by marcus via parasol-claims-agent")
-who=$(printf '%s' "$hist" | python3 -c 'import sys,json,re
-try: n=[x["note"] for x in json.load(sys.stdin) if x["eventType"]=="Approved"][-1]; m=re.search(r"Approved by (\S+)", n); print(m.group(1) if m else "")
-except Exception: print("")' 2>/dev/null)
-oc logs -n $NS deploy/claims-db --tail=2000 2>/dev/null | grep "PAYOUT claim=$claim" | tail -3 | sed 's/^/  log: /'
+# two-stage approval: who approved the claim ("Claim approved for USD <n> by rebecca via parasol-claims-agent") and who
+# released the payment ("Payment released by marcus via parasol-claims-agent"), from the events their tokens wrote
+by() { printf '%s' "$hist" | python3 -c 'import sys,json,re
+try: n=[x["note"] for x in json.load(sys.stdin) if x["eventType"]==sys.argv[1]][-1]; m=re.search(sys.argv[2], n); print(m.group(1) if m else "")
+except Exception: print("")' "$1" "$2" 2>/dev/null; }
+who=$(by ClaimApproved 'by (\S+) via') rel=$(by Approved 'Payment released by (\S+)')
+[ -n "$rel" ] || echo "  no 'Payment released by <user> via <agent>' event yet: approve the claim and release the payment first (see Before you start)"
+oc logs -n $NS deploy/claims-db --tail=2000 2>/dev/null | grep -E "(CLAIM APPROVED|PAYMENT RELEASED) claim=$claim" | tail -3 | sed 's/^/  log: /'
 
 hdr "2. The conversation and the approval (MLflow, workspace $NS, experiment parasol-portal-chat)"
 mlf() { curl -sk -m 20 -H "Authorization: Bearer $TOK" -H "x-mlflow-workspace: $NS" "https://rh-ai.apps.$D/mlflow/$1"; }
@@ -51,39 +50,41 @@ def spans(tid):
 def attrs(s):   # [{key, value: {string_value|int_value|double_value: v}}] -> {key: v}
     return {a["key"]: next(iter((a.get("value") or {None: None}).values())) for a in s.get("attributes", [])}
 q = "api/2.0/mlflow/traces?experiment_ids=1&max_results=5&order_by=" + urllib.parse.quote("timestamp_ms DESC")
-appr = get(q + "&filter=" + urllib.parse.quote(f"tags.action = 'approve_payout {claim}'")).get("traces", [])
+appr = get(q + "&filter=" + urllib.parse.quote(f"tags.action = 'release_payment {claim}'")).get("traces", [])
 if appr:
     a = appr[0]; t = tags(a)
     user = next((x for x in [attrs(sp).get("enduser.id") for sp in spans(a["request_id"])] if x), "?")
-    print(f"  approval   {a['request_id']}  user={user} agent={t.get('agent')} action='{t.get('action')}'")
+    print(f"  payment    {a['request_id']}  user={user} agent={t.get('agent')} action='{t.get('action')}'")
 else:
-    print(f"  approval   no trace with tag action='approve_payout {claim}' (approved outside the portal's Approve button?)")
-# the chat turn that proposed it: latest claims-agent traces with a tool.propose_payout span for this claim
+    print(f"  payment    no trace with tag action='release_payment {claim}' (released outside the portal's Release payment button?)")
+# the chat turn that approved the claim: latest claims-agent traces with an approve_claim tool call for this claim
+def approves(s):
+    a = attrs(s)
+    return "approve_claim" in (a.get("gen_ai.tool.name"), a.get("tool.name"), s.get("name", "").removeprefix("tool.")) \
+        and claim in json.dumps(s)
 for tr in get(q.replace("max_results=5", "max_results=60") + "&filter=" + urllib.parse.quote("tags.agent = 'parasol-claims-agent'")).get("traces", []):
     t = tags(tr)
     if "prompt" not in t:
         continue
     sp = spans(tr["request_id"])
-    if not any(s.get("name") == "tool.propose_payout" and str(attrs(s).get("claim.number")) == claim for s in sp):
+    if not any(approves(s) for s in sp):
         continue
     root = attrs(next((s for s in sp if not s.get("parent_span_id")), sp[0]))
-    if who and root.get("enduser.id") != who:   # the approver's own chat turn, not someone else's proposal
+    if who and root.get("enduser.id") != who:   # the approver's own chat turn
         continue
-    print(f"  proposal   {tr['request_id']}  user={root.get('enduser.id')} agent={t.get('agent')} model={t.get('model')}")
+    print(f"  approval   {tr['request_id']}  user={root.get('enduser.id')} agent={t.get('agent')} model={t.get('model')}")
     print(f"             prompt={t.get('prompt')} prompt_sha256={t.get('prompt_sha256', 'n/a')}")
     names = [s["name"] for s in sp if s["name"].startswith(("tool.", "guardrails.", "agent."))]
     print("             spans: " + " > ".join(dict.fromkeys(names)))
     for s in sp:
         if s["name"].startswith("guardrails."):
             a = attrs(s); print(f"             {s['name']}: action={a.get('guardrail.action')} detectors={a.get('guardrail.detectors')} score={a.get('guardrail.score')}")
-        if s["name"] == "tool.propose_payout":
-            a = attrs(s); print(f"             proposed {a.get('payout.proposed')} against claimed {a.get('payout.claimed')}")
     print(f"             open: {base}/#/experiments/1/traces?selectedEvaluationId={tr['request_id']}&workspace=parasol-secured")
     break
 else:
-    print(f"  proposal   no chat turn by {who or 'anyone'} proposing {claim} among the last 60 claims-agent traces")
+    print(f"  approval   no chat turn by {who or 'anyone'} approving {claim} among the last 60 claims-agent traces")
 PY
-else na "MLflow API not readable with this identity (open the MLflow tab, Traces, filter tags.action = 'approve_payout $claim')"; fi
+else na "MLflow API not readable with this identity (open the MLflow tab, Traces, filter tags.action = 'release_payment $claim')"; fi
 
 hdr "3. Who acted for whom (Keycloak, realm parasol, events TOKEN_EXCHANGE)"
 if (. scripts/keycloak-admin.sh) >/dev/null 2>&1; then
@@ -124,7 +125,7 @@ for ts, st, req, resp, tool, server in rows[-25:]:
     who = req if st == "200" else resp   # allowed: the header Authorino set on the request; refused: on the response
     print("  %s %-5s %s tool=%s server=%s" % (ts, {"200": "allow", "403": "deny", "401": "deny"}.get(st, st), who if who != "-" else "user=- agent=-", tool, server))'
 else na "gateway log not readable (oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway)"; fi
-echo "  the allowed write is also attributed in claims-db: see the PAYOUT line and the 'Approved by <user> via <agent>' event above"
+echo "  the allowed writes are also attributed in claims-db: see the CLAIM APPROVED / PAYMENT RELEASED lines and their events above"
 
 hdr "5. What was live: the release on Argo CD Application env-secured"
 oc get application env-secured -n openshift-gitops -o json 2>/dev/null | python3 -c '

@@ -75,14 +75,14 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
 spec:
-  # approve_payout is deliberately ABSENT from tools/list for EVERY identity (Read-Propose-Act, A2):
-  # no chat model should see it, so the model always proposes and the real write happens only on the
-  # portal's Approve button (a direct tools/call with the manager's token). It stays backend-federated
-  # (the MCPServerRegistration discovers it), so claims-managers can still CALL it via tools/call -
-  # verified: that path is independent of this list. The tool:approve_payout role on claims-managers in
-  # Keycloak is what authorizes that call (unchanged). rebecca's forced call is still 403.
+  # Two-stage approval: the model may APPROVE a claim (approve_claim: UnderReview -> Ready for payment, no money
+  # moves; Keycloak tool:approve_claim, adjusters and claims-managers). release_payment is deliberately ABSENT from
+  # tools/list for EVERY identity: no chat model sees the tool that moves money, the payment is released only on the
+  # portal's Release payment button (a direct tools/call with the claims manager's token; tool:release_payment,
+  # claims-managers only). Backend-federated tools stay callable via tools/call independent of this list.
+  # approve_payout (one-step payout) is granted to nobody here and claims-db refuses it in secured.
   description: Claims tools
-  tools: [get_claim, list_claims_by_status, get_claim_history, get_claim_documents]
+  tools: [get_claim, list_claims_by_status, get_claim_history, get_claim_documents, approve_claim]
 ---
 apiVersion: mcp.kuadrant.io/v1
 kind: MCPVirtualServer

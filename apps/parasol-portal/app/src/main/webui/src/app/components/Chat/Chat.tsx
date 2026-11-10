@@ -6,7 +6,6 @@ import { Button, Card, CardBody, CardHeader, Flex, FlexItem, Grid, GridItem, Pan
 import * as React from 'react';
 import orb from '@app/assets/bgimages/orb.svg';
 import userAvatar from '@app/assets/bgimages/avatar-user.svg';
-import { formatUSD } from '@app/utils/money';
 
 interface Frame {
     type: string;
@@ -42,32 +41,6 @@ const Chat: React.FunctionComponent<{ claimNumber: string, onTurnComplete?: () =
     const [queryText, setQueryText] = React.useState('');
     const [turns, setTurns] = React.useState<Turn[]>([]);
     const [isBusy, setIsBusy] = React.useState(false);
-    const [isManager, setIsManager] = React.useState(false);
-    const [approvedKeys, setApprovedKeys] = React.useState<Record<number, string>>({});
-    const [approvals, setApprovals] = React.useState<Record<number, { approvedBy?: string, agent?: string, traceId?: string }>>({});
-
-    React.useEffect(() => {
-        fetch(config.backend_api_url + '/me')
-            .then(r => r.json())
-            .then(me => setIsManager((me.groups || []).some((g: string) => g.replace(/^\//, '') === 'claims-managers')))
-            .catch(() => undefined);
-    }, []);
-
-    // A2 "Act": a claims manager approves the proposed payout. The write happens here, on the click,
-    // against the real approve_payout MCP tool with the manager's token (403 for anyone else).
-    const approve = (key: number, proposed: number | null) => {
-        const url = config.backend_api_url + `/claims/${claimNumber}/approve` + (proposed ? `?amount=${proposed}` : '');
-        setApprovedKeys(prev => ({ ...prev, [key]: 'pending' }));
-        fetch(url, { method: 'POST' })
-            .then(r => r.json().then(body => ({ ok: r.ok, body })))
-            .then(({ ok, body }) => {
-                setApprovedKeys(prev => ({ ...prev, [key]: ok ? 'done' : (body.error || 'failed') }));
-                if (ok) { setApprovals(prev => ({ ...prev, [key]: body })); }
-                if (ok) { onTurnComplete && onTurnComplete(); }
-            })
-            .catch(() => setApprovedKeys(prev => ({ ...prev, [key]: 'failed' })));
-    };
-
     const wsUrl = config.backend_api_url.replace(/http/, 'ws').replace(/\/api$/, '/ws');
     const connection = React.useRef<WebSocket | null>(null);
     const chatBotAnswer = React.useRef<HTMLDivElement | null>(null);
@@ -153,32 +126,6 @@ const Chat: React.FunctionComponent<{ claimNumber: string, onTurnComplete?: () =
                         <span className='error-chip'>{frame.text}</span>
                     </div>
                 );
-            case 'propose': {
-                let proposed: number | null = null;
-                let claimed: number | null = null;
-                try { const o = JSON.parse(frame.data || '{}'); proposed = o.proposed; claimed = o.claimed; } catch { /* ignore */ }
-                const multiplier = (proposed && claimed) ? Math.round(proposed / claimed) : null;
-                const state = approvedKeys[key];
-                return (
-                    <div key={key} className='propose-card'>
-                        <div className='propose-title'>Payout proposed for {frame.text} — needs a claims manager</div>
-                        <div className='propose-row'>Proposed: <b>{formatUSD(proposed)}</b></div>
-                        {claimed != null && <div className='propose-row'>Claimed: {formatUSD(claimed)}{multiplier && multiplier > 1 ? ` — exceeds by ${multiplier}x` : ''}</div>}
-                        {state === 'done'
-                            ? <div className='propose-approved'>
-                                Approved by {approvals[key]?.approvedBy || 'manager'} via {approvals[key]?.agent || 'assistant'}
-                                {approvals[key]?.traceId && <div className='trace-footer'>
-                                    <a href={mlflowTraceUrl(approvals[key].traceId as string)} target='_blank' rel='noreferrer'>trace {approvals[key].traceId}</a>
-                                </div>}
-                              </div>
-                            : isManager
-                                ? <Button variant="primary" size="sm" isDisabled={state === 'pending'}
-                                    onClick={() => approve(key, proposed)}>Approve</Button>
-                                : <div className='propose-norole'>You do not have approval rights for this.</div>}
-                        {state && state !== 'done' && state !== 'pending' && <div className='error-chip'>{state}</div>}
-                    </div>
-                );
-            }
             case 'answer':
                 return (
                     <Text key={key} component={TextVariants.p} className='chat-answer-text'>{frame.text}</Text>

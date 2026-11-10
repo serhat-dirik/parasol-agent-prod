@@ -30,10 +30,10 @@ guardrails)
   title "Tool results the gateway blocked (last 3 hours)"
   { run "oc logs -n mcp-system deploy/mcp-gateway --since=3h 2>/dev/null | grep 'guardrails blocked'" || true; } \
     | sed -E 's/.*msg="?([^"]*)"? .*tool=([a-z_]+).*reason="?([^"]*)"?.*/  \2  \1  (\3)/' | tail -5 | grep . || echo "  none"
-  title "Tools any agent in parasol-secured can be offered (MCPVirtualServer): no approve_payout, so a model can only propose"
+  title "Tools any agent in parasol-secured can be offered (MCPVirtualServer): approve_claim at most, no tool that pays"
   run "oc get mcpvirtualserver -n parasol-secured -o jsonpath='{range .items[*]}{\"  \"}{.metadata.name}{\": \"}{.spec.tools}{\"\\n\"}{end}'" \
     | tr -d '[]"' | sed 's/,/, /g'
-  note "  (portal, its own tool): propose_payout, which writes nothing; a claims manager's Approve click makes the payment" ;;
+  note "  approve_claim only sets a claim UnderReview -> Ready for payment; a claims manager's Release payment click pays" ;;
 flags)
   title "Guardrail decisions on the model path in the last 3 hours (deploy/guardrails-proxy, parasol-secured)"
   run "oc logs -n parasol-secured deploy/guardrails-proxy --since=3h | grep 'guardrail action='" \

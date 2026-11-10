@@ -1,5 +1,5 @@
 # Parasol's MCP servers in the OpenShift AI catalog (AI hub > MCP servers): each server with its tools and
-# whether a tool reads or writes (approve_payout is the one read_write tool). deploymentMode remote: the
+# whether a tool reads or writes (approve_payout, approve_claim and release_payment write). deploymentMode remote: the
 # servers already run behind the MCP gateway, so the catalog describes them, it does not deploy them.
 # Tool names, descriptions and parameters are taken verbatim from the gateway's tools/list.
 # mcp-catalog-sources is the user slot the model-catalog server mounts at /data/user-mcp-sources.
@@ -37,14 +37,14 @@ data:
       readme: |
         # Parasol claims-db
 
-        Parasol claims database: read claims, their history and uploaded documents, and approve payouts.
+        Parasol claims database: read claims, their history and uploaded documents; approve claims and release payments.
 
         ## Access
 
         Served through the Parasol MCP gateway (Red Hat Connectivity Link). Every call carries the user's identity, exchanged by an approved agent; the gateway shows and allows only the tools the person's Keycloak roles grant.
 
         Read tools: adjusters, claims managers, contractors (role `tool:<name>` on client `claims-db`).
-        `approve_payout` moves money: claims managers only (`tool:approve_payout`). The chat assistant only proposes; a claims manager's Approve click performs the write.
+        Two-stage approval (secured): `approve_claim` (adjusters and claims managers) sets a claim to Ready for payment, no money moves; `release_payment` (claims managers only) pays it, and only from a claims manager's Release payment click, never from the chat assistant. `approve_payout` (one-step payout) is the unsecured environment's tool; no role grants it in secured.
       version: 1.0.0
       transports:
       - http
@@ -72,12 +72,12 @@ data:
           required: true
       - name: list_claims_by_status
         description: 'List the Parasol claims currently in a given workflow status. Valid statuses are exactly: Submitted,
-          UnderReview, Approved, Denied. Returns each matching claim with its number, claimant, type, amount and adjuster.'
+          UnderReview, ReadyForPayment, Approved, Denied. Returns each matching claim with its number, claimant, type, amount and adjuster.'
         accessType: read_only
         parameters:
         - name: status
           type: string
-          description: 'One of: Submitted, UnderReview, Approved, Denied'
+          description: 'One of: Submitted, UnderReview, ReadyForPayment, Approved, Denied'
           required: true
       - name: get_claim_history
         description: Return the audit timeline for a claim (submitted, adjuster assigned, documents requested/received,
@@ -97,6 +97,30 @@ data:
         - name: claimNumber
           type: string
           description: The claim number, e.g. CLM-1004
+          required: true
+      - name: approve_claim
+        description: 'Approve a Parasol Insurance claim: the claim is valid and the amount is agreed. Sets an UnderReview
+          claim to ReadyForPayment and records who approved it. It does NOT pay: a claims manager releases the payment
+          afterwards. Call this when asked to approve a claim. If no amount is given the full claimed amount is approved;
+          it may not exceed the claimed amount.'
+        accessType: read_write
+        parameters:
+        - name: claimNumber
+          type: string
+          description: The claim number, e.g. CLM-1001
+          required: true
+        - name: amount
+          type: number
+          description: Amount in USD to approve; omit to approve the full claimed amount
+          required: false
+      - name: release_payment
+        description: 'Release the payment of a Parasol Insurance claim that is ReadyForPayment (approved): sets it to
+          Approved and issues the approved amount. Claims managers only.'
+        accessType: read_write
+        parameters:
+        - name: claimNumber
+          type: string
+          description: The claim number, e.g. CLM-1001
           required: true
       - name: approve_payout
         description: Approve a Parasol Insurance claim for payment and issue the payout. Sets the claim status to Approved

@@ -1,5 +1,5 @@
 // Display helper: format a numeric amount as USD with thousands separators, e.g. 84000 -> "USD 84,000".
-// Keep the raw number for logic; use this only for display (claims list, detail, timeline, chat, propose card).
+// Keep the raw number for logic; use this only for display (claims list, detail, timeline, chat).
 const usd = new Intl.NumberFormat('en-US', {
   style: 'currency',
   currency: 'USD',

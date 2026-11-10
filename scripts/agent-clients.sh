@@ -93,6 +93,29 @@ else
   kc -X PUT "$API/clients/$u" -d "$DEMO_CLI" -o /dev/null -w "client parasol-demo-cli update http=%{http_code}\n"
 fi
 
+# --- two-stage approval (claims-db approve_claim / release_payment): the roles, and which group holds them ---
+# adjusters approve claims; claims-managers approve and release payments; nobody keeps approve_payout (the one-step
+# payout, refused by claims-db in secured anyway).
+CDB="$(cuuid parasol-secured/claims-db)"
+for r in tool:approve_claim tool:release_payment; do
+  kc -o /dev/null -w '%{http_code}' "$API/clients/$CDB/roles/$(jq -rn --arg r "$r" '$r|@uri')" | grep -q 200 || \
+    kc -X POST "$API/clients/$CDB/roles" -d "$(jq -nc --arg r "$r" '{name:$r, clientRole:true}')" -o /dev/null \
+      -w "role $r create http=%{http_code}\n"
+done
+group_roles() {  # $1 group  $2 add|remove  rest = claims-db role names
+  local g op gid body
+  g="$1"; op="$2"; shift 2
+  gid="$(kc -G "$API/groups" --data-urlencode "search=$g" --data-urlencode exact=true | jq -r --arg g "$g" '.[]|select(.name==$g)|.id' | head -1)"
+  [ -n "$gid" ] || { echo "group $g not found"; return 1; }
+  body="$(for r in "$@"; do kc "$API/clients/$CDB/roles/$(jq -rn --arg r "$r" '$r|@uri')"; done | jq -s -c 'map(select(.id))')"
+  [ "$body" != "[]" ] || return 0
+  kc -X "$([ "$op" = add ] && echo POST || echo DELETE)" "$API/groups/$gid/role-mappings/clients/$CDB" -d "$body" \
+    -o /dev/null -w "group $g $op $* http=%{http_code}\n"
+}
+group_roles adjusters add tool:approve_claim
+group_roles claims-managers add tool:approve_claim tool:release_payment
+group_roles claims-managers remove tool:approve_payout
+
 # --- ceilings: exactly these tool roles, nothing else (extra mappings are removed) ---
 ceiling() {  # $1 agent clientId  $2 tool clientId  rest = role names
   local agent="$1" tool="$2"; shift 2
@@ -107,7 +130,8 @@ ceiling() {  # $1 agent clientId  $2 tool clientId  rest = role names
     -w "ceiling $agent -> $tool: $* http=%{http_code}\n"
 }
 ceiling parasol-claims-agent parasol-secured/claims-db \
-  tool:get_claim tool:list_claims_by_status tool:get_claim_history tool:get_claim_documents tool:approve_payout
+  tool:get_claim tool:list_claims_by_status tool:get_claim_history tool:get_claim_documents \
+  tool:approve_claim tool:release_payment
 ceiling parasol-claims-agent parasol-secured/policy-docs tool:search_policies tool:get_policy tool:list_policies
 ceiling parasol-claims-agent parasol-secured/fraud-check tool:fraud_check
 ceiling parasol-claims-agent parasol-secured/knowledge-base tool:search_knowledge

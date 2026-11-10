@@ -3,12 +3,13 @@
 
 Logs in as a demo persona through the portal's own OIDC code flow (Keycloak login page, the demo
 login of scripts/token.sh), then either sends ONE chat message over the portal's WebSocket /ws/query with the claim
-the user is viewing ({claimNumber, query}, a new connection = a fresh conversation), or GETs a portal REST path
-(the screens' reads, e.g. /api/claims/CLM-1029). Prints JSON; standard library only.
+the user is viewing ({claimNumber, query}, a new connection = a fresh conversation), or GETs / POSTs a portal REST path
+(the screens' reads, e.g. /api/claims/CLM-1029; a button, e.g. Release payment). Prints JSON; standard library only.
 
-  portal-chat.py <host> <user> ask "<message>" [CLM-1001]   -> {"tools": [...], "propose": ..., "guardrail": ...,
+  portal-chat.py <host> <user> ask "<message>" [CLM-1001]   -> {"tools": [...], "guardrail": ...,
                                                                "answer": ..., "error": ..., "trace": ...}
   portal-chat.py <host> <user> get /api/claims/CLM-1029     -> {"status": 403, "body": ...}
+  portal-chat.py <host> <user> post /api/claims/CLM-1001/release -> {"status": 200, "body": ...}
 """
 import base64, http.cookiejar, html, json, os, re, socket, ssl, struct, sys, urllib.error, urllib.parse, urllib.request
 
@@ -87,17 +88,16 @@ def ws_ask(host, jar, query, claim=None, timeout=240):
 
 
 def summary(frames):
-    """The frames as the chat renders them: chips, propose card, guardrail banner, answer or error, trace link."""
+    """The frames as the chat renders them: chips, guardrail banner, answer or error, trace link."""
     pick = lambda t: [f for f in frames if f["type"] == t]
     one = lambda t, k="text": (pick(t)[0].get(k) if pick(t) else None)
     return {"tools": [{"tool": f["text"], "args": f.get("data")} for f in pick("tool")],
-            "propose": ({"claim": one("propose"), **json.loads(one("propose", "data") or "{}")} if pick("propose") else None),
             "guardrail": one("guardrail"), "mask": one("mask"), "answer": one("answer"), "error": one("error"),
             "trace": one("trace")}
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 5 or sys.argv[3] not in ("ask", "get"):
+    if len(sys.argv) < 5 or sys.argv[3] not in ("ask", "get", "post"):
         sys.exit(__doc__)
     host, user, cmd = sys.argv[1:4]
     op, jar = login(host, user)
@@ -105,7 +105,9 @@ if __name__ == "__main__":
         print(json.dumps(summary(ws_ask(host, jar, sys.argv[4], sys.argv[5] if len(sys.argv) > 5 else None))))
     else:
         try:
-            r = op.open(f"https://{host}{sys.argv[4]}", timeout=60)
+            req = urllib.request.Request(f"https://{host}{sys.argv[4]}", method="POST" if cmd == "post" else "GET",
+                                         data=b"" if cmd == "post" else None)
+            r = op.open(req, timeout=60)
             status, body = r.status, r.read().decode()
         except urllib.error.HTTPError as e:
             status, body = e.code, e.read().decode()

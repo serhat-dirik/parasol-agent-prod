@@ -24,9 +24,10 @@ print("  %-34s %-15s HTTP %s  %s" % (sys.argv[2], sys.argv[3], code, why))' "$ou
 case "${1:-}" in
 payouts)
   c=${2:-}
-  title "The latest ${c:+$c }payout record written by the claims tool (claims-db), on each portal"
+  title "The latest ${c:+$c }payment and approval records written by the claims tool (claims-db), on each portal"
   for ns in parasol-free parasol-secured; do
-    run "oc logs -n $ns deploy/claims-db --since=3h | grep PAYOUT | grep 'claim=${c}' | tail -1" | sed "s/.*PAYOUT/  $ns: PAYOUT/" | grep . \
+    run "oc logs -n $ns deploy/claims-db --since=3h | grep -E 'PAYOUT|CLAIM APPROVED|PAYMENT RELEASED' | grep 'claim=${c}' | tail -2" \
+      | sed -E "s/.*(PAYOUT|CLAIM APPROVED|PAYMENT RELEASED)/  $ns: \1/" | grep . \
       || echo "  $ns: no ${c:+$c }payout in the last 3 hours (nothing was written)"
   done ;;
 roles)
@@ -34,7 +35,7 @@ roles)
     title "$u, as Keycloak describes this user in the login token"
     claims "$(run "scripts/token.sh $u")"
   done
-  note "approve_payout is a manager's right: only claims-managers hold it." ;;
+  note "approve_claim (Ready for payment): adjusters and claims-managers; release_payment (pays): claims-managers only." ;;
 token)
   u=${2:-rebecca}
   title "1) $u's login token (what the user holds)"
@@ -46,11 +47,11 @@ gateway)
   title "Live calls at the MCP gateway ($SERVER)"
   call "rebecca, own login token" '$(scripts/token.sh rebecca)' get_claim
   call "rebecca via parasol-claims-agent" '$(scripts/agent-token.sh rebecca)' get_claim
-  call "rebecca via parasol-claims-agent" '$(scripts/agent-token.sh rebecca)' approve_payout
+  call "rebecca via parasol-claims-agent" '$(scripts/agent-token.sh rebecca)' release_payment
   call "marcus via parasol-claims-agent" '$(scripts/agent-token.sh marcus)' get_claim
-  title "The gateway's decision log (last 3 hours; marcus's approve_payout is his Approve click in the portal)"
+  title "The gateway's decision log (last 3 hours; marcus's release_payment is his Release payment click in the portal)"
   run "oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway --since=3h --tail=-1 | grep gateway-decision" \
-    | grep -E 'user=(rebecca|marcus)' | grep -E 'tool=(get_claim|approve_payout) ' \
+    | grep -E 'user=(rebecca|marcus)' | grep -E 'tool=(get_claim|approve_claim|release_payment) ' \
     | grep -v 'status=404' | sed -E 's/.*status=([0-9]+).*user=([a-z.]+) agent=([a-z.-]+).*tool=([a-z_]+).*/  \1  \2 via \3  \4/' \
     | sort | uniq -c | sort -k3,3 -k5,5 ;;
 release) exec "$EV/showcase5.sh" release ;;

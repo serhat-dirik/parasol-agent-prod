@@ -7,6 +7,7 @@ import floodDamage from '@app/assets/images/claims/flood-damage.jpg';
 import roofDamage from '@app/assets/images/claims/roof-damage.jpg';
 import stormHouse from '@app/assets/images/claims/storm-house.jpg';
 import { formatUSD } from '@app/utils/money';
+import { statusColors, statusLabel } from '@app/utils/status';
 import { faCalendar, faCommentDots, faFileLines } from '@fortawesome/free-regular-svg-icons';
 import { faCaretDown, faLocationDot, faPaperclip, faShieldHalved, faUser } from '@fortawesome/free-solid-svg-icons';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -54,12 +55,6 @@ interface HistoryEntry {
   createdAt: string | null;
 }
 
-const labelColors: Record<string, 'green' | 'red' | 'gold' | 'blue'> = {
-  'Approved': 'green',
-  'Denied': 'red',
-  'UnderReview': 'gold',
-  'Submitted': 'blue',
-};
 
 const ClaimDetail: React.FunctionComponent = () => {
 
@@ -71,8 +66,29 @@ const ClaimDetail: React.FunctionComponent = () => {
   // Secured: claims-db refuses a claim outside the user's records (403); the page then shows the refusal, no data.
   const [refusal, setRefusal] = React.useState<string | null>(null);
 
-  // Bumped whenever a chat turn completes, to re-fetch claim + timeline (a payout may have changed them).
+  // Bumped whenever a chat turn completes, to re-fetch claim + timeline (an approval may have changed them).
   const [refreshKey, setRefreshKey] = React.useState(0);
+
+  // Two-stage approval (secured): a claim the assistant approved is Ready for payment; only a claims manager releases
+  // the payment, here, on a click (release_payment is in no model's tool list).
+  const [isManager, setIsManager] = React.useState(false);
+  const [release, setRelease] = React.useState<{ state: 'idle' | 'pending' | 'error', message?: string }>({ state: 'idle' });
+  React.useEffect(() => {
+    fetch(config.backend_api_url + '/me')
+      .then(r => r.json())
+      .then(me => setIsManager((me.groups || []).some((g: string) => g.replace(/^\//, '') === 'claims-managers')))
+      .catch(() => undefined);
+  }, []);
+  const releasePayment = () => {
+    setRelease({ state: 'pending' });
+    fetch(config.backend_api_url + `/claims/${claimNumber}/release`, { method: 'POST' })
+      .then(r => r.json().then(body => ({ ok: r.ok, body })))
+      .then(({ ok, body }) => {
+        setRelease(ok ? { state: 'idle' } : { state: 'error', message: body.result || body.error || 'Payment not released' });
+        setRefreshKey(k => k + 1);
+      })
+      .catch(() => setRelease({ state: 'error', message: 'Payment not released' }));
+  };
 
   React.useEffect(() => {
     axios.get(config.backend_api_url + `/claims/${claimNumber}`)
@@ -156,8 +172,14 @@ const ClaimDetail: React.FunctionComponent = () => {
                     </Title>
                   </FlexItem>
                   <FlexItem>
-                    <Label color={labelColors[String(claim.status)] || 'grey'}>{claim.status}</Label>
+                    <Label color={statusColors[String(claim.status)] || 'grey'}>{statusLabel(claim.status)}</Label>
                   </FlexItem>
+                  {claim.status === 'ReadyForPayment' && <FlexItem>
+                    {isManager
+                      ? <Button variant="primary" size="sm" isDisabled={release.state === 'pending'} onClick={releasePayment}>Release payment</Button>
+                      : <Text component={TextVariants.small}>Approved; a claims manager releases the payment.</Text>}
+                  </FlexItem>}
+                  {release.state === 'error' && <FlexItem><span className='error-chip'>{release.message}</span></FlexItem>}
                   <Divider orientation={{ default: 'vertical' }} />
                   <FlexItem>
                     <Text className='colored-item-blue'><FontAwesomeIcon icon={faUser} />&nbsp;{claim.claimant || 'No claimant specified'}</Text>

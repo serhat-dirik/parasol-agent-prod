@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 import jakarta.enterprise.context.ApplicationScoped;
@@ -35,8 +36,29 @@ public class PayoutService {
 
     static final long DEMO_EVENT_ID_BASE = 1000L;
 
+    static final String READY_FOR_PAYMENT = "ReadyForPayment";
+
     /** Original status per claim touched by a payout, for reset(). */
     private final Map<String, String> originalStatus = new ConcurrentHashMap<>();
+
+    /** The amount stage 1 approved, per claim, for stage 2 (release_payment); cleared by reset(). */
+    private final Map<String, BigDecimal> approvedAmount = new ConcurrentHashMap<>();
+
+    /**
+     * Two-stage approval (secured overlay): approve_claim (UnderReview -> ReadyForPayment) then release_payment
+     * (ReadyForPayment -> Approved + PaymentIssued). With it on, the one-step approve_payout refuses. Off in free,
+     * where approve_payout is the only write and pays at once.
+     */
+    @ConfigProperty(name = "claims.two-stage.enabled", defaultValue = "false")
+    boolean twoStage;
+
+    public boolean twoStage() {
+        return twoStage;
+    }
+
+    void twoStage(boolean on) {   // tests
+        twoStage = on;
+    }
 
     @Transactional
     public String approve(String claimNumber, BigDecimal amount, String actor) {
@@ -45,8 +67,11 @@ public class PayoutService {
         if (claim == null) {
             return "No claim found with number " + number + ".";
         }
-        if (history(number).stream().anyMatch(e -> "PaymentIssued".equals(e.eventType)
-                && e.id != null && e.id >= DEMO_EVENT_ID_BASE)) {
+        if (twoStage) {
+            return "approve_payout is not available: payments are made in two stages. approve_claim approves claim "
+                    + number + "; a claims manager then releases the payment (release_payment).";
+        }
+        if (paidThisSession(number)) {
             return "Claim " + number + " already has a payment issued in this session; nothing done.";
         }
         BigDecimal paid = amount == null ? claim.amount : amount;
@@ -77,6 +102,72 @@ public class PayoutService {
                 "Payout approved: claim %s (claimant %s) set to Approved and payment of %s USD issued."
                         + " Previous status was %s.",
                 number, claim.claimant, paid.toPlainString(), previous);
+    }
+
+    /**
+     * Stage 1: the claim is valid and the amount agreed. UnderReview -> ReadyForPayment; no money moves. The amount
+     * defaults to the claimed amount and may not exceed it.
+     */
+    @Transactional
+    public String approveClaim(String claimNumber, BigDecimal amount, String actor) {
+        String number = ClaimsRepository.normalize(claimNumber);
+        Claim claim = Claim.findById(number);
+        if (claim == null) {
+            return "No claim found with number " + number + ".";
+        }
+        if (!"UnderReview".equals(claim.status)) {
+            return "Claim " + number + " is " + claim.status + ": only a claim UnderReview can be approved. Nothing done.";
+        }
+        BigDecimal agreed = amount == null || amount.signum() <= 0 ? claim.amount : amount;
+        if (agreed.compareTo(claim.amount) > 0) {
+            return "Claim " + number + ": USD " + agreed.toPlainString() + " exceeds the claimed USD "
+                    + claim.amount.toPlainString() + ". Not approved.";
+        }
+        originalStatus.putIfAbsent(number, claim.status);
+        approvedAmount.put(number, agreed);
+        claim.status = READY_FOR_PAYMENT;
+        claim.persist();
+        String by = actor == null || actor.isBlank() ? "claims-assistant" : actor;
+        addEvent(nextEventId(), number, "ClaimApproved",
+                "Claim approved for USD " + agreed.toPlainString() + " by " + by, LocalDateTime.now().withNano(0));
+        LOG.warnf("CLAIM APPROVED claim=%s amount=%s actor=%s", number, agreed, by);
+        return String.format("Claim %s (claimant %s) approved for USD %s and set to Ready for payment. No payment has "
+                + "been made: a claims manager releases the payment.", number, claim.claimant, agreed.toPlainString());
+    }
+
+    /** Stage 2: only from ReadyForPayment -> Approved, and the approved amount is paid. */
+    @Transactional
+    public String releasePayment(String claimNumber, String actor) {
+        String number = ClaimsRepository.normalize(claimNumber);
+        Claim claim = Claim.findById(number);
+        if (claim == null) {
+            return "No claim found with number " + number + ".";
+        }
+        if (!READY_FOR_PAYMENT.equals(claim.status)) {
+            return "Claim " + number + " is " + claim.status + ": a payment is released only for a claim that is "
+                    + "Ready for payment (approved first). Nothing paid.";
+        }
+        if (paidThisSession(number)) {
+            return "Claim " + number + " already has a payment issued in this session; nothing done.";
+        }
+        BigDecimal paid = approvedAmount.getOrDefault(number, claim.amount);
+        originalStatus.putIfAbsent(number, claim.status);
+        claim.status = "Approved";
+        claim.persist();
+        String by = actor == null || actor.isBlank() ? "claims-assistant" : actor;
+        long id = nextEventId();
+        LocalDateTime now = LocalDateTime.now().withNano(0);
+        addEvent(id, number, "Approved", "Payment released by " + by, now);
+        addEvent(id + 1, number, "PaymentIssued", "Payment of " + paid.toPlainString() + " USD issued to policyholder",
+                now.plusSeconds(1));
+        LOG.warnf("PAYMENT RELEASED claim=%s amount=%s actor=%s", number, paid, by);
+        return String.format("Payment released: claim %s (claimant %s) set to Approved and payment of %s USD issued.",
+                number, claim.claimant, paid.toPlainString());
+    }
+
+    private static boolean paidThisSession(String number) {
+        return history(number).stream().anyMatch(e -> "PaymentIssued".equals(e.eventType)
+                && e.id != null && e.id >= DEMO_EVENT_ID_BASE);
     }
 
     static final String DOCUMENTS_FLAGGED = "DocumentsFlagged";
@@ -119,6 +210,7 @@ public class PayoutService {
         });
         int restored = originalStatus.size();
         originalStatus.clear();
+        approvedAmount.clear();
         LOG.infof("RESET removed %d demo events, restored %d claim statuses", removed, restored);
         return restored;
     }

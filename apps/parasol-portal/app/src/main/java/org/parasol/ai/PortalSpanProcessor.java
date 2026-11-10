@@ -34,7 +34,7 @@ public class PortalSpanProcessor implements SpanProcessor {
     private static final String AISERVICE_PREFIX = "langchain4j.aiservices.";
     private static final ObjectMapper JSON = new ObjectMapper();
 
-    @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
+    @ConfigProperty(name = "portal.secured", defaultValue = "false")
     boolean secured;
 
     @Override

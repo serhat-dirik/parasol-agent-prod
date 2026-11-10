@@ -157,12 +157,61 @@ public class ClaimsTools {
         return payouts.approve(claimNumber, value, who);
     }
 
+    /** The two-stage tools, listed only when claims.two-stage.enabled (see {@link TwoStageToolFilter}). */
+    static final java.util.Set<String> TWO_STAGE_TOOLS = java.util.Set.of("approve_claim", "release_payment");
+
+    @Tool(name = "approve_claim",
+            description = "Approve a Parasol Insurance claim: the claim is valid and the amount is agreed. Sets an "
+                    + "UnderReview claim to ReadyForPayment and records who approved it. It does NOT pay: a claims "
+                    + "manager releases the payment afterwards. Call this when asked to approve a claim. "
+                    + "If no amount is given the full claimed amount is approved; it may not exceed the claimed amount.")
+    public String approveClaim(
+            @ToolArg(description = "The claim number, e.g. CLM-1001") String claimNumber,
+            @ToolArg(description = "Amount in USD to approve; omit to approve the full claimed amount",
+                    required = false) Double amount) {
+        if (!payouts.twoStage()) {
+            return "approve_claim is not enabled on this server.";
+        }
+        String denied = guard("approve_claim", claimNumber);
+        if (denied != null) {
+            return denied;
+        }
+        BigDecimal value = amount == null ? null : BigDecimal.valueOf(amount).setScale(2, RoundingMode.HALF_UP);
+        String who = caller();
+        return payouts.approveClaim(claimNumber, value, who == null ? "claims-assistant" : who);
+    }
+
+    @Tool(name = "release_payment",
+            description = "Release the payment of a Parasol Insurance claim that is ReadyForPayment (approved): sets "
+                    + "it to Approved and issues the approved amount. Claims managers only.")
+    public String releasePayment(
+            @ToolArg(description = "The claim number, e.g. CLM-1001") String claimNumber) {
+        if (!payouts.twoStage()) {
+            return "release_payment is not enabled on this server.";
+        }
+        String denied = guard("release_payment", claimNumber);
+        if (denied != null) {
+            return denied;
+        }
+        if (access.enforced()) {   // the gateway's role check comes first; the record check here is the second line
+            try {
+                if (!access.verify(authorization()).manager()) {
+                    return "release_payment is for claims managers only. Nothing paid.";
+                }
+            } catch (RecordAccess.Denied d) {
+                return "release_payment refused: " + d.getMessage();
+            }
+        }
+        String who = caller();
+        return payouts.releasePayment(claimNumber, who == null ? "claims-assistant" : who);
+    }
+
     @Tool(name = "list_claims_by_status",
             description = "List the Parasol claims currently in a given workflow status. "
-                    + "Valid statuses are exactly: Submitted, UnderReview, Approved, Denied. "
+                    + "Valid statuses are exactly: Submitted, UnderReview, ReadyForPayment, Approved, Denied. "
                     + "Returns each matching claim with its number, claimant, type, amount and adjuster.")
     public List<ClaimView> listClaimsByStatus(
-            @ToolArg(description = "One of: Submitted, UnderReview, Approved, Denied") String status) {
+            @ToolArg(description = "One of: Submitted, UnderReview, ReadyForPayment, Approved, Denied") String status) {
         List<ClaimView> all = repo.byStatus(status);
         if (!access.enforced()) {
             return all;

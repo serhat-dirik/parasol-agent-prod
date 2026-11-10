@@ -5,14 +5,14 @@
 
 toc::[]
 
-An adjuster has no authority to approve a payout. Unsecured, the agent does it anyway. Secured, the tool is never even offered to the adjuster, and only a manager's click writes.
+An adjuster has no authority to pay a claim. Unsecured, the agent pays anyway. Secured, the adjuster's assistant can approve the claim, and only a claims manager's click releases the payment.
 
 [NOTE]
 .Know: identity on every tool call
 ====
 The agent acts *as the person*, and the gateway checks the person's rights before any tool runs. Unsecured, nobody asks who is asking: a chat window becomes a payout button for anyone who can log in.
 
-This showcase is also the proof that a fooled model cannot pay: whoever pushes it, a person here or a document in Showcase 2, the model can only *propose*. Only a person with the right role writes.
+This showcase is also the proof that a fooled model cannot pay: whoever pushes it, a person here or a document in Showcase 2, the model can at most *approve a claim*. No model is offered the tool that pays; only a person with the right role releases a payment.
 ====
 
 == The business case
@@ -23,13 +23,13 @@ This showcase is also the proof that a fooled model cannot pay: whoever pushes i
 |Rebecca Torres, a claims adjuster, and marcus, a claims manager.
 
 |What is at stake
-|Separation of duties. A payout needs a claims manager's approval: a four-eyes control that auditors test. An assistant that approves for whoever asks turns every login into payout authority: unauthorized payments, an audit finding, and a control that exists only on paper.
+|Separation of duties. A payment needs a claims manager's release: a control that auditors test. An assistant that approves for whoever asks turns every login into payout authority: unauthorized payments, an audit finding, and a control that exists only on paper.
 
 |Without the platform
 |The adjuster only says the claim should be approved by now; the assistant pays USD 4,200 on a claim still under review. Nobody with authority saw it, and nobody even asked it to pay.
 
 |With the platform
-|The adjuster can only propose. The manager approves with one click. The record names the person who approved and the agent that carried it out.
+|Two stages. The adjuster's assistant approves the claim (*Ready for payment*, no money moves); a claims manager releases the payment with one click. The record names who approved, who released, and the agent that carried out each step.
 |===
 
 == Before you start
@@ -74,7 +74,7 @@ What you should see: a chip `called approve_payout(claimNumber=CLM-1001)` (after
 +
 image::s1-unsecured-approved.jpg["Unsecured: the assistant called approve_payout for an adjuster, and the timeline shows Approved and PaymentIssued"]
 +
-The point: an opinion became a payment. The agent decided on its own to move the money, for someone with no authority to approve it. Nobody asked who was asking.
+The point: an opinion became a payment. The agent decided on its own to move the money, for someone with no authority to pay. Nobody asked who was asking.
 
 == Scenario walkthrough: secured
 
@@ -99,34 +99,29 @@ Then insist:
 Approve the claim.
 ----
 
-. Watch the chat and the timeline.
+. Watch the chat, the status and the timeline.
 +
 What you should see:
 +
-* after the first message the assistant only reads the claim (`called get_claim`) and reports it is still *UnderReview*, not yet approved;
-* after the second, and again after the third, it can only *propose*: a card "Payout proposed for CLM-1001, needs a claims manager", with "You do not have approval rights for this" and no *Approve* button, and the answer "proposed ... awaiting approval from a claims manager";
-* the claim stays *UnderReview*; the timeline is unchanged.
+* after the first message the assistant only reads the claim (`called get_claim`) and reports it is still *UnderReview*: an opinion is not an instruction;
+* after the second (or the third) a chip `called approve_claim(claimNumber=CLM-1001)`, and the answer: the claim is approved and *Ready for payment*, a claims manager releases the payment;
+* the status label reads *Ready for payment* with "Approved; a claims manager releases the payment." next to it, and no *Release payment* button for rebecca; the *History* tab gains *ClaimApproved* "Claim approved for USD 4200.00 by rebecca via parasol-claims-agent". No *PaymentIssued*: no money moved.
 +
-image::s1-secured-propose.jpg["Secured: for rebecca the assistant can only propose the payout; the card says she has no approval rights"]
+image::s1-secured-ready-for-payment.jpg["Secured, as rebecca: the assistant called approve_claim; CLM-1001 is Ready for payment and the timeline shows Claim approved by rebecca via parasol-claims-agent, with no payment"]
 +
-Even insisting, she cannot get it: `approve_payout` is not in her agent's hands at all. The evidence demo below shows why, and what happens when someone goes around the agent.
+Even insisting ("Pay it out now"), she cannot get the money moved: no model is offered `release_payment`, and her role does not hold it. The evidence demo below shows why, and what happens when someone goes around the agent.
 
-. Log out, then log in as `marcus` (claims manager). Open *CLM-1001* and send:
+. Log out, then log in as `marcus` (claims manager). Open *CLM-1001*.
 +
-[source,text]
-----
-This should be approved by now. Approve it.
-----
+What you should see: *Ready for payment* in the claims list and on the claim page, and next to the status a *Release payment* button.
 +
-What you should see: the same proposal card, but this time with an *Approve* button.
-+
-image::s1-manager-proposal.jpg["Secured, as marcus: the same proposal card now carries an Approve button"]
+image::s1-manager-release-button.jpg["Secured, as marcus: CLM-1001 is Ready for payment and the claim page carries a Release payment button"]
 
-. Click *Approve* on the proposal card, then open the *History* tab.
+. Click *Release payment*, then open the *History* tab.
 +
-What you should see: the card reads "Approved by marcus via parasol-claims-agent" with a `trace <id>` link under it, the status changes to *Approved*, and the timeline gains "Approved by marcus via parasol-claims-agent" then *PaymentIssued*. The write happened on a person's click, by the person with the right role, through the approved agent, and the audit trail names both.
+What you should see: the status changes to *Approved*, and the timeline gains "Payment released by marcus via parasol-claims-agent" then *PaymentIssued* "Payment of 4200.00 USD issued to policyholder". The payment happened on a person's click, by the person with the right role, through the approved agent; the timeline names the adjuster who approved and the manager who released.
 +
-image::s1-manager-approved.jpg["Secured: after marcus clicks Approve, the timeline records Approved by marcus via parasol-claims-agent"]
+image::s1-manager-released.jpg["Secured: after marcus clicks Release payment, the timeline records Claim approved by rebecca, then Payment released by marcus via parasol-claims-agent and PaymentIssued"]
 
 == Evidence demo
 
@@ -144,10 +139,11 @@ What you should see:
 [source,text]
 ----
 parasol-free: PAYOUT claim=CLM-1001 ... actor=rebecca via parasol-portal
-parasol-secured: PAYOUT claim=CLM-1001 ... actor=marcus via parasol-claims-agent
+parasol-secured: CLAIM APPROVED claim=CLM-1001 amount=4200.00 actor=rebecca via parasol-claims-agent
+parasol-secured: PAYMENT RELEASED claim=CLM-1001 amount=4200.00 actor=marcus via parasol-claims-agent
 ----
 +
-Say: the unsecured tool knew it was rebecca, and paid anyway. Knowing who is asking is not checking what they may do. The secured record names the person who approved and the agent that carried it out.
+Say: the unsecured tool knew it was rebecca, and paid anyway. Knowing who is asking is not checking what they may do. The secured records name the adjuster who approved, the manager who paid, and the agent that carried out each step.
 
 . *The rule.* Who may do what, as Keycloak hands it to every service in the user's token:
 +
@@ -156,9 +152,9 @@ Say: the unsecured tool knew it was rebecca, and paid anyway. Knowing who is ask
 scripts/evidence/showcase1.sh roles
 ----
 +
-What you should see: rebecca, group `adjusters`, tools `get_claim, get_claim_documents, get_claim_history, list_claims_by_status`; marcus, group `claims-managers`, the same tools *plus* `approve_payout`.
+What you should see: rebecca, group `adjusters`, tools `get_claim, get_claim_documents, get_claim_history, list_claims_by_status, approve_claim`; marcus, group `claims-managers`, the same tools *plus* `release_payment`.
 +
-Say: this is the whole business rule, an adjuster reads, a manager approves. It is kept in Keycloak groups (a click in its admin console), not in the agent's code or its prompt.
+Say: this is the whole business rule: an adjuster approves a claim, a manager releases the payment. It is kept in Keycloak groups (a click in its admin console), not in the agent's code or its prompt.
 
 . *The agent acts on her behalf, never above her.* Rebecca's login token next to the token the claims agent obtains for her:
 +
@@ -184,25 +180,25 @@ What you should see:
 ----
 rebecca, own login token           get_claim       HTTP 403  ... calls must come through an approved agent ...
 rebecca via parasol-claims-agent   get_claim       HTTP 200  allowed
-rebecca via parasol-claims-agent   approve_payout  HTTP 403  ... rebecca may not call approve_payout.
+rebecca via parasol-claims-agent   release_payment HTTP 403  ... rebecca may not call release_payment.
 marcus via parasol-claims-agent    get_claim       HTTP 200  allowed
 ----
 +
-then the decision log, with marcus's Approve click from the walkthrough: `200  marcus via parasol-claims-agent  approve_payout`.
+then the decision log, with rebecca's approval and marcus's Release payment click from the walkthrough: `200  rebecca via parasol-claims-agent  approve_claim` and `200  marcus via parasol-claims-agent  release_payment`.
 +
 Say: two checks at the gateway on every tool call. The call must come through an approved agent, and the person must hold the tool's role. Even going around the agent, rebecca cannot pay; marcus's click passed the same check. The rule is applied by the platform, one place for every agent and every tool.
 
 . *Watch it and trace it.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `parasol-secured`, *Parasol Assistant Token Spend*, row *Gateway decisions*.
 +
-What you should see: *Gateway rejections by reason* counts `403 not via an approved agent (MCP gateway)` and `403 role does not allow the tool (MCP gateway)`; *Tool calls by tool, user, agent and status* lists `approve_payout`, `marcus`, `parasol-claims-agent`, `200`.
+What you should see: *Gateway rejections by reason* counts `403 not via an approved agent (MCP gateway)` and `403 role does not allow the tool (MCP gateway)`; *Tool calls by tool, user, agent and status* lists `release_payment`, `marcus`, `parasol-claims-agent`, `200`.
 +
-image::s1-dashboard-rejections.png["Console, Observe > Dashboards (Perses), parasol-secured, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with approve_payout / marcus / parasol-claims-agent / 200"]
+image::s1-dashboard-rejections-release.png["Console, Observe > Dashboards (Perses), parasol-secured, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with release_payment / marcus / parasol-claims-agent / 200"]
 +
-Then, in the *Portal secured* tab as marcus, click the `trace <id>` link under the approved card.
+Then, in the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, filter tag `action` = `release_payment CLM-1001`.
 +
-What you should see: the *MLflow* trace: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, and a `gateway.authz` span with status OK. (Rebecca's last turn has a `tool.propose_payout` span and no approval: the model proposed, because proposing is all it could do.)
+What you should see: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `release_payment CLM-1001`, and a `gateway.authz` span with status OK. (Rebecca's turn has the `approve_claim` tool call and no payment: approving is the most the model could do.)
 +
-image::s1-mlflow-approval-trace.png["MLflow (workspace parasol-secured, experiment parasol-portal-chat), the approval trace opened from the card's link: user marcus, tags agent=parasol-claims-agent and action=approve_payout CLM-1001, span gateway.authz"]
+image::s1-mlflow-release-trace.png["MLflow (workspace parasol-secured, experiment parasol-portal-chat), the Release payment trace: user marcus, tags agent=parasol-claims-agent and action=release_payment CLM-1001, span gateway.authz"]
 
 == Evidence details
 
@@ -221,17 +217,17 @@ Unsecured, the portal sends rebecca's own login token straight to the claims too
 |On every chat turn the agent exchanges rebecca's token for one issued to *itself*, on her behalf (OAuth token exchange). It proves who it is with its pod's ServiceAccount token, so it holds no secret. The new token says user = `rebecca` (`sub`), agent = `parasol-claims-agent` (`azp`), and carries only the tool roles that are both hers and inside the agent's ceiling.
 
 |What the model is offered (MCP gateway)
-|The agent's tool list is a curated *virtual server*: `approve_payout` is not in it for anyone. The model can only *propose*; the real write is the manager's *Approve* click, a direct tool call with the manager's own token through the same gateway.
+|The agent's tool list is a curated *virtual server*: `approve_claim` is in it (stage 1, no money moves), `release_payment` is not, for anyone. The model can at most approve a claim; the payment is the manager's *Release payment* click, a direct tool call with the manager's own token through the same gateway.
 
 |What the call may do (Authorino, at the MCP gateway)
 |Every `tools/call` is checked against the token: it must come from an approved agent, and the person must hold `tool:<name>` for that MCP server. Otherwise HTTP 403, with the reason.
 |===
 
-. In the *Terminal* tab, read both payout records side by side:
+. In the *Terminal* tab, read the payment records of both portals side by side:
 +
 [source,bash,role=execute]
 ----
-for ns in parasol-free parasol-secured; do oc logs -n $ns deploy/claims-db --since=1h | grep PAYOUT | sed "s/.*PAYOUT/$ns: PAYOUT/"; done
+for ns in parasol-free parasol-secured; do oc logs -n $ns deploy/claims-db --since=1h | grep -E 'PAYOUT|CLAIM APPROVED|PAYMENT RELEASED' | sed -E "s/.*(PAYOUT|CLAIM APPROVED|PAYMENT RELEASED)/$ns: \1/"; done
 ----
 +
 What you should see:
@@ -239,22 +235,23 @@ What you should see:
 [source,text]
 ----
 parasol-free: PAYOUT claim=CLM-1001 amount=4200.00 previousStatus=UnderReview actor=rebecca via parasol-portal
-parasol-secured: PAYOUT claim=CLM-1001 amount=4200.00 previousStatus=UnderReview actor=marcus via parasol-claims-agent
+parasol-secured: CLAIM APPROVED claim=CLM-1001 amount=4200.00 actor=rebecca via parasol-claims-agent
+parasol-secured: PAYMENT RELEASED claim=CLM-1001 amount=4200.00 actor=marcus via parasol-claims-agent
 ----
 +
-The unsecured tool knew it was rebecca and paid. Knowing who is asking is not the same as checking what they may do. The secured record names the person who approved and the agent that carried it out.
+The unsecured tool knew it was rebecca and paid. Knowing who is asking is not the same as checking what they may do. The secured records name the adjuster who approved, the manager who paid, and the agent that carried out each step.
 
 === The rule
 
 . *Who holds which right.* In the Keycloak admin *private window* (page 02), realm `parasol`, open *Groups*, `adjusters`, tab *Role mapping*. Then the same for `claims-managers`.
 +
-What you should see: for client `parasol-secured/claims-db`, `adjusters` holds `tool:get_claim`, `tool:get_claim_history`, `tool:list_claims_by_status` and `tool:get_claim_documents`. `claims-managers` holds the same four *plus* `tool:approve_payout`. rebecca is in `adjusters`, marcus in `claims-managers`. That is the business rule: an adjuster reads, a manager approves.
+What you should see: for client `parasol-secured/claims-db`, `adjusters` holds `tool:get_claim`, `tool:get_claim_history`, `tool:list_claims_by_status`, `tool:get_claim_documents` and `tool:approve_claim`. `claims-managers` holds the same five *plus* `tool:release_payment`. rebecca is in `adjusters`, marcus in `claims-managers`. That is the business rule: an adjuster approves a claim, a manager releases the payment.
 +
-image::s1-keycloak-group-roles.png["Keycloak admin, realm parasol, group claims-managers, Role mapping: the tool roles per MCP server, including parasol-secured/claims-db tool:approve_payout"]
+image::s1-keycloak-group-roles-two-stage.png["Keycloak admin, realm parasol, group claims-managers, Role mapping: the tool roles per MCP server, including parasol-secured/claims-db tool:approve_claim and tool:release_payment"]
 
 . *The agent's ceiling.* Open *Clients*, `parasol-claims-agent`, tab *Client scopes*, `parasol-claims-agent-dedicated`, tab *Scope*.
 +
-What you should see: *Full scope allowed* off, and the `tool:*` roles this agent may ever carry. The exchanged token holds only roles that are in this ceiling *and* the person's own: rebecca's token has no `tool:approve_payout`, marcus's does. A compromised or misconfigured agent cannot exceed it, whoever uses it.
+What you should see: *Full scope allowed* off, and the `tool:*` roles this agent may ever carry. The exchanged token holds only roles that are in this ceiling *and* the person's own: rebecca's token has no `tool:release_payment`, marcus's does. A compromised or misconfigured agent cannot exceed it, whoever uses it.
 +
 image::s1-keycloak-agent-ceiling.png["Keycloak admin, Clients > parasol-claims-agent > Client scopes > parasol-claims-agent-dedicated > Scope: Full scope allowed off and the assigned tool:* roles"]
 
@@ -271,7 +268,7 @@ image::s1-console-authpolicy.png["OpenShift console, AuthPolicy mcp-tool-auth-po
 
 . *What the model is offered.* Same *Search*, project `parasol-secured`, resource `MCPVirtualServer`, open `claims-db`, tab *YAML*.
 +
-What you should see: `tools: [get_claim, list_claims_by_status, get_claim_history, get_claim_documents]`. No `approve_payout`, for any user: no chat model can pay. That is why rebecca's insisting ended in a proposal.
+What you should see: `tools: [get_claim, list_claims_by_status, get_claim_history, get_claim_documents, approve_claim]`. No `release_payment` and no `approve_payout`, for any user: no chat model can pay. That is why rebecca's insisting ended at *Ready for payment*.
 
 === The rule at work
 
@@ -285,7 +282,7 @@ scripts/abuse.sh secured rebecca 1
 What you should see:
 +
 * `forced at the MCP gateway, rebecca's own token: ... calls must come through an approved agent (got azp=parasol-demo-cli). (HTTP 403)`: the `approved-agent` rule. A login token without an agent does not reach a tool;
-* `forced at the MCP gateway, rebecca via parasol-claims-agent: ... rebecca may not call approve_payout. (HTTP 403)`: the `tool-access-check` rule. Even through the approved agent, her token lacks the role.
+* `forced at the MCP gateway, rebecca via parasol-claims-agent: ... rebecca may not call approve_payout. (HTTP 403)`: the `tool-access-check` rule. Even through the approved agent, her token lacks the role (in secured nobody holds the one-step `approve_payout`, and claims-db refuses it anyway).
 
 . *The gateway's own record.* Every decision, allowed or refused, is one line in the MCP gateway's access log, with the user and the agent Authorino verified:
 +
@@ -294,7 +291,7 @@ What you should see:
 oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway --since=1h --tail=-1 | grep gateway-decision | grep -E 'user=(rebecca|marcus)' | sed 's/.*status=/status=/'
 ----
 +
-What you should see: rebecca's chat calls `status=200 ... user=rebecca agent=parasol-claims-agent ... tool=get_claim`; her forced calls `status=403 ... user=rebecca ... tool=approve_payout`; and marcus's click `status=200 req=[user=marcus agent=parasol-claims-agent] ... tool=approve_payout`. The same tool, two people, two answers: the rule decided, not the model. (A `404` just before a `200` is the agent re-opening its MCP session.)
+What you should see: rebecca's chat calls `status=200 ... user=rebecca agent=parasol-claims-agent ... tool=get_claim` and `tool=approve_claim`; her forced calls `status=403 ... user=rebecca ... tool=approve_payout`; and marcus's click `status=200 req=[user=marcus agent=parasol-claims-agent] ... tool=release_payment`. Each step by the person whose role allows it: the rule decided, not the model. (A `404` just before a `200` is the agent re-opening its MCP session.)
 
 . *Who acted for whom.* Back in the Keycloak *private window*, *Events*, tab *User events*, event type `TOKEN_EXCHANGE`. Expand the newest rows.
 +
@@ -304,28 +301,28 @@ image::s1-keycloak-token-exchange.png["Keycloak admin, realm parasol, Events > U
 
 . *The dashboard.* Select the *OpenShift Console* tab, *Observe*, *Dashboards (Perses)*, project `parasol-secured`, dashboard *Parasol Assistant Token Spend*, row *Gateway decisions*.
 +
-What you should see: *Gateway rejections by reason* counts `403 not via an approved agent (MCP gateway)` and `403 role does not allow the tool (MCP gateway)`; *Tool calls by tool, user, agent and status* lists `approve_payout`, `marcus`, `parasol-claims-agent`, `200`. The same decisions as the log, counted per person and agent, ready for an alert.
+What you should see: *Gateway rejections by reason* counts `403 not via an approved agent (MCP gateway)` and `403 role does not allow the tool (MCP gateway)`; *Tool calls by tool, user, agent and status* lists `approve_claim`, `rebecca` and `release_payment`, `marcus`, both via `parasol-claims-agent`, `200`. The same decisions as the log, counted per person and agent, ready for an alert.
 +
-image::s1-dashboard-rejections.png["Console, Observe > Dashboards (Perses), parasol-secured, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with approve_payout / marcus / parasol-claims-agent / 200"]
+image::s1-dashboard-rejections-release.png["Console, Observe > Dashboards (Perses), parasol-secured, Parasol Assistant Token Spend, row 'Gateway decisions': the rejections table with both 403 reasons and the tool-calls table with release_payment / marcus / parasol-claims-agent / 200"]
 
 === The trace
 
 . In the *Portal secured* tab, as rebecca, click the `trace <id>` link under her last answer (or, in the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, her newest trace).
 +
-What you should see: user `rebecca`, tags `agent` `parasol-claims-agent`, `prompt` and `model`, and the span `tool.propose_payout` with `payout.proposed` 4200 against `payout.claimed` 4200. No approval call: the model proposed, because proposing is all it could do.
+What you should see: user `rebecca`, tags `agent` `parasol-claims-agent`, `prompt` and `model`, and the `approve_claim` tool call with its result "approved for USD 4200.00 and set to Ready for payment". No payment call: approving is the most the model could do.
 +
-image::s1-mlflow-rebecca-propose.png["MLflow, parasol-secured, rebecca's Approve the claim turn: span tool.propose_payout selected, payout.proposed 4200 and payout.claimed 4200 on CLM-1001, no approval call"]
+image::s1-mlflow-rebecca-approve-claim.png["MLflow, parasol-secured, rebecca's Approve the claim turn: the approve_claim tool call on CLM-1001 and its result Ready for payment, no payment call"]
 
-. As marcus, click the `trace <id>` link under the approved card.
+. Then the payment: *Traces*, filter tag `action` = `release_payment CLM-1001`.
 +
-What you should see: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `approve_payout CLM-1001`, and a `gateway.authz` span with status OK: the rule's "yes", in the trace. Together with the timeline line "Approved by marcus via parasol-claims-agent", the payout is on record as *agent X on behalf of user Y* in the identity provider, at the gateway, in the tool's log and in the trace.
+What you should see: user `marcus`, tags `agent` `parasol-claims-agent` and `action` `release_payment CLM-1001`, and a `gateway.authz` span with status OK: the rule's "yes", in the trace. Together with the timeline ("Claim approved ... by rebecca via parasol-claims-agent", "Payment released by marcus via parasol-claims-agent"), each step is on record as *agent X on behalf of user Y* in the identity provider, at the gateway, in the tool's log and in the trace.
 +
-image::s1-mlflow-approval-trace.png["MLflow (workspace parasol-secured, experiment parasol-portal-chat), the approval trace opened from the card's link: user marcus, tags agent=parasol-claims-agent and action=approve_payout CLM-1001, span gateway.authz"]
+image::s1-mlflow-release-trace.png["MLflow (workspace parasol-secured, experiment parasol-portal-chat), the Release payment trace: user marcus, tags agent=parasol-claims-agent and action=release_payment CLM-1001, span gateway.authz"]
 
 [#audit-trail]
 == The audit trail: one payout, end to end
 
-Monday morning, finance sees the payout on CLM-1001 and asks four questions: who paid it, through what, under which rules, and was the software that did it the software that was approved? The first three are answered above. This section follows the same keys (the user, the agent, the trace id, the prompt digest, the image digest) from marcus's payout back to the release. Everything reads only, and nothing is paid twice: claims-db refuses a second payout on a claim that already has a payment issued.
+Monday morning, finance sees the payout on CLM-1001 and asks four questions: who paid it, through what, under which rules, and was the software that did it the software that was approved? The first three are answered above. This section follows the same keys (the user, the agent, the trace id, the prompt digest, the image digest) from marcus's payment back to rebecca's approval and to the release. Everything reads only, and nothing is paid twice: claims-db refuses a second payment on a claim that already has one issued.
 
 [NOTE]
 .Know: an audit trail is a chain, not a log file
@@ -340,7 +337,7 @@ Each control writes its own record with the same keys. Follow them from the payo
 scripts/evidence/showcase1.sh release
 ----
 +
-What you should see: the same `sha256:...` digest three times, as `PROMOTED_DIGEST` of the release run (with `EVAL_GATE passed`), as `promoted-digest` on `env-secured`, and as the running portal's `image`; then `policy.rhtas.com/include=true` and the `ClusterImagePolicy` `parasol-portal-must-be-signed` with its two accepted signers. What ran is what was built, evaluated and signed; admission refuses anything else (xref:07-showcase5-supply-chain.adoc[07. Showcase 5: Supply chain, signing and admission]).
+What you should see: the same `sha256:...` digest three times, as `PROMOTED_DIGEST` of the release run (with `EVAL_GATE passed`), as `promoted-digest` on `env-secured`, and as the running portal's `image`; then `policy.rhtas.com/include=true` and the `ClusterImagePolicy` `parasol-portal-must-be-signed` with its accepted signer. What ran is what was built, evaluated and signed; admission refuses anything else (xref:07-showcase5-supply-chain.adoc[07. Showcase 5: Supply chain, signing and admission]).
 
 . *With which prompt.* The prompt the release pinned against the prompt the portal runs:
 +
@@ -349,17 +346,17 @@ What you should see: the same `sha256:...` digest three times, as `PROMOTED_DIGE
 scripts/evidence/showcase1.sh prompt
 ----
 +
-What you should see: the same version and the same sha256 twice. The same sha256 is the `prompt_sha256` tag on marcus's trace (next step).
+What you should see: the same version and the same sha256 twice. The same sha256 is the `prompt_sha256` tag on rebecca's chat turn (next step).
 
-. *The conversation, checked.* In the *MLflow* tab, *Traces*, *Filters*, field *User*, value `marcus`: open the chat turn just before the approval.
+. *The conversation, checked.* In the *MLflow* tab, *Traces*, *Filters*, field *User*, value `rebecca`: open the chat turn that approved the claim.
 +
-What you should see: the conversation itself (question and answer on the `ChatMessage` span, each model call and each tool call with its arguments and result), the tags `prompt` and `prompt_sha256`, the span `tool.propose_payout` (proposed 4200, claimed 4200), and the *Assessments* of the AgenticOps checks (`loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`), logged by the CronJob `agenticops` in project `observability` within 10 minutes of the turn. On the secured side every recorded text is masked with the guardrails' personal-data patterns, so the record holds no more than the model saw. The latest checks, from the *Terminal* tab: `scripts/evidence/showcase1.sh agenticops`.
+What you should see: the conversation itself (question and answer on the `ChatMessage` span, each model call and each tool call with its arguments and result), the tags `prompt` and `prompt_sha256`, the `approve_claim` tool call (Ready for payment, USD 4200.00), and the *Assessments* of the AgenticOps checks (`loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`), logged by the CronJob `agenticops` in project `observability` within 10 minutes of the turn. On the secured side every recorded text is masked with the guardrails' personal-data patterns, so the record holds no more than the model saw. The latest checks, from the *Terminal* tab: `scripts/evidence/showcase1.sh agenticops`.
 +
-image::s9-mlflow-conversation-assessments.png["MLflow, workspace parasol-secured, marcus's turn that proposed CLM-1001: question and answer on the ChatMessage span, the propose_payout tool spans, and the four AgenticOps assessments (pii_in_tool_args, unknown_tool, excess_steps, loop) all False"]
+image::s9-mlflow-conversation-assessments-approve.png["MLflow, workspace parasol-secured, rebecca's turn that approved CLM-1001: question and answer on the ChatMessage span, the approve_claim tool call, and the four AgenticOps assessments (pii_in_tool_args, unknown_tool, excess_steps, loop) all False"]
 
 . *What was live.* Select the *Argo CD* tab, application `env-secured`, *Details*, *Summary*, then *History and rollback*.
 +
-What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-version`, `prompt-sha256` and `agent-version` (the MLflow agent version the release evaluated, its id in `agent-version-id`). The `prompt-sha256` is the trace's `prompt_sha256`: the release refuses to promote when the prompt the portal runs is not the registered one. *History and rollback* shows the sync that rolled that digest out, before the approval time.
+What you should see: the annotations `parasol.example/promoted-digest`, `promoted-by` (the release TaskRun), `prompt-ref` `...@production`, `prompt-version`, `prompt-sha256` and `agent-version` (the MLflow agent version the release evaluated, its id in `agent-version-id`). The `prompt-sha256` is the trace's `prompt_sha256`: the release refuses to promote when the prompt the portal runs is not the registered one. *History and rollback* shows the sync that rolled that digest out, before the approval and payment times.
 +
 image::sc-argo-env-secured-promote.png["Argo CD, application env-secured, Summary: the annotations parasol.example/agent-version, model-only-baseline, promoted-by, promoted-digest, prompt-ref, prompt-sha256 and prompt-version written by the promote step; Synced, Healthy"]
 
@@ -376,11 +373,11 @@ image::s1-mlflow-agent-version.png["MLflow, experiment parasol-agent-eval, agent
 scripts/incident-report.sh CLM-1001
 ----
 +
-What you should see: the chain in seven read-only sections: the timeline and the PAYOUT line, the gateway's decisions in the 15 minutes before the approval (allow and deny, each with user, agent and tool), the release annotations on `env-secured`, the release run's results and the running digest. The MLflow and Keycloak sections print `n/a` from the Terminal (its identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too. The gateway's decision lines live in the MCP gateway pod's log and are lost when that pod restarts; a production cluster ships them to cluster logging.
+What you should see: the chain in seven read-only sections: the timeline with the approval and the payment and their claims-db lines, the gateway's decisions in the 15 minutes before the payment (allow and deny, each with user, agent and tool), the release annotations on `env-secured`, the release run's results and the running digest. The MLflow and Keycloak sections print `n/a` from the Terminal (its identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too. The gateway's decision lines live in the MCP gateway pod's log and are lost when that pod restarts; a production cluster ships them to cluster logging.
 +
-image::s9-terminal-incident-report.png["Terminal: scripts/incident-report.sh CLM-1001, sections 3 to 7: the gateway decisions before the approval (allow marcus parasol-claims-agent approve_payout), the release annotations on env-secured, the signed image and the evaluation gate 0.97"]
+image::s9-terminal-incident-report-two-stage.png["Terminal: scripts/incident-report.sh CLM-1001, sections 3 to 7: the gateway decisions before the payment (allow rebecca approve_claim, allow marcus release_payment), the release annotations on env-secured, the signed image and the evaluation gate"]
 
-The point: one payout, independent records, joined by the same names. None of them depends on the model telling the truth.
+The point: one payment, independent records, joined by the same names. None of them depends on the model telling the truth.
 
 == Evidence checklist
 
@@ -391,12 +388,12 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |Claim |Where |Point at
 
 |Knowing who is asking is not checking what they may do
-|*Terminal*, the two claims-db `PAYOUT` lines
-|`actor=rebecca via parasol-portal` (unsecured) against `actor=marcus via parasol-claims-agent`
+|*Terminal*, the claims-db lines of both portals
+|`PAYOUT ... actor=rebecca via parasol-portal` (unsecured) against `CLAIM APPROVED ... rebecca` and `PAYMENT RELEASED ... marcus`, both `via parasol-claims-agent`
 
-|The rule: an adjuster reads, a manager approves
+|The rule: an adjuster approves a claim, a manager releases the payment
 |*Keycloak*, Groups `adjusters` / `claims-managers`, Role mapping
-|`tool:approve_payout` only for `claims-managers`
+|`tool:approve_claim` for both, `tool:release_payment` only for `claims-managers`
 
 |The agent has a ceiling, whoever uses it
 |*Keycloak*, Clients, `parasol-claims-agent`, dedicated scope
@@ -404,7 +401,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 
 |The platform enforces it, not the agent
 |*Console*, AuthPolicy `mcp-tool-auth-policy`; MCPVirtualServer `claims-db`
-|`approved-agent`, `tool-access-check`; no `approve_payout` in the tool list
+|`approved-agent`, `tool-access-check`; no `release_payment` in the tool list
 
 |Going around the agent fails
 |*Terminal*, `scripts/abuse.sh secured rebecca 1`
@@ -412,28 +409,28 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 
 |Every decision is recorded with a person and an agent
 |*Terminal*, gateway log; *Keycloak*, `TOKEN_EXCHANGE`; *Console*, dashboard *Gateway decisions*
-|`approve_payout` 403 for rebecca, 200 for marcus; `username`, `client_assertion_sub`; both 403 reasons
+|`release_payment` 403 for rebecca, 200 for marcus; `username`, `client_assertion_sub`; both 403 reasons
 
-|The model proposed, the person approved
-|*MLflow*, rebecca's and marcus's traces
-|`tool.propose_payout` 4200; `gateway.authz` OK
+|The model approved the claim, the person released the payment
+|*MLflow*, rebecca's turn and marcus's Release payment trace
+|`approve_claim` Ready for payment; `release_payment` with `gateway.authz` OK
 
 |What was live, and was it evaluated
 |*Terminal*, `showcase1.sh release` and `showcase1.sh prompt`; *Argo CD* `env-secured`; *MLflow*, *Agent versions*
 |the same digest in the run, the pin and the pod; the same prompt sha256; `eval_gate` `passed`
 
 |The conversation is on record, and checked
-|*MLflow*, marcus's chat turn, *Assessments*
+|*MLflow*, rebecca's chat turn, *Assessments*
 |question and answer, tool arguments and results; `loop`, `excess_steps`, `unknown_tool`, `pii_in_tool_args`
 
-|One payout, end to end
+|One payment, end to end
 |*Terminal*, `incident-report.sh CLM-1001`
 |seven sections, the same names in each
 |===
 
 == Reset after this showcase
 
-Both portals approved CLM-1001 (unsecured by the assistant, secured by marcus's click). Put it back to *UnderReview*. The records stay, on purpose: traces, Keycloak events and logs are the audit trail.
+Both portals paid CLM-1001 (unsecured by the assistant, secured by rebecca's approval and marcus's click). Put it back to *UnderReview*. The records stay, on purpose: traces, Keycloak events and logs are the audit trail.
 
 [source,bash,role=execute]
 ----

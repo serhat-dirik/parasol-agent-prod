@@ -8,7 +8,6 @@ import dev.langchain4j.service.V;
 import dev.langchain4j.service.tool.ToolErrorContext;
 import io.quarkiverse.langchain4j.HandleToolExecutionError;
 import io.quarkiverse.langchain4j.RegisterAiService;
-import io.quarkiverse.langchain4j.ToolBox;
 import io.quarkiverse.langchain4j.mcp.runtime.McpToolBox;
 
 /**
@@ -65,18 +64,4 @@ public interface ClaimsAssistant {
     Result<String> ask(@MemoryId String conversationId,
                        @V("systemPrompt") String systemPrompt,
                        @UserMessage String question);
-
-    /**
-     * The SECURED variant: the same MCP tools PLUS the local {@link ProposePayoutTool}. Selected by
-     * {@code portal.propose.enabled} so the free environment uses {@link #ask} and never sees the
-     * propose tool (its behaviour stays byte-identical - it pays directly via the real MCP
-     * approve_payout). In secured the gateway filters the real approve_payout out of an adjuster's
-     * tools, so the model can only PROPOSE here (Read-Propose-Act, A2).
-     */
-    @SystemMessage("{systemPrompt}")
-    @McpToolBox({"claims-db", "policy-docs", "fraud-check", "knowledge-base", "currency-converter"})
-    @ToolBox(ProposePayoutTool.class)
-    Result<String> askWithPropose(@MemoryId String conversationId,
-                                  @V("systemPrompt") String systemPrompt,
-                                  @UserMessage String question);
 }

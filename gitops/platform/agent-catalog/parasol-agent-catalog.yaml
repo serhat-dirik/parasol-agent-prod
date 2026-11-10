@@ -47,7 +47,7 @@ data:
           the user's token at Keycloak as `parasol-claims-agent` (its ServiceAccount is the credential, no client
           secret) and calls tools on behalf of the user; the gateway lists and allows only the tools the person's
           roles grant: claims-db, policy-docs, knowledge-base, fraud-check.
-        - **Writes:** `approve_payout` is proposed in chat and performed by a claims manager's Approve click.
+        - **Writes:** the assistant approves a claim (`approve_claim`, Ready for payment); a claims manager releases the payment with a click on the claim page (`release_payment`, never in the assistant's tool list).
         - **Observability:** OpenTelemetry traces to MLflow and Tempo, token metrics per user.
 
         ## Environments

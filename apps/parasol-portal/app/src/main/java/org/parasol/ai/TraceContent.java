@@ -58,7 +58,7 @@ public class TraceContent implements ChatModelSpanContributor {
             "payment card", Pattern.compile("\\b\\d{4}[ -]?\\d{4}[ -]?\\d{4}[ -]?\\d{4}\\b"));
 
     /** Secured (the controlled environment): record masked text. Free records nothing anyway (no exporter). */
-    @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
+    @ConfigProperty(name = "portal.secured", defaultValue = "false")
     boolean secured;
 
     static String mask(String text) {

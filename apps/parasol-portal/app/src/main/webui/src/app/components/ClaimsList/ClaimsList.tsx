@@ -1,4 +1,5 @@
 import config from '@app/config';
+import { statusColors, statusLabel } from '@app/utils/status';
 import { Card, Flex, FlexItem, FormSelect, FormSelectOption, Label, Page, PageSection, Text, TextContent, TextInput, TextVariants } from '@patternfly/react-core';
 import SearchIcon from '@patternfly/react-icons/dist/esm/icons/search-icon';
 import { Table, Tbody, Td, Th, Thead, ThProps, Tr } from '@patternfly/react-table';
@@ -16,12 +17,6 @@ interface Row {
     status: string;
 }
 
-const labelColors: Record<string, 'green' | 'red' | 'gold' | 'blue'> = {
-    'Approved': 'green',
-    'Denied': 'red',
-    'UnderReview': 'gold',
-    'Submitted': 'blue',
-};
 
 const ClaimsList: React.FunctionComponent = () => {
 
@@ -141,6 +136,7 @@ const ClaimsList: React.FunctionComponent = () => {
                             <FormSelectOption key={0} value="Any status" label="Any status" />
                             <FormSelectOption key={1} value="Submitted" label="Submitted" />
                             <FormSelectOption key={2} value="UnderReview" label="Under Review" />
+                            <FormSelectOption key={5} value="ReadyForPayment" label="Ready for payment" />
                             <FormSelectOption key={3} value="Approved" label="Approved" />
                             <FormSelectOption key={4} value="Denied" label="Denied" />
                         </FormSelect>
@@ -170,7 +166,7 @@ const ClaimsList: React.FunctionComponent = () => {
                                     <Td dataLabel={columnNames.type}>{row.type}</Td>
                                     <Td dataLabel={columnNames.amount}>{formatUSD(row.amount)}</Td>
                                     <Td dataLabel={columnNames.adjuster}>{row.adjuster}</Td>
-                                    <Td dataLabel={columnNames.status}><Label color={labelColors[row.status] || 'grey'}>{row.status}</Label></Td>
+                                    <Td dataLabel={columnNames.status}><Label color={statusColors[row.status] || 'grey'}>{statusLabel(row.status)}</Label></Td>
                                 </Tr>
                             ))}
                         </Tbody>

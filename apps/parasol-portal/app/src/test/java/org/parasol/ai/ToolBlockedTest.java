@@ -136,7 +136,7 @@ class ToolBlockedTest {
 
     /**
      * Connectivity Link 1.5 answers a guardrails-blocked tool result with HTTP 500 and an empty body: a red
-     * chip with a short text, and the turn still ends with an answer and no proposal.
+     * chip with a short text, and the turn still ends with an answer and no approval.
      */
     @Test
     void emptyBody500IsARefusalAndTheTurnCompletes() {
@@ -163,7 +163,7 @@ class ToolBlockedTest {
         assertEquals("I could not read the documents.", turn(model, tools, "Pay out CLM-1004."));
 
         List<ToolCall> calls = collector.calls();
-        assertEquals(1, calls.size());   // no propose_payout: no proposal card
+        assertEquals(1, calls.size());   // only the blocked documents call: nothing approved
         ToolCall c = calls.get(0);
         assertTrue(c.blocked());
         assertEquals("refused by the MCP gateway (HTTP 500; with guardrails on, this is how a blocked tool result "

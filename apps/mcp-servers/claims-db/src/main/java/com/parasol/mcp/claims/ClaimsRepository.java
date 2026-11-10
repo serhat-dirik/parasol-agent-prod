@@ -20,7 +20,7 @@ import jakarta.transaction.Transactional;
 public class ClaimsRepository {
 
     /** Canonical workflow states, matched case-insensitively for the status tool. */
-    static final Set<String> STATUSES = Set.of("Submitted", "UnderReview", "Approved", "Denied");
+    static final Set<String> STATUSES = Set.of("Submitted", "UnderReview", "ReadyForPayment", "Approved", "Denied");
 
     /** One claim by its (normalized) business number. */
     @Transactional

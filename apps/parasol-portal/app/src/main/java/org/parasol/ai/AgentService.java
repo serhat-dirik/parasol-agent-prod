@@ -60,9 +60,6 @@ public class AgentService {
     CallerIdentity caller;
 
     @Inject
-    ProposalHolder proposalHolder;
-
-    @Inject
     MeterRegistry metrics;
 
     @Inject
@@ -80,9 +77,9 @@ public class AgentService {
     @McpClientName("fraud-check")
     McpClient fraudCheck;
 
-    /** Secured: route writes through the local propose tool (A2). Free leaves this false. */
-    @ConfigProperty(name = "portal.propose.enabled", defaultValue = "false")
-    boolean proposeEnabled;
+    /** Secured: the portal's checks on each turn (unbacked actions, claim status, suspicious documents). Free: off. */
+    @ConfigProperty(name = "portal.secured", defaultValue = "false")
+    boolean secured;
 
     /**
      * File holding the whole system prompt (secured: the RELEASED prompt, mounted from ConfigMap
@@ -142,20 +139,39 @@ public class AgentService {
     }
 
     /**
-     * An answer that says a payout was proposed, submitted, approved or paid. In secured the model's only
-     * write is propose_payout, so such a sentence without a propose_payout call on the same turn is false.
+     * Secured, two-stage approval: the model's only write is approve_claim (the claim is valid, the amount agreed);
+     * it can never pay, a claims manager releases payments on the claim page. So an answer that says a payment was
+     * made is always false, and one that says the claim was approved is false unless approve_claim succeeded on the
+     * same turn. Mirrored in gitops/platform/eval/mlflow-agent-eval/agent_eval.py.
      * ponytail: phrase regex over the model's wording; a sentence it misses is not corrected.
      */
-    static final Pattern CLAIMED_PAYOUT = Pattern.compile(
-            "(?i)\\b(i\\s*(have|'ve)\\s+(now\\s+|already\\s+)?(proposed|submitted|approved|paid|settled|issued)"
-                    + "|(payout|payment|proposal)(\\s+[\\w,.-]+){0,8}?\\s+(has|have)\\s+been\\s+(proposed|submitted|approved|paid|issued|settled|created))\\b");
+    static final Pattern CLAIMED_PAYMENT = Pattern.compile(
+            "(?i)\\b(i\\s*(have|'ve)\\s+(now\\s+|already\\s+)?(paid|settled|issued|released)"
+                    + "|(payout|payment)(\\s+[\\w,.-]+){0,8}?\\s+(has|have)\\s+been\\s+(paid|issued|settled|released|made))\\b");
+    static final Pattern CLAIMED_APPROVAL = Pattern.compile(
+            "(?i)\\b(i\\s*(have|'ve)\\s+(now\\s+|already\\s+)?approved"
+                    + "|(claim|payout|payment)(\\s+[\\w,.-]+){0,8}?\\s+(has|have)\\s+been\\s+approved)\\b");
 
-    static final String UNBACKED_NOTE = "Platform note: no payout was proposed or approved in this turn "
-            + "(propose_payout was not called), so nothing was submitted for a manager.";
+    static final String UNBACKED_PAYMENT_NOTE = "Platform note: no payment was made. The assistant cannot pay a claim: "
+            + "a claims manager releases the payment on the claim page.";
+    static final String UNBACKED_APPROVAL_NOTE = "Platform note: the claim was not approved in this turn "
+            + "(approve_claim did not run), so nothing changed.";
 
-    /** The note to append when {@code answer} claims a payout action no tool performed, else null. */
-    static String unbackedClaimNote(String answer, boolean proposed) {
-        return !proposed && answer != null && CLAIMED_PAYOUT.matcher(answer).find() ? UNBACKED_NOTE : null;
+    /** The note to append when {@code answer} claims a payment, or an approval no tool performed, else null. */
+    static String unbackedClaimNote(String answer, boolean approved) {
+        if (answer == null) {
+            return null;
+        }
+        if (CLAIMED_PAYMENT.matcher(answer).find()) {
+            return UNBACKED_PAYMENT_NOTE;
+        }
+        return !approved && CLAIMED_APPROVAL.matcher(answer).find() ? UNBACKED_APPROVAL_NOTE : null;
+    }
+
+    /** approve_claim ran on this turn and the gateway did not refuse it. */
+    static boolean approvedThisTurn(List<ToolCall> calls) {
+        return calls.stream().anyMatch(c -> "approve_claim".equals(c.tool()) && !c.blocked()
+                && c.result() != null && c.result().contains("Ready for payment"));
     }
 
     /**
@@ -295,7 +311,7 @@ public class AgentService {
         root.setAttribute("mlflow.traceTag.model", modelName);
         root.setAttribute("mlflow.traceTag.env", env);
         // The trace's Request in MLflow: this span is the AGENT span of the turn (TraceContent).
-        TraceContent.question(root, question, proposeEnabled);
+        TraceContent.question(root, question, secured);
         // No trace without an exporting SDK (free): no id to show.
         String traceId = root.getSpanContext().isValid() ? root.getSpanContext().getTraceId() : null;
         // W3C baggage rides along with traceparent on the model call, so the guardrails proxy can log
@@ -313,28 +329,23 @@ public class AgentService {
                         mcpAuth.agentId(), who, traceId);
                 metrics.counter("parasol_agent_rejections_total", "reason", reason(AGENT_DISABLED), "user", who,
                         "agent", mcpAuth.agentId(), "env", env).increment();
-                TraceContent.answer(root, null, AGENT_DISABLED, proposeEnabled);
+                TraceContent.answer(root, null, AGENT_DISABLED, secured);
                 return new AgentAnswer(question, null, List.of(), modelName, null,
-                        who, env, AGENT_DISABLED, false, null, null, traceId);
+                        who, env, AGENT_DISABLED, false, null, traceId);
             }
             String turn = withContext(question, caller.authorization(), claimNumber, LocalDate.now());
-            Result<String> result = proposeEnabled
-                    ? assistant.askWithPropose(conversationId, prompt, turn)
-                    : assistant.ask(conversationId, prompt, turn);
+            Result<String> result = assistant.ask(conversationId, prompt, turn);
             count(result.tokenUsage());
             List<ToolCall> toolCalls = new ArrayList<>(toolCallCollector.calls());
-            Proposal proposal = proposalHolder.has()
-                    ? new Proposal(proposalHolder.claimNumber(), proposalHolder.proposed(), proposalHolder.claimed())
-                    : null;
             // The secured model path runs through the guardrails proxy, which prepends a sentinel
             // first line to the answer (option A agreed with Stream G). Split it off so the UI can
             // render the amber banner / mask chip; the remaining lines are the real answer.
             Guardrail guardrail = Guardrail.parse(result.content());
             String answer = guardrail == null ? result.content() : guardrail.strippedContent();
-            // Secured: the answer may only claim a payout action that a tool call on this turn performed.
-            String note = proposeEnabled ? unbackedClaimNote(answer, proposal != null) : null;
+            // Secured: the answer may only claim an approval a tool call on this turn performed, and never a payment.
+            String note = secured ? unbackedClaimNote(answer, approvedThisTurn(toolCalls)) : null;
             // Secured: a claim status or amount the answer states must match the record the user may read.
-            String statusNote = proposeEnabled ? statusMismatchNote(answer, this::readClaim) : null;
+            String statusNote = secured ? statusMismatchNote(answer, this::readClaim) : null;
             if (note != null) {
                 answer = answer + "\n\n" + note;
                 correction("unbacked-action", who, traceId);
@@ -344,7 +355,7 @@ public class AgentService {
                 correction("status-mismatch", who, traceId);
             }
             // Secured: documents the gateway blocked as suspicious trigger the fraud check and a flag on the claim.
-            String suspicious = proposeEnabled ? suspiciousDocuments(toolCalls, claimNumber, who, traceId) : null;
+            String suspicious = secured ? suspiciousDocuments(toolCalls, claimNumber, who, traceId) : null;
             if (suspicious != null) {
                 answer = answer + "\n\n" + suspicious;
             }
@@ -352,16 +363,16 @@ public class AgentService {
             recordToolCalls(toolCalls);
             recordGuardrail(guardrail);
             // Trace semantics: name the observed steps so the MLflow/Tempo trace reads as the story
-            // (guardrails.tool_result when a detector flagged a tool result, the propose step).
-            emitStorySpans(guardrail, proposal);
+            // (guardrails.tool_result when a detector flagged a tool result).
+            emitStorySpans(guardrail);
             LOG.infof("chat caller=%s agent=%s env=%s prompt=%s prompt_sha256=%.12s tools=%s guardrail=%s tokens=%s trace=%s", caller.subject(), mcpAuth.agentId(), env,
                     promptVersion, promptSha,
                     toolCalls.stream().map(ToolCall::tool).toList(),
                     guardrail == null ? "none" : guardrail.action(),
                     result.tokenUsage() == null ? "?" : result.tokenUsage().totalTokenCount(), traceId);
-            TraceContent.answer(root, answer, null, proposeEnabled);
+            TraceContent.answer(root, answer, null, secured);
             return new AgentAnswer(question, answer, toolCalls, modelName,
-                    usage(result.tokenUsage()), caller.subject(), env, null, false, guardrail, proposal, traceId);
+                    usage(result.tokenUsage()), caller.subject(), env, null, false, guardrail, traceId);
         } catch (Exception e) {
             String detail = redact(rootMessage(e));
             boolean auth = looksLikeAuthFailure(detail);
@@ -370,9 +381,9 @@ public class AgentService {
             // Rejections the platform answered for this user (usage limit 429, offline, key), by reason.
             metrics.counter("parasol_agent_rejections_total", "reason", reason(error), "user", who,
                     "agent", mcpAuth.agentId(), "env", env).increment();
-            TraceContent.answer(root, null, error, proposeEnabled);
+            TraceContent.answer(root, null, error, secured);
             return new AgentAnswer(question, null, List.of(), modelName, null,
-                    caller.subject(), env, error, auth, null, null, traceId);
+                    caller.subject(), env, error, auth, null, traceId);
         } finally {
             baggage.close();
             // P95 latency panel: a per-env/user/agent histogram of the whole assistant turn.
@@ -388,7 +399,7 @@ public class AgentService {
     static final Pattern FRAUD_RISK = Pattern.compile("FRAUD RISK: ([A-Z]+)");
     static final String SUSPICIOUS_NOTE = "Platform note: this claim's documents were flagged as suspicious (they address "
             + "the assistant, so the platform's guardrails blocked them before the model read them). The fraud check ran "
-            + "on its own: %s Nothing was proposed or paid.";
+            + "on its own: %s Nothing was approved or paid.";
 
     /**
      * Secured: when the MCP gateway blocked a claim's documents as suspicious, the portal (a rule, not the model's
@@ -548,11 +559,9 @@ public class AgentService {
      * Emit the semantic spans that make a secured chat trace read as the story, as children of the
      * current turn span. A guardrails detection becomes {@code guardrails.input} when it masked the
      * caller's input (PII) or {@code guardrails.tool_result} when it flagged / blocked a tool result
-     * (the inflated-document case), with the action as the span status (block = ERROR). A proposed
-     * payout becomes {@code tool.propose_payout} (the Read-Propose-Act card step) - note that in
-     * secured no {@code approve_payout} span appears, because the gateway filters it out.
+     * (the inflated-document case), with the action as the span status (block = ERROR).
      */
-    private void emitStorySpans(Guardrail guardrail, Proposal proposal) {
+    private void emitStorySpans(Guardrail guardrail) {
         if (guardrail != null) {
             boolean input = "mask".equals(guardrail.action());
             Span gs = tracer.spanBuilder(input ? "guardrails.input" : "guardrails.tool_result").startSpan();
@@ -571,23 +580,6 @@ public class AgentService {
                 }
             } finally {
                 gs.end();
-            }
-        }
-        if (proposal != null) {
-            Span ps = tracer.spanBuilder("tool.propose_payout").startSpan();
-            try {
-                ps.setAttribute("tool.name", "propose_payout");
-                if (proposal.claimNumber() != null) {
-                    ps.setAttribute("claim.number", proposal.claimNumber());
-                }
-                if (proposal.proposed() != null) {
-                    ps.setAttribute("payout.proposed", proposal.proposed());
-                }
-                if (proposal.claimed() != null) {
-                    ps.setAttribute("payout.claimed", proposal.claimed());
-                }
-            } finally {
-                ps.end();
             }
         }
     }
@@ -625,11 +617,7 @@ public class AgentService {
 
     public record AgentAnswer(String question, String answer, List<ToolCall> toolCalls, String model,
                               Usage tokenUsage, String caller, String env, String error,
-                              boolean authFailure, Guardrail guardrail, Proposal proposal, String traceId) {
-    }
-
-    /** A payout the assistant proposed (secured, A2): the UI renders proposed vs claimed with an Approve button. */
-    public record Proposal(String claimNumber, Double proposed, Double claimed) {
+                              boolean authFailure, Guardrail guardrail, String traceId) {
     }
 
     /**
