@@ -36,7 +36,48 @@ What you should see: one `sha256:...` digest three times: `PROMOTED_DIGEST` of t
 +
 Say: the image that runs next to customer data is the one the pipeline built, evaluated and signed. Nothing else has a path to production.
 
-. *The rule.* The last lines of the same output: namespace `parasol-secured` with `policy.rhtas.com/include=true`, and the `ClusterImagePolicy` `parasol-portal-must-be-signed` for the portal images with two accepted signers, `keyless-tas` (Trusted Artifact Signer) and `cluster-cosign-key`.
+. *The rule.* The last lines of the same output: namespace `parasol-secured` with `policy.rhtas.com/include=true`, and the `ClusterImagePolicy` `parasol-portal-must-be-signed` for the portal images with two accepted signers, `keyless-tas` (Trusted Artifact Signer) and `cluster-cosign-key`. The two definitions (public key shortened):
++
+[source,yaml]
+----
+# The rule: a cluster resource, checked by the Trusted Artifact Signer policy controller on every pod
+apiVersion: policy.sigstore.dev/v1beta1
+kind: ClusterImagePolicy
+metadata:
+  name: parasol-portal-must-be-signed
+spec:
+  mode: enforce
+  images:                       # the images the rule covers
+    - glob: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal**"
+  authorities:                  # a valid signature from either one admits the image
+    - name: keyless-tas         # keyless: the pipeline's workload identity, certificate from Fulcio, entry in Rekor
+      keyless:
+        trustRootRef: parasol-tas
+        identities:
+          - issuer: https://oidc-discovery.apps.<cluster-domain>
+            subject: spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer
+    - name: cluster-cosign-key  # the cluster key Tekton Chains signs with
+      key:
+        data: |
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
+          -----END PUBLIC KEY-----
+---
+# Where it is enforced: namespaces that opt in
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: parasol-secured
+  labels:
+    policy.rhtas.com/include: "true"
+----
++
+The live policy, as the cluster holds it:
++
+[source,bash,role=execute]
+----
+oc get clusterimagepolicy.policy.sigstore.dev parasol-portal-must-be-signed -o yaml
+----
 +
 Say: the rule is a cluster resource. Admission checks the signature of every portal image before a pod starts, whoever deploys it.
 
