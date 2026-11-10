@@ -65,7 +65,7 @@ Every question the audience asks has one screen that answers it with the same na
 
 |What did this chat turn do?
 |The `trace <id>` link under the answer, in the *Portal secured* tab (opens *MLflow*, workspace `parasol-secured`)
-|user, tags `agent`, `prompt`, `model`, token count; spans `model.chat`, `tool.*` (with `tool.<name>.result`, marked `tool.blocked` when the gateway refused it), `tool.propose_payout`
+|user, tags `agent`, `prompt`, `model`, token count; spans `model.chat`, `tool.*` (with `tool.<name>.result`, marked `tool.blocked` when the gateway refused it)
 
 |Who approved a payout?
 |Claim *History* tab; the approved card's `trace <id>` link

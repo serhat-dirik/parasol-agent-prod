@@ -131,7 +131,7 @@ Say: rebecca asked to process an estimate. Unsecured, the document's note set th
 scripts/evidence/showcase2.sh guardrails
 ----
 +
-What you should see: two NeMo Guardrails configs in one service (`parasol-nemo`): `parasol-tool-results`, run by the *MCP gateway* on every claims-db tool result (the injection phrases, then a model judge that asks whether the text tells an assistant to approve, pay or settle), and `parasol-chat`, run on the model path (user input and answers). Then the wiring at the gateway (`guardrails-ref: parasol-guardrails`, claims-db `guardrails-config-ids: parasol-tool-results`), the NeMo pods ready, the tool results the gateway blocked, and the tool list: `claims-db: get_claim, list_claims_by_status, get_claim_history, get_claim_documents`, with no `approve_payout` anywhere, plus the portal's own `propose_payout`.
+What you should see: two NeMo Guardrails configs in one service (`parasol-nemo`): `parasol-tool-results`, run by the *MCP gateway* on every claims-db tool result (the injection phrases, then a model judge that asks whether the text tells an assistant to approve, pay or settle), and `parasol-chat`, run on the model path (user input and answers). Then the wiring at the gateway (`guardrails-ref: parasol-guardrails`, claims-db `guardrails-config-ids: parasol-tool-results`), the NeMo pods ready, the tool results the gateway blocked, and the tool list: `claims-db: get_claim, list_claims_by_status, get_claim_history, get_claim_documents, approve_claim`, with no tool that pays (`release_payment`, `approve_payout`) anywhere.
 +
 Say: two independent layers. The gateway checks what a tool returns before any agent reads it, with the rules kept in one place. And a payment is not something a model can do here: at most it approves a claim that is under review, and only a claims manager releases the payment.
 
@@ -158,7 +158,7 @@ Then, in the *Portal secured* tab, click the `trace <id>` link under rebecca's a
 +
 What you should see: the *MLflow* trace, user `rebecca`, agent `parasol-claims-agent`: `model.chat` -> `tool.get_claim_documents` (error) -> `tool.get_claim_documents.result` with the result `Unexpected status code: 500, body:` and `blocked` naming the refusal by the MCP gateway; *no* `approve_claim` and *no* `approve_payout` span. The model never saw the document, so it had nothing to obey.
 +
-image::s2-mlflow-trace.png["MLflow trace of rebecca's CLM-1004 secured turn: span tool.get_claim_documents in error, span tool.get_claim_documents.result selected with Unexpected status code: 500 and blocked: refused by the MCP gateway; no propose_payout span"]
+image::s2-mlflow-trace.png["MLflow trace of rebecca's CLM-1004 secured turn: span tool.get_claim_documents in error, span tool.get_claim_documents.result selected with Unexpected status code: 500 and blocked: refused by the MCP gateway; no approve_claim span"]
 
 == Evidence details
 
