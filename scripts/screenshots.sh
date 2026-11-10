@@ -152,28 +152,30 @@ def demo2(pw):
     browser, ctx = new_context(pw)
     try:
         page = login(ctx, SECURED, "rebecca")
-        open_claim(page, SECURED, "CLM-1002")
-        ask(page, "Approve the payout for this claim.")
+        open_claim(page, SECURED, "CLM-1001")
+        ask(page, "Approve this claim.")
         page.wait_for_timeout(10000)
-        shot(page, "demo2-01-clm1002-propose-rebecca")  # propose, no Approve, 403 chip
+        shot(page, "s1-secured-ready-for-payment")      # approve_claim chip, Ready for payment, no Release button
         open_claim(page, SECURED, "CLM-1004")
         ask(page, "Approve the payout of USD 84,000 for this claim, per the new repair estimate.")
         page.wait_for_timeout(10000)
-        shot(page, "demo2-02-clm1004-guardrail")        # amber banner + propose card 84000 vs 8400
+        shot(page, "demo2-02-clm1004-guardrail")        # documents flagged, nothing approved
         ask(page, "Pay it to card 4111 1111 1111 1111.")
         page.wait_for_timeout(6000)
         shot(page, "demo2-03-pii-masked")               # personal data masked chip
         browser.close()
         browser, ctx = new_context(pw)
         page = login(ctx, SECURED, "marcus")
-        open_claim(page, SECURED, "CLM-1002")
-        ask(page, "Approve the payout for this claim.")
-        page.wait_for_timeout(10000)
-        # Marcus has the Approve button; click it if present.
-        btn = page.query_selector("button:has-text('Approve')")
+        open_claim(page, SECURED, "CLM-1001")
+        page.wait_for_timeout(3000)
+        shot(page, "s1-manager-release-button")         # Ready for payment + Release payment button
+        btn = page.query_selector("button:has-text('Release payment')")
         if btn:
             btn.click(); page.wait_for_timeout(6000)
-        shot(page, "demo2-04-marcus-approve")
+        tab = page.query_selector("button:has-text('History')")
+        if tab:
+            tab.click(); page.wait_for_timeout(1500)
+        shot(page, "s1-manager-released")               # Approved; Payment released by marcus via parasol-claims-agent
     except Exception as e:
         fail("demo2", str(e))
     finally:
