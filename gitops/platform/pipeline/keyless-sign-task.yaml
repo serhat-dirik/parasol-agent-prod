@@ -6,6 +6,9 @@
 # Fulcio certificate, signs, and records the signature in Rekor. There is NO long-lived private
 # signing key. It also attaches the portal's SBOM (sbom.json from generate-sbom, in the workspace) as a
 # keyless-signed CycloneDX attestation. The keyed signature is Tekton Chains', outside the pipeline.
+# Every signature carries an RFC 3161 timestamp from the Trusted Artifact Signer time-stamp server (tsa-server, next to
+# Fulcio): the trusted proof that it was made while the 10-minute certificate was valid, so admission still accepts it
+# after the certificate expires (ClusterImagePolicy rfc3161timestamp).
 #
 # The certificate identity that admission (ClusterImagePolicy) verifies is:
 #   issuer:  https://oidc-discovery.apps.CLUSTER_DOMAIN
@@ -111,6 +114,7 @@ spec:
         printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
 
         FULCIO="$(params.fulcio-url)"; REKOR="$(params.rekor-url)"; TUF="$(params.tuf-url)"
+        TSA="${FULCIO/fulcio-server/tsa-server}/api/v1/timestamp"   # the time-stamp server, next to Fulcio
         ISSUER="$(params.oidc-issuer)"
         IDT=$(cat /svid/jwt_svid.token)
 
@@ -121,7 +125,7 @@ spec:
         for IMG in "$PORTAL" "$CLAIMS" "$DOCS"; do
           echo "===== keyless sign $IMG ====="
           cosign sign --yes \
-            --fulcio-url="$FULCIO" --rekor-url="$REKOR" \
+            --fulcio-url="$FULCIO" --rekor-url="$REKOR" --timestamp-server-url="$TSA" \
             --oidc-issuer="$ISSUER" --identity-token="$IDT" \
             --allow-insecure-registry "$IMG"
         done
@@ -129,23 +133,23 @@ spec:
         SUBJECT="spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer"
         echo "===== verify keyless (identity-bound) ====="
         for IMG in "$PORTAL" "$CLAIMS" "$DOCS"; do
-          cosign verify \
+          cosign verify --use-signed-timestamps \
             --rekor-url="$REKOR" \
             --certificate-identity="$SUBJECT" \
             --certificate-oidc-issuer="$ISSUER" \
             --allow-insecure-registry "$IMG" >/dev/null \
-            && echo "VERIFIED (keyless) $IMG"
+            && echo "VERIFIED (keyless, timestamped) $IMG"
         done
 
         echo "===== SBOM: keyless-signed CycloneDX attestation on $PORTAL ====="
         cosign attest --yes --type cyclonedx --predicate "$(workspaces.source.path)/sbom.json" \
-          --fulcio-url="$FULCIO" --rekor-url="$REKOR" \
+          --fulcio-url="$FULCIO" --rekor-url="$REKOR" --timestamp-server-url="$TSA" \
           --oidc-issuer="$ISSUER" --identity-token="$IDT" \
           --allow-insecure-registry "$PORTAL"
-        cosign verify-attestation --type cyclonedx \
+        cosign verify-attestation --type cyclonedx --use-signed-timestamps \
           --rekor-url="$REKOR" \
           --certificate-identity="$SUBJECT" \
           --certificate-oidc-issuer="$ISSUER" \
           --allow-insecure-registry "$PORTAL" >/dev/null \
-          && echo "VERIFIED (keyless) CycloneDX SBOM attestation on $PORTAL"
+          && echo "VERIFIED (keyless, timestamped) CycloneDX SBOM attestation on $PORTAL"
         printf "parasol-portal,claims-db,policy-docs" > "$(results.SIGNED.path)"
