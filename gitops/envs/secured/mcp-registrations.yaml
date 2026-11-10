@@ -24,7 +24,7 @@ metadata:
   annotations:
     argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
     # sha256 of the reviewed tool definitions; a change without updating this pin raises MCPToolDefinitionDrift
-    parasol.example/tools-sha256: 314daf166fbee17be1c4f4073db99ef288b3b45ced1b72755e9254e39303f766
+    parasol.example/tools-sha256: bd7433a37df16fcf5297654bbf84bad00b94eb766e7df0f545803b5d5a481049
     # Every claims-db tool result (customer documents) is checked by NeMo config parasol-tool-results before
     # the agent sees it; a hit returns "blocked by guardrails" as an error result (Showcase 2).
     mcp.kuadrant.io/guardrails-config-ids: parasol-tool-results
