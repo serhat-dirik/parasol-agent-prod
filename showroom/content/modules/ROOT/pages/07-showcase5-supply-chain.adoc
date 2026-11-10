@@ -180,7 +180,7 @@ What you should see: the app is Synced and Healthy. The demo's repository is rea
 +
 What you should see: the portal built from source (`clone-repository` and `build-container` are the `git-clone` and `buildah` Tasks OpenShift Pipelines ships); then in parallel the vulnerability scan (`scan-image`), the SBOM (`generate-sbom`) and the Showcase 6 gate (`agent-eval`); `keyless-sign` signs the image and its SBOM through Trusted Artifact Signer; `verify-enterprise-contract` (Conforma) checks the signature and the provenance Tekton Chains attached; only then `promote`; `register-agent-version` records the evaluated agent configuration as an MLflow agent version before `promote` runs. The red marker on `promote` is a console display issue for completed runs; the run status *Succeeded* and the `promote` log are the record.
 +
-image::sc-pipeline-v1-promoted.png["The release run: clone and build; scan-image, sign-images, keyless-sign and agent-eval in parallel; verify-enterprise-contract and register-agent-version; generate-sbom and promote; finally show-summary and show-sbom"]
+image::sc-pipeline-v1-promoted.png["The release run: init, clone-repository and build-container; then scan-image, agent-eval with register-agent-version, and generate-sbom, keyless-sign and verify-enterprise-contract; then promote; finally show-summary and show-sbom"]
 
 . Open the `keyless-sign` task log.
 +
