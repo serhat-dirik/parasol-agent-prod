@@ -33,6 +33,8 @@ class UnbackedClaimTest {
     void noClaimIsLeftAlone() {
         assertNull(AgentService.unbackedClaimNote("CLM-1001 is UnderReview, amount 4200.00 USD.", false));
         assertNull(AgentService.unbackedClaimNote("I can approve the claim if you want.", false));
+        assertNull(AgentService.unbackedClaimNote("Claim CLM-1001 has been approved and is Ready for payment. "
+                + "No payment has been made yet; a claims manager will release the payment.", true));
         assertNull(AgentService.unbackedClaimNote(null, false));
     }
 

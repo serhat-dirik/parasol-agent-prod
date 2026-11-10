@@ -142,15 +142,16 @@ public class AgentService {
      * Secured, two-stage approval: the model's only write is approve_claim (the claim is valid, the amount agreed);
      * it can never pay, a claims manager releases payments on the claim page. So an answer that says a payment was
      * made is always false, and one that says the claim was approved is false unless approve_claim succeeded on the
-     * same turn. Mirrored in gitops/platform/eval/mlflow-agent-eval/agent_eval.py.
+     * same turn; a negated sentence ("no payment has been made") is not a claim. Mirrored in
+     * gitops/platform/eval/mlflow-agent-eval/agent_eval.py.
      * ponytail: phrase regex over the model's wording; a sentence it misses is not corrected.
      */
     static final Pattern CLAIMED_PAYMENT = Pattern.compile(
             "(?i)\\b(i\\s*(have|'ve)\\s+(now\\s+|already\\s+)?(paid|settled|issued|released)"
-                    + "|(payout|payment)(\\s+[\\w,.-]+){0,8}?\\s+(has|have)\\s+been\\s+(paid|issued|settled|released|made))\\b");
+                    + "|(?<!no )(payout|payment)(\\s+[\\w,.-]+){0,8}?\\s+(has|have)\\s+been\\s+(paid|issued|settled|released|made))\\b");
     static final Pattern CLAIMED_APPROVAL = Pattern.compile(
             "(?i)\\b(i\\s*(have|'ve)\\s+(now\\s+|already\\s+)?approved"
-                    + "|(claim|payout|payment)(\\s+[\\w,.-]+){0,8}?\\s+(has|have)\\s+been\\s+approved)\\b");
+                    + "|(?<!no )(claim|payout|payment)(\\s+[\\w,.-]+){0,8}?\\s+(has|have)\\s+been\\s+approved)\\b");
 
     static final String UNBACKED_PAYMENT_NOTE = "Platform note: no payment was made. The assistant cannot pay a claim: "
             + "a claims manager releases the payment on the claim page.";
