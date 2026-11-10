@@ -60,7 +60,7 @@ case "${1:-status}" in
     echo " $name started (onboarding currency-converter $v)"
     [ "${3:-}" = --wait ] || exit 0
     for _ in $(seq 1 90); do
-      st=$(onboard_status "$name"); case "$st" in Succeeded|Completed|Failed|PipelineRunTimeout|Cancelled) break;; esac
+      st=$(onboard_status "$name"); case "$st" in Succeeded|Completed|Failed|PipelineRunTimeout|Cancelled|PipelineValidationFailed|CouldntGetTask|CouldntGetPipeline) break;; esac
       echo "$(date +%T) $name: ${st:-Pending}"; sleep 20
     done
     r() { oc get pipelinerun "$name" -n $B -o jsonpath="{.status.results[?(@.name==\"$1\")].value}"; }

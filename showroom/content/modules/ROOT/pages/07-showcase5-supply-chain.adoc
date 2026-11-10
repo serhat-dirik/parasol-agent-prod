@@ -17,9 +17,66 @@ What runs next to customer data must be the exact image the pipeline built, eval
 
 What runs next to customer data must be exactly what was built, scanned, evaluated and approved. A tampered or unsigned image, or a workload calling an unapproved model, bypasses every other control. Without the platform any image can run, and any workload can call any model endpoint it has a key for. Here the pipeline signs and verifies every release, admission refuses unsigned images in the secured namespace, and only approved models are reachable.
 
-How a release reaches production. Build, scan and SBOM, the evaluation gate, two signatures and Conforma run in one pipeline; only a release that passed is promoted, and admission checks the signature again when Argo CD rolls it out:
+How a release reaches production. Build, scan and SBOM, the evaluation gate, the signatures and Conforma; only a release that passed is promoted, and admission checks the signature again when Argo CD rolls it out:
 
 image::s5-release-flow.png["The release pipeline: Git, build, then scan and SBOM, the evaluation gate (with an MLflow agent version) and two signatures verified by Conforma; promote pins the digest and prompt on Argo CD env-secured; Argo CD syncs; admission checks the signature; the portal runs the exact digest. A failed gate skips promote; an unsigned image is refused at admission"]
+
+== How the signing works
+
+Every release image carries two signatures, made by two different signers, and both are checked twice: by Conforma before promote, and by admission before a pod starts. Every component runs in this cluster.
+
+image::s5-signing-components.png["Who signs: Tekton Chains (a controller outside the pipeline, signs every image a TaskRun built and attests its SLSA provenance, only Chains reads its key) and the keyless-sign task (the pipeline's SPIFFE identity from SPIRE, signs the image and its SBOM). Trusted Artifact Signer in the cluster: Fulcio issues 10-minute certificates, the CT log records them, Rekor records every keyless signature, TUF hands out the trust roots. Who verifies: Conforma before promote, the policy controller at admission. Signatures and attestations are stored next to the image in the registry"]
+
+[cols="1,1,3",options="header"]
+|===
+|Component |Runs in |Role
+
+|Tekton Chains
+|`openshift-pipelines`
+|Watches every TaskRun. When `build-container` finishes, it signs the image with the cluster key and attaches the SLSA provenance (what was built, from which pipeline run, with which tools). It is the build platform, not a pipeline step, so no task can use or read its key (SLSA Build Level 3).
+
+|SPIRE (Zero Trust Workload Identity Manager)
+|`zero-trust-workload-identity-manager`
+|Gives the `keyless-sign` pod a short-lived identity token, `spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer`. The identity is the pod's service account, checked by the node it runs on.
+
+|Fulcio
+|`trusted-artifact-signer`
+|Certificate authority. Takes the identity token, checks it against SPIRE's published keys, and issues a certificate valid for 10 minutes with that identity in it.
+
+|Rekor and the CT log
+|`trusted-artifact-signer`
+|Append-only logs. Rekor records every keyless signature, the CT log every certificate Fulcio issued, so a signature cannot be made quietly.
+
+|TUF
+|`trusted-artifact-signer`
+|Hands out the trust roots (Fulcio, Rekor and CT log keys) that signers and verifiers start from.
+
+|Conforma
+|task `verify-enterprise-contract`
+|Before promote: the Chains signature and provenance verify, the provenance says this pipeline's `build-container` built the image, the image is pinned by digest. Any violation stops the release.
+
+|Policy controller
+|`policy-controller-operator`
+|The admission webhook. Before any pod starts in `parasol-secured`, the portal image must carry the keyless signature with the pipeline's identity or the Chains-key signature (`ClusterImagePolicy`).
+|===
+
+Keyless signing, step by step:
+
+image::s5-keyless-flow.png["Keyless signing: 1 the pod gets an identity token from SPIRE; 2 cosign makes a throwaway key pair and sends the token and public key to Fulcio; 3 Fulcio checks the token and issues a 10-minute certificate, recorded in the CT log; 4 cosign signs the image digest, pushes signature and certificate, discards the key; 5 Rekor records the signature. Verifying: the certificate chains to Fulcio's root from TUF and its identity matches the policy. The Chains key signs too, because the certificate expires and no trusted timestamp is wired"]
+
+[qanda]
+Who signed this image?::
+Tekton Chains, with the cluster key, when the build finished; and the pipeline itself, keyless, as `spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer`. The keyless certificate names that identity, and Rekor holds the record.
+How is it verified?::
+With public material only: the Chains public key, and the Fulcio root from TUF for the keyless certificate. Conforma checks before promote, the policy controller at admission, `cosign verify` by hand.
+What does keyless mean?::
+No stored private key. A key pair is made in memory for one signature and thrown away; trust comes from the identity in a 10-minute certificate and the log entry, not from guarding a secret.
+Why two signatures?::
+The keyless certificate expires after 10 minutes. Without a trusted timestamp, admission cannot prove a signature was made in time when a pod restarts later; the Chains-key signature covers that.
+Does it work offline?::
+Yes. SPIRE, Fulcio, Rekor, the CT log and TUF all run in this cluster; nothing calls the public Sigstore services.
+What about third-party images?::
+Showcase 7: the onboarding pipeline signs an approved vendor image with a separate onboarding key. Admission accepts that key only for vendor images, and the Chains key only for the portal.
 
 == Run it
 
@@ -32,11 +89,11 @@ Five short steps, one command or one screen each: what runs, the rule, how the p
 scripts/evidence/showcase5.sh release
 ----
 +
-What you should see: one `sha256:...` digest three times: `PROMOTED_DIGEST` of the release run (next to `EVAL_GATE passed` and `SIGNED_IMAGES` / `KEYLESS_SIGNED_IMAGES` listing `parasol-portal`), `promoted-digest` on `env-secured`, and the running portal's `image`.
+What you should see: one `sha256:...` digest three times: `PROMOTED_DIGEST` of the release run (next to `EVAL_GATE passed` and `KEYLESS_SIGNED_IMAGES` listing `parasol-portal`), `promoted-digest` on `env-secured`, and the running portal's `image`. Conforma verified the Chains signature and provenance of that digest before promote.
 +
 Say: the image that runs next to customer data is the one the pipeline built, evaluated and signed. Nothing else has a path to production.
 
-. *The rule.* The last lines of the same output: namespace `parasol-secured` with `policy.rhtas.com/include=true`, and the `ClusterImagePolicy` `parasol-portal-must-be-signed` for the portal images with two accepted signers, `keyless-tas` (Trusted Artifact Signer) and `cluster-cosign-key`. The two definitions (public key shortened):
+. *The rule.* The last lines of the same output: namespace `parasol-secured` with `policy.rhtas.com/include=true`, and the `ClusterImagePolicy` `parasol-portal-must-be-signed` for the portal images with two accepted signers, `keyless-tas` (the pipeline's SPIFFE identity, certificate from Fulcio) and `cluster-cosign-key` (Tekton Chains). The policy controller enforces it. The two definitions (public key shortened):
 +
 [source,yaml]
 ----
@@ -92,7 +149,7 @@ Try an unsigned and a signed portal image:
 scripts/signing-demo.sh
 ----
 +
-What you should see: the unsigned image refused by the admission webhook, naming the missing signature; the signed one admitted. The script removes its test pods.
+What you should see: the unsigned image refused by the admission webhook (the policy controller), naming the missing signature; the signed one admitted. The script removes its test pods.
 
 . *Only approved models.* The model path of each portal and what each can reach:
 +
@@ -107,7 +164,7 @@ Say: no key would help the secured portal call a model around the platform. Its 
 
 . *Watch it.* Select the *OpenShift Console* tab, *Pipelines*, project `parasol-build`, run `parasol-portal-release-production`.
 +
-What you should see: build, scan, the two signatures, Conforma, the evaluation gate, then `promote`. The run's *Details* tab lists the same `PROMOTED_DIGEST` as step 1.
+What you should see: build, scan, SBOM, `keyless-sign`, Conforma, the evaluation gate, then `promote`. There is no task for the Chains signature: Tekton Chains signs outside the pipeline, which is why no task can use its key. The run's *Details* tab lists the same `PROMOTED_DIGEST` as step 1.
 
 == Look closer
 
@@ -121,13 +178,13 @@ What you should see: the app is Synced and Healthy. The demo's repository is rea
 
 . Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-release-production`.
 +
-What you should see: the portal built from source (`build-container`); then in parallel the vulnerability scan (`scan-image`), two signatures (`sign-images` with the cluster key and `keyless-sign` through Trusted Artifact Signer) and the Showcase 6 gate (`agent-eval`); `verify-enterprise-contract` (Conforma) checks the signatures and provenance; only then `promote`, next to `generate-sbom`; `register-agent-version` records the evaluated agent configuration as an MLflow agent version before `promote` runs. The red marker on `promote` is a console display issue for completed runs; the run status *Succeeded* and the `promote` log are the record.
+What you should see: the portal built from source (`clone-repository` and `build-container` are the `git-clone` and `buildah` Tasks OpenShift Pipelines ships); then in parallel the vulnerability scan (`scan-image`), the SBOM (`generate-sbom`) and the Showcase 6 gate (`agent-eval`); `keyless-sign` signs the image and its SBOM through Trusted Artifact Signer; `verify-enterprise-contract` (Conforma) checks the signature and the provenance Tekton Chains attached; only then `promote`; `register-agent-version` records the evaluated agent configuration as an MLflow agent version before `promote` runs. The red marker on `promote` is a console display issue for completed runs; the run status *Succeeded* and the `promote` log are the record.
 +
 image::sc-pipeline-v1-promoted.png["The release run: clone and build; scan-image, sign-images, keyless-sign and agent-eval in parallel; verify-enterprise-contract and register-agent-version; generate-sbom and promote; finally show-summary and show-sbom"]
 
 . Open the `keyless-sign` task log.
 +
-What you should see: `tlog entry created` and `VERIFIED (keyless)` for the portal digest. No long-lived key: the pipeline's workload identity gets a certificate valid for minutes, signs, and the signature lands in the Rekor transparency log. `sign-images` shows the same image signed with the cluster key; admission accepts either.
+What you should see: `tlog entry created` and `VERIFIED (keyless)` for the portal digest, then `VERIFIED (keyless) CycloneDX SBOM attestation`. No long-lived key: the pipeline's workload identity gets a certificate valid for minutes, signs, and the signature lands in the Rekor transparency log. The second signature is not a task: Tekton Chains signed the image with its own key when `build-container` finished. Admission accepts either.
 
 . Open the `promote` task log.
 +
@@ -149,7 +206,7 @@ The `ClusterImagePolicy` `parasol-portal-must-be-signed` admits only portal imag
 
 . In the *OpenShift Console* tab, open the policy. Direct link: link:{console_url}/k8s/cluster/policy.sigstore.dev~v1beta1~ClusterImagePolicy/parasol-portal-must-be-signed/yaml[ClusterImagePolicy parasol-portal-must-be-signed,window=_blank].
 +
-What you should see: the image pattern for the portal and the two accepted signing authorities (keyless and the cluster key).
+What you should see: the image pattern for the portal and the two accepted signing authorities (keyless and the Tekton Chains key).
 
 . In the *Terminal* tab, try to run an unsigned and a signed portal image in the admission demo namespace:
 +
@@ -231,7 +288,7 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 
 |The release is built, scanned, signed, verified and gated
 |*OpenShift Console*, *Pipelines*, the production run
-|`scan-image`, `sign-images`, `keyless-sign`, `verify-enterprise-contract`, `agent-eval`, then `promote`
+|`scan-image`, `generate-sbom`, `keyless-sign`, `verify-enterprise-contract`, `agent-eval`, then `promote`
 
 |What runs is what was released
 |*Terminal*, `showcase5.sh release`

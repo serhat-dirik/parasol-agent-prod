@@ -25,7 +25,7 @@ for k in ("onboarded-version", "onboarded-digest", "onboarded-tools-sha256", "on
   title "Parasol's signature and the onboarding attestation on the onboarded digest"
   img="image-registry.openshift-image-registry.svc:5000/parasol-build/currency-converter@$(oc get application env-secured-tools -n openshift-gitops -o jsonpath='{.metadata.annotations.parasol\.example/onboarded-digest}')"
   run "oc get --raw /apis/image.openshift.io/v1/namespaces/parasol-build/imagestreams/currency-converter | python3 -c 'import sys,json; print(\"  signature/attestation tags:\", sorted(t[\"tag\"][:16] + \"...\" + t[\"tag\"][-4:] for t in json.load(sys.stdin)[\"status\"].get(\"tags\", []) if t[\"tag\"].endswith((\".sig\", \".att\"))) or \"none (registry tags not listed here)\")'" || true
-  note "  verify yourself: cosign verify --key <cluster cosign.pub> --insecure-ignore-tlog --allow-insecure-registry $img" ;;
+  note "  verify yourself: cosign verify --key <onboarding cosign.pub: secret parasol-build/parasol-onboarding-key> --insecure-ignore-tlog --allow-insecure-registry $img" ;;
 tools)
   title "MCP servers the gateway federates for the secured agent (MCPServerRegistration, parasol-secured)"
   run "oc get mcpserverregistration -n parasol-secured" | sed 's/^/  /'
