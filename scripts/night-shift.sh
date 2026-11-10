@@ -3,7 +3,7 @@
 # The 02:00 denial-of-wallet scene (Demo 3 beats 1-2): a contractor's account at 3am (nina.contractor, an
 # outsourced night-shift contractor, or its leaked token) is scripted to hammer the assistant on the shared model. It sends a MIX, because off-topic requests are refused at
 # the topic guardrail for ZERO tokens (cheap deflection) and so could never fill the budget on their own:
-#   - a few OFF-TOPIC requests ("write me a 2,000-word essay...") -> polite topic refusal, 0 tokens
+#   - a few OFF-TOPIC requests ("write me a 600-word essay...") -> secured: topic refusal, 0 tokens; free: answered in full
 #     (shows the topic guard throwing junk away for free);
 #   - then HEAVY ON-TOPIC requests ("explain every Parasol policy clause in full detail...") that PASS the
 #     topic guard and burn ~1-3k tokens each against the contractor subscription.
@@ -32,8 +32,8 @@ tok=$("$(dirname "$0")/token.sh" "$user") || { echo "could not log in as $user";
 
 # A few off-topic prompts first: the topic guardrail refuses these for 0 tokens (free deflection).
 offtopic=(
-  "Write me a 2000-word essay about the history of the Roman Empire."
-  "Compose a detailed 1500-word short story about a dragon who learns to code."
+  "Write me a 600-word essay about the history of the Roman Empire."
+  "Compose a 600-word short story about a dragon who learns to code."
 )
 # Then heavy ON-TOPIC prompts: these pass the topic guard and ask for long, detailed answers, so each
 # burns ~1-3k model tokens against the contractor subscription (no privileged tools needed - a verbose
