@@ -30,12 +30,17 @@ NS=parasol-secured
 SA_ISSUER="$(oc get authentication cluster -o jsonpath='{.spec.serviceAccountIssuer}')"
 SA_ISSUER="${SA_ISSUER:-https://kubernetes.default.svc}"
 
-TOKEN="$(curl -sk "$KC/realms/master/protocol/openid-connect/token" \
-  -d grant_type=password -d client_id=admin-cli \
-  --data-urlencode "username=$KC_USER" --data-urlencode "password=$KC_PASS" | jq -r .access_token)"
-[ -n "$TOKEN" ] && [ "$TOKEN" != null ] || { echo "failed to get admin token"; exit 1; }
-AUTH=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
-kc() { curl -sk "${AUTH[@]}" "$@"; }
+# The master realm's admin token lives about a minute and this script runs longer: kc() takes a new one after 45 s.
+admin_token() {
+  TOKEN="$(curl -sk "$KC/realms/master/protocol/openid-connect/token" \
+    -d grant_type=password -d client_id=admin-cli \
+    --data-urlencode "username=$KC_USER" --data-urlencode "password=$KC_PASS" | jq -r .access_token)"
+  [ -n "$TOKEN" ] && [ "$TOKEN" != null ] || { echo "failed to get admin token"; exit 1; }
+  AUTH=(-H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json')
+  TOKEN_AT=$(date +%s)
+}
+admin_token
+kc() { [ $(( $(date +%s) - TOKEN_AT )) -lt 45 ] || admin_token; curl -sk "${AUTH[@]}" "$@"; }
 cuuid() { kc -G "$API/clients" --data-urlencode "clientId=$1" | jq -r '.[0].id // empty'; }
 
 # --- realm frontend URL: tokens keep the public issuer when secured workloads call Keycloak in-cluster ---
