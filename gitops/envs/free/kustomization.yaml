@@ -18,5 +18,8 @@ configMapGenerator:
       - claimsDbApiUrl=http://claims-db:8080
       - env=free   # environment label on metrics and traces
       # no safetyRules: the prompt exactly as it was written on the laptop
+  # the laptop prompt, read by the portal on every turn (no registry, no release, anyone with edit can change it)
+  - name: agent-prompt
+    files: [systemPrompt=system-prompt.txt]
 generatorOptions:
   disableNameSuffixHash: true

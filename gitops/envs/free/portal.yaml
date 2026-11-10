@@ -36,6 +36,8 @@ spec:
               valueFrom: {configMapKeyRef: {name: agent-config, key: claimsDbApiUrl}}
             - name: AGENT_ENV
               valueFrom: {configMapKeyRef: {name: agent-config, key: env}}
+            # the laptop prompt (ConfigMap agent-prompt), read on every turn
+            - {name: AGENT_SYSTEM_PROMPT_FILE, value: /etc/parasol/prompt/systemPrompt}
             # login still happens (beat 1), but the free app does nothing with the identity
             - name: QUARKUS_OIDC_AUTH_SERVER_URL
               valueFrom: {secretKeyRef: {name: parasol-portal-oidc, key: auth-server-url}}
@@ -54,6 +56,11 @@ spec:
           resources:
             requests: {cpu: 50m, memory: 384Mi}
             limits: {cpu: "1", memory: 1Gi}
+          volumeMounts:
+            - {name: system-prompt, mountPath: /etc/parasol/prompt, readOnly: true}
+      volumes:
+        - name: system-prompt
+          configMap: {name: agent-prompt}
 ---
 apiVersion: v1
 kind: Service
@@ -68,6 +75,8 @@ apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
   name: portal-free
+  annotations:
+    haproxy.router.openshift.io/timeout: 120s   # long answers take 30-60 s; the router default (30 s) answers 504
 spec:
   # Explicit host so it matches the Keycloak redirect URI registered for the portal client
   # (OpenShift would otherwise generate portal-free-parasol-free.apps.<domain>, which would not match).
