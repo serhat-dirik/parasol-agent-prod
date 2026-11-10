@@ -1,8 +1,7 @@
 # Parasol Insurance - policy-docs MCP server (Quarkus, JVM fast-jar)
 #
-# Multi-stage, UBI9-based. Builds fully in-cluster via either the binary Docker
-# build used to publish the prebuilt image or a Git BuildConfig
-# (openshift/buildconfig.yaml). Same pattern as every other Parasol service.
+# Multi-stage, UBI9-based. Built in-cluster by the binary BuildConfig policy-docs
+# (gitops/platform/builds/buildconfigs.yaml, scripts/build-images.sh).
 #
 # Base images pinned to the highest tag present in BOTH the builder and runtime
 # streams (1.23) so the two stages stay matched and the build is reproducible.
