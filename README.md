@@ -274,4 +274,4 @@ Restores the claims, refills the token budgets and switches every kill-switch le
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE). The claim photos and the claim page layout come from the
-Red Hat *parasol-insurance* workshop application (see `docs/reference/parasol-insurance-workshop`).
+Red Hat *parasol-insurance* workshop application.

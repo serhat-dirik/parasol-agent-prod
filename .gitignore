@@ -10,3 +10,6 @@ kubeconfig*
 !.env.example
 __pycache__/
 install.env
+
+# local working notes and reference material (not published)
+/docs/
