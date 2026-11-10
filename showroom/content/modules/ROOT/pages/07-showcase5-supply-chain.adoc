@@ -76,7 +76,7 @@ For curious minds: every screen behind the demo above.
 
 . Select the *Argo CD* tab and open application `platform-pipeline`.
 +
-What you should see: the release process is code too. Argo CD keeps the `parasol-portal-secure-build` Pipeline and its Tasks in the state Git describes (Synced, Healthy). A run is an event, not desired state, so runs are not part of the app.
+What you should see: the app is Synced and Healthy. The demo's repository is read-only, so this Argo CD application is what creates the `parasol-portal-secure-build` Pipeline, its Tasks and the promote permissions in `parasol-build` and keeps them as Git describes: a change made in the cluster, such as removing the evaluation step, is put back. Pipeline runs are not part of the app. In a product setup these definitions usually live in the application's own repository and run through Pipelines as Code on each push.
 
 . Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-release-production`.
 +
