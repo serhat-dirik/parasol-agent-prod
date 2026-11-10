@@ -156,7 +156,7 @@ Each showcase has a script that drives the same beats without a browser. Use the
 |`scripts/knowledge-base-demo.sh`: the restructuring plan leaks to rebecca unsecured; secured, rebecca and nina.contractor get only what they may read (withheld counts), marcus gets the cited plan.
 
 |4
-|`scripts/night-shift.sh 40` (secured) or `scripts/night-shift.sh 40 free` (unsecured).
+|`scripts/night-shift.sh 40` (secured) or `scripts/night-shift.sh 10 free` (unsecured).
 
 |6
 |`scripts/eval-goldenset.sh` (workstation, needs the credentials file): secured blocked, unsecured allowed, PASS 3/3.
