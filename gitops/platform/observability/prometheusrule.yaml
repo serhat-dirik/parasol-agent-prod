@@ -43,3 +43,31 @@ spec:
             severity: info
           annotations:
             summary: "Repeated tool denials from the MCP gateway for the Parasol assistant"
+---
+# Someone other than the release tried to change the released prompt (ConfigMap parasol-secured/agent-prompt-release)
+# and admission policy parasol-released-prompt-writer refused it (gitops/envs/secured/prompt-pin-policy.yaml).
+# The metric is the API server's (namespace "default"), so the platform Prometheus evaluates this rule.
+# Who tried: the API server audit log, or the refusal message the client received.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: parasol-released-prompt
+  namespace: openshift-monitoring
+spec:
+  groups:
+    - name: parasol-released-prompt
+      rules:
+        - alert: ParasolReleasedPromptChangeRefused
+          # "unless ... offset 10m" catches a counter born in the last 10 min (its first refusal), which increase() misses.
+          expr: |
+            sum(increase(apiserver_validating_admission_policy_check_total{policy="parasol-released-prompt-writer",enforcement_action="deny"}[10m])) > 0
+            or
+            sum(apiserver_validating_admission_policy_check_total{policy="parasol-released-prompt-writer",enforcement_action="deny"}
+              unless apiserver_validating_admission_policy_check_total{policy="parasol-released-prompt-writer",enforcement_action="deny"} offset 10m) > 0
+          for: 0m
+          keep_firing_for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Refused attempt to change the Parasol assistant's released system prompt"
+            description: "Only the release pipeline may change ConfigMap parasol-secured/agent-prompt-release; another identity tried and was refused. The audit log names who."

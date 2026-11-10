@@ -13,6 +13,7 @@ resources:
   - namespace.yaml
   - quota.yaml
   - release-rbac.yaml       # the release pins the prompt it registered (ConfigMap agent-prompt-release)
+  - prompt-pin-policy.yaml  # only the release may change that ConfigMap (admission policy)
   - networkpolicy.yaml
   - mcp-registrations.yaml
   - serviceaccounts.yaml   # the agents' workload identities (federated client auth at Keycloak, no secrets)

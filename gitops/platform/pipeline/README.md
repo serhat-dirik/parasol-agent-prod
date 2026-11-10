@@ -40,7 +40,9 @@ platform still masks it. The comparison uses only the cases both golden-set vers
 signature AND a signed SLSA provenance attestation (Tekton Chains). The SBOM ships as a signed
 cosign attestation (`cosign verify-attestation --type cyclonedx`). `promote` pins the released prompt
 (ConfigMap `parasol-secured/agent-prompt-release`: the registered text the gate evaluated and its registry
-version; the portal reads only this, so a Git edit of the prompt waits for a release), then merge-patches the
+version; the portal reads only this, so a Git edit of the prompt waits for a release; admission policy
+`parasol-released-prompt-writer` refuses any other writer, cluster admins included, and alert
+`ParasolReleasedPromptChangeRefused` fires on a refusal), then merge-patches the
 Application `openshift-gitops/env-secured` (`kustomize.images` = the signed digest, `kustomize.replicas`
 portal=1; its other kustomize patches are untouched), records the prompt and model version as
 annotations, then waits until Argo CD reports Synced/Healthy on that digest. The pipeline SA may only

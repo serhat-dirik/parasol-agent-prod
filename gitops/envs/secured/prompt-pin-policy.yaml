@@ -1,0 +1,39 @@
+# Only the release may change the released prompt. ConfigMap agent-prompt-release (the registered text the
+# release gate evaluated) is written by the promote task as parasol-build/pipeline; every other identity,
+# cluster admins included, is refused. The namespace controller may delete it with the namespace.
+# Alert on refused attempts: ParasolReleasedPromptChangeRefused (gitops/platform/observability/prometheusrule.yaml).
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: parasol-released-prompt-writer
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: [CREATE, UPDATE, DELETE]
+        resources: [configmaps]
+  matchConditions:
+    - name: released-prompt-only
+      expression: request.name == "agent-prompt-release"
+  validations:
+    - expression: >-
+        request.userInfo.username in [
+          "system:serviceaccount:parasol-build:pipeline",
+          "system:serviceaccount:kube-system:namespace-controller"]
+      messageExpression: >-
+        "agent-prompt-release is written only by the release pipeline (parasol-build/pipeline); refused for "
+        + request.userInfo.username
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: parasol-released-prompt-writer
+spec:
+  policyName: parasol-released-prompt-writer
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: parasol-secured
