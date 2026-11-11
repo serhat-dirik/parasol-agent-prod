@@ -31,11 +31,15 @@ try: n=[x["note"] for x in json.load(sys.stdin) if x["eventType"]==sys.argv[1]][
 except Exception: print("")' "$1" "$2" 2>/dev/null; }
 who=$(by ClaimApproved 'by (\S+) via') rel=$(by Approved 'Payment released by (\S+)')
 [ -n "$rel" ] || echo "  no 'Payment released by <user> via <agent>' event yet: approve the claim and release the payment first (see Before you start)"
+# the payment's time: section 4 reads the gateway's decisions in the 15 minutes up to it (approval and release)
+appr=$(printf '%s' "$hist" | python3 -c 'import sys,json
+try: e=[x for x in json.load(sys.stdin) if x["eventType"]=="Approved" and "Payment released by" in x["note"]]; print(e[-1]["createdAt"] if e else "")
+except Exception: print("")' 2>/dev/null)
 oc logs -n $NS deploy/claims-db --tail=2000 2>/dev/null | grep -E "(CLAIM APPROVED|PAYMENT RELEASED) claim=$claim" | tail -3 | sed 's/^/  log: /'
 
 hdr "2. The conversation and the approval (MLflow, workspace $NS, experiment parasol-portal-chat)"
 mlf() { curl -sk -m 20 -H "Authorization: Bearer $TOK" -H "x-mlflow-workspace: $NS" "https://rh-ai.apps.$D/mlflow/$1"; }
-if [ -n "$TOK" ] && mlf "api/2.0/mlflow/traces?experiment_ids=1&max_results=1" | grep -q '"traces"'; then
+if [ -n "$TOK" ] && mlf "api/2.0/mlflow/traces?experiment_ids=1&max_results=1" | grep -q '"request_id"'; then   # readable = traces come back
   MLF_TOKEN=$TOK MLF_BASE="https://rh-ai.apps.$D/mlflow" CLAIM=$claim WHO="$who" python3 - <<'PY'
 import json, os, ssl, urllib.parse, urllib.request
 ctx = ssl._create_unverified_context()
@@ -106,7 +110,7 @@ else na "Keycloak admin login not available here (Keycloak tab: realm parasol, E
 
 hdr "4. What the gateway decided (the MCP gateway's decision log, every tools/call, gateway-system)"
 # One access-log line per MCP gateway decision (allow and deny) with the user and agent Authorino verified and the
-# tool; the claim's turns are the 15 minutes up to its approval (the gateway sees the tool, not its arguments).
+# tool; the claim's turns are the 15 minutes up to its payment (the gateway sees the tool, not its arguments).
 if dlog=$(oc logs -n gateway-system -l gateway.networking.k8s.io/gateway-name=mcp-gateway --tail=-1 --max-log-requests=6 2>/dev/null); then
   printf '%s\n' "$dlog" | APPR="$appr" python3 -c '
 import os, re, sys, datetime as dt
