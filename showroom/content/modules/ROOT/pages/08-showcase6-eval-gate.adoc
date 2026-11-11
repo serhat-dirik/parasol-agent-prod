@@ -63,7 +63,9 @@ What you should see: `agent-eval` green, `promote` *skipped*. The evaluation ran
 
 . *The platform ran the evaluation.* Select the *OpenShift AI* tab, *Develop & train*, *Evaluations*, project `parasol-eval`.
 +
-What you should see: one evaluation run per release, provider `parasol-agent-gate`, benchmark `golden-set`: `parasol-agent-gate production parasol-portal-release-production-agent-eval` with its test *passed*, and `parasol-agent-gate candidate-shortened parasol-portal-release-candidate-shortened-agent-eval` with its test *failed*. Open the candidate's run: primary score `gate_passed` 0 against the pass threshold 1.0, next to `system_pass_rate` (about the same as production) and `model_only_passed`, and the MLflow run id of the evaluation.
+What you should see: one evaluation run per release, provider `parasol-agent-gate`, benchmark `golden-set`: `parasol-agent-gate production parasol-portal-release-production-agent-eval` with result 100%, and `parasol-agent-gate candidate-shortened parasol-portal-release-candidate-shortened-agent-eval`. Open the candidate's run: evaluation score 0%, benchmark Golden-Set *Fail*, primary metric `gate_passed` against the benchmark threshold 1. The per-case scores of both modes are in MLflow (next section). The Evaluations page itself is Technology Preview in OpenShift AI 3.5; EvalHub, the service behind it, is generally available.
++
+image::s6-evalhub-candidate-fail.png["OpenShift AI, Evaluations, project parasol-eval, the candidate-shortened gate run: evaluation score 0%, Golden-Set Fail, primary metric gate_passed, benchmark threshold 1"]
 +
 Say: the pipeline does not evaluate on its own. It hands the release to TrustyAI EvalHub, the evaluation service of OpenShift AI, as a job of our own provider, and reads the verdict back. The same service runs the generic benchmarks; the golden set is one more provider on it, with its result on record per release.
 
@@ -105,7 +107,7 @@ Say: this is a five-prompt smoke run of a generic benchmark, so the number is no
 +
 In the same list are the release gate's runs, provider `parasol-agent-gate`: one per release run, named after the agent version and the pipeline task that submitted it. EvalHub (generally available in OpenShift AI 3.5) runs each as a Kubernetes job in `parasol-eval` from the gate's adapter image (built in the cluster from this repository: `agent_eval.py`, the golden set and the fixtures, wrapped by the EvalHub adapter SDK). The release's checkout supplies the golden set, the fixtures and the prompt as job parameters, so the job evaluates exactly what the release ships. The job's credentials are scoped to it: the pipeline creates a Secret for the job (the evaluation's MaaS keys and a short-lived token of the ServiceAccount `parasol-agent-gate`, which may write the MLflow workspace `parasol-secured` and read the release record on `env-secured`) and deletes it when the job ends. EvalHub keeps its runs in PostgreSQL, so the history survives a restart.
 +
-image::s5-rhoai-evaluations.png["OpenShift AI Evaluations page: the completed IFEval run of qwen3-14b in project parasol-eval"]
+image::s5-rhoai-evaluations.png["OpenShift AI Evaluations page, project parasol-eval: the two release gate runs of provider parasol-agent-gate (candidate-shortened, production 100%) and the IFEval run of qwen3-14b"]
 
 === The golden set, production prompt against the candidate
 
