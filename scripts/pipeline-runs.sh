@@ -41,6 +41,7 @@ sys.exit(any(o.get("name")==n for p in json.load(sys.stdin)["items"] for o in p[
     done
     [ -z "$(oc get taskrun -n $NS -l tekton.dev/pipelineRun="$name" -o name)" ] || {
       echo "$name: old TaskRuns still present after 2 min; not starting (re-run this script)"; return 1; }
+    sleep 20   # the controller may still hold the deleted run; a same-name run created at once inherits its status
   fi
   python3 -c 'import yaml,sys
 d=yaml.safe_load(open("gitops/platform/pipeline/pipelinerun.yaml"))

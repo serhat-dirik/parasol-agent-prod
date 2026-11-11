@@ -55,6 +55,9 @@ case "${1:-status}" in
     name="parasol-tool-onboarding-currency-converter-${v//./-}"
     # foreground: the old run's TaskRuns (same names) must be gone before the new run creates its own
     oc delete pipelinerun "$name" -n $B --ignore-not-found --cascade=foreground --wait=true >/dev/null
+    # the Tekton controller can still hold the deleted run: a run re-created at once under the same name inherits
+    # its old status (start time, timeout). Give the informer time to drop it.
+    sleep 20
     sed -e "s/^  generateName: parasol-tool-onboarding-$/  name: $name/" -e "s/value: \"1.4.2\"/value: \"$v\"/" \
       gitops/platform/pipeline/onboarding/pipelinerun-onboarding.yaml | oc create -f - >/dev/null
     echo " $name started (onboarding currency-converter $v)"
