@@ -87,7 +87,7 @@ spec:
         - {name: source, workspace: workspace}
     - name: agent-eval
       runAfter: [build-container]
-      taskRef: {name: agent-eval}
+      taskRef: {name: agent-eval-evalhub}   # the golden-set gate as a TrustyAI EvalHub job (provider parasol-agent-gate)
       params:
         - {name: candidate, value: "$(params.candidate)"}
         - {name: prompt-ref, value: "$(params.prompt-ref)"}
