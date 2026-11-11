@@ -1,8 +1,6 @@
 # TEMPLATE rendered by scripts/supply-chain.sh with this cluster's values (envsubst):
-#   TUF_URL, TUF_ROOT_B64 (base64 of the TUF root.json), OIDC_ISSUER (SPIRE OIDC discovery),
-#   ONBOARDING_PUB (the onboarding key's public key, indented to 10 spaces). The Tekton Chains key is not trusted
-#   at admission (Conforma checks it before promote).
-# Keyless admission trust for Red Hat Trusted Artifact Signer (Securesign).
+#   TUF_URL, TUF_ROOT_B64 (base64 of the TUF root.json), FULCIO_URL, REKOR_URL, OIDC_ISSUER (SPIRE OIDC discovery).
+# Admission trust for Red Hat Trusted Artifact Signer (Securesign): one signer, Tekton Chains, keyless.
 apiVersion: policy.sigstore.dev/v1alpha1
 kind: TrustRoot
 metadata:
@@ -13,11 +11,10 @@ spec:
     targets: targets
     root: ${TUF_ROOT_B64}
 ---
-# parasol-portal admission. Enforced on policy.rhtas.com/include=true namespaces. One authority, keyless-tas: a keyless
-# cosign signature by the release pipeline's SPIFFE identity (certificate from Fulcio), with an RFC 3161 timestamp from
-# the Trusted Artifact Signer time-stamp server (TSA, in the TrustRoot from TUF). The timestamp proves the signature
-# was made while the 10-minute certificate was valid, so the image stays admissible after the certificate expires.
-# The Tekton Chains key is not accepted here; Conforma checks Chains' signature and provenance before promote.
+# parasol-portal admission. Enforced on policy.rhtas.com/include=true namespaces. One authority, chains-keyless: a
+# signature by Tekton Chains (certificate from Fulcio for the Chains controller's SPIFFE ID) with its entry in Rekor.
+# Rekor's entry time proves the signature was made while the 10-minute certificate was valid, so the image stays
+# admissible after the certificate expires.
 apiVersion: policy.sigstore.dev/v1beta1
 kind: ClusterImagePolicy
 metadata:
@@ -26,21 +23,21 @@ spec:
   images:
     - glob: "image-registry.openshift-image-registry.svc:5000/parasol-build/parasol-portal**"
   authorities:
-    - name: keyless-tas
+    - name: chains-keyless
       keyless:
+        url: ${FULCIO_URL}
         trustRootRef: parasol-tas
         identities:
           - issuer: "${OIDC_ISSUER}"
-            subject: "spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer"
+            subject: "spiffe://parasol-demo/ns/openshift-pipelines/sa/tekton-chains-controller"
       ctlog:
-        trustRootRef: parasol-tas
-      rfc3161timestamp:
+        url: ${REKOR_URL}
         trustRootRef: parasol-tas
 ---
-# Showcase 7: third-party images run in parasol-secured only as onboarded. The parasol-tool-onboarding pipeline signs a
-# vendor image with the onboarding key (parasol-build/parasol-onboarding-key) after its checks pass; the partner bank's
-# own images (even its validly published 1.4.3) carry no Parasol signature, so admission refuses them here. The build
-# key (Tekton Chains) is not accepted for vendor images, and the onboarding key is not accepted for the portal.
+# Showcase 7: third-party images run in parasol-secured only as onboarded. The parasol-tool-onboarding pipeline builds
+# Parasol's image FROM the checked vendor digest after its checks pass, and Tekton Chains signs that build like any
+# other. The partner bank's own images (even its validly published 1.4.3) carry no Parasol signature, so admission
+# refuses them here.
 apiVersion: policy.sigstore.dev/v1beta1
 kind: ClusterImagePolicy
 metadata:
@@ -49,7 +46,13 @@ spec:
   images:
     - glob: "image-registry.openshift-image-registry.svc:5000/parasol-build/currency-converter**"
   authorities:
-    - name: parasol-onboarding-key
-      key:
-        data: |
-${ONBOARDING_PUB}
+    - name: chains-keyless
+      keyless:
+        url: ${FULCIO_URL}
+        trustRootRef: parasol-tas
+        identities:
+          - issuer: "${OIDC_ISSUER}"
+            subject: "spiffe://parasol-demo/ns/openshift-pipelines/sa/tekton-chains-controller"
+      ctlog:
+        url: ${REKOR_URL}
+        trustRootRef: parasol-tas

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Supply chain (guide 07): everything the signed pipeline and admission need besides the Argo-synced
 # Pipeline/Tasks. Idempotent; each item prints "already present" or what it creates.
-#   1 SPIRE (workload identity): the pipeline's keyless signer is a SPIFFE JWT-SVID
-#   2 Trusted Artifact Signer (Fulcio trusts the SPIRE OIDC issuer, type spiffe), ClusterSPIFFEID for the signer
-#   3 cosign keypair for Tekton Chains (openshift-pipelines/signing-secrets; only Chains reads it) + its public key in
-#     parasol-build; the onboarding keypair (parasol-build/parasol-onboarding-key) for Showcase 7's approved vendor images
+#   1 SPIRE (workload identity): Tekton Chains' signing identity is a SPIFFE JWT-SVID
+#   2 Trusted Artifact Signer (Fulcio trusts the SPIRE OIDC issuer, type spiffe, client ID sigstore) and the static
+#     SPIRE entry for the Chains controller (SPIRE skips openshift-* namespaces otherwise)
+#   3 Tekton Chains signs keyless: Fulcio certificate, Rekor entries, TUF trust root (TektonConfig spec.chain); the
+#     TAS addresses for verify-conforma (ConfigMap parasol-build/tas-trust)
 #   4 policy-controller (admission webhook), no-match-policy=allow
-#   5 TrustRoot + ClusterImagePolicy rendered from THIS cluster's TUF root, OIDC issuer and cosign key
+#   5 TrustRoot + ClusterImagePolicy rendered from THIS cluster's TUF root, Fulcio, Rekor and OIDC issuer
 #   6 parasol-secured enforced (label policy.rhtas.com/include=true)
 # Expected: SPIRE 2-5 min, Securesign 5-15 min. Re-run after a WARN; it resumes where it stopped.
 set -euo pipefail
@@ -28,117 +29,41 @@ wait_for 40 15 "SPIRE OIDC discovery (https://oidc-discovery.$D)" \
 echo "== 2 Trusted Artifact Signer"
 wait_for 40 15 "Securesign CRD" oc get crd securesigns.rhtas.redhat.com
 envsubst '$CLUSTER_DOMAIN' < gitops/platform/tas/securesign.yaml | oc apply -f -
-oc apply -f gitops/platform/tas/clusterspiffeid-signer.yaml
+oc apply -f gitops/platform/tas/chains-spiffe-entry.yaml
 oc wait securesign/securesign -n trusted-artifact-signer --for=condition=Ready --timeout=1350s
+FULCIO_URL="https://fulcio-server-trusted-artifact-signer.$D" REKOR_URL="https://rekor-server-trusted-artifact-signer.$D"
+TUF_URL="https://tuf-trusted-artifact-signer.$D" OIDC_ISSUER="https://oidc-discovery.$D"
+export FULCIO_URL REKOR_URL TUF_URL OIDC_ISSUER
 
-echo "== 3 cosign keypair (Tekton Chains)"
-wait_for 40 15 "namespace openshift-pipelines" oc get ns openshift-pipelines
-has_pub() { [ -n "$(oc get secret signing-secrets -n openshift-pipelines -o jsonpath='{.data.cosign\.pub}' 2>/dev/null)" ]; }
-# OpenShift Pipelines creates signing-secrets itself (immutable) and fills it with a generated keypair
-# shortly after install. Give it time: generating our own into an immutable Secret fails.
-oc get secret signing-secrets -n openshift-pipelines >/dev/null 2>&1 && ! has_pub \
-  && { wait_for 16 15 "the Pipelines-generated keypair in signing-secrets" has_pub || true; }
-if has_pub; then
-  echo "signing-secrets: already present"
-else
-  # still empty: an immutable Secret cannot be filled, so replace it
-  oc delete secret signing-secrets -n openshift-pipelines --ignore-not-found >/dev/null
-  echo "signing-secrets: generating the cluster keypair in-cluster (the private key never leaves the cluster)"
-  oc -n openshift-pipelines get secret cosign-keygen-password >/dev/null 2>&1 || \
-    oc -n openshift-pipelines create secret generic cosign-keygen-password --from-literal=password="$(openssl rand -hex 16)" >/dev/null
-  oc delete job cosign-keygen -n openshift-pipelines --ignore-not-found >/dev/null
-  oc apply -f - <<'YAML'
-apiVersion: v1
-kind: ServiceAccount
-metadata: {name: cosign-keygen, namespace: openshift-pipelines}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: {name: cosign-keygen, namespace: openshift-pipelines}
-rules:
-  - {apiGroups: [""], resources: [secrets], verbs: [get, create, update, patch, delete]}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: {name: cosign-keygen, namespace: openshift-pipelines}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: cosign-keygen}
-subjects: [{kind: ServiceAccount, name: cosign-keygen, namespace: openshift-pipelines}]
----
-apiVersion: batch/v1
-kind: Job
-metadata: {name: cosign-keygen, namespace: openshift-pipelines}
-spec:
-  backoffLimit: 2
-  template:
-    spec:
-      serviceAccountName: cosign-keygen
-      restartPolicy: Never
-      containers:
-        - name: keygen
-          image: ghcr.io/sigstore/cosign/cosign:v2.4.3
-          args: ["generate-key-pair", "k8s://openshift-pipelines/signing-secrets"]
-          env:
-            - name: COSIGN_PASSWORD
-              valueFrom: {secretKeyRef: {name: cosign-keygen-password, key: password}}
-YAML
-  # Pipelines may still fill signing-secrets itself after we deleted it; then our job fails on the
-  # immutable Secret. Either way a full keypair is what we need.
-  oc wait job/cosign-keygen -n openshift-pipelines --for=condition=complete --timeout=300s \
-    || { has_pub && echo "signing-secrets: keypair present (written by OpenShift Pipelines)"; }
-  oc rollout restart deploy/tekton-chains-controller -n openshift-pipelines
-fi
+echo "== 3 Tekton Chains: keyless signing with Trusted Artifact Signer"
+wait_for 40 15 "TektonConfig config" oc get tektonconfig config
+# The Chains controller gets the SPIFFE Workload API socket; Fulcio turns its JWT-SVID into a 10-minute certificate.
+oc patch tektonconfig config --type merge -p "{\"spec\":{\"chain\":{
+  \"signers.x509.fulcio.enabled\": true,
+  \"signers.x509.fulcio.address\": \"$FULCIO_URL\",
+  \"signers.x509.fulcio.issuer\": \"$OIDC_ISSUER\",
+  \"signers.x509.fulcio.provider\": \"spiffe\",
+  \"signers.x509.tuf.mirror.url\": \"$TUF_URL\",
+  \"transparency.enabled\": \"true\",
+  \"transparency.url\": \"$REKOR_URL\",
+  \"options\": {\"deployments\": {\"tekton-chains-controller\": {\"spec\": {\"template\": {\"spec\": {
+    \"containers\": [{\"name\": \"tekton-chains-controller\",
+      \"env\": [{\"name\": \"SPIFFE_ENDPOINT_SOCKET\", \"value\": \"/spiffe-workload-api/spire-agent.sock\"}],
+      \"volumeMounts\": [{\"name\": \"spiffe-workload-api\", \"mountPath\": \"/spiffe-workload-api\", \"readOnly\": true}]}],
+    \"volumes\": [{\"name\": \"spiffe-workload-api\", \"csi\": {\"driver\": \"csi.spiffe.io\", \"readOnly\": true}}]}}}}}}}}}"
+wait_for 20 15 "Chains controller with the SPIFFE socket" sh -c \
+  "oc get deploy tekton-chains-controller -n openshift-pipelines -o jsonpath='{.spec.template.spec.volumes[*].name}' | grep -q spiffe-workload-api"
+oc rollout status deploy/tekton-chains-controller -n openshift-pipelines --timeout=300s
 wait_for 40 15 "namespace parasol-build (Argo platform-builds)" oc get ns parasol-build
-# The Chains private key stays in openshift-pipelines: no pipeline step signs with it (older installs copied it here).
-oc delete secret cosign-signing-key -n parasol-build --ignore-not-found >/dev/null
-# The onboarding key: a separate keypair the vendor-image onboarding pipeline signs approved images with.
-if [ -n "$(oc get secret parasol-onboarding-key -n parasol-build -o jsonpath='{.data.cosign\.pub}' 2>/dev/null)" ]; then
-  echo "parasol-onboarding-key: already present"
-else
-  echo "parasol-onboarding-key: generating in-cluster (the private key never leaves the cluster)"
-  oc -n parasol-build get secret onboarding-keygen-password >/dev/null 2>&1 || \
-    oc -n parasol-build create secret generic onboarding-keygen-password --from-literal=password="$(openssl rand -hex 16)" >/dev/null
-  oc delete job onboarding-keygen -n parasol-build --ignore-not-found >/dev/null
-  oc apply -f - <<'YAML'
-apiVersion: v1
-kind: ServiceAccount
-metadata: {name: onboarding-keygen, namespace: parasol-build}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata: {name: onboarding-keygen, namespace: parasol-build}
-rules:
-  - {apiGroups: [""], resources: [secrets], verbs: [get, create, update, patch]}
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata: {name: onboarding-keygen, namespace: parasol-build}
-roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: onboarding-keygen}
-subjects: [{kind: ServiceAccount, name: onboarding-keygen, namespace: parasol-build}]
----
-apiVersion: batch/v1
-kind: Job
-metadata: {name: onboarding-keygen, namespace: parasol-build}
-spec:
-  backoffLimit: 2
-  template:
-    spec:
-      serviceAccountName: onboarding-keygen
-      restartPolicy: Never
-      containers:
-        - name: keygen
-          image: ghcr.io/sigstore/cosign/cosign:v2.4.3
-          workingDir: /tmp   # cosign also writes cosign.pub locally
-          args: ["generate-key-pair", "k8s://parasol-build/parasol-onboarding-key"]
-          env:
-            - name: COSIGN_PASSWORD
-              valueFrom: {secretKeyRef: {name: onboarding-keygen-password, key: password}}
-YAML
-  oc wait job/onboarding-keygen -n parasol-build --for=condition=complete --timeout=300s
-  oc delete job onboarding-keygen -n parasol-build >/dev/null
-fi
-oc get secret signing-secrets -n openshift-pipelines -o jsonpath='{.data.cosign\.pub}' | base64 -d > /tmp/parasol-cosign.pub.$$
-oc -n parasol-build create configmap cosign-pub --from-file=cosign.pub=/tmp/parasol-cosign.pub.$$ --dry-run=client -o yaml | oc apply -f - >/dev/null
-echo "configmap parasol-build/cosign-pub applied"
+oc -n parasol-build create configmap tas-trust --from-literal=TUF_URL="$TUF_URL" --from-literal=REKOR_URL="$REKOR_URL" \
+  --from-literal=OIDC_ISSUER="$OIDC_ISSUER" \
+  --from-literal=SIGNER_IDENTITY=spiffe://parasol-demo/ns/openshift-pipelines/sa/tekton-chains-controller \
+  --dry-run=client -o yaml | oc apply -f - >/dev/null
+echo "configmap parasol-build/tas-trust applied"
+# Earlier installs: no key signs anything any more (Chains ignores signing-secrets once Fulcio is on).
+oc delete secret cosign-signing-key parasol-onboarding-key onboarding-keygen-password -n parasol-build --ignore-not-found >/dev/null
+oc delete configmap cosign-pub -n parasol-build --ignore-not-found >/dev/null
+oc delete clusterspiffeid parasol-build-signer --ignore-not-found >/dev/null
 
 echo "== 4 policy-controller (admission)"
 wait_for 40 15 "PolicyController CRD" oc get crd policycontrollers.rhtas.charts.redhat.com
@@ -148,16 +73,12 @@ wait_for 20 15 "ConfigMap config-policy-controller" oc get cm config-policy-cont
 oc patch cm config-policy-controller -n policy-controller-operator --type merge -p '{"data":{"no-match-policy":"allow"}}'
 
 echo "== 5 TrustRoot + ClusterImagePolicy for this cluster"
-export TUF_URL="https://tuf-trusted-artifact-signer.$D" OIDC_ISSUER="https://oidc-discovery.$D"
 wait_for 40 15 "TUF root at $TUF_URL/root.json" curl -skf "$TUF_URL/root.json"
 TUF_ROOT_B64="$(curl -skf "$TUF_URL/root.json" | base64 | tr -d '\n')"
-COSIGN_PUB="$(sed 's/^/          /' /tmp/parasol-cosign.pub.$$)"
-ONBOARDING_PUB="$(oc get secret parasol-onboarding-key -n parasol-build -o jsonpath='{.data.cosign\.pub}' | base64 -d | sed 's/^/          /')"
-export TUF_ROOT_B64 COSIGN_PUB ONBOARDING_PUB
-rm -f /tmp/parasol-cosign.pub.$$
-envsubst '$TUF_URL $TUF_ROOT_B64 $OIDC_ISSUER $COSIGN_PUB $ONBOARDING_PUB' < gitops/platform/tas/clusterimagepolicy-keyless.yaml | oc apply -f -
+export TUF_ROOT_B64
+envsubst '$TUF_URL $TUF_ROOT_B64 $FULCIO_URL $REKOR_URL $OIDC_ISSUER' < gitops/platform/tas/clusterimagepolicy-keyless.yaml | oc apply -f -
 
 echo "== 6 enforce on parasol-secured"
 wait_for 40 15 "namespace parasol-secured (Argo env-secured)" oc get ns parasol-secured
 oc label namespace parasol-secured policy.rhtas.com/include=true --overwrite
-echo "supply chain ready: keyless (SPIFFE -> Fulcio -> Rekor) + Tekton Chains key; onboarding key for vendor images; admission enforced on parasol-secured"
+echo "supply chain ready: Tekton Chains signs keyless (SPIFFE -> Fulcio -> Rekor); admission enforced on parasol-secured"

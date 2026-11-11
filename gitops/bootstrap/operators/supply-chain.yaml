@@ -1,5 +1,5 @@
 # Supply chain (guide 07): Trusted Artifact Signer (Fulcio/Rekor/TUF for keyless signing), the Sigstore
-# policy-controller (admission), and Zero Trust Workload Identity Manager (SPIRE: the pipeline's keyless
+# policy-controller (admission), and Zero Trust Workload Identity Manager (SPIRE: Tekton Chains' keyless
 # signing identity is a SPIFFE JWT-SVID). Operands: scripts/supply-chain.sh.
 apiVersion: operators.coreos.com/v1alpha1
 kind: Subscription
