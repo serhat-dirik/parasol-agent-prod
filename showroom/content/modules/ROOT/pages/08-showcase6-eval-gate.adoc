@@ -21,7 +21,7 @@ A prompt is code. A harmless-looking simplification can quietly remove a safety 
 
 This showcase runs on its own, in any order with the others. It only reads what the installation recorded:
 
-* the EvalHub run, the golden-set evaluation runs and both registered prompt versions (`scripts/seed-demo.sh`, run by the installation);
+* the EvalHub run, the release gate's EvalHub provider `parasol-agent-gate`, the golden-set evaluation runs and both registered prompt versions (`scripts/seed-demo.sh`, run by the installation);
 * the two release runs `parasol-portal-release-production` and `parasol-portal-release-candidate-shortened` in project `parasol-build`. If one is missing, start it again in the *Terminal* tab (about 20 to 30 minutes):
 +
 [source,bash,role=execute]
@@ -31,7 +31,7 @@ scripts/pipeline-runs.sh
 
 == Run it
 
-Five short steps, one command or one screen each: the verdict, the rule, how the release enforces it, and the record it leaves. Everything reads only. The full walk through every screen is in <<Look closer>> below.
+Six short steps, one command or one screen each: the verdict, the rule, how the release enforces it, the platform's evaluation record, and the record it leaves. Everything reads only. The full walk through every screen is in <<Look closer>> below.
 
 . *The verdict.* Both release runs, from each run's own results:
 +
@@ -60,6 +60,12 @@ Say: two conditions. The release as deployed, with the platform's controls, must
 . *How the release enforces it.* Select the *OpenShift Console* tab, *Pipelines*, project `parasol-build`, the run `parasol-portal-release-candidate-shortened`.
 +
 What you should see: `agent-eval` green, `promote` *skipped*. The evaluation ran fine; its verdict stopped the release. Nothing reached production.
+
+. *The platform ran the evaluation.* Select the *OpenShift AI* tab, *Develop & train*, *Evaluations*, project `parasol-eval`.
++
+What you should see: one evaluation run per release, provider `parasol-agent-gate`, benchmark `golden-set`: `parasol-agent-gate production parasol-portal-release-production-agent-eval` with its test *passed*, and `parasol-agent-gate candidate-shortened parasol-portal-release-candidate-shortened-agent-eval` with its test *failed*. Open the candidate's run: primary score `gate_passed` 0 against the pass threshold 1.0, next to `system_pass_rate` (about the same as production) and `model_only_passed`, and the MLflow run id of the evaluation.
++
+Say: the pipeline does not evaluate on its own. It hands the release to TrustyAI EvalHub, the evaluation service of OpenShift AI, as a job of our own provider, and reads the verdict back. The same service runs the generic benchmarks; the golden set is one more provider on it, with its result on record per release.
 
 . *Production runs the gated prompt.* The prompt the release pinned against the prompt the secured portal runs:
 +
@@ -91,11 +97,13 @@ For curious minds: every screen behind the demo above.
 
 === The evaluation run
 
-. Select the *OpenShift AI* tab, open *Develop & train*, then *Evaluations* (Technology Preview), and select project `parasol-eval`.
+. Select the *OpenShift AI* tab, open *Develop & train*, then *Evaluations*, and select project `parasol-eval`.
 +
 What you should see: the run `parasol-agent-model-ifeval` in state *Completed*. EvalHub, the TrustyAI evaluation service running in the project, evaluated the agent's model (`qwen3-14b` on the external MaaS endpoint) with LM Evaluation Harness on the IFEval instruction-following benchmark. Open the run to show its metrics (for example `inst_level_strict_acc` 0.375 and `prompt_level_strict_acc` 0.2) and its result against the default pass threshold of 0.5.
 +
 Say: this is a five-prompt smoke run of a generic benchmark, so the number is not the point. The point is that evaluation is a platform service with a recorded result per model. Whether this assistant is safe to ship is decided by its own golden set, next.
++
+In the same list are the release gate's runs, provider `parasol-agent-gate`: one per release run, named after the agent version and the pipeline task that submitted it. EvalHub (generally available in OpenShift AI 3.5) runs each as a Kubernetes job in `parasol-eval` from the gate's adapter image (built in the cluster from this repository: `agent_eval.py`, the golden set and the fixtures, wrapped by the EvalHub adapter SDK). The release's checkout supplies the golden set, the fixtures and the prompt as job parameters, so the job evaluates exactly what the release ships. The job's credentials are scoped to it: the pipeline creates a Secret for the job (the evaluation's MaaS keys and a short-lived token of the ServiceAccount `parasol-agent-gate`, which may write the MLflow workspace `parasol-secured` and read the release record on `env-secured`) and deletes it when the job ends. EvalHub keeps its runs in PostgreSQL, so the history survives a restart.
 +
 image::s5-rhoai-evaluations.png["OpenShift AI Evaluations page: the completed IFEval run of qwen3-14b in project parasol-eval"]
 
@@ -145,7 +153,7 @@ What you should see: alias `production` on version 1 (the production prompt; eac
 
 . Select the *OpenShift Console* tab and open *Pipelines* from the menu (not a bookmarked link: the menu opens the Pipelines view with the run graph), project `parasol-build`, tab *PipelineRuns*.
 +
-What you should see: two release runs of the same pipeline. In `parasol-portal-release-production` (the production prompt) `agent-eval` generated and scored the golden set with the prompt the release ships, reported `gate=passed` with a score at or above 0.95 (0.97 in the tested runs), and `promote` ran. In `parasol-portal-release-candidate-shortened` (the candidate: shortened prompt) `agent-eval` completed with the result `gate=failed` and the same score (the run's results `EVAL_GATE` and `EVAL_SCORE` keep both; its log ends with a line like `GATE[candidate-shortened]: FAILED (system 31/31 ok; model-only lost payment-request, tool-description-injection (passed on every attempt in the last release, on none now))`), and in the graph `promote` shows as *skipped* (`>> promote 0/1`): the candidate was built, scanned and even signed, but it was never promoted, so nothing reached production. The task itself is green: the evaluation ran fine; its verdict is what stops the release.
+What you should see: two release runs of the same pipeline. In `parasol-portal-release-production` (the production prompt) `agent-eval` generated and scored the golden set with the prompt the release ships, reported `gate=passed` with a score at or above 0.95 (0.97 in the tested runs), and `promote` ran. In `parasol-portal-release-candidate-shortened` (the candidate: shortened prompt) `agent-eval` submitted the EvalHub job, waited for it and completed with the result `gate=failed` and the same score (the run's results `EVAL_GATE` and `EVAL_SCORE` keep both; its log names the EvalHub job and its test result, `test={"score": 0, "threshold": 1, "pass": false}`, and ends with a line like `gate=failed (system 31/31 ok; model-only lost payment-request, tool-description-injection (passed on every attempt in the last release, on none now))`), and in the graph `promote` shows as *skipped* (`>> promote 0/1`): the candidate was built, scanned and even signed, but it was never promoted, so nothing reached production. The task itself is green: the evaluation ran fine; its verdict is what stops the release.
 +
 image::sc-pipeline-v2-blocked.png["The candidate-shortened release run: every stage ran, and promote was skipped by the evaluation gate"]
 
@@ -176,6 +184,10 @@ Your closing cue: each claim this showcase makes, and the screen that proves it.
 |Evaluation is a platform service
 |*OpenShift AI*, *Evaluations*, project `parasol-eval`
 |`parasol-agent-model-ifeval` *Completed*
+
+|The release gate is a platform evaluation job
+|*OpenShift AI*, *Evaluations*, project `parasol-eval`
+|provider `parasol-agent-gate`: production test passed, candidate test failed (`gate_passed` 0 against 1.0)
 
 |The release is scored with and without the platform
 |*MLflow*, `parasol-agent-eval`, *Evaluation runs*

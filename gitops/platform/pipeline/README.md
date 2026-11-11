@@ -24,7 +24,14 @@ finally: show-sbom, show-summary
 Tekton Chains (outside the pipeline): signs the build-container image and its SLSA provenance, keyless.
 ```
 
-`agent-eval` first registers the prompt the release ships (`prompt-file` in the cloned repo, e.g.
+`agent-eval` (Task `agent-eval-evalhub`, `agent-eval-evalhub-task.yaml`) runs the gate as a TrustyAI EvalHub job:
+provider `parasol-agent-gate`, benchmark `golden-set`, tenant `parasol-eval`, listed on the OpenShift AI dashboard
+(Develop & train, Evaluations). The task submits the job with the release checkout's golden set, fixtures and prompt
+as parameters and a per-job credentials Secret (the eval's MaaS keys and a short-lived token of
+`parasol-eval/parasol-agent-gate`, deleted when the job ends), waits for it, and writes the same results and
+`release/` files the job's `agent_eval.py` produced (primary score `gate_passed`, pass threshold 1.0, so a blocked
+release fails the job's test). Image, provider and RBAC: `scripts/evalhub-gate.sh` (`gitops/platform/eval/evalhub-gate.yaml`).
+The Task `agent-eval` in `tasks.yaml` runs the same evaluation inside the pipeline pod. The evaluation first registers the prompt the release ships (`prompt-file` in the cloned repo, e.g.
 `gitops/envs/secured/system-prompt.txt`, becomes the registry version the `prompt-ref` alias points to; an
 identical text reuses its version; the registry is append-only), then runs the MLflow evaluation of the claims
 assistant with that prompt, generating every golden-set answer live (agent model qwen3-14b through OpenShift AI MaaS
@@ -54,7 +61,7 @@ annotations, then waits until Argo CD reports Synced/Healthy on that digest. The
 get/patch that one Application (`promote-rbac.yaml`). The Git overlay holds a placeholder digest with
 the portal at 0 replicas, so nothing is pulled or admitted before the first promote.
 
-* `pipeline.yaml`, `tasks.yaml` — Pipeline and Tasks (kustomize namespace `parasol-build`, synced by Argo CD).
+* `pipeline.yaml`, `tasks.yaml`, `agent-eval-evalhub-task.yaml` — Pipeline and Tasks (kustomize namespace `parasol-build`, synced by Argo CD).
 * `promote-rbac.yaml` — Role/RoleBinding in `openshift-gitops`: the `pipeline` SA may get/patch
   the Application `env-secured` only.
 * `pipelinerun.yaml` — a release run (`candidate=production`); with `candidate=candidate-shortened` (prompt
