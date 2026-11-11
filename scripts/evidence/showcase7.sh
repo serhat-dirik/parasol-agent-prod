@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # showcase7.sh <topic> : evidence of Showcase 7, third-party tools (read-only)
-#   onboarding   the onboarding runs of the partner bank's versions: verdict, findings, signed, promoted
+#   onboarding   the onboarding runs of the partner bank's versions: verdict, findings, built, promoted
 #   tools        the MCP servers the secured agent reaches, the onboarded version, and the unsecured shortcut
 #   scan         the runtime tool scanner's latest verdict per server: pinned, drifted, flagged
 #   payouts [claim]  the latest claims-db payout record of both portals (showcase1.sh payouts)
@@ -16,16 +16,16 @@ import sys, json
 for p in json.load(sys.stdin)["items"]:
     r = {x["name"]: x["value"] for x in p.get("status", {}).get("results", [])}
     sk = [t["name"] for t in p.get("status", {}).get("skippedTasks", [])]
-    print("  %-50s gate=%-8s findings=%-2s signed=%-4s promoted=%s" % (p["metadata"]["name"], r.get("GATE", "?"),
-          r.get("FINDINGS", "?"), "no" if "sign" in sk else "yes", (r.get("PROMOTED_DIGEST") or "-")[7:19] or "-"))'
+    print("  %-50s gate=%-8s findings=%-2s built=%-4s promoted=%s" % (p["metadata"]["name"], r.get("GATE", "?"),
+          r.get("FINDINGS", "?"), "no" if "build-onboarded-image" in sk else "yes", (r.get("PROMOTED_DIGEST") or "-")[7:19] or "-"))'
   title "What the secured side runs (Argo CD Application env-secured-tools)"
   run "oc get application env-secured-tools -n openshift-gitops -o json" | python3 -c '
 import sys, json; a = json.load(sys.stdin)["metadata"]["annotations"]
 for k in ("onboarded-version", "onboarded-digest", "onboarded-tools-sha256", "onboarded-by"): print("  %-24s %s" % (k, a.get("parasol.example/" + k, "-")))'
-  title "Parasol's signature and the onboarding attestation on the onboarded digest"
+  title "Parasol's onboarded image: Tekton Chains' keyless signature and provenance on the onboarded digest"
   img="image-registry.openshift-image-registry.svc:5000/parasol-build/currency-converter@$(oc get application env-secured-tools -n openshift-gitops -o jsonpath='{.metadata.annotations.parasol\.example/onboarded-digest}')"
   run "oc get --raw /apis/image.openshift.io/v1/namespaces/parasol-build/imagestreams/currency-converter | python3 -c 'import sys,json; print(\"  signature/attestation tags:\", sorted(t[\"tag\"][:16] + \"...\" + t[\"tag\"][-4:] for t in json.load(sys.stdin)[\"status\"].get(\"tags\", []) if t[\"tag\"].endswith((\".sig\", \".att\"))) or \"none (registry tags not listed here)\")'" || true
-  note "  verify yourself: cosign verify --key <onboarding cosign.pub: secret parasol-build/parasol-onboarding-key> --insecure-ignore-tlog --allow-insecure-registry $img" ;;
+  note "  verify yourself: cosign verify --certificate-identity spiffe://parasol-demo/ns/openshift-pipelines/sa/tekton-chains-controller --certificate-oidc-issuer https://oidc-discovery.apps.$DOMAIN --rekor-url https://rekor-server-trusted-artifact-signer.apps.$DOMAIN --allow-insecure-registry $img" ;;
 tools)
   title "MCP servers the gateway federates for the secured agent (MCPServerRegistration, parasol-secured)"
   run "oc get mcpserverregistration -n parasol-secured" | sed 's/^/  /'

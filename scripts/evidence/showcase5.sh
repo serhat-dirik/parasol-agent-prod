@@ -10,7 +10,7 @@ release)
   run "oc get pipelinerun parasol-portal-release-production -n parasol-build -o json" | python3 -c '
 import sys, json
 r = {x["name"]: x["value"] for x in json.load(sys.stdin).get("status", {}).get("results", [])}
-for k in ("EVAL_GATE", "EVAL_SCORE", "AGENT_VERSION", "KEYLESS_SIGNED_IMAGES", "PROMOTED_DIGEST"): print("  %-22s %s" % (k, r.get(k, "-")))'
+for k in ("EVAL_GATE", "EVAL_SCORE", "AGENT_VERSION", "SBOM_SHA256", "PROMOTED_DIGEST"): print("  %-22s %s" % (k, r.get(k, "-")))'
   title "2) The pin on the Argo CD Application env-secured"
   run "oc get application env-secured -n openshift-gitops -o json" | python3 -c '
 import sys, json; a = json.load(sys.stdin)["metadata"]["annotations"]

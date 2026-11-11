@@ -4,7 +4,7 @@
 #   release <version>   the bank publishes <version> as latest (oc tag in parasol-build, standing in for the bank's
 #                       registry); the unsecured side (parasol-thirdparty) runs latest and restarts on it
 #   onboard <version> [--wait]   run the onboarding pipeline for <version> (PipelineRun
-#                       parasol-tool-onboarding-currency-converter-<version>); passed = signed and promoted to
+#                       parasol-tool-onboarding-currency-converter-<version>); passed = built by Parasol, signed by Tekton Chains and promoted to
 #                       parasol-secured, refused = nothing changes
 #   plug | unplug       the team plugs the bank's service (as published) into the FREE assistant (Argo CD component
 #                       plug-in-vendor-tool on env-free). Off by default, so the other showcases never see it.
