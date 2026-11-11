@@ -26,7 +26,8 @@ fi
 oc apply -f gitops/platform/eval/evalhub-postgres.yaml
 oc rollout status deploy/evalhub-postgres -n "$NS" --timeout=300s
 oc apply -f gitops/platform/eval/evalhub.yaml
-sleep 10   # let the operator roll the deployment onto the new store before reading Ready
+sleep 10   # let the operator create or roll the deployment onto the store before reading Ready
+for i in $(seq 1 30); do oc get deploy/parasol-evalhub -n "$NS" >/dev/null 2>&1 && break; echo "$(date +%T) waiting for deploy/parasol-evalhub"; sleep 10; done
 oc rollout status deploy/parasol-evalhub -n "$NS" --timeout=300s
 oc wait evalhub/parasol-evalhub -n "$NS" --for=condition=Ready --timeout=300s
 
