@@ -1,8 +1,8 @@
-# Red Hat Trusted Artifact Signer (Securesign) - the keyless signing backend for the pipeline.
+# Red Hat Trusted Artifact Signer (Securesign) - the keyless signing backend for Tekton Chains.
 # Fulcio (CA), Rekor (transparency log), CTlog, Trillian (DB), TUF (trust root).
-# OIDC issuer = SPIRE's OIDC discovery provider (gitops/platform/workload-identity), type spiffe: the
-# pipeline's keyless-signer pod presents a SPIFFE JWT-SVID (audience trusted-artifact-signer) and Fulcio
-# issues a short-lived signing certificate for spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer.
+# OIDC issuer = SPIRE's OIDC discovery provider (gitops/platform/workload-identity), type spiffe: the Chains
+# controller presents a SPIFFE JWT-SVID (audience sigstore, the client ID Chains always requests) and Fulcio
+# issues a 10-minute certificate for spiffe://parasol-demo/ns/openshift-pipelines/sa/tekton-chains-controller.
 # Applied by scripts/supply-chain.sh: envsubst '$CLUSTER_DOMAIN' < securesign.yaml | oc apply -f -
 apiVersion: v1
 kind: Namespace
@@ -22,7 +22,7 @@ spec:
       oidcIssuers:
         - issuer: https://oidc-discovery.apps.${CLUSTER_DOMAIN}
           issuerURL: https://oidc-discovery.apps.${CLUSTER_DOMAIN}
-          clientID: trusted-artifact-signer
+          clientID: sigstore
           type: spiffe
           spiffeTrustDomain: parasol-demo
     ingress:
