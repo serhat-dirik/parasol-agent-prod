@@ -111,7 +111,7 @@ image::s7-unsecured-rugpull-payout.png["Portal unsecured as rebecca, CLM-1001: c
 scripts/tool-rugpull.sh onboard 1.4.3 --wait
 ----
 +
-What you should see, after about two minutes: `Completed  gate=refused findings=3 promoted=` (empty). In the *OpenShift Console*, *PipelineRuns*, `parasol-tool-onboarding-currency-converter-1-4-3`: the run *Succeeded* (it did its job: it decided), `tool-check` green, `sign` and `promote` *skipped*. Its log:
+What you should see, after about two minutes: `Completed  gate=refused findings=3 promoted=` (empty). In the *OpenShift Console*, *PipelineRuns*, `parasol-tool-onboarding-currency-converter-1-4-3`: the run *Succeeded* (it did its job: it decided), `tool-check` green, `prepare`, `build-onboarded-image`, `verify-conforma` and `promote` *skipped*: nothing is built, so nothing is signed. Its log:
 +
 ----
 ===== onboarding check: currency-converter 1.4.3 (server says 1.4.3) =====
@@ -124,7 +124,7 @@ FINDING guardrails: convert_currency's description blocked by NeMo parasol-tool-
 REFUSED: currency-converter 1.4.3, 3 finding(s); nothing is built or promoted
 ----
 +
-image::s7-onboarding-refused.png["Console, PipelineRun parasol-tool-onboarding-currency-converter-1-4-3, Succeeded: clone-repository, resolve, tool-check and scan-image ran, sign and promote skipped"]
+image::s7-onboarding-refused.png["Console, PipelineRun parasol-tool-onboarding-currency-converter-1-4-3, Succeeded: clone-repository, resolve, tool-check and scan-image ran; prepare, build-onboarded-image, verify-conforma and promote skipped"]
 +
 Note what passed: the contract. 1.4.3 still converts correctly; only its description changed. A test of the tool's behaviour alone would have let it through.
 
