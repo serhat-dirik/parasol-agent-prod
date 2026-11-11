@@ -130,7 +130,7 @@ def main():
     for f in rep["findings"]:
         print("FINDING " + f)
     print(("REFUSED: " if rep["findings"] else "PASSED: ") + f"{a.server} {a.version}, {len(rep['findings'])} finding(s)"
-          + ("; nothing is signed or promoted" if rep["findings"] else "; next: sign and promote"))
+          + ("; nothing is built or promoted" if rep["findings"] else "; next: build and promote"))
     if a.report:
         json.dump(rep, open(a.report, "w"), indent=1)
     if a.out_dir:
