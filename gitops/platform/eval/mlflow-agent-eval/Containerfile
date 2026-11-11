@@ -1,0 +1,18 @@
+# EvalHub adapter image of the release gate (provider parasol-agent-gate): agent_eval.py, the golden set and the
+# fixtures, wrapped by evalhub_adapter.py. Built in-cluster by BuildConfig parasol-eval/parasol-agent-gate
+# (gitops/platform/eval/evalhub-gate.yaml) from the repository root, so the portal's Java sources sit at the
+# paths agent_eval.py checks its copy of the correction rule against.
+FROM registry.access.redhat.com/ubi9/python-311:latest
+USER 0
+RUN pip install --no-cache-dir "mlflow==3.4.0" openai requests "eval-hub-sdk[adapter]==1.0.7"
+COPY apps/parasol-portal/app/src/main/java/org/parasol/ai/AgentService.java \
+     apps/parasol-portal/app/src/main/java/org/parasol/ai/ToolCallRecorder.java \
+     /app/apps/parasol-portal/app/src/main/java/org/parasol/ai/
+COPY gitops/platform/eval/mlflow-agent-eval/agent_eval.py gitops/platform/eval/mlflow-agent-eval/evalhub_adapter.py \
+     gitops/platform/eval/mlflow-agent-eval/golden-set.json gitops/platform/eval/mlflow-agent-eval/fixtures.json \
+     /app/gitops/platform/eval/mlflow-agent-eval/
+# the job runs with an arbitrary UID in group 0: the adapter writes the release revision's golden set there
+RUN chgrp -R 0 /app && chmod -R g=u /app
+USER 1001
+WORKDIR /app/gitops/platform/eval/mlflow-agent-eval
+ENTRYPOINT ["python", "evalhub_adapter.py"]

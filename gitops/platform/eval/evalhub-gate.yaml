@@ -1,0 +1,105 @@
+# The release gate as an EvalHub provider (parasol-agent-gate, benchmark golden-set): adapter image build,
+# the gate's identity and the release pipeline's access to EvalHub. Applied by scripts/evalhub-gate.sh, which
+# also builds the image and registers the provider. Not Argo-wired, consistent with the other eval manifests.
+# Revert: oc delete -f gitops/platform/eval/evalhub-gate.yaml
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: parasol-agent-gate
+  namespace: parasol-eval
+---
+# In-cluster build from the public repository (read only); the Containerfile copies agent_eval.py, the golden
+# set, the fixtures and the portal's correction-rule sources.
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: parasol-agent-gate
+  namespace: parasol-eval
+spec:
+  successfulBuildsHistoryLimit: 2
+  failedBuildsHistoryLimit: 2
+  source:
+    type: Git
+    git: {uri: "https://github.com/serhat-dirik/parasol-agent-prod.git", ref: main}
+  strategy:
+    type: Docker
+    dockerStrategy: {dockerfilePath: gitops/platform/eval/mlflow-agent-eval/Containerfile}
+  output:
+    to: {kind: ImageStreamTag, name: "parasol-agent-gate:latest"}
+  resources:
+    limits: {cpu: "2", memory: 3Gi}
+---
+# The identity the gate job acts as. evalhub_gate.py mints a short-lived token of it per job (EvalHub job pods
+# carry no ServiceAccount token): MLflow workspace parasol-secured (log the run, read the baseline, register
+# the prompt) and the env-secured Application's annotations (the non-regression baseline).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: parasol-agent-gate
+  namespace: parasol-eval
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-gate-mlflow-edit
+  namespace: parasol-secured
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: mlflow-operator-mlflow-edit}
+subjects:
+  - {kind: ServiceAccount, name: parasol-agent-gate, namespace: parasol-eval}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-gate-mlflow-view
+  namespace: parasol-secured
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: mlflow-operator-mlflow-view}
+subjects:
+  - {kind: ServiceAccount, name: parasol-agent-gate, namespace: parasol-eval}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-gate-release-record
+  namespace: openshift-gitops
+rules:
+  - apiGroups: [argoproj.io]
+    resources: [applications]
+    resourceNames: [env-secured]
+    verbs: [get]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-gate-release-record
+  namespace: openshift-gitops
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: agent-gate-release-record}
+subjects:
+  - {kind: ServiceAccount, name: parasol-agent-gate, namespace: parasol-eval}
+---
+# The release pipeline (parasol-build/pipeline) submits the gate job: EvalHub's virtual resources in the tenant
+# parasol-eval, the per-job credentials Secret, and a token of the gate's ServiceAccount.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: agent-gate-submitter
+  namespace: parasol-eval
+rules:
+  - apiGroups: [trustyai.opendatahub.io]
+    resources: [evaluations, providers]
+    verbs: [get, list, create, delete]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [create, delete]
+  - apiGroups: [""]
+    resources: [serviceaccounts/token]
+    resourceNames: [parasol-agent-gate]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-gate-submitter
+  namespace: parasol-eval
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: agent-gate-submitter}
+subjects:
+  - {kind: ServiceAccount, name: pipeline, namespace: parasol-build}

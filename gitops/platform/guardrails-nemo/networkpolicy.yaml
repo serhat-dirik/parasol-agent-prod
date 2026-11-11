@@ -36,6 +36,10 @@ spec:
             matchLabels: {kubernetes.io/metadata.name: parasol-build}
           podSelector:
             matchLabels: {job-name: parasol-eval-seed}
+        - namespaceSelector:   # the release gate as an EvalHub job (provider parasol-agent-gate)
+            matchLabels: {kubernetes.io/metadata.name: parasol-eval}
+          podSelector:
+            matchLabels: {component: evaluation-job}
       ports:
         - {protocol: TCP, port: 8000}
   egress:
