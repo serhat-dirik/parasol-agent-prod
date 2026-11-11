@@ -10,6 +10,7 @@ kind: Kustomization
 # namespace is only set where a resource has none (unsetOnly).
 resources:
   - tasks.yaml
+  - agent-eval-evalhub-task.yaml   # the release gate as a TrustyAI EvalHub job (provider parasol-agent-gate)
   - keyless-sign-task.yaml
   - pipeline.yaml
   - promote-rbac.yaml

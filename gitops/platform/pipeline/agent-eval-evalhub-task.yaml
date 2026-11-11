@@ -1,0 +1,57 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: agent-eval-evalhub
+  labels: {app.kubernetes.io/version: "0.1"}
+spec:
+  description: >-
+    Lifecycle gate through TrustyAI EvalHub: the same evaluation as the agent-eval task (agent_eval.py: the golden
+    set generated live with the prompt this release ships, system and model_only modes, gate threshold and
+    model-only non-regression, judge assessments, MLflow run in the parasol-secured workspace, prompt registered
+    behind prompt-ref) runs as an EvalHub job of provider parasol-agent-gate (benchmark golden-set) in the tenant
+    parasol-eval, so it is listed on the OpenShift AI dashboard (Develop & train -> Evaluations) with its test
+    result. The task submits the job (evalhub_gate.py: golden set, fixtures and prompt from this release's
+    checkout; a per-job credentials Secret; a short-lived token of parasol-eval/parasol-agent-gate), waits for
+    it, and writes the same results and release/ workspace files as agent-eval, so register-agent-version and
+    promote read them unchanged. A blocked release completes with gate=failed (the job's test fails); a job that
+    fails or times out fails the task. Provider, image and RBAC: scripts/evalhub-gate.sh.
+  params:
+    - {name: candidate, type: string, default: candidate-shortened}
+    - {name: prompt-ref, type: string, default: ""}
+    - {name: prompt-file, type: string, default: "source/gitops/envs/secured/system-prompt.txt"}
+    - {name: eval-path, type: string, default: source/gitops/platform/eval/mlflow-agent-eval}
+    - {name: mlflow-uri, type: string, default: "https://mlflow.redhat-ods-applications.svc:8443/mlflow"}
+    - {name: mlflow-workspace, type: string, default: parasol-secured}
+    - {name: experiment, type: string, default: parasol-agent-eval}
+    - {name: attempts, type: string, default: "3"}
+    # Optional: comma-separated golden-set case ids (a subset run for tests); empty = every case.
+    - {name: cases, type: string, default: ""}
+  results:
+    - {name: gate, description: passed or failed}
+    - {name: score, description: pass-rate}
+    - {name: mlflow-run-id, description: the MLflow eval run id for this gate execution}
+    - {name: prompt-sha256, description: sha256 of the registered prompt (prompt-ref) the gate evaluated}
+    - {name: model-only-passed, description: cases the model alone passed (the next non-regression baseline once promoted)}
+  workspaces:
+    - {name: source}
+  steps:
+    - name: evaluate
+      image: registry.access.redhat.com/ubi9/python-311:latest
+      workingDir: $(workspaces.source.path)
+      script: |
+        #!/usr/bin/env bash
+        set -eu
+        R="$(workspaces.source.path)/release"   # shared with promote: the released prompt text
+        rm -rf "$R"; mkdir -p "$R"
+        python3 "$(params.eval-path)/evalhub_gate.py" --candidate "$(params.candidate)" \
+          --prompt-ref "$(params.prompt-ref)" --prompt-file "$(workspaces.source.path)/$(params.prompt-file)" \
+          --prompt-file-rel "$(params.prompt-file)" --eval-path "$(params.eval-path)" --results-dir "$R" \
+          --attempts "$(params.attempts)" --release-run "$(context.taskRun.name)" --cases "$(params.cases)" \
+          --mlflow-uri "$(params.mlflow-uri)" --mlflow-workspace "$(params.mlflow-workspace)" \
+          --experiment "$(params.experiment)"
+        cp "$R/gate"    "$(results.gate.path)"
+        cp "$R/score"   "$(results.score.path)"
+        cp "$R/run-id"  "$(results.mlflow-run-id.path)"
+        cat "$R/prompt-sha256" > "$(results.prompt-sha256.path)" 2>/dev/null || printf "" > "$(results.prompt-sha256.path)"
+        cp "$R/model-only-passed" "$(results.model-only-passed.path)"
+        echo "gate=$(cat "$R/gate") ($(cat "$R/gate-reason")) score=$(cat "$R/score") mlflow-run-id=$(cat "$R/run-id") prompt=$(params.prompt-ref) version=$(cat "$R/released-prompt/promptVersion" 2>/dev/null) sha256=$(cat "$R/prompt-sha256" 2>/dev/null)"

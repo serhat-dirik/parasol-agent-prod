@@ -5,7 +5,8 @@
 #   2 MLflow Prompt Registry: system prompt, aliases production (version 1) and candidate (version 2)
 #   3 MLflow golden-set runs: production-prompt PASS, candidate-shortened-prompt BLOCK (judge = JUDGE model)
 #   4 Model Registry parasol-model-registry: the three external models (agent, guard, judge) with their own versions
-#   5 EvalHub run parasol-agent-model-ifeval + LMEvalJob parasol-agent-model-eval (Evaluations pages)
+#   5 EvalHub run parasol-agent-model-ifeval + LMEvalJob parasol-agent-model-eval (Evaluations pages), and the
+#     release gate's EvalHub provider parasol-agent-gate (adapter image build, Tekton task agent-eval-evalhub)
 #   6 release PipelineRuns candidate-shortened (blocked) and production (promoted; bootstrap.sh waits for it)
 # Needs the install contract env (AGENT_*, JUDGE_* ...), see bootstrap.sh.
 set -uo pipefail
@@ -45,6 +46,7 @@ else warn "Model Registry component not installed (DSC modelregistry)" scripts/s
 echo "== 5 evaluations (EvalHub, LMEval)"
 if wait_for 40 "EvalHub CRD" oc get crd evalhubs.trustyai.opendatahub.io; then
   scripts/evalhub-run.sh || warn "EvalHub run" scripts/evalhub-run.sh
+  scripts/evalhub-gate.sh || warn "EvalHub release-gate provider" scripts/evalhub-gate.sh
 else warn "EvalHub CRD missing (DSC trustyai)" scripts/evalhub-run.sh; fi
 if oc get lmevaljob parasol-agent-model-eval -n parasol-eval >/dev/null 2>&1; then echo "LMEvalJob already present"
 else envsubst '$AGENT_ENDPOINT $AGENT_MODEL' < gitops/platform/eval/lmevaljob-agent-model.yaml | oc apply -f - \
