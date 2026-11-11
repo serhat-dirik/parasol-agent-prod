@@ -221,7 +221,7 @@ What you should see:
 +
 Signatures, the admission decision and the promote history on `env-secured` together answer "what runs in production, and who let it in".
 +
-image::sc-admission-refused.png["Terminal: scripts/signing-demo.sh, the unsigned portal image denied by the admission webhook (policy parasol-portal-must-be-signed, no keyless or key signature), the signed image the release promoted admitted, then cleanup"]
+image::sc-admission-refused.png["Terminal: scripts/signing-demo.sh, the unsigned portal image denied by the admission webhook (policy parasol-portal-must-be-signed, authority chains-keyless: no signatures found), the image the release promoted admitted, then cleanup"]
 
 === Only approved models
 
