@@ -375,7 +375,7 @@ scripts/incident-report.sh CLM-1001
 +
 What you should see: the chain in seven read-only sections: the timeline with the approval and the payment and their claims-db lines, the gateway's decisions in the 15 minutes before the payment (allow and deny, each with user, agent and tool), the release annotations on `env-secured`, the release run's results and the running digest. The MLflow and Keycloak sections print `n/a` from the Terminal (its identity may not read them; you just read them in their tabs); from a workstation with `oc` signed in as an administrator the script fills them in too. The gateway's decision lines live in the MCP gateway pod's log and are lost when that pod restarts; a production cluster ships them to cluster logging.
 +
-image::s9-terminal-incident-report-two-stage.png["Terminal: scripts/incident-report.sh CLM-1001, sections 3 to 7: the gateway decisions before the payment (allow rebecca approve_claim, allow marcus release_payment), the release annotations on env-secured, the signed image and the evaluation gate"]
+image::s9-terminal-incident-report-two-stage.png["Terminal: scripts/incident-report.sh CLM-1001, all seven sections: the timeline with Claim approved by rebecca and Payment released by marcus and their claims-db lines, n/a for MLflow and Keycloak, the gateway decisions before the payment (allow rebecca approve_claim, allow marcus release_payment), the release annotations on env-secured, the signed image and the evaluation gate"]
 
 The point: one payment, independent records, joined by the same names. None of them depends on the model telling the truth.
 
