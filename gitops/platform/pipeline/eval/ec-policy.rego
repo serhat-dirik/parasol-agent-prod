@@ -1,7 +1,7 @@
-# Conforma (Enterprise Contract) policy for the Parasol portal release (task verify-enterprise-contract).
-# Conforma's built-in checks come first: the image signature and the attestation signatures verify against the
-# Tekton Chains key, and the attestations are well formed. These rules add the release requirements.
-# Conforma evaluates rules in single-name packages only.
+# Conforma policy for Parasol images (task verify-conforma), used by the portal release and the vendor onboarding.
+# Conforma's built-in checks come first: the image signature and the attestation signatures verify against Tekton
+# Chains' keyless identity (Trusted Artifact Signer certificate + Rekor), and the attestations are well formed.
+# These rules add the release requirements. Conforma evaluates rules in single-name packages only.
 package parasol
 
 import rego.v1
@@ -21,28 +21,35 @@ deny contains result if {
 }
 
 # METADATA
-# title: Built by the Parasol release pipeline
+# title: Built by the expected Parasol pipeline
 # description: >-
-#   A SLSA provenance attestation from Tekton Chains states that the build-container TaskRun of a
-#   parasol-portal-secure-build run built this image. (Chains attests the TaskRun when it finishes; the PipelineRun's
-#   own provenance only exists after the whole run, so after this check.)
+#   A SLSA provenance attestation from Tekton Chains states that the expected pipeline task built this image: the
+#   portal by build-container of parasol-portal-secure-build, an onboarded vendor tool by build-onboarded-image of
+#   parasol-tool-onboarding. (Chains attests the TaskRun when it finishes; the PipelineRun's own provenance only
+#   exists after the whole run, so after this check.)
 # custom:
-#   short_name: built_by_release_pipeline
-#   failure_msg: No Tekton Chains provenance from the parasol-portal-secure-build pipeline
+#   short_name: built_by_expected_pipeline
+#   failure_msg: No Tekton Chains provenance from the expected Parasol pipeline
 deny contains result if {
-	not built_by_release_pipeline
+	not built_by_expected_pipeline
 	result := {
-		"code": "parasol.built_by_release_pipeline",
-		"msg": "No Tekton Chains provenance from the parasol-portal-secure-build pipeline",
+		"code": "parasol.built_by_expected_pipeline",
+		"msg": sprintf("No Tekton Chains provenance from %s (task %s)", expected_builder),
 	}
 }
 
-built_by_release_pipeline if {
+expected_builder := ["parasol-portal-secure-build", "build-container"] if {
+	contains(input.image.ref, "/parasol-portal@")
+} else := ["parasol-tool-onboarding", "build-onboarded-image"] if {
+	contains(input.image.ref, "/currency-converter@")
+} else := ["none", "none"]
+
+built_by_expected_pipeline if {
 	some att in input.attestations
 	att.statement.predicateType == "https://slsa.dev/provenance/v0.2"
 	p := att.statement.predicate
 	p.builder.id == "https://tekton.dev/chains/v2"
 	p.buildType == "tekton.dev/v1/TaskRun"
-	p.invocation.environment.labels["tekton.dev/pipeline"] == "parasol-portal-secure-build"
-	p.invocation.environment.labels["tekton.dev/pipelineTask"] == "build-container"
+	p.invocation.environment.labels["tekton.dev/pipeline"] == expected_builder[0]
+	p.invocation.environment.labels["tekton.dev/pipelineTask"] == expected_builder[1]
 }

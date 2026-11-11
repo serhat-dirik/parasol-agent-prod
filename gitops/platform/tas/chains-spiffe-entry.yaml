@@ -1,0 +1,28 @@
+# SPIFFE identity for the Tekton Chains controller, the only signer: Chains presents a JWT-SVID (audience sigstore)
+# to Fulcio and signs every build keyless with the 10-minute certificate it gets back.
+# The SPIRE controller manager ignores openshift-* namespaces for ClusterSPIFFEIDs (operator default), so the Chains
+# controller gets a static entry instead. Node alias: any agent of cluster parasol-demo; workload: namespace
+# openshift-pipelines, ServiceAccount tekton-chains-controller. className must match the ZTWIM SPIRE instance.
+# Applied by scripts/supply-chain.sh.
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterStaticEntry
+metadata:
+  name: parasol-demo-nodes
+spec:
+  className: zero-trust-workload-identity-manager-spire
+  spiffeID: spiffe://parasol-demo/k8s-nodes/parasol-demo
+  parentID: spiffe://parasol-demo/spire/server
+  selectors:
+    - k8s_psat:cluster:parasol-demo
+---
+apiVersion: spire.spiffe.io/v1alpha1
+kind: ClusterStaticEntry
+metadata:
+  name: tekton-chains-controller
+spec:
+  className: zero-trust-workload-identity-manager-spire
+  spiffeID: spiffe://parasol-demo/ns/openshift-pipelines/sa/tekton-chains-controller
+  parentID: spiffe://parasol-demo/k8s-nodes/parasol-demo
+  selectors:
+    - k8s:ns:openshift-pipelines
+    - k8s:sa:tekton-chains-controller

@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 # Synced by the Argo CD Application platform-pipeline (gitops/bootstrap/apps/platform-pipeline.yaml):
-# the pipeline Tasks, the Pipeline and the keyless signer live in parasol-build alongside the
+# the pipeline Tasks and the Pipeline live in parasol-build alongside the
 # BuildConfigs. PipelineRuns are run objects, not desired state: pipelinerun.yaml is created by hand
 # and is deliberately not listed here. Operators (operators/), the admission webhook/policy
 # (admission/), the prompt registration (prompts/) and the TAS instance (gitops/platform/tas) are
@@ -11,7 +11,6 @@ kind: Kustomization
 resources:
   - tasks.yaml
   - agent-eval-evalhub-task.yaml   # the release gate as a TrustyAI EvalHub job (provider parasol-agent-gate)
-  - keyless-sign-task.yaml
   - pipeline.yaml
   - promote-rbac.yaml
   - onboarding/pipeline.yaml   # Showcase 7: parasol-tool-onboarding (third-party MCP server images)

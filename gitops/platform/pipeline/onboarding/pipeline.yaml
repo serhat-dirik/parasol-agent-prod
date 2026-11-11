@@ -1,11 +1,11 @@
 # Showcase 7: onboarding a third-party MCP server image (the partner bank's exchange-rate service).
 # A vendor version enters parasol-secured only through this pipeline: resolve the version's image digest, scan it,
 # run it in the pipeline and check its tools (tool-check: pin, Parasol tool names, NeMo guardrails, contract calls),
-# then sign it with the onboarding key and promote the digest onto the Argo CD Application env-secured-tools.
-# The onboarding key (Secret parasol-onboarding-key, generated in the cluster by scripts/supply-chain.sh) means
-# "Parasol checked and approved this vendor image"; it is not the build key Tekton Chains signs with, and admission
-# trusts it only for the vendor images (ClusterImagePolicy parasol-vendor-tools-must-be-onboarded).
-# A refused version is neither signed nor promoted, and admission in parasol-secured runs only signed vendor images.
+# then build Parasol's onboarded image from that exact digest (FROM vendor@sha256, plus the onboarding report and
+# labels) and promote it onto the Argo CD Application env-secured-tools. Tekton Chains signs the onboarded image
+# keyless like every build, with a provenance naming this pipeline; Conforma checks both before promote, and admission
+# in parasol-secured runs only Chains-signed vendor images (ClusterImagePolicy parasol-vendor-tools-must-be-onboarded).
+# A refused version is neither built nor promoted; the vendor's own image carries no Parasol signature.
 # In the demo the bank's images are built in parasol-build (currency-converter:1.4.2 / 1.4.3); in real life the
 # resolve step reads a tag the bank published (pulled or imported by an ImageStream).
 # Runs: scripts/tool-rugpull.sh onboard <version> (pipelinerun-onboarding.yaml).
@@ -67,7 +67,7 @@ spec:
     - {name: tools-sha256, description: sha256 of the image's tool definitions}
     - {name: findings, description: number of findings}
   workspaces:
-    - {name: source}   # writes onboarding-report.json (attested with the signature)
+    - {name: source}   # writes onboarding-report.json (copied into the onboarded image)
   sidecars:
     - name: tool-under-test
       image: $(params.image)@$(params.digest)
@@ -90,48 +90,34 @@ spec:
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: sign-tool-image
+  name: prepare-onboarded-image
 spec:
   description: >-
-    Sign the onboarded vendor digest with the onboarding key (the key admission checks for vendor images in
-    parasol-secured) and attach the onboarding report as an attestation, so the checks travel with the image.
-    Verifies both.
+    Write the build context of Parasol's onboarded image: FROM the checked vendor digest, the onboarding report
+    copied in, and labels naming the vendor digest, version and tool definitions hash.
   params:
     - {name: image, type: string}
     - {name: digest, type: string}
-  results:
-    - {name: SIGNED, description: the signed image reference}
+    - {name: version, type: string}
+    - {name: tools-sha256, type: string}
   workspaces:
     - {name: source}
-  volumes:
-    - {name: keys, secret: {secretName: parasol-onboarding-key}}
-    - {name: svcca, configMap: {name: openshift-service-ca.crt}}
   steps:
-    - name: sign
-      image: quay.io/redhat-appstudio/rhtap-task-runner:latest
-      env:
-        - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
-        - {name: COSIGN_PASSWORD, valueFrom: {secretKeyRef: {name: parasol-onboarding-key, key: cosign.password}}}
-      volumeMounts:
-        - {name: keys, mountPath: /keys, readOnly: true}
-        - {name: svcca, mountPath: /svcca, readOnly: true}
+    - name: context
+      image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+      workingDir: $(workspaces.source.path)
       script: |
         #!/usr/bin/env bash
         set -eu
-        TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-        mkdir -p "$HOME/.docker"
-        AUTH=$(printf "pipeline:%s" "$TOKEN" | base64 | tr -d '\n')
-        printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
-        IMG="$(params.image)@$(params.digest)"
-        echo "===== cosign sign $IMG ====="
-        cosign sign --key /keys/cosign.key --tlog-upload=false --allow-insecure-registry --yes "$IMG"
-        echo "===== cosign attest (onboarding report) ====="
-        cosign attest --key /keys/cosign.key --tlog-upload=false --allow-insecure-registry --yes \
-          --type https://parasol.example/tool-onboarding/v1 --predicate "$(workspaces.source.path)/onboarding-report.json" "$IMG"
-        cosign verify --key /keys/cosign.pub --insecure-ignore-tlog=true --allow-insecure-registry "$IMG" >/dev/null && echo "VERIFIED signature $IMG"
-        cosign verify-attestation --key /keys/cosign.pub --insecure-ignore-tlog=true --allow-insecure-registry \
-          --type https://parasol.example/tool-onboarding/v1 "$IMG" >/dev/null && echo "VERIFIED onboarding attestation"
-        printf "%s" "$IMG" > "$(results.SIGNED.path)"
+        mkdir -p onboard && cp onboarding-report.json onboard/
+        cat > onboard/Containerfile <<EOF
+        FROM $(params.image)@$(params.digest)
+        LABEL parasol.example/onboarded-from="$(params.image)@$(params.digest)" \\
+              parasol.example/onboarded-version="$(params.version)" \\
+              parasol.example/tools-sha256="$(params.tools-sha256)"
+        COPY onboarding-report.json /parasol/onboarding-report.json
+        EOF
+        cat onboard/Containerfile
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -199,7 +185,7 @@ spec:
     - {name: TOOLS_SHA256, value: "$(tasks.tool-check.results.tools-sha256)"}
     - {name: FINDINGS, value: "$(tasks.tool-check.results.findings)"}
     - {name: GATE, value: "$(tasks.tool-check.results.gate)"}
-    - {name: SIGNED, value: "$(tasks.sign.results.SIGNED)"}
+    - {name: ONBOARDED_IMAGE, value: "$(tasks.build-onboarded-image.results.IMAGE_URL)@$(tasks.build-onboarded-image.results.IMAGE_DIGEST)"}
     - {name: PROMOTED_DIGEST, value: "$(tasks.promote.results.digest)"}
   workspaces:
     - {name: workspace}
@@ -238,27 +224,49 @@ spec:
         - {name: version, value: "$(params.version)"}
       workspaces:
         - {name: source, workspace: workspace}
-    - name: sign
+    - name: prepare
       runAfter: [tool-check, scan-image]
       when:
         - {input: "$(tasks.tool-check.results.gate)", operator: in, values: ["passed"]}
-      taskRef: {name: sign-tool-image}
+      taskRef: {name: prepare-onboarded-image}
       params:
         - {name: image, value: "$(tasks.resolve.results.image)"}
         - {name: digest, value: "$(tasks.resolve.results.digest)"}
+        - {name: version, value: "$(params.version)"}
+        - {name: tools-sha256, value: "$(tasks.tool-check.results.tools-sha256)"}
       workspaces:
         - {name: source, workspace: workspace}
+    # Parasol's build of the checked vendor digest; Tekton Chains signs it keyless (provenance: this pipeline task).
+    - name: build-onboarded-image
+      runAfter: [prepare]
+      taskRef:
+        resolver: cluster
+        params: [{name: kind, value: task}, {name: name, value: buildah}, {name: namespace, value: openshift-pipelines}]
+      params:
+        - {name: IMAGE, value: "$(tasks.resolve.results.image):$(params.version)-onboarded"}
+        - {name: DOCKERFILE, value: "Containerfile"}
+        - {name: CONTEXT, value: "onboard"}
+        - {name: TLS_VERIFY, value: "false"}
+      workspaces:
+        - {name: source, workspace: workspace}
+    - name: verify-conforma
+      runAfter: [build-onboarded-image]
+      taskRef: {name: verify-conforma}
+      params:
+        - {name: image, value: "$(tasks.resolve.results.image)"}
+        - {name: image-digest, value: "$(tasks.build-onboarded-image.results.IMAGE_DIGEST)"}
     - name: promote
-      runAfter: [sign]
+      runAfter: [verify-conforma]
       when:
         - {input: "$(tasks.tool-check.results.gate)", operator: in, values: ["passed"]}
+        - {input: "$(tasks.verify-conforma.results.verified)", operator: in, values: ["true"]}
       taskRef: {name: promote-tool}
       params:
         - {name: application, value: "$(tasks.resolve.results.application)"}
         - {name: server, value: "$(params.server)"}
         - {name: version, value: "$(params.version)"}
         - {name: image, value: "$(tasks.resolve.results.image)"}
-        - {name: digest, value: "$(tasks.resolve.results.digest)"}
+        - {name: digest, value: "$(tasks.build-onboarded-image.results.IMAGE_DIGEST)"}
         - {name: tools-sha256, value: "$(tasks.tool-check.results.tools-sha256)"}
 ---
 # The vendor code runs inside tool-check's pod: it may reach DNS and NeMo, nothing else (the step's Python and the

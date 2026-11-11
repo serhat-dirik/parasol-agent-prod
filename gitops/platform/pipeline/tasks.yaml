@@ -156,32 +156,36 @@ spec:
 apiVersion: tekton.dev/v1
 kind: Task
 metadata:
-  name: verify-enterprise-contract
-  labels: {app.kubernetes.io/version: "0.1"}
+  name: verify-conforma
+  labels: {app.kubernetes.io/version: "0.2"}
 spec:
   description: >-
-    Conforma (Enterprise Contract) gate: `ec validate image` against the built image. The image signature and the
-    SLSA provenance must verify against the Tekton Chains key, and policy ec-policy must hold (provenance from a
-    PipelineRun of parasol-portal-secure-build, image pinned by digest). Any violation fails the task, so promote
-    is skipped.
+    Conforma gate: `ec validate image` against the built image. Tekton Chains signs every build keyless (Trusted
+    Artifact Signer: a 10-minute Fulcio certificate for the Chains controller's SPIFFE identity, entries in Rekor);
+    the image signature and the SLSA provenance must verify against that identity and Rekor, and policy ec-policy
+    must hold (provenance from the expected pipeline, image pinned by digest). Any violation fails the task, so
+    promote is skipped. TAS addresses and the signer identity come from ConfigMap tas-trust (scripts/supply-chain.sh).
   params:
     - {name: image, type: string}
     - {name: image-digest, type: string}
   results:
-    - {name: verified, description: "true if the image satisfies the enterprise contract"}
+    - {name: verified, description: "true if the image satisfies the policy"}
   volumes:
-    - {name: pub, configMap: {name: cosign-pub}}
     - {name: svcca, configMap: {name: openshift-service-ca.crt}}
     - {name: ecpol, configMap: {name: ec-policy}}
+    - {name: home, emptyDir: {}}
   steps:
     - name: verify
       image: quay.io/redhat-appstudio/rhtap-task-runner:latest
       env:
         - {name: SSL_CERT_FILE, value: /svcca/service-ca.crt}
+        - {name: HOME, value: /tekton-home}
+      envFrom:
+        - configMapRef: {name: tas-trust}
       volumeMounts:
-        - {name: pub, mountPath: /keys, readOnly: true}
         - {name: svcca, mountPath: /svcca, readOnly: true}
         - {name: ecpol, mountPath: /ec-policy-src, readOnly: true}
+        - {name: home, mountPath: /tekton-home}
       script: |
         #!/usr/bin/env bash
         set -u
@@ -191,20 +195,22 @@ spec:
         AUTH=$(printf "pipeline:%s" "$TOKEN" | base64 | tr -d '\n')
         printf '{"auths":{"image-registry.openshift-image-registry.svc:5000":{"auth":"%s"}}}' "$AUTH" > "$HOME/.docker/config.json"
         mkdir -p /tmp/pol/policy && cp -L /ec-policy-src/policy.rego /tmp/pol/policy/policy.rego
-
         printf "false" > "$(results.verified.path)"
-        # Tekton Chains signs after build-container finishes, out of band: wait (3 min) for its provenance.
-        echo "Waiting for Tekton Chains to sign and attest $IMG ..."
+        KEYLESS=(--certificate-identity "$SIGNER_IDENTITY" --certificate-oidc-issuer "$OIDC_ISSUER" --rekor-url "$REKOR_URL")
+
+        cosign initialize --mirror "$TUF_URL" --root "$TUF_URL/root.json" >/dev/null
+        ec sigstore initialize --mirror "$TUF_URL" --root "$TUF_URL/root.json" >/dev/null
+        # Tekton Chains signs after the build TaskRun finishes, out of band: wait (3 min) for its provenance.
+        echo "Waiting for Tekton Chains to sign and attest $IMG (signer $SIGNER_IDENTITY) ..."
         for i in $(seq 1 30); do
-          cosign verify-attestation --key /keys/cosign.pub --type slsaprovenance --insecure-ignore-tlog=true \
-            --allow-insecure-registry "$IMG" >/dev/null 2>&1 && break
+          cosign verify-attestation "${KEYLESS[@]}" --type slsaprovenance --allow-insecure-registry "$IMG" >/dev/null 2>&1 && break
           sleep 6
         done
         echo "===== Conforma: ec validate image ====="
-        ec validate image --image "$IMG" --public-key /keys/cosign.pub --ignore-rekor \
+        ec validate image --image "$IMG" "${KEYLESS[@]}" \
           --policy '{"sources":[{"name":"parasol","policy":["/tmp/pol"]}]}' --output text --show-successes \
           || { echo "CONTRACT FAILED for $IMG: not promoted"; exit 1; }
-        echo "ENTERPRISE CONTRACT SATISFIED for $IMG"
+        echo "CONFORMA POLICY SATISFIED for $IMG"
         printf "true" > "$(results.verified.path)"
 ---
 apiVersion: tekton.dev/v1
@@ -330,13 +336,14 @@ metadata:
   labels: {app.kubernetes.io/version: "0.1"}
 spec:
   description: >-
-    Generate a CycloneDX SBOM for the built image with syft into the workspace (sbom.json); keyless-sign attaches it
-    to the image as a keyless-signed attestation.
+    Generate a CycloneDX SBOM for the built image with syft into the workspace (sbom.json). Its sha256 is a task
+    result, so Tekton Chains records it in the PipelineRun's signed provenance.
   params:
     - {name: image, type: string}
     - {name: image-digest, type: string}
   results:
     - {name: SBOM_COMPONENTS, description: number of components in the SBOM}
+    - {name: SBOM_SHA256, description: sha256 of sbom.json (recorded in the Chains-signed provenance)}
   workspaces:
     - {name: source}
   volumes:
@@ -363,6 +370,8 @@ spec:
         echo "SBOM written to sbom.json with ~$N components."
         printf "%s" "${N:-0}" > "$(results.SBOM_COMPONENTS.path)"
         test -s sbom.json
+        sha256sum sbom.json | cut -d' ' -f1 | tr -d '\n' > "$(results.SBOM_SHA256.path)"
+        echo "sbom.json sha256: $(cat "$(results.SBOM_SHA256.path)")"
 ---
 apiVersion: tekton.dev/v1
 kind: Task
@@ -370,17 +379,22 @@ metadata:
   name: show-sbom
   labels: {app.kubernetes.io/version: "0.1"}
 spec:
-  description: Show the SBOM reference for the built image (RHDH renders this in its UI).
+  description: >-
+    Show the release's SBOM: component count and sha256. The hash is a generate-sbom result, so it is part of the
+    PipelineRun provenance Tekton Chains signs.
   params:
     - {name: IMAGE_URL, type: string}
+    - {name: IMAGE_DIGEST, type: string, default: ""}
+    - {name: SBOM_SHA256, type: string, default: ""}
+    - {name: SBOM_COMPONENTS, type: string, default: ""}
   steps:
     - name: show-sbom
       image: quay.io/redhat-appstudio/rhtap-task-runner:latest
       script: |
         #!/usr/bin/env bash
-        echo "SBOM / attestation location for $(params.IMAGE_URL):"
-        echo "  cosign verify-attestation --type cyclonedx --certificate-identity spiffe://parasol-demo/ns/parasol-build/sa/keyless-signer \\"
-        echo "    --certificate-oidc-issuer https://oidc-discovery.apps.<cluster-domain> $(params.IMAGE_URL)@<digest>"
+        echo "SBOM (CycloneDX) for $(params.IMAGE_URL)@$(params.IMAGE_DIGEST):"
+        echo "  components: $(params.SBOM_COMPONENTS)   sha256: $(params.SBOM_SHA256)"
+        echo "  The sha256 is recorded in this PipelineRun's SLSA provenance, signed keyless by Tekton Chains."
 ---
 apiVersion: tekton.dev/v1
 kind: Task

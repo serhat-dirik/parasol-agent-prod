@@ -20,9 +20,6 @@ spec:
   timeouts: {pipeline: 1h30m0s}
   taskRunTemplate:
     serviceAccountName: pipeline
-  taskRunSpecs:
-    # The keyless signature identity is the SPIFFE ID of this service account.
-    - {pipelineTaskName: keyless-sign, serviceAccountName: keyless-signer}
   workspaces:
     - name: workspace
       volumeClaimTemplate:
