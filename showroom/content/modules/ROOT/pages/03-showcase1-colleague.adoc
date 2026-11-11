@@ -243,6 +243,10 @@ The unsecured tool knew it was rebecca and paid. Knowing who is asking is not th
 
 === The rule
 
+A tool call goes through only if three things allow it: the user's groups, the agent's limit, and the owner of the record.
+
+image::s1-three-gates.png["Three gates for an agent tool call: 1 the user's groups (Keycloak group tool roles, checked at the MCP gateway), 2 the agent's limit (Keycloak scope mapping, checked at the gateway), 3 the record owner (checked in claims-db); rebecca's release_payment stops at gate 1, the fraud agent's approve_claim at gate 2, reading another adjuster's claim at gate 3"]
+
 . *Who holds which right.* In the Keycloak admin *private window* (page 02), realm `parasol`, open *Groups*, `adjusters`, tab *Role mapping*. Then the same for `claims-managers`.
 +
 What you should see: for client `parasol-secured/claims-db`, `adjusters` holds `tool:get_claim`, `tool:get_claim_history`, `tool:list_claims_by_status`, `tool:get_claim_documents` and `tool:approve_claim`. `claims-managers` holds the same five *plus* `tool:release_payment`. rebecca is in `adjusters`, marcus in `claims-managers`. That is the business rule: an adjuster approves a claim, a manager releases the payment.
