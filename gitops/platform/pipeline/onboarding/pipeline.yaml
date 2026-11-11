@@ -237,8 +237,11 @@ spec:
       workspaces:
         - {name: source, workspace: workspace}
     # Parasol's build of the checked vendor digest; Tekton Chains signs it keyless (provenance: this pipeline task).
+    # Every task after tool-check carries the gate: a when expression skips only its own task, not the ones after it.
     - name: build-onboarded-image
       runAfter: [prepare]
+      when:
+        - {input: "$(tasks.tool-check.results.gate)", operator: in, values: ["passed"]}
       taskRef:
         resolver: cluster
         params: [{name: kind, value: task}, {name: name, value: buildah}, {name: namespace, value: openshift-pipelines}]
@@ -251,6 +254,8 @@ spec:
         - {name: source, workspace: workspace}
     - name: verify-conforma
       runAfter: [build-onboarded-image]
+      when:
+        - {input: "$(tasks.tool-check.results.gate)", operator: in, values: ["passed"]}
       taskRef: {name: verify-conforma}
       params:
         - {name: image, value: "$(tasks.resolve.results.image)"}
