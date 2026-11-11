@@ -176,7 +176,7 @@ What you should see: the app is Synced and Healthy. The demo's repository is rea
 
 . Select the *OpenShift Console* tab, open *Pipelines*, project `parasol-build`, *Pipeline runs*, then `parasol-portal-release-production`.
 +
-What you should see: the portal built from source (`clone-repository` and `build-container` are the `git-clone` and `buildah` Tasks OpenShift Pipelines ships); then in parallel the vulnerability scan (`scan-image`), the SBOM (`generate-sbom`) and the Showcase 6 gate (`agent-eval`); `verify-conforma` (Conforma) checks the keyless signature and the provenance Tekton Chains attached when `build-container` finished; only then `promote`; `register-agent-version` records the evaluated agent configuration as an MLflow agent version before `promote` runs. The red marker on `promote` is a console display issue for completed runs; the run status *Succeeded* and the `promote` log are the record.
+What you should see: the portal built from source (`clone-repository` and `build-container` are the `git-clone` and `buildah` Tasks OpenShift Pipelines ships); then in parallel the vulnerability scan (`scan-image`), the SBOM (`generate-sbom`) and the Showcase 6 gate (`agent-eval`); `verify-conforma` (Conforma) checks the keyless signature and the provenance Tekton Chains attached when `build-container` finished; only then `promote`; `register-agent-version` records the evaluated agent configuration as an MLflow agent version before `promote` runs.
 +
 image::sc-pipeline-v1-promoted.png["The release run: init, clone-repository and build-container; then scan-image, generate-sbom, agent-eval with register-agent-version, and verify-conforma; then promote; finally show-summary and show-sbom"]
 
