@@ -60,11 +60,12 @@ platform's own records prove it.
 
 **Agent delivery lifecycle**: how an agent, its prompt and its tools reach production.
 
-5. **Supply chain, signing and admission.** The release pipeline builds, scans and signs the portal; admission runs
-   only signed images, and secured workloads reach only approved models.
+5. **Supply chain, signing and admission.** The release pipeline builds and scans the portal; Tekton Chains signs
+   every build and its provenance keyless through Trusted Artifact Signer; Conforma checks it before promote and
+   admission runs only Chains-signed images. Secured workloads reach only approved models.
 6. **The evaluation gate.** A shortened system prompt scores about as well as production with the platform on, but
-   the release's evaluation sees what its model alone lost and refuses it. Every release is recorded as an MLflow
-   agent version.
+   the release's evaluation sees what its model alone lost and refuses it. The gate runs as a TrustyAI EvalHub job
+   (OpenShift AI Evaluations); every release is recorded as an MLflow agent version.
 7. **Third-party tools.** The partner bank's exchange-rate service runs in-house from the bank's image. Its new
    release, 1.4.3, carries a tool description that tells the assistant to pay. Unsecured, the team runs the bank's
    latest and the assistant pays. Secured, each version passes an onboarding pipeline first (the image is run and its
