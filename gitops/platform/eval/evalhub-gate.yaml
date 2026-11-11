@@ -77,7 +77,8 @@ subjects:
   - {kind: ServiceAccount, name: parasol-agent-gate, namespace: parasol-eval}
 ---
 # The release pipeline (parasol-build/pipeline) submits the gate job: EvalHub's virtual resources in the tenant
-# parasol-eval, the per-job credentials Secret, and a token of the gate's ServiceAccount.
+# parasol-eval (job submission also checks MLflow experiments there), the per-job credentials Secret, and a
+# token of the gate's ServiceAccount.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -87,6 +88,9 @@ rules:
   - apiGroups: [trustyai.opendatahub.io]
     resources: [evaluations, providers]
     verbs: [get, list, create, delete]
+  - apiGroups: [mlflow.kubeflow.org]   # EvalHub's proxy checks these on every job submission
+    resources: [experiments]
+    verbs: [create, get]
   - apiGroups: [""]
     resources: [secrets]
     verbs: [create, delete]
