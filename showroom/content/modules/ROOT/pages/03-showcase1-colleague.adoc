@@ -309,9 +309,9 @@ image::s1-dashboard-rejections-release.png["Console, Observe > Dashboards (Perse
 
 . In the *Portal secured* tab, as rebecca, click the `trace <id>` link under her last answer (or, in the *MLflow* tab, workspace `parasol-secured`, experiment `parasol-portal-chat`, *Traces*, her newest trace).
 +
-What you should see: user `rebecca`, tags `agent` `parasol-claims-agent`, `prompt` and `model`, and the `approve_claim` tool call with its result "approved for USD 4200.00 and set to Ready for payment". No payment call: approving is the most the model could do.
+What you should see: user `rebecca`, tags `agent` `parasol-claims-agent`, `prompt` and `model`, and in *Details & Timeline* the span `tool.approve_claim`: its input `claimNumber` CLM-1001 and, under *Attributes*, `enduser.id` `rebecca`, `gen_ai.tool.name` `approve_claim`, `gen_ai.agent.name` `parasol-claims-agent`, `mcp.method.name` `tools/call`. The answer says the claim is *Ready for payment*; there is no payment call: approving is the most the model could do.
 +
-image::s1-mlflow-rebecca-approve-claim.png["MLflow, parasol-secured, rebecca's Approve the claim turn: the approve_claim tool call on CLM-1001 and its result Ready for payment, no payment call"]
+image::s1-mlflow-rebecca-approve-claim.png["MLflow, parasol-secured, rebecca's Approve the claim turn, Details and Timeline: span tool.approve_claim selected, attributes enduser.id rebecca, gen_ai.tool.name approve_claim, gen_ai.agent.name parasol-claims-agent, mcp.method.name tools/call"]
 
 . Then the payment: *Traces*, filter tag `action` = `release_payment CLM-1001`.
 +
