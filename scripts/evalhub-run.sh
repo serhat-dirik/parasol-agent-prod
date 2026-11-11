@@ -1,17 +1,33 @@
 #!/usr/bin/env bash
 # Scenario 4 step 1: one EvalHub run of the agent model, listed on the OpenShift AI dashboard
 # (Develop & train -> Evaluations, project parasol-eval). Idempotent: applies the EvalHub CR, waits
-# for it, and submits the run only if no completed run of that name exists (sqlite store: a pod
-# restart empties the list, so re-run this after one). ~3 min, 5 IFEval prompts on the agent key.
+# for it, and submits the run only if no completed run of that name exists. EvalHub keeps its jobs in
+# PostgreSQL (evalhub-postgres.yaml); the credentials are generated here on first run, never stored in Git.
+# ~3 min, 5 IFEval prompts on the agent key.
 # Needs: AGENT_ENDPOINT (+ AGENT_MODEL), Secret parasol-eval/maas-key-agent with data key api-key
 # (scripts/maas-model-keys.sh), OdhDashboardConfig disableLMEval=false (scripts/rhoai-enable.sh).
-# Revert: oc delete evalhub parasol-evalhub -n parasol-eval
+# Revert: oc delete evalhub parasol-evalhub -n parasol-eval; oc delete -f gitops/platform/eval/evalhub-postgres.yaml
 set -euo pipefail
 : "${AGENT_ENDPOINT:?source scripts/load-credentials.sh or export the install contract}"
 MODEL="${AGENT_MODEL:-qwen3-14b}" NAME="parasol-agent-model-ifeval" NS=parasol-eval
 cd "$(dirname "$0")/.."
 
+# PostgreSQL store: generate the credentials once (Secret evalhub-postgres + the db-url Secret evalhub-db).
+if ! oc get secret evalhub-db -n "$NS" >/dev/null 2>&1; then
+  PW=$(openssl rand -hex 24)
+  oc create secret generic evalhub-postgres -n "$NS" --from-literal=user=evalhub --from-literal=password="$PW" \
+    --dry-run=client -o yaml | oc apply -f - >/dev/null
+  oc create secret generic evalhub-db -n "$NS" \
+    --from-literal=db-url="postgres://evalhub:$PW@evalhub-postgres.$NS.svc:5432/eval_hub?sslmode=disable" \
+    --dry-run=client -o yaml | oc apply -f - >/dev/null
+  unset PW
+  echo "Secrets $NS/evalhub-postgres and $NS/evalhub-db created"
+fi
+oc apply -f gitops/platform/eval/evalhub-postgres.yaml
+oc rollout status deploy/evalhub-postgres -n "$NS" --timeout=300s
 oc apply -f gitops/platform/eval/evalhub.yaml
+sleep 10   # let the operator roll the deployment onto the new store before reading Ready
+oc rollout status deploy/parasol-evalhub -n "$NS" --timeout=300s
 oc wait evalhub/parasol-evalhub -n "$NS" --for=condition=Ready --timeout=300s
 
 oc port-forward -n "$NS" svc/parasol-evalhub 18443:8443 >/dev/null 2>&1 & PF=$!
@@ -29,7 +45,7 @@ ID=$(api -X POST "$URL" -d @- <<EOF | python3 -c 'import sys,json; print(json.lo
 {"name": "$NAME",
  "description": "Agent model $MODEL on the external MaaS: IFEval instruction following, 5 prompts",
  "tags": ["parasol", "agent-model"],
- "model": {"url": "${AGENT_ENDPOINT%/}", "name": "$MODEL", "auth": {"secret_ref": "maas-key-$MODEL"}},
+ "model": {"url": "${AGENT_ENDPOINT%/}", "name": "$MODEL", "auth": {"secret_ref": "maas-key-agent"}},
  "benchmarks": [{"id": "ifeval", "provider_id": "lm_evaluation_harness",
    "parameters": {"num_examples": 5, "num_few_shot": 0, "num_concurrent": 1, "tokenizer": "Qwen/Qwen3-14B"}}]}
 EOF

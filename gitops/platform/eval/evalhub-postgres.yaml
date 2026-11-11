@@ -1,0 +1,63 @@
+# PostgreSQL store of the EvalHub instance parasol-evalhub (evaluation jobs, providers, collections survive
+# a restart of the EvalHub pod). Credentials are generated at run time by scripts/evalhub-run.sh: Secret
+# evalhub-postgres (user/password) and Secret evalhub-db (db-url, the connection string the EvalHub CR reads).
+# Not Argo-wired, consistent with the other eval manifests.
+# Revert: oc delete -f gitops/platform/eval/evalhub-postgres.yaml (the PVC holds the job history)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: evalhub-postgres
+  namespace: parasol-eval
+  labels: {app: evalhub-postgres}
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests: {storage: 2Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: evalhub-postgres
+  namespace: parasol-eval
+  labels: {app: evalhub-postgres}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: evalhub-postgres}
+  template:
+    metadata:
+      labels: {app: evalhub-postgres}
+    spec:
+      containers:
+        - name: postgres
+          image: registry.redhat.io/rhel9/postgresql-16:latest
+          env:
+            - name: POSTGRESQL_USER
+              valueFrom: {secretKeyRef: {name: evalhub-postgres, key: user}}
+            - name: POSTGRESQL_PASSWORD
+              valueFrom: {secretKeyRef: {name: evalhub-postgres, key: password}}
+            - {name: POSTGRESQL_DATABASE, value: eval_hub}
+          ports:
+            - containerPort: 5432
+          readinessProbe:
+            exec: {command: ["/usr/libexec/check-container"]}
+          resources:
+            requests: {cpu: 50m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          volumeMounts:
+            - {name: data, mountPath: /var/lib/pgsql/data}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: evalhub-postgres}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: evalhub-postgres
+  namespace: parasol-eval
+  labels: {app: evalhub-postgres}
+spec:
+  selector: {app: evalhub-postgres}
+  ports:
+    - {name: postgres, port: 5432, targetPort: 5432}
