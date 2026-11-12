@@ -338,3 +338,32 @@ kind: RoleBinding
 metadata: {name: showroom-terminal-bypass-test, namespace: parasol-secured}
 roleRef: {apiGroup: rbac.authorization.k8s.io, kind: Role, name: showroom-terminal-bypass-test}
 subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+# reset.sh: restart a Kuadrant gateway whose policy plugin did not load (read its pods' logs, restart only these two).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: parasol-showroom-presenter-gateways
+rules:
+  - apiGroups: [""]
+    resources: [pods, pods/log]
+    verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [deployments]
+    resourceNames: [mcp-gateway-openshift-default, maas-default-gateway-openshift-default]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-gateways, namespace: gateway-system}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter-gateways}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: {name: showroom-terminal-gateways, namespace: openshift-ingress}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: parasol-showroom-presenter-gateways}
+subjects: [{kind: ServiceAccount, name: showroom-terminal, namespace: parasol-showroom}]

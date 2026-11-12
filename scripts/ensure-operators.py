@@ -60,6 +60,11 @@ def main():
         if have:
             hns = have["metadata"]["namespace"]
             print(f"already installed: {pkg} (Subscription in {hns}, {have.get('status', {}).get('installedCSV', 'installing')})")
+            cfg = want["spec"].get("config")
+            if cfg and have["spec"].get("config") != cfg:  # e.g. the operator's resources
+                oc("patch", "subscription", have["metadata"]["name"], "-n", hns, "--type", "merge",
+                   "-p", json.dumps({"spec": {"config": cfg}}))
+                print(f"  {pkg}: Subscription config set")
             watch[pkg] = (hns, have)
             continue
         csv = next((c for c in csvs if any(k.startswith(f"operators.coreos.com/{pkg}.")

@@ -21,3 +21,9 @@ spec:
   name: rhcl-operator
   source: redhat-operators
   sourceNamespace: openshift-marketplace
+  # The operator also serves the gateways' policy plugin; at the default 500Mi it is OOM-killed under this demo's
+  # policies, and a gateway pod that starts meanwhile answers 503 until restarted (scripts/reset.sh checks).
+  config:
+    resources:
+      requests: {cpu: 200m, memory: 512Mi}
+      limits: {cpu: "1", memory: 1Gi}

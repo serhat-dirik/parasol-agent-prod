@@ -25,3 +25,17 @@ fi
 for a in claims-agent fraud-agent; do
   "$(dirname "$0")/agent-switch.sh" $a on >/dev/null && echo " $a: enabled" || echo " $a: agent-switch.sh on failed"
 done
+# Gateways: each gateway pod fetches Kuadrant's policy plugin from the operator once, at start; the plugin fails
+# closed. A pod that started while the operator was down (cluster start, operator restart) gives up ("Retry limit
+# exceeded") and answers every request 503 (wasm_fail_stream) until it is restarted.
+oc rollout status deploy/kuadrant-operator-controller-manager -n kuadrant-system --timeout=180s >/dev/null 2>&1
+for gw in gateway-system/mcp-gateway openshift-ingress/maas-default-gateway; do
+  ns=${gw%/*} d=${gw#*/}-openshift-default
+  for p in $(oc get pods -n "$ns" -l gateway.networking.k8s.io/gateway-name="${gw#*/}" -o name); do
+    oc logs -n "$ns" "$p" 2>/dev/null | grep -q 'Retry limit exceeded for fetching data from remote' || continue
+    oc rollout restart deploy/"$d" -n "$ns" >/dev/null && oc rollout status deploy/"$d" -n "$ns" --timeout=180s >/dev/null \
+      && echo " gateway $d: policy plugin was not loaded, restarted" || echo " gateway $d: restart failed"
+    break
+  done
+done
+echo " gateways: policy plugin checked"
