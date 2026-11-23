@@ -41,14 +41,16 @@ if api "$URL?limit=50" | python3 -c "import sys,json; sys.exit(0 if any(j['name'
   echo "run $NAME already completed"; exit 0
 fi
 # lm-eval-harness on the OpenAI-compatible /v1/completions route; the tokenizer is the HF id of the
-# served model. ifeval reports under the "none" filter, so EvalHub records its metrics.
+# served model. ifeval reports under the "none" filter, so EvalHub records its metrics. The nested "parameters"
+# become lm-eval gen_kwargs: answers are capped at 256 tokens because the job's model proxy gives up after ~30 s.
 ID=$(api -X POST "$URL" -d @- <<EOF | python3 -c 'import sys,json; print(json.load(sys.stdin)["resource"]["id"])'
 {"name": "$NAME",
  "description": "Agent model $MODEL on the external MaaS: IFEval instruction following, 5 prompts",
  "tags": ["parasol", "agent-model"],
  "model": {"url": "${AGENT_ENDPOINT%/}", "name": "$MODEL", "auth": {"secret_ref": "maas-key-agent"}},
  "benchmarks": [{"id": "ifeval", "provider_id": "lm_evaluation_harness",
-   "parameters": {"num_examples": 5, "num_few_shot": 0, "num_concurrent": 1, "tokenizer": "Qwen/Qwen3-14B"}}]}
+   "parameters": {"num_examples": 5, "num_few_shot": 0, "num_concurrent": 1, "tokenizer": "Qwen/Qwen3-14B",
+                  "parameters": {"max_gen_toks": 256}}}]}
 EOF
 )
 echo "submitted $NAME ($ID)"
