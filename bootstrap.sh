@@ -71,6 +71,21 @@ YAML
 fi
 oc rollout status deploy/openshift-gitops-server -n openshift-gitops --timeout=600s
 oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-application-controller -n openshift-gitops >/dev/null
+# The operator default (2Gi) is too small for this demo on a cluster with OpenShift AI: the controller stalls at the
+# limit and every app shows Unknown/Missing. Raise it to 4Gi; the pod is deleted because a StatefulSet does not
+# replace a pod that is not Ready.
+lim=$(oc get argocd openshift-gitops -n openshift-gitops -o jsonpath='{.spec.controller.resources.limits.memory}')
+case "$lim" in *Gi) small=$([ "${lim%Gi}" -lt 4 ] 2>/dev/null && echo y);; *Mi) small=$([ "${lim%Mi}" -lt 4096 ] 2>/dev/null && echo y);; "") small=y;; *) small="";; esac
+if [ -n "$small" ]; then
+  echo "Argo CD application controller memory limit ${lim:-unset} -> 4Gi"
+  oc patch argocd openshift-gitops -n openshift-gitops --type merge \
+    -p '{"spec":{"controller":{"resources":{"limits":{"cpu":"2","memory":"4Gi"},"requests":{"cpu":"500m","memory":"2Gi"}}}}}'
+  for i in $(seq 1 20); do
+    [ "$(oc get sts openshift-gitops-application-controller -n openshift-gitops -o jsonpath='{.spec.template.spec.containers[0].resources.limits.memory}')" = 4Gi ] && break; sleep 5
+  done
+  oc delete pod openshift-gitops-application-controller-0 -n openshift-gitops --ignore-not-found
+  oc rollout status sts/openshift-gitops-application-controller -n openshift-gitops --timeout=300s
+fi
 
 log "2/11 Operators (each: already installed, or installing) and wait for all CSVs"
 kustomize build gitops/bootstrap/operators | scripts/ensure-operators.py \
