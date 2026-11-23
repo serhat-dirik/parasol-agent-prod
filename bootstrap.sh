@@ -75,7 +75,8 @@ oc adm policy add-cluster-role-to-user cluster-admin -z openshift-gitops-argocd-
 # limit and every app shows Unknown/Missing. Raise it to 4Gi; the pod is deleted because a StatefulSet does not
 # replace a pod that is not Ready.
 lim=$(oc get argocd openshift-gitops -n openshift-gitops -o jsonpath='{.spec.controller.resources.limits.memory}')
-case "$lim" in *Gi) small=$([ "${lim%Gi}" -lt 4 ] 2>/dev/null && echo y);; *Mi) small=$([ "${lim%Mi}" -lt 4096 ] 2>/dev/null && echo y);; "") small=y;; *) small="";; esac
+small=""
+case "$lim" in *Gi) [ "${lim%Gi}" -lt 4 ] 2>/dev/null && small=y;; *Mi) [ "${lim%Mi}" -lt 4096 ] 2>/dev/null && small=y;; "") small=y;; esac
 if [ -n "$small" ]; then
   echo "Argo CD application controller memory limit ${lim:-unset} -> 4Gi"
   oc patch argocd openshift-gitops -n openshift-gitops --type merge \
