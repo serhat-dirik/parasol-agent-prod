@@ -27,6 +27,14 @@ print(next((e["experiment_id"] for e in d.get("experiments",[]) if e.get("name")
 if [ -z "$id" ]; then
   created=$(run curl -sk "${hdr[@]}" -X POST -d "{\"name\":\"$NAME\"}" \
     "$BASE/mlflow/api/2.0/mlflow/experiments/create" 2>/dev/null)
+  # The collector's account may create experiments but not list or read them, so the search above comes back
+  # empty on a re-run. MLflow then refuses the duplicate: the experiment exists, and its id was checked when the
+  # first run created it.
+  case "$created" in *RESOURCE_ALREADY_EXISTS*)
+    echo "experiment '$NAME' already exists in workspace $NS"
+    oc -n observability delete pod "$POD" --ignore-not-found >/dev/null 2>&1 || true
+    exit 0;;
+  esac
   id=$(printf '%s' "$created" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("experiment_id",""))' 2>/dev/null || true)
   echo "created experiment '$NAME' id=$id in workspace $NS"
 else
