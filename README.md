@@ -26,6 +26,8 @@ The *same* portal, with the *same* assistant and the *same* model, runs twice on
   goes into and out of the model, model use has a **budget per tier**, every step is **recorded**, and releases are
   **evaluated and signed** before they run.
 
+<a href="showroom/content/modules/ROOT/assets/images/portals-side-by-side.png"><img src="showroom/content/modules/ROOT/assets/images/portals-side-by-side.png" alt="The same claim and request on both portals: unsecured, the assistant calls approve_payout and pays; secured, the claim is approved and no money moves"></a>
+
 Because the assistant and the model are identical, any difference you see comes from the platform.
 
 ![The two secured request paths: portal to guardrails proxy to OpenShift AI MaaS to the hosted model; portal to the MCP gateway, with the Keycloak token exchange, to the MCP servers](showroom/content/modules/ROOT/assets/images/arch-request-paths.png)
