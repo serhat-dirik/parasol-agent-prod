@@ -48,7 +48,7 @@ platform's own records prove it.
 
    <a href="showroom/content/modules/ROOT/assets/images/s1-explained.png"><img src="showroom/content/modules/ROOT/assets/images/s1-explained.png" alt="Identity on every tool call: the agent exchanges the person's token, the MCP gateway filters tools per person, a forced call is refused, a manager approves"></a>
 
-   <a href="showroom/content/modules/ROOT/assets/images/s1-colleague.mp4"><img src="showroom/content/modules/ROOT/assets/images/s1-colleague-poster.jpg" alt="Recording of showcase 1 on the unsecured and secured portals"></a>
+   https://github.com/user-attachments/assets/ce8ad929-cb2b-4663-973d-4717fdea2d7b
 
 2. **The customer's document.** An uploaded repair estimate is inflated tenfold and hides a note telling the
    assistant to pay. Unsecured, the model obeys and pays USD 84,000 on a denied claim. Secured, the MCP gateway's
@@ -57,7 +57,7 @@ platform's own records prove it.
 
    <a href="showroom/content/modules/ROOT/assets/images/s2-explained.png"><img src="showroom/content/modules/ROOT/assets/images/s2-explained.png" alt="A document is data, not a command: the MCP gateway sends tool results through NeMo Guardrails, the injected estimate is refused, the fraud check runs on its own"></a>
 
-   <a href="showroom/content/modules/ROOT/assets/images/s2-document.mp4"><img src="showroom/content/modules/ROOT/assets/images/s2-document-poster.jpg" alt="Recording of showcase 2 on the unsecured and secured portals"></a>
+   https://github.com/user-attachments/assets/b7eff91a-dd0c-4317-afff-926ee7e842a6
 
 3. **The confidential document.** An adjuster asks about plans affecting her team. Unsecured, the assistant reveals
    a managers-only HR plan. Secured, retrieval runs as her, so the plan is never retrieved; the database enforces the
@@ -65,7 +65,7 @@ platform's own records prove it.
 
    <a href="showroom/content/modules/ROOT/assets/images/s3-explained.png"><img src="showroom/content/modules/ROOT/assets/images/s3-explained.png" alt="Identity on the data: retrieval runs as the person, the knowledge server and PostgreSQL row-level security withhold restricted pages"></a>
 
-   <a href="showroom/content/modules/ROOT/assets/images/s3-confidential.mp4"><img src="showroom/content/modules/ROOT/assets/images/s3-confidential-poster.jpg" alt="Recording of showcase 3 on the unsecured and secured portals"></a>
+   https://github.com/user-attachments/assets/bea0cf84-ba0a-42c6-a0d5-88fc09132b5d
 
 **Operations**: how an operator watches agents and stops them.
 
