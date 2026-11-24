@@ -1,4 +1,4 @@
-= AI Agents: From localhost to Production (demo Showroom)
+= AI Agents in Production: Taking control of your agents (demo Showroom)
 
 A Red Hat Showroom guide for the Parasol claims assistant demo. It is built with
 https://antora.org[Antora] and served as a split-screen cockpit: the lab guide on the

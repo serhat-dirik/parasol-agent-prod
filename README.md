@@ -1,4 +1,4 @@
-# AI Agents: From localhost to Production
+# AI Agents in Production: Taking control of your agents
 
 Anyone can stand up an AI agent on a laptop in an afternoon. Running that same agent in production, where real
 people use it, feed it real documents and will try to abuse it, is where the hard problems live. This repository is

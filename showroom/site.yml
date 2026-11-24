@@ -1,6 +1,6 @@
 ---
 site:
-  title: 'AI Agents: From localhost to Production'
+  title: 'AI Agents in Production: Taking control of your agents'
   start_page: modules::index.adoc
 
 content:

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# One-shot, repeatable bootstrap of the "AI Agents: from localhost to production" demo on a fresh
+# One-shot, repeatable bootstrap of the "AI Agents in Production" demo on a fresh
 # OpenShift 4.22 cluster (with or without OpenShift AI, GitOps or Keycloak already installed: every
 # prerequisite is detected and installed only if missing). Idempotent: run it again after a failure or a WARN.
 # Expected total: 75-120 min on a bare cluster (operators 10-15, OpenShift AI components 15-40,
