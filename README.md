@@ -8,8 +8,7 @@ Everything is declared in Git and synced by Argo CD. The full, step-by-step demo
 install deploys next to the apps (also published at https://serhat-dirik.github.io/parasol-agent-prod/); this page is
 the summary and the install.
 
-<details open>
-<summary><b>Overview</b>: what the demo is</summary>
+## Overview
 
 ### The setup
 
@@ -44,19 +43,38 @@ platform's own records prove it.
 1. **The overstepping colleague.** An adjuster pushes the assistant to approve a payout she has no authority for. Unsecured, it
    pays. Secured, her assistant approves the claim (*Ready for payment*, no money moves); a manager releases the payment
    with one click, and the record names each person and the agent. Ends with the audit trail: one payout traced from the claim back to the signed, evaluated release.
+
+   <table><tr>
+   <td width="50%"><a href="showroom/content/modules/ROOT/assets/images/s1-explained.png"><img src="showroom/content/modules/ROOT/assets/images/s1-explained.png" alt="Identity on every tool call: the agent exchanges the person's token, the MCP gateway filters tools per person, a forced call is refused, a manager approves"></a></td>
+   <td width="50%"><a href="showroom/content/modules/ROOT/assets/images/s1-colleague.mp4"><img src="showroom/content/modules/ROOT/assets/images/s1-colleague-poster.jpg" alt="Recording of showcase 1 on the unsecured and secured portals"></a></td>
+   </tr><tr><td>How it works</td><td>&#9654; Recording, both portals (2:44)</td></tr></table>
+
 2. **The customer's document.** An uploaded repair estimate is inflated tenfold and hides a note telling the
    assistant to pay. Unsecured, the model obeys and pays USD 84,000 on a denied claim. Secured, the MCP gateway's
    guardrails refuse the document before the model reads it; the portal flags it as suspicious, runs the fraud
    check on its own (REVIEW) and leaves the claim to a person.
+
+   <table><tr>
+   <td width="50%"><a href="showroom/content/modules/ROOT/assets/images/s2-explained.png"><img src="showroom/content/modules/ROOT/assets/images/s2-explained.png" alt="A document is data, not a command: the MCP gateway sends tool results through NeMo Guardrails, the injected estimate is refused, the fraud check runs on its own"></a></td>
+   <td width="50%"><a href="showroom/content/modules/ROOT/assets/images/s2-document.mp4"><img src="showroom/content/modules/ROOT/assets/images/s2-document-poster.jpg" alt="Recording of showcase 2 on the unsecured and secured portals"></a></td>
+   </tr><tr><td>How it works</td><td>&#9654; Recording, both portals (2:41)</td></tr></table>
+
 3. **The confidential document.** An adjuster asks about plans affecting her team. Unsecured, the assistant reveals
    a managers-only HR plan. Secured, retrieval runs as her, so the plan is never retrieved; the database enforces the
    same rule a second time.
+
+   <table><tr>
+   <td width="50%"><a href="showroom/content/modules/ROOT/assets/images/s3-explained.png"><img src="showroom/content/modules/ROOT/assets/images/s3-explained.png" alt="Identity on the data: retrieval runs as the person, the knowledge server and PostgreSQL row-level security withhold restricted pages"></a></td>
+   <td width="50%"><a href="showroom/content/modules/ROOT/assets/images/s3-confidential.mp4"><img src="showroom/content/modules/ROOT/assets/images/s3-confidential-poster.jpg" alt="Recording of showcase 3 on the unsecured and secured portals"></a></td>
+   </tr><tr><td>How it works</td><td>&#9654; Recording, both portals (1:54)</td></tr></table>
 
 **Operations**: how an operator watches agents and stops them.
 
 4. **The night shift.** A contractor's account is scripted to drain the model budget at 3 a.m. Secured, off-topic
    requests cost nothing, only that tier is throttled, an alert names the person and the agent, and a kill switch
    acts in layers, from one user to every tool and model call on the cluster.
+
+   <a href="showroom/content/modules/ROOT/assets/images/s4-explained.png"><img src="showroom/content/modules/ROOT/assets/images/s4-explained.png" width="720" alt="You cannot stop what you cannot see: a trace per turn, a meter per person, an alert with a name, a kill switch in five levels"></a>
 
 **Agent delivery lifecycle**: how an agent, its prompt and its tools reach production.
 
@@ -66,13 +84,16 @@ platform's own records prove it.
 6. **The evaluation gate.** A shortened system prompt scores about as well as production with the platform on, but
    the release's evaluation sees what its model alone lost and refuses it. The gate runs as a TrustyAI EvalHub job
    (OpenShift AI Evaluations); every release is recorded as an MLflow agent version.
+
+   <a href="showroom/content/modules/ROOT/assets/images/s5-s6-release-pipeline.png"><img src="showroom/content/modules/ROOT/assets/images/s5-s6-release-pipeline.png" width="720" alt="The release pipeline for showcases 5 and 6: build, scan, evaluation gate, agent version, sign, Conforma, promote, Argo CD, admission"></a>
+
 7. **Third-party tools.** The partner bank's exchange-rate service runs in-house from the bank's image. Its new
    release, 1.4.3, carries a tool description that tells the assistant to pay. Unsecured, the team runs the bank's
    latest and the assistant pays. Secured, each version passes an onboarding pipeline first (the image is run and its
    tools checked against a reviewed pin, Parasol's tool names, NeMo Guardrails and contract calls); 1.4.3 is refused
    and never signed, the assistant keeps 1.4.2, and admission refuses the unsigned image.
 
-</details>
+   <a href="showroom/content/modules/ROOT/assets/images/s7-onboarding-pipeline.png"><img src="showroom/content/modules/ROOT/assets/images/s7-onboarding-pipeline.png" width="720" alt="The onboarding pipeline for showcase 7: resolve, scan, tool check, sign, promote; 1.4.3 is refused and admission denies the unsigned image"></a>
 
 <details>
 <summary><b>Quick install</b></summary>
